@@ -2,3 +2,4 @@ langchain-openai
 langchain
 langchain-core
 langchain-groq
+yfinance
