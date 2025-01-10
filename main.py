@@ -74,14 +74,16 @@ def calculate_macd(series, short_window=12, long_window=26, signal_window=9):
 
 def get_basic_stock_info(ticker: str) -> pd.DataFrame:
     """
-    Fetches basic stock information for a given ticker using Yahoo Finance API.
+    Provide a detailed overview of {company_stock} as of today, {today_date}, including:
 
-    Parameters:
-    ticker (str): The stock ticker symbol.
+    The company's sector and industry classification.
+    Key financial data such as current stock price, market capitalization, and recent price performance.
+    Information about the number of employees, enterprise value, and relevant financial ratios like P/E and forward P/E.
+    Highlights of the stock's recent trading activity, including its 52-week high/low and day-to-day changes.
+    Expected Output:
 
-    Returns:
-    pd.DataFrame: A data frame containing as much stock information as possible must include the Current Price, 200-day average, Market Cap.
-    """
+    A summary of the company's basic stock details, emphasizing its financial position, recent market activity, and any notable trends or points of interest.
+    Ensure the data is up-to-date and includes any relevant context """
     try:
         # Fetch stock information
         stock = yf.Ticker(ticker)
