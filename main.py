@@ -71,66 +71,58 @@ def calculate_macd(series, short_window=12, long_window=26, signal_window=9):
     signal = macd.ewm(span=signal_window, adjust=False).mean()
     return macd, signal
 
-
-def get_basic_stock_info(ticker: str) -> pd.DataFrame:
+def get_basic_stock_info(ticker: str) -> str:
     """
-    Provide a detailed overview of {company_stock} as of today, {today_date}, including:
+    Fetches and returns a detailed overview of a company's stock information for a given ticker symbol.
 
-    The company's sector and industry classification.
-    Key financial data such as current stock price, market capitalization, and recent price performance.
-    Information about the number of employees, enterprise value, and relevant financial ratios like P/E and forward P/E.
-    Highlights of the stock's recent trading activity, including its 52-week high/low and day-to-day changes.
-    Expected Output:
+    Parameters:
+    ticker (str): The stock ticker symbol.
 
-    A summary of the company's basic stock details, emphasizing its financial position, recent market activity, and any notable trends or points of interest.
-    Ensure the data is up-to-date and includes any relevant context """
+    Returns:
+    str: A formatted string containing the company's basic stock information or an error message.
+    """
     try:
         # Fetch stock information
         stock = yf.Ticker(ticker)
         info = stock.info
-        #st.write(info)
+
         if not info:
-            return pd.DataFrame({"Error": ["No data found for the given ticker"]})
+            return f"No data found for the ticker {ticker}."
 
-        # Construct the DataFrame with selected stock information
-        selected_data = {
-            'Name': info.get('longName', 'N/A'),
-            'Sector': info.get('sector', 'N/A'),
-            'Current Price': info.get('currentPrice', 'N/A'),
-            'Full Time Employees': info.get('fullTimeEmployees', 'N/A'),
-            'Market Cap': info.get('marketCap', 'N/A'),
-            'Previous Close': info.get('previousClose', 'N/A'),
-            #'Previous Market Day Low': info.get('regularMarketDayLow', 'N/A'),
-            #'Previous Market Day High': info.get('regularMarketDayHigh', 'N/A'),
-            #'Trailing PE': info.get('trailingPE', 'N/A'),
-            #'Forward PE': info.get('forwardPE', 'N/A'),
-            '200 Day Average': info.get('twoHundredDayAverage', 'N/A'),
-            'Enterprise To Ebitda': info.get('enterpriseToEbitda', 'N/A'),
-            '52 Week Change': info.get('52WeekChange', 'N/A'),
-            'Target High Price': info.get('targetHighPrice', 'N/A'),
-            'Target Low Price': info.get('targetLowPrice', 'N/A'),
-            'Target Mean Price': info.get('targetMeanPrice', 'N/A'),
-            'Target Median Price': info.get('targetMedianPrice', 'N/A'),
-            'Ebitda': info.get('ebitda', 'N/A'),
-            'Total Revenue': info.get('totalRevenue', 'N/A'),
-            'Revenue Per Share': info.get('revenuePerShare', 'N/A'),
-            'Operating Cashflow': info.get('operatingCashflow', 'N/A')
-        }
+        # Construct the detailed stock overview
+        return f"""
+        ** Stock Information for {ticker} as of {today_date}: **
+        
+        - ** Name: ** {info.get('longName', 'N/A')}
+        - ** Sector: ** {info.get('sector', 'N/A')}
+        - ** Industry: ** {info.get('industry', 'N/A')}
+        - ** Current Price: ** ${info.get('currentPrice', 'N/A')}
+        - ** Market Cap: ** {info.get('marketCap', 'N/A')}
+        - ** Full-Time Employees: ** {info.get('fullTimeEmployees', 'N/A')}
+        - ** Enterprise Value: ** {info.get('enterpriseValue', 'N/A')}
+        - ** 200-Day Average: ** ${info.get('twoHundredDayAverage', 'N/A')}
+        - ** 52-Week High/Low: ** ${info.get('fiftyTwoWeekHigh', 'N/A')} / ${info.get('fiftyTwoWeekLow', 'N/A')}
+        - ** Trailing P/E: ** {info.get('trailingPE', 'N/A')}
+        - ** Forward P/E: ** {info.get('forwardPE', 'N/A')}
+        - ** EBITDA: ** {info.get('ebitda', 'N/A')}
+        - ** Total Revenue: ** {info.get('totalRevenue', 'N/A')}
+        - ** Revenue Per Share: ** ${info.get('revenuePerShare', 'N/A')}
+        - ** Operating Cashflow: ** {info.get('operatingCashflow', 'N/A')}
 
-        # Convert the selected data to a DataFrame
-        selected_df = pd.DataFrame([selected_data])
+        ** ---Highlights:   **
+        - nRecent trading activity includes notable price fluctuations:
+          - ** Previous Close: ** ${info.get('previousClose', 'N/A')}
+          - ** Day Range (Low/High): ** ${info.get('regularMarketDayLow', 'N/A')} / ${info.get('regularMarketDayHigh', 'N/A')}
+        -  Analyst targets:
+          - ** Target High Price: ** ${info.get('targetHighPrice', 'N/A')}
+          - ** Target Low Price: ** ${info.get('targetLowPrice', 'N/A')}
+          - ** Target Mean Price: ** ${info.get('targetMeanPrice', 'N/A')}
 
-        # Flatten the full `info` dictionary into a DataFrame
-        #full_info_df = pd.DataFrame([info])
-
-        # Merge both DataFrames by aligning columns (avoiding duplication)
-        #combined_df = pd.concat([selected_df, full_info_df], axis=1)
-
-        return selected_df
-
+        This information reflects the most recent data available for {ticker}.
+        """
     except Exception as e:
-        # Handle exceptions and return an error DataFrame
-        return pd.DataFrame({"Error": [f"An error occurred: {str(e)}"]})
+        # Handle exceptions and return a formatted error message
+        return f"An error occurred while fetching data for {ticker}: {str(e)}"
 
 def get_technical_analysis(ticker: str, period: str = "1y") -> pd.DataFrame:
     stock = yf.Ticker(ticker)
