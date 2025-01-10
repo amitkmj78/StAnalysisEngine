@@ -2,4 +2,3 @@ langchain-openai
 langchain
 langchain-core
 langchain-groq
-langgraph-agents
