@@ -80,7 +80,7 @@ def get_basic_stock_info(ticker: str) -> pd.DataFrame:
     ticker (str): The stock ticker symbol.
 
     Returns:
-    pd.DataFrame: A DataFrame containing as much stock information as possible or an error message.
+    pd.DataFrame: A data frame containing as much stock information as possible must include the Current Price, 200-day average, Market Cap.
     """
     try:
         # Fetch stock information
