@@ -124,7 +124,7 @@ else:
 
 # Initialize agents with tools
 financial_analysis_agent= initialize_agent(
-    tools=[financial_analysis_tool, technical_analysis_tool, news_tool,tavily_search_tool],
+    tools=[financial_analysis_tool,tavily_search_tool],
     llm=llm,
     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
     verbose=True,
@@ -222,7 +222,7 @@ if analyze_button:
              response = research_agent.run(f"Collect recent news and sentiments for {query}.",callbacks=[st_cb])
              st.success( "Reaserach Analysis Complete")
         elif analysis_type=="Financial Analysis":
-             response = filings_analysis_agent.run(f"Perform financial analysis for {query}.",callbacks=[st_cb])
+             response = financial_analysis_agent.run(f"Perform financial analysis for {query}.",callbacks=[st_cb])
              st.success( "Financial  Complete")
         elif analysis_type=="News Analysis":
              response = New_analysis_agent.run(f"Perform News  analysis for {query}.",callbacks=[st_cb])
