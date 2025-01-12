@@ -40,7 +40,7 @@ llmollama = ChatGroq(model_name="llama3-70b-8192", groq_api_key=GROQ_API_KEY)
 
 # API Key setup (replace with actual API key or use environment variables)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-tavily_api_key=os.getenv("tavily_api_key")
+TAVILY_API_KEY=os.getenv("TAVILY_API_KEY")
 
 # Initialize OpenAI LLM
 #llmopenai = ChatOpenAI( openai_api_key=OPENAI_API_KEY)
@@ -57,7 +57,7 @@ def tavily_search(query: str) -> str:
     """
     Perform a Tavily search for the given query.
     """
-    search = TavilySearchResults(api_key=tavily_api_key)
+    search = TavilySearchResults(api_key=TAVILY_API_KEY)
     return search.run(query)
 
 tavily_search_tool = Tool(
