@@ -196,7 +196,7 @@ query = st.sidebar.text_area("Enter stock ticker (e.g., AAPL):", "AAPL")
 
 analysis_type = st.sidebar.selectbox(
     "Select Analysis Type",
-    ["Basic Info", "Technical Analysis","Financial Analysis", "Reaserach Analysis","Filings Analysis","Recommend", "News"]
+    ["Basic Info", "Technical Analysis","Financial Analysis", "Reaserach Analysis","Filings Analysis","Recommend", "News Analysis"]
 )
 analyze_button = st.sidebar.button("Analyze")
 
@@ -229,7 +229,7 @@ if analyze_button:
              response = filings_analysis_agent.run(f"Perform financial analysis for {query}.")
              st.success( "Financial  Complete")
              #st.markdown(response)
-        elif analysis_type=="News":
+        elif analysis_type=="News Analysis":
              response = New_analysis_agent.run(f"Perform News  analysis for {query}.")
              st.success( "New Analysis  Complete")
              #st.markdown(response)
