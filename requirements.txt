@@ -6,7 +6,7 @@ langgraph
 matplotlib
 mplfinance
 plotly
-sklearn
+scikit-learn
 dotenv
 langchain_community
 numpy
