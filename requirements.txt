@@ -11,3 +11,4 @@ python-dotenv
 langchain_community
 numpy
 datetime
+yfinance
