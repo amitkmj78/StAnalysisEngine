@@ -6,3 +6,4 @@ yfinance
 langchain_community
 plotly
 pandas
+matplotlib
