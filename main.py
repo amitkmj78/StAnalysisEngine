@@ -213,6 +213,66 @@ def predict_next_5_days(ticker, period, days_ahead=10):
     st.write("Predicted Prices:", predictions)
     return future_dates, predictions
 
+def predict_next_30_days(ticker, period, days_ahead=30):
+    # Retrieve historical data.
+    data = get_stock_price_chart(ticker, period)
+    st.write("Historical Data:", data)
+    # Require at least some historical data (adjust as needed)
+    if data.empty or len(data) < 11:
+        return None, None
+
+    # Create a copy and engineer features.
+    df = data.copy()
+    df["Index"] = np.arange(len(df))
+    df["Lag1"] = df["Close"].shift(1)
+    df["MA3"] = df["Close"].rolling(window=3).mean()
+    df["Return"] = df["Close"].pct_change()
+    df = df.dropna()  # Remove rows with NaN values (from lag and rolling features)
+
+    # Define features and target.
+    features = ["Index", "Lag1", "MA3", "Return"]
+    X = df[features].values
+    y = df["Close"].values
+
+    # Fit a Gradient Boosting Regressor.
+    from sklearn.ensemble import GradientBoostingRegressor
+    model = GradientBoostingRegressor(n_estimators=300, learning_rate=0.05, max_depth=4, random_state=42)
+    model.fit(X, y)
+
+    # Retrieve the last known feature values.
+    last_index = df["Index"].iloc[-1]
+    last_close = df["Close"].iloc[-1]
+    last_MA3 = df["MA3"].iloc[-1]
+    last_return = df["Return"].iloc[-1]
+
+    predictions = []
+    # Iteratively predict for each day.
+    for i in range(1, days_ahead + 1):
+        new_index = last_index + i
+        # Construct the feature vector for the next day.
+        X_new = np.array([[new_index, last_close, last_MA3, last_return]])
+        pred = model.predict(X_new)[0]
+        predictions.append(pred)
+        
+        # Update features for the next iteration.
+        # Calculate new return based on the change from last_close to the predicted value.
+        new_return = (pred - last_close) / last_close
+        # Update the 3-day moving average in a simple manner.
+        new_MA3 = (last_MA3 + pred) / 2
+        
+        # Update variables for the next iteration.
+        last_close = pred
+        last_return = new_return
+        last_MA3 = new_MA3
+
+    # Generate future trading dates using business day frequency.
+    last_date = data.index[-1]
+    future_dates = pd.bdate_range(start=last_date + datetime.timedelta(days=1), periods=days_ahead)
+
+    st.write("Predicted Prices:", predictions)
+    return future_dates, predictions
+
+
 
 # Sentiment analysis functions.
 # Perform sentiment analysis using Tavily Search.
@@ -522,8 +582,8 @@ def ShowData():
                 else:
                     st.warning("Not enough data to generate last 30 days predictions comparison.")
                 
-                ### Graph 5: Predicted Next 5 Days Prices
-                future_dates, future_predictions = predict_next_5_days(query, timeframe_mapping[timeframe], days_ahead=5)
+                ### Graph 5: Predicted Next 30 Days Prices
+                future_dates, future_predictions = predict_next_30_days(query, timeframe_mapping[timeframe], days_ahead=30)
                 if future_dates is not None and future_predictions is not None:
                     fig5 = go.Figure()
                     fig5.add_trace(go.Scatter(
@@ -535,7 +595,7 @@ def ShowData():
                         name="Predicted Price"
                     ))
                     fig5.update_layout(
-                        title=f"{query} Predicted Prices for Next 5 Days",
+                        title=f"{query} Predicted Prices for Next 30 Days",
                         xaxis_title="Date",
                         yaxis_title="Predicted Price (USD)",
                         template="plotly_white",
@@ -543,7 +603,7 @@ def ShowData():
                     )
                     st.plotly_chart(fig5, use_container_width=True)
                 else:
-                    st.warning("Not enough data to predict the next 5 days' prices.")
+                    st.warning("Not enough data to predict the next 30 days' prices.")
             else:
                 st.warning("Not enough data to generate last 30 days predictions comparison.")
     else:
