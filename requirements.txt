@@ -7,3 +7,4 @@ langchain_community
 plotly
 pandas
 matplotlib
+sklearn
