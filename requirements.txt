@@ -7,7 +7,7 @@ matplotlib
 mplfinance
 plotly
 scikit-learn
-dotenv
+python-dotenv
 langchain_community
 numpy
 datetime
