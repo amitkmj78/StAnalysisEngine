@@ -2,9 +2,12 @@ langchain-openai
 langchain
 langchain-core
 langchain-groq
-yfinance
-langchain_community
-plotly
-pandas
+langgraph
 matplotlib
+mplfinance
+plotly
 sklearn
+dotenv
+langchain_community
+numpy
+datetime
