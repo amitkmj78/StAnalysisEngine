@@ -57,6 +57,7 @@ analysis_type = st.sidebar.selectbox("Select Analysis Type",
     ["Research Analysis", "Basic Info", "Technical Analysis", "Financial Analysis", "Filings Analysis", 
      "News Analysis", "Recommend", "Real-Time Price", "Sentiment Analysis"], key="analysis_type")
 timeframe = st.sidebar.radio("Select Timeframe:", list({
+   
     "1 Week": "5d",
     "30 Days": "1mo",
     "6 Month": "6mo",
@@ -205,7 +206,7 @@ def predict_next_30_days(ticker, period, days_ahead=30):
 
     last_date = data.index[-1]
     future_dates = pd.bdate_range(start=last_date + datetime.timedelta(days=1), periods=days_ahead)
-    st.write("Predicted Prices:", predictions)
+    #st.write("Predicted Prices:", predictions)
     prediction_df = pd.DataFrame({
         "Date": future_dates,
         "Predicted Price": predictions
@@ -306,7 +307,6 @@ agents = {
 }
 # Updated timeframe mapping.
 timeframe_mapping = {
-    "1 Day": "1d",
     "1 Week": "5d",
     "30 Days": "1mo",
     "6 Month": "6mo",
@@ -369,6 +369,7 @@ def ShowData():
                 adjusted_predicted, sentiment_scores = adjust_prediction_with_sentiment(predicted_price, query)
                 display_price = adjusted_predicted
                 sentiment_str = f"\nSentiment: {sentiment_scores['compound']:.2f}"
+                st.write(sentiment_str)
             else:
                 display_price = predicted_price
                 sentiment_str = ""
