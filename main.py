@@ -496,7 +496,7 @@ def ShowData():
                         name="Predicted Price"
                     ))
                     fig5.update_layout(
-                        title=f"{query} Predicted Prices for Next {prediction_days} Days",
+                        title=f"{query} GEN AI Based Predicted Prices for Next {prediction_days} Days",
                         xaxis_title="Date",
                         yaxis_title="Predicted Price (USD)",
                         template="plotly_white",
