@@ -414,7 +414,7 @@ def ShowData():
             )
             st.plotly_chart(fig2, use_container_width=True)
             st.metric(label=f"Last Day Price of {query}", value=f"${current_price}")
-            st.metric(label="Predicted Next Price", value=f"${display_price:.2f}")
+            st.metric(label="Without AI Predicted Next Price", value=f"${display_price:.2f}")
         else:
             st.warning("Not enough data to predict the next stock price.")
         
