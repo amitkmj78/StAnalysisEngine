@@ -57,7 +57,6 @@ analysis_type = st.sidebar.selectbox("Select Analysis Type",
     ["Research Analysis", "Basic Info", "Technical Analysis", "Financial Analysis", "Filings Analysis", 
      "News Analysis", "Recommend", "Real-Time Price", "Sentiment Analysis"], key="analysis_type")
 timeframe = st.sidebar.radio("Select Timeframe:", list({
-    "1 Day": "1d",
     "1 Week": "5d",
     "30 Days": "1mo",
     "6 Month": "6mo",
