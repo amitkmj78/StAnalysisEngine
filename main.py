@@ -133,7 +133,7 @@ def get_earnings_impact(ticker):
         handle_parsing_errors=True
     )
     result = research_agent.run(prompt)
-    st.write("Research Agent Output:", result)
+    st.write("Research GEN AI Agent Output:", result)
     match = re.search(r"(-?\d+\.?\d*)", result)
     if match:
         try:
@@ -368,7 +368,7 @@ def ShowData():
             if include_sentiment:
                 adjusted_predicted, sentiment_scores = adjust_prediction_with_sentiment(predicted_price, query)
                 display_price = adjusted_predicted
-                sentiment_str = f"\nSentiment: {sentiment_scores['compound']:.2f}"
+                sentiment_str = f"\n AI Based Sentiment: {sentiment_scores['compound']:.2f}"
                 st.write(sentiment_str)
             else:
                 display_price = predicted_price
