@@ -57,11 +57,10 @@ analysis_type = st.sidebar.selectbox("Select AI Agent Type",
     ["Research Analysis", "Basic Info", "Technical Analysis", "Financial Analysis", "Filings Analysis", 
      "News Analysis", "Recommend", "Real-Time Price", "Sentiment Analysis"], key="analysis_type")
 timeframe = st.sidebar.radio("Select Timeframe:", list({
-   
+    "1 Year": "1y",
     "1 Week": "5d",
     "30 Days": "1mo",
     "6 Month": "6mo",
-    "1 Year": "1y",
     "5 Year": "5y"
 }.keys()), key="timeframe")
 chart_type = st.sidebar.selectbox("Select Chart Type:", ["Line Chart", "Candlestick Chart"], key="chart_type")
