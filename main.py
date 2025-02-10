@@ -53,7 +53,7 @@ prediction_days = st.sidebar.number_input("Prediction Days", min_value=1, max_va
                                             help="Select the number of future trading days to predict.", key="pred_days")
 # Earnings impact checkbox in sidebar.
 include_earnings_impact = st.sidebar.checkbox("Include Earnings Impact", value=True, key="earnings_checkbox")
-analysis_type = st.sidebar.selectbox("Select Analysis Type", 
+analysis_type = st.sidebar.selectbox("Select AI Agent Type", 
     ["Research Analysis", "Basic Info", "Technical Analysis", "Financial Analysis", "Filings Analysis", 
      "News Analysis", "Recommend", "Real-Time Price", "Sentiment Analysis"], key="analysis_type")
 timeframe = st.sidebar.radio("Select Timeframe:", list({
@@ -133,7 +133,7 @@ def get_earnings_impact(ticker):
         handle_parsing_errors=True
     )
     result = research_agent.run(prompt)
-    st.write("Research GEN AI Agent Output:", result)
+    #st.info("Research GEN AI Agent Output:  {result}")
     match = re.search(r"(-?\d+\.?\d*)", result)
     if match:
         try:
@@ -201,7 +201,7 @@ def predict_next_30_days(ticker, period, days_ahead=30):
     if include_earnings_impact:
         earnings_impact = get_earnings_impact(ticker)
         factor_earnings = 0.05  # Adjust as needed.
-        st.info(f"Earnings Impact for {ticker}: {earnings_impact}")
+        st.info(f"Reaserch Agent AI Earnings Impact for {ticker}: {earnings_impact}")
         predictions = [p * (1 + factor_earnings * earnings_impact) for p in predictions]
 
     last_date = data.index[-1]
@@ -230,6 +230,8 @@ def adjust_prediction_with_sentiment(prediction, ticker):
     factor = 0.02
     adjusted = prediction * (1 + factor * compound)
     return adjusted, scores
+
+
 # Define tools.
 tools = {
     "News Summary": Tool(
@@ -369,7 +371,7 @@ def ShowData():
                 adjusted_predicted, sentiment_scores = adjust_prediction_with_sentiment(predicted_price, query)
                 display_price = adjusted_predicted
                 sentiment_str = f"\n AI Based Sentiment Score Based on MKT News: {sentiment_scores['compound']:.2f}"
-                st.write(sentiment_str)
+                st.info(sentiment_str)
             else:
                 display_price = predicted_price
                 sentiment_str = ""
@@ -404,7 +406,7 @@ def ShowData():
         if predicted_price is not None:
             fig2 = go.Figure(data=[
                 go.Bar(name="Last Day Price", x=["Last Day Price"], y=[current_price], marker_color="#5DE2E7"),
-                go.Bar(name="Predicted Next Price", x=["Predicted Next Price"], y=[display_price], marker_color="#4AFC5C")
+                go.Bar(name="AI Predicted Next Price", x=["Predicted Next Price"], y=[display_price], marker_color="#4AFC5C")
             ])
             fig2.update_layout(
                 title=f"{query} Price Comparison",
@@ -496,7 +498,7 @@ def ShowData():
                         name="Predicted Price"
                     ))
                     fig5.update_layout(
-                        title=f"{query} GEN AI AGent Based Predicted Prices for Next {prediction_days} Days",
+                        title=f"{query} GEN AI Agent Based Predicted Prices for Next {prediction_days} Days",
                         xaxis_title="Date",
                         yaxis_title="Predicted Price (USD)",
                         template="plotly_white",
