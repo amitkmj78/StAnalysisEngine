@@ -52,7 +52,7 @@ query = st.sidebar.text_input("Enter Stock ticker (e.g., AAPL):", value="AAPL", 
 prediction_days = st.sidebar.number_input("Prediction Days", min_value=1, max_value=365, value=5, step=1,
                                             help="Select the number of future trading days to predict.", key="pred_days")
 # Earnings impact checkbox in sidebar.
-include_earnings_impact = st.sidebar.checkbox("Include Earnings Impact", value=True, key="earnings_checkbox")
+include_earnings_impact = st.sidebar.checkbox("Include Earnings Impact using AI Agent(Reaserch)", value=True, key="earnings_checkbox")
 analysis_type = st.sidebar.selectbox("Select AI Agent Type", 
     ["Research Analysis", "Basic Info", "Technical Analysis", "Financial Analysis", "Filings Analysis", 
      "News Analysis", "Recommend", "Real-Time Price", "Sentiment Analysis"], key="analysis_type")
@@ -309,10 +309,10 @@ agents = {
 }
 # Updated timeframe mapping.
 timeframe_mapping = {
+    "1 Year": "1y",
     "1 Week": "5d",
     "30 Days": "1mo",
     "6 Month": "6mo",
-    "1 Year": "1y",
     "5 Year": "5y"
 }
 
