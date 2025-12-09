@@ -8,28 +8,25 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import GradientBoostingRegressor
 from dotenv import load_dotenv
-from langchain.chat_models import ChatOpenAI
+
+from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
-from langchain.memory import ConversationBufferMemory
-from langchain.agents import Tool, initialize_agent, AgentType
-from langchain.callbacks import StreamlitCallbackHandler
 from langchain_community.tools.tavily_search import TavilySearchResults
 
-# Importing agent functions (adjust paths as needed)
+# --- Import your agent/helper functions (these can stay as-is) ---
 from Agent.newAgent import news_summary
 from Agent.basicAgent import get_basic_stock_info
 from Agent.technicalAgent import get_technical_analysis
 from Agent.filingAgent import filings_analysis
 from Agent.financialAgent import financial_analysis
-from Agent.recommendAgent import recommend
+from Agent.recommendAgent import recommend  # if you want to keep using it
 from Agent.reasearchAgent import research
+
 
 # Load environment variables
 load_dotenv()
 
 # Set up conversation memory
-memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-
 # Display today's date
 st.info(f"Today's Date: {datetime.date.today()}")
 
