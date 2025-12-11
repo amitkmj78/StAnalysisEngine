@@ -1251,7 +1251,7 @@ with tabs[8]:
                 if st.button("Delete Selected Trades", type="primary"):
                     for _, row in rows_to_delete.iterrows():
                         trade_id = row["Trade_ID"]
-                        delete_row_by_id("portfolio_positions", "Strategy_ID", trade_id)  # <-- ADJUST TABLE NAME HERE
+                        delete_row_by_id("portfolio_positions", "Trade_ID", trade_id)  # <-- ADJUST TABLE NAME HERE
                     st.success(f"Deleted {len(rows_to_delete)} trade(s).")
                     st.experimental_rerun()
 
