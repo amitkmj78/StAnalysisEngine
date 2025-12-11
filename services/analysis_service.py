@@ -82,3 +82,46 @@ def get_analysis(analysis_type: str, ticker: str, research_prompt: str | None = 
         return f"Real-time price for {ticker}: {price if price is not None else 'N/A'}"
 
     return f"Unknown analysis type: {analysis_type}"
+# ================= ANALYST FORECAST FALLBACK ================= #
+import yfinance as yf
+
+import yfinance as yf
+
+
+def get_analyst_rating_summary(ticker: str) -> dict | None:
+    """
+    Returns analyst sentiment summary using Yahoo Finance:
+    - recommendationKey → buy/hold/sell
+    - numberOfAnalystOpinions → sample size
+    - targetMeanPrice → price target
+    - buyPercent → % buy ratings (estimated)
+    """
+    try:
+        info = yf.Ticker(ticker).info
+
+        if not info or "recommendationKey" not in info:
+            return None
+
+        recommendation = info.get("recommendationKey", "N/A").title()
+        num_analysts = info.get("numberOfAnalystOpinions", 0)
+
+        # Estimate Buy % from Analyst breakdown (if exists)
+        buy_pct = info.get("recommendationMean", None)
+        if buy_pct:
+            # Convert Yahoo rec scale (1 Strong Buy → 5 Strong Sell)
+            buy_pct = max(0, min(100, (5 - buy_pct) / 4 * 100))
+        else:
+            buy_pct = 50.0  # neutral fallback
+
+        return {
+            "consensus": recommendation,      # "Buy", "Hold", "Sell"
+            "analyst_count": num_analysts,
+            "buy_pct": round(buy_pct, 1),
+            "target_mean": info.get("targetMeanPrice"),
+            "target_high": info.get("targetHighPrice"),
+            "target_low": info.get("targetLowPrice"),
+            "current_price": info.get("currentPrice"),
+        }
+
+    except Exception:
+        return None

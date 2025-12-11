@@ -1,0 +1,813 @@
+Trade_ID,Ticker,Direction,Strategy_Type,Created_At,Entry_Low,Entry_High,Stop_Loss,Target,Context,Risk_Profile,Risk_Factor,Status,Entry_Price,Entry_Date,Exit_Price,Exit_Date,Max_Runup_Pct,Max_Drawdown_Pct,Realized_PnL_Pct,Days_In_Trade
+AVGO_1765438790_114,AVGO,LONG,Index Screener (Auto),2025-12-11 02:39:50.286048,397.87,408.77,372.7,940.04,"
+📌 **AI-Enhanced Trade Idea — AVGO**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$397.87 – $408.77**
+
+### 🛑 Stop Loss (Risk Control)
+- **$372.7**
+
+### 🎯 Profit Target (7–45 days)
+- **$940.04**
+(Expected return: ~127.6%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **16.78**
+- Support: **$339.98**
+- Resistance: **$412.97**
+- EMA20 / EMA50 / EMA200:  
+  **380.89 / 362.30 / 312.44**
+
+
+### 📝 Additional Context
+1Y Return 127.63%, 6M Return 61.93%, Score 78.38",Balanced,5,OPEN,,,,,,,,
+GOOGL_1765438790_572,GOOGL,LONG,Index Screener (Auto),2025-12-11 02:39:50.520374,311.54,317.8,297.08,526.81,"
+📌 **AI-Enhanced Trade Idea — GOOGL**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$311.54 – $317.8**
+
+### 🛑 Stop Loss (Risk Control)
+- **$297.08**
+
+### 🎯 Profit Target (7–45 days)
+- **$526.81**
+(Expected return: ~64.5%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **9.64**
+- Support: **$274.39**
+- Resistance: **$323.23**
+- EMA20 / EMA50 / EMA200:  
+  **306.90 / 283.72 / 228.96**
+
+
+### 📝 Additional Context
+1Y Return 64.52%, 6M Return 82.53%, Score 59.13",Balanced,5,OPEN,,,,,,,,
+GOOG_1765438790_876,GOOG,LONG,Index Screener (Auto),2025-12-11 02:39:50.680838,312.38,318.61,298.01,525.86,"
+📌 **AI-Enhanced Trade Idea — GOOG**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$312.38 – $318.61**
+
+### 🛑 Stop Loss (Risk Control)
+- **$298.01**
+
+### 🎯 Profit Target (7–45 days)
+- **$525.86**
+(Expected return: ~63.8%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **9.58**
+- Support: **$274.99**
+- Resistance: **$323.43**
+- EMA20 / EMA50 / EMA200:  
+  **307.44 / 284.28 / 229.83**
+
+
+### 📝 Additional Context
+1Y Return 63.82%, 6M Return 81.67%, Score 58.95",Balanced,5,OPEN,,,,,,,,
+JPM_1765438790_419,JPM,LONG,Index Screener (Auto),2025-12-11 02:39:50.899199,303.31,308.22,291.98,403.27,"
+📌 **AI-Enhanced Trade Idea — JPM**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$303.31 – $308.22**
+
+### 🛑 Stop Loss (Risk Control)
+- **$291.98**
+
+### 🎯 Profit Target (7–45 days)
+- **$403.27**
+(Expected return: ~30.0%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **7.55**
+- Support: **$298.00**
+- Resistance: **$320.41**
+- EMA20 / EMA50 / EMA200:  
+  **308.38 / 306.20 / 291.17**
+
+
+### 📝 Additional Context
+1Y Return 30.04%, 6M Return 16.73%, Score 46.85",Balanced,5,OPEN,,,,,,,,
+TSLA_1765438791_622,TSLA,LONG,Index Screener (Auto),2025-12-11 02:39:51.063089,437.11,447.47,413.21,479.8,"
+📌 **AI-Enhanced Trade Idea — TSLA**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$437.11 – $447.47**
+
+### 🛑 Stop Loss (Risk Control)
+- **$413.21**
+
+### 🎯 Profit Target (7–45 days)
+- **$479.8**
+(Expected return: ~6.3%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **15.93**
+- Support: **$391.09**
+- Resistance: **$468.37**
+- EMA20 / EMA50 / EMA200:  
+  **434.81 / 425.46 / 376.97**
+
+
+### 📝 Additional Context
+1Y Return 6.28%, 6M Return 41.47%, Score 43.4",Balanced,5,OPEN,,,,,,,,
+LLY_1765438791_425,LLY,LONG,Index Screener (Auto),2025-12-11 02:39:51.301670,968.88,986.76,927.61,1249.6,"
+📌 **AI-Enhanced Trade Idea — LLY**
+
+### 🔍 Trend Assessment
+**Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$968.88 – $986.76**
+
+### 🛑 Stop Loss (Risk Control)
+- **$927.61**
+
+### 🎯 Profit Target (7–45 days)
+- **$1249.6**
+(Expected return: ~25.8%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **27.51**
+- Support: **$812.34**
+- Resistance: **$1109.94**
+- EMA20 / EMA50 / EMA200:  
+  **1009.45 / 942.06 / 838.48**
+
+
+### 📝 Additional Context
+1Y Return 25.76%, 6M Return 22.81%, Score 42.04",Balanced,5,OPEN,,,,,,,,
+NVDA_1765438791_597,NVDA,LONG,Index Screener (Auto),2025-12-11 02:39:51.491167,177.84,182.13,167.93,242.52,"
+📌 **AI-Enhanced Trade Idea — NVDA**
+
+### 🔍 Trend Assessment
+**Sideways / Above LT Trend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$177.84 – $182.13**
+
+### 🛑 Stop Loss (Risk Control)
+- **$167.93**
+
+### 🎯 Profit Target (7–45 days)
+- **$242.52**
+(Expected return: ~32.0%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **6.61**
+- Support: **$176.99**
+- Resistance: **$207.03**
+- EMA20 / EMA50 / EMA200:  
+  **184.01 / 184.37 / 169.64**
+
+
+### 📝 Additional Context
+1Y Return 31.96%, 6M Return 26.76%, Score 41.59",Balanced,5,OPEN,,,,,,,,
+JNJ_1765438791_742,JNJ,LONG,Index Screener (Auto),2025-12-11 02:39:51.776333,203.61,205.73,198.72,299.81,"
+📌 **AI-Enhanced Trade Idea — JNJ**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$203.61 – $205.73**
+
+### 🛑 Stop Loss (Risk Control)
+- **$198.72**
+
+### 🎯 Profit Target (7–45 days)
+- **$299.81**
+(Expected return: ~45.2%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **3.26**
+- Support: **$184.83**
+- Resistance: **$207.56**
+- EMA20 / EMA50 / EMA200:  
+  **200.95 / 193.93 / 174.48**
+
+
+### 📝 Additional Context
+1Y Return 45.16%, 6M Return 33.65%, Score 40.65",Balanced,5,OPEN,,,,,,,,
+AAPL_1765438792_479,AAPL,LONG,Index Screener (Auto),2025-12-11 02:39:52.063202,274.23,277.51,266.64,316.72,"
+📌 **AI-Enhanced Trade Idea — AAPL**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$274.23 – $277.51**
+
+### 🛑 Stop Loss (Risk Control)
+- **$266.64**
+
+### 🎯 Profit Target (7–45 days)
+- **$316.72**
+(Expected return: ~13.6%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **5.06**
+- Support: **$266.25**
+- Resistance: **$286.19**
+- EMA20 / EMA50 / EMA200:  
+  **276.07 / 266.50 / 234.41**
+
+
+### 📝 Additional Context
+1Y Return 13.61%, 6M Return 40.24%, Score 39.43",Balanced,5,OPEN,,,,,,,,
+WMT_1765438792_420,WMT,LONG,Index Screener (Auto),2025-12-11 02:39:52.320535,110.68,112.49,106.51,136.21,"
+📌 **AI-Enhanced Trade Idea — WMT**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$110.68 – $112.49**
+
+### 🛑 Stop Loss (Risk Control)
+- **$106.51**
+
+### 🎯 Profit Target (7–45 days)
+- **$136.21**
+(Expected return: ~20.4%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **2.78**
+- Support: **$100.61**
+- Resistance: **$115.11**
+- EMA20 / EMA50 / EMA200:  
+  **109.82 / 106.39 / 100.91**
+
+
+### 📝 Additional Context
+1Y Return 20.35%, 6M Return 19.63%, Score 34.31",Balanced,5,OPEN,,,,,,,,
+AVGO_1765438839_368,AVGO,LONG,Index Screener (Auto),2025-12-11 02:40:39.384766,397.87,408.77,372.7,940.04,"
+📌 **AI-Enhanced Trade Idea — AVGO**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$397.87 – $408.77**
+
+### 🛑 Stop Loss (Risk Control)
+- **$372.7**
+
+### 🎯 Profit Target (7–45 days)
+- **$940.04**
+(Expected return: ~127.6%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **16.78**
+- Support: **$339.98**
+- Resistance: **$412.97**
+- EMA20 / EMA50 / EMA200:  
+  **380.89 / 362.30 / 312.44**
+
+
+### 📝 Additional Context
+1Y Return 127.63%, 6M Return 61.93%, Score 78.38",Balanced,1,OPEN,,,,,,,,
+GOOGL_1765438839_843,GOOGL,LONG,Index Screener (Auto),2025-12-11 02:40:39.601317,311.54,317.8,297.08,526.81,"
+📌 **AI-Enhanced Trade Idea — GOOGL**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$311.54 – $317.8**
+
+### 🛑 Stop Loss (Risk Control)
+- **$297.08**
+
+### 🎯 Profit Target (7–45 days)
+- **$526.81**
+(Expected return: ~64.5%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **9.64**
+- Support: **$274.39**
+- Resistance: **$323.23**
+- EMA20 / EMA50 / EMA200:  
+  **306.90 / 283.72 / 228.96**
+
+
+### 📝 Additional Context
+1Y Return 64.52%, 6M Return 82.53%, Score 59.13",Balanced,1,OPEN,,,,,,,,
+GOOG_1765438839_508,GOOG,LONG,Index Screener (Auto),2025-12-11 02:40:39.768668,312.38,318.61,298.01,525.86,"
+📌 **AI-Enhanced Trade Idea — GOOG**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$312.38 – $318.61**
+
+### 🛑 Stop Loss (Risk Control)
+- **$298.01**
+
+### 🎯 Profit Target (7–45 days)
+- **$525.86**
+(Expected return: ~63.8%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **9.58**
+- Support: **$274.99**
+- Resistance: **$323.43**
+- EMA20 / EMA50 / EMA200:  
+  **307.44 / 284.28 / 229.83**
+
+
+### 📝 Additional Context
+1Y Return 63.82%, 6M Return 81.67%, Score 58.95",Balanced,1,OPEN,,,,,,,,
+JPM_1765438839_313,JPM,LONG,Index Screener (Auto),2025-12-11 02:40:39.993592,303.31,308.22,291.98,403.27,"
+📌 **AI-Enhanced Trade Idea — JPM**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$303.31 – $308.22**
+
+### 🛑 Stop Loss (Risk Control)
+- **$291.98**
+
+### 🎯 Profit Target (7–45 days)
+- **$403.27**
+(Expected return: ~30.0%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **7.55**
+- Support: **$298.00**
+- Resistance: **$320.41**
+- EMA20 / EMA50 / EMA200:  
+  **308.38 / 306.20 / 291.17**
+
+
+### 📝 Additional Context
+1Y Return 30.04%, 6M Return 16.73%, Score 46.85",Balanced,1,OPEN,,,,,,,,
+TSLA_1765438840_124,TSLA,LONG,Index Screener (Auto),2025-12-11 02:40:40.159227,437.11,447.47,413.21,479.8,"
+📌 **AI-Enhanced Trade Idea — TSLA**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$437.11 – $447.47**
+
+### 🛑 Stop Loss (Risk Control)
+- **$413.21**
+
+### 🎯 Profit Target (7–45 days)
+- **$479.8**
+(Expected return: ~6.3%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **15.93**
+- Support: **$391.09**
+- Resistance: **$468.37**
+- EMA20 / EMA50 / EMA200:  
+  **434.81 / 425.46 / 376.97**
+
+
+### 📝 Additional Context
+1Y Return 6.28%, 6M Return 41.47%, Score 43.4",Balanced,1,OPEN,,,,,,,,
+LLY_1765438840_858,LLY,LONG,Index Screener (Auto),2025-12-11 02:40:40.370250,968.88,986.76,927.61,1249.6,"
+📌 **AI-Enhanced Trade Idea — LLY**
+
+### 🔍 Trend Assessment
+**Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$968.88 – $986.76**
+
+### 🛑 Stop Loss (Risk Control)
+- **$927.61**
+
+### 🎯 Profit Target (7–45 days)
+- **$1249.6**
+(Expected return: ~25.8%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **27.51**
+- Support: **$812.34**
+- Resistance: **$1109.94**
+- EMA20 / EMA50 / EMA200:  
+  **1009.45 / 942.06 / 838.48**
+
+
+### 📝 Additional Context
+1Y Return 25.76%, 6M Return 22.81%, Score 42.04",Balanced,1,OPEN,,,,,,,,
+NVDA_1765438840_715,NVDA,LONG,Index Screener (Auto),2025-12-11 02:40:40.570019,177.84,182.13,167.93,242.52,"
+📌 **AI-Enhanced Trade Idea — NVDA**
+
+### 🔍 Trend Assessment
+**Sideways / Above LT Trend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$177.84 – $182.13**
+
+### 🛑 Stop Loss (Risk Control)
+- **$167.93**
+
+### 🎯 Profit Target (7–45 days)
+- **$242.52**
+(Expected return: ~32.0%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **6.61**
+- Support: **$176.99**
+- Resistance: **$207.03**
+- EMA20 / EMA50 / EMA200:  
+  **184.01 / 184.37 / 169.64**
+
+
+### 📝 Additional Context
+1Y Return 31.96%, 6M Return 26.76%, Score 41.59",Balanced,1,OPEN,,,,,,,,
+JNJ_1765438840_294,JNJ,LONG,Index Screener (Auto),2025-12-11 02:40:40.905184,203.61,205.73,198.72,299.81,"
+📌 **AI-Enhanced Trade Idea — JNJ**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$203.61 – $205.73**
+
+### 🛑 Stop Loss (Risk Control)
+- **$198.72**
+
+### 🎯 Profit Target (7–45 days)
+- **$299.81**
+(Expected return: ~45.2%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **3.26**
+- Support: **$184.83**
+- Resistance: **$207.56**
+- EMA20 / EMA50 / EMA200:  
+  **200.95 / 193.93 / 174.48**
+
+
+### 📝 Additional Context
+1Y Return 45.16%, 6M Return 33.65%, Score 40.65",Balanced,1,OPEN,,,,,,,,
+AAPL_1765438841_297,AAPL,LONG,Index Screener (Auto),2025-12-11 02:40:41.127043,274.23,277.51,266.64,316.72,"
+📌 **AI-Enhanced Trade Idea — AAPL**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$274.23 – $277.51**
+
+### 🛑 Stop Loss (Risk Control)
+- **$266.64**
+
+### 🎯 Profit Target (7–45 days)
+- **$316.72**
+(Expected return: ~13.6%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **5.06**
+- Support: **$266.25**
+- Resistance: **$286.19**
+- EMA20 / EMA50 / EMA200:  
+  **276.07 / 266.50 / 234.41**
+
+
+### 📝 Additional Context
+1Y Return 13.61%, 6M Return 40.24%, Score 39.43",Balanced,1,OPEN,,,,,,,,
+WMT_1765438841_358,WMT,LONG,Index Screener (Auto),2025-12-11 02:40:41.371611,110.68,112.49,106.51,136.21,"
+📌 **AI-Enhanced Trade Idea — WMT**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$110.68 – $112.49**
+
+### 🛑 Stop Loss (Risk Control)
+- **$106.51**
+
+### 🎯 Profit Target (7–45 days)
+- **$136.21**
+(Expected return: ~20.4%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **2.78**
+- Support: **$100.61**
+- Resistance: **$115.11**
+- EMA20 / EMA50 / EMA200:  
+  **109.82 / 106.39 / 100.91**
+
+
+### 📝 Additional Context
+1Y Return 20.35%, 6M Return 19.63%, Score 34.31",Balanced,1,OPEN,,,,,,,,
+INTC_1765438987_221,INTC,LONG,Index Screener (Auto),2025-12-11 02:43:07.042141,38.76,40.22,35.39,82.65,"
+📌 **AI-Enhanced Trade Idea — INTC**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$38.76 – $40.22**
+
+### 🛑 Stop Loss (Risk Control)
+- **$35.39**
+
+### 🎯 Profit Target (7–45 days)
+- **$82.65**
+(Expected return: ~102.7%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **2.25**
+- Support: **$33.62**
+- Resistance: **$43.76**
+- EMA20 / EMA50 / EMA200:  
+  **39.18 / 36.76 / 28.72**
+
+
+### 📝 Additional Context
+1Y Return 102.68%, 6M Return 96.34%, Score 81.67",Balanced,1,OPEN,,,,,,,,
+AMD_1765438987_589,AMD,LONG,Index Screener (Auto),2025-12-11 02:43:07.394095,212.02,218.81,196.36,376.7,"
+📌 **AI-Enhanced Trade Idea — AMD**
+
+### 🔍 Trend Assessment
+**Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$212.02 – $218.81**
+
+### 🛑 Stop Loss (Risk Control)
+- **$196.36**
+
+### 🎯 Profit Target (7–45 days)
+- **$376.7**
+(Expected return: ~70.1%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **10.44**
+- Support: **$203.78**
+- Resistance: **$264.33**
+- EMA20 / EMA50 / EMA200:  
+  **222.46 / 218.08 / 175.39**
+
+
+### 📝 Additional Context
+1Y Return 70.13%, 6M Return 86.85%, Score 75.53",Balanced,1,OPEN,,,,,,,,
+GOOGL_1765438987_354,GOOGL,LONG,Index Screener (Auto),2025-12-11 02:43:07.599644,311.54,317.8,297.08,526.81,"
+📌 **AI-Enhanced Trade Idea — GOOGL**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$311.54 – $317.8**
+
+### 🛑 Stop Loss (Risk Control)
+- **$297.08**
+
+### 🎯 Profit Target (7–45 days)
+- **$526.81**
+(Expected return: ~64.5%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **9.64**
+- Support: **$274.39**
+- Resistance: **$323.23**
+- EMA20 / EMA50 / EMA200:  
+  **306.90 / 283.72 / 228.96**
+
+
+### 📝 Additional Context
+1Y Return 64.52%, 6M Return 82.53%, Score 59.13",Balanced,1,OPEN,,,,,,,,
+TSLA_1765438987_862,TSLA,LONG,Index Screener (Auto),2025-12-11 02:43:07.853382,437.11,447.47,413.21,479.8,"
+📌 **AI-Enhanced Trade Idea — TSLA**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$437.11 – $447.47**
+
+### 🛑 Stop Loss (Risk Control)
+- **$413.21**
+
+### 🎯 Profit Target (7–45 days)
+- **$479.8**
+(Expected return: ~6.3%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **15.93**
+- Support: **$391.09**
+- Resistance: **$468.37**
+- EMA20 / EMA50 / EMA200:  
+  **434.81 / 425.46 / 376.97**
+
+
+### 📝 Additional Context
+1Y Return 6.28%, 6M Return 41.47%, Score 43.4",Balanced,1,OPEN,,,,,,,,
+NVDA_1765438988_341,NVDA,LONG,Index Screener (Auto),2025-12-11 02:43:08.033669,177.84,182.13,167.93,242.52,"
+📌 **AI-Enhanced Trade Idea — NVDA**
+
+### 🔍 Trend Assessment
+**Sideways / Above LT Trend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$177.84 – $182.13**
+
+### 🛑 Stop Loss (Risk Control)
+- **$167.93**
+
+### 🎯 Profit Target (7–45 days)
+- **$242.52**
+(Expected return: ~32.0%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **6.61**
+- Support: **$176.99**
+- Resistance: **$207.03**
+- EMA20 / EMA50 / EMA200:  
+  **184.01 / 184.37 / 169.64**
+
+
+### 📝 Additional Context
+1Y Return 31.96%, 6M Return 26.76%, Score 41.59",Balanced,1,OPEN,,,,,,,,
+AAPL_1765438988_889,AAPL,LONG,Index Screener (Auto),2025-12-11 02:43:08.265629,274.23,277.51,266.64,316.72,"
+📌 **AI-Enhanced Trade Idea — AAPL**
+
+### 🔍 Trend Assessment
+**Strong Uptrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$274.23 – $277.51**
+
+### 🛑 Stop Loss (Risk Control)
+- **$266.64**
+
+### 🎯 Profit Target (7–45 days)
+- **$316.72**
+(Expected return: ~13.6%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **5.06**
+- Support: **$266.25**
+- Resistance: **$286.19**
+- EMA20 / EMA50 / EMA200:  
+  **276.07 / 266.50 / 234.41**
+
+
+### 📝 Additional Context
+1Y Return 13.61%, 6M Return 40.24%, Score 39.43",Balanced,1,OPEN,,,,,,,,
+ADBE_1765438988_217,ADBE,LONG,Index Screener (Auto),2025-12-11 02:43:08.540038,334.84,340.83,321.02,346.26,"
+📌 **AI-Enhanced Trade Idea — ADBE**
+
+### 🔍 Trend Assessment
+**Weak / Downtrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$334.84 – $340.83**
+
+### 🛑 Stop Loss (Risk Control)
+- **$321.02**
+
+### 🎯 Profit Target (7–45 days)
+- **$346.26**
+(Expected return: ~-37.6%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **9.21**
+- Support: **$312.40**
+- Resistance: **$346.26**
+- EMA20 / EMA50 / EMA200:  
+  **332.04 / 336.78 / 365.70**
+
+
+### 📝 Additional Context
+1Y Return -37.6%, 6M Return -17.05%, Score 29.97",Balanced,1,OPEN,,,,,,,,
+MSFT_1765438988_387,MSFT,LONG,Index Screener (Auto),2025-12-11 02:43:08.738238,472.12,476.08,457.26,540.54,"
+📌 **AI-Enhanced Trade Idea — MSFT**
+
+### 🔍 Trend Assessment
+**Weak / Downtrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$472.12 – $476.08**
+
+### 🛑 Stop Loss (Risk Control)
+- **$457.26**
+
+### 🎯 Profit Target (7–45 days)
+- **$540.54**
+(Expected return: ~7.4%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **9.91**
+- Support: **$472.12**
+- Resistance: **$540.54**
+- EMA20 / EMA50 / EMA200:  
+  **489.61 / 498.74 / 495.10**
+
+
+### 📝 Additional Context
+1Y Return 7.37%, 6M Return 0.29%, Score 28.85",Balanced,1,OPEN,,,,,,,,
+META_1765438988_152,META,LONG,Index Screener (Auto),2025-12-11 02:43:08.963008,635.55,646.08,611.24,751.67,"
+📌 **AI-Enhanced Trade Idea — META**
+
+### 🔍 Trend Assessment
+**Weak / Downtrend**
+
+### 🎯 Entry Zone (ATR-Adjusted Pullback)
+- **$635.55 – $646.08**
+
+### 🛑 Stop Loss (Risk Control)
+- **$611.24**
+
+### 🎯 Profit Target (7–45 days)
+- **$751.67**
+(Expected return: ~3.1%)
+
+---
+
+### 📊 Technical Summary
+- ATR(14): **16.20**
+- Support: **$589.15**
+- Resistance: **$751.67**
+- EMA20 / EMA50 / EMA200:  
+  **645.50 / 666.04 / 697.97**
+
+
+### 📝 Additional Context
+1Y Return 3.08%, 6M Return -6.1%, Score 23.77",Balanced,1,OPEN,,,,,,,,
