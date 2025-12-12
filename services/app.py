@@ -40,7 +40,7 @@ from services.portfolio_strategy import (
 from services.manual_positions import build_manual_positions
 from Agent.meta_agent import build_agent, ask_meta_agent
 from langchain_openai import ChatOpenAI
-
+from Agent.meta_agent import get_debug_logs
 # -------------------------------------------------------------
 # 🛡️ Risk Settings (Sidebar)
 # -------------------------------------------------------------
@@ -125,18 +125,30 @@ validate_environment()
 llm_openai, llm_groq, llm_labels = init_llms()
 
 if not llm_labels:
-    st.error("❌ No usable LLM instance could be created. Check your API keys.")
+    st.error("❌ No working LLM loaded.")
     st.stop()
 
-select_llm = st.sidebar.selectbox("Select LLM Model", llm_labels, key="llm_select")
-if select_llm == "Groq Llama3-70B":
+# Model selection dropdown
+select_llm = st.sidebar.selectbox("Select LLM Model", llm_labels)
+
+# Map selection → correct instance
+if select_llm.startswith("Groq"):
     llm = llm_groq
 else:
     llm = llm_openai
 
-if "meta_agent" not in st.session_state or st.session_state.get("meta_agent_model") != select_llm:
+# Safety: ensure llm is not None
+if llm is None:
+    st.error("❌ Selected model failed to initialize.")
+    st.stop()
+
+# Build/Rebuild Meta-Agent when model changes
+if "meta_agent" not in st.session_state or \
+   st.session_state.get("meta_agent_model") != select_llm:
+
     st.session_state.meta_agent = build_agent(llm)
     st.session_state.meta_agent_model = select_llm
+    st.toast(f"🔄 Meta-agent rebuilt using {select_llm}")
 
 meta_agent = st.session_state.meta_agent
 
@@ -281,7 +293,8 @@ def render_price_chart(ticker: str, timeframe_label: str):
 # ===================================================================
 with tabs[0]:
     st.title("📊 AI Stock Intelligence Dashboard")
-
+    
+    st.text_area("Debug Output", get_debug_logs(), height=400)
     if ticker:
         st.subheader(f"Overview — {ticker}")
         last_price = get_latest_price(ticker)
@@ -301,10 +314,10 @@ with tabs[0]:
 
         st.markdown("### Quick Company Snapshot")
         try:
-            snapshot = get_analysis("Basic Info", ticker)
+            snapshot = get_analysis("Basic Info", ticker, None)
             st.write(snapshot)
-        except Exception:
-            st.warning("Unable to load basic info right now.")
+        except Exception as e:
+            st.warning(f"Unable to load basic info right now: {e}")
     else:
         st.info("Enter a ticker in the sidebar to get started.")
 
@@ -517,7 +530,6 @@ with tabs[1]:
             c2.metric("MAE", f"{metrics['mae']:.2f}")
             c3.metric("MAPE", f"{metrics['mape']:.2f}%")
             c4.metric("Directional Accuracy", f"{dir_acc:.1f}%")
-
             st.markdown("---")
 
             # Simple trading simulation
@@ -899,7 +911,7 @@ with tabs[3]:
                 with col3:
                     if st.button(f"📥 Load {tk}", key=f"load_{tk}_{idx}"):
                         st.session_state["Stock Ticker"] = tk
-                        st.rerun()
+                        # You can call st.rerun() here if desired
 
 # ===================================================================
 # ⏱ Live Price Feed Tab
@@ -929,7 +941,8 @@ with tabs[4]:
                 st.info("Connected. Waiting for first tick...")
 
             time.sleep(1)
-            st.rerun()
+            # You can re-enable st.rerun() if you want continuous updates
+            # st.rerun()
         else:
             st.info("Enable the live feed in the sidebar to start streaming prices.")
 
@@ -953,6 +966,7 @@ with tabs[5]:
         else:
             with st.spinner("AI Analyst thinking…"):
                 answer = ask_meta_agent(meta_agent, ticker, analyst_question)
+
             st.success("Analysis complete:")
             st.write(answer)
 
@@ -970,6 +984,7 @@ with tabs[5]:
 with tabs[6]:
     st.header("Chat with AI Analyst")
 
+    # Show history
     for msg in st.session_state.chat_history:
         role = "🧑‍💻 You" if msg["role"] == "user" else "🤖 AI"
         st.markdown(f"**{role}:** {msg['content']}")
@@ -1005,12 +1020,16 @@ with tabs[6]:
                 "Voice input not available.\nInstall `streamlit-mic-recorder` to enable."
             )
 
+    # ✅ Only call meta-agent WHEN user clicks Send and entered text
     if send_chat and user_chat_input.strip():
         user_text = user_chat_input.strip()
         st.session_state.chat_history.append({"role": "user", "content": user_text})
 
-        with st.spinner("AI thinking…"):
-            answer = ask_meta_agent(meta_agent, ticker or "UNKNOWN", user_text)
+        if not ticker:
+            answer = "⚠️ Please enter a ticker in the sidebar first."
+        else:
+            with st.spinner("AI thinking…"):
+                answer = ask_meta_agent(meta_agent, ticker, user_text)
 
         st.session_state.chat_history.append({"role": "assistant", "content": answer})
         st.session_state.responses.append(
@@ -1020,7 +1039,7 @@ with tabs[6]:
                 "response": answer,
             }
         )
-        st.rerun()
+        st.experimental_rerun()
 
     st.markdown("### Past Analyses")
     if st.session_state.responses:
@@ -1109,7 +1128,6 @@ with tabs[7]:
 
             st.success(f"✅ Auto-saved {auto_saved} trade ideas into your Trade Journal!")
 
-
 # ===================================================================
 # 📘 Trade Journal Tab
 # ===================================================================
@@ -1126,13 +1144,14 @@ with tabs[8]:
         st.success("Trade performance updated.")
     else:
         df = load_trades()
-    
+
     st.subheader("⚠️ Danger Zone")
 
     if st.button("🗑️ Delete ALL Trades", use_container_width=True):
-        confirm = st.warning("Are you sure you want to permanently delete ALL trades?")
+        st.warning("Are you sure you want to permanently delete ALL trades?")
     if st.button("YES, DELETE EVERYTHING"):
-        delete_all_rows("trade_ideas")   # your main journal table
+        delete_all_rows("portfolio_positions")   # your main journal table
+        delete_all_rows("portfolio_strategies")
         st.success("All trades deleted.")
         st.stop()
 
@@ -1141,10 +1160,10 @@ with tabs[8]:
     # -----------------------------
     st.markdown("## 📁 Trade Sources Overview")
     from services.portfolio_storage import (
-    save_portfolio_positions,
-    save_portfolio_strategies,
-    load_table
-)
+        save_portfolio_positions,
+        save_portfolio_strategies,
+        load_table,
+    )
     manual_df = load_table("portfolio_positions")
     robinhood_df = load_table("portfolio_positions_rh")
     strategies_df = load_table("portfolio_strategies")
@@ -1224,12 +1243,9 @@ with tabs[8]:
             filtered = filtered[filtered["Direction"] == dir_filter]
 
         st.write(f"**Showing {len(filtered)} trades**")
-        #st.dataframe(filtered, use_container_width=True)
+
         st.subheader("🗑️ Trade Journal (Delete Rows)")
-
         df_display = filtered.copy()
-
-        # Add delete button column
         df_display["Delete"] = False  # checkbox for delete
 
         edited = st.data_editor(
@@ -1241,19 +1257,33 @@ with tabs[8]:
                     label="🗑️",
                     help="Select row to delete",
                 )
-            }
+            },
         )
 
-            # Delete selected rows
         rows_to_delete = edited[edited["Delete"] == True]
 
         if not rows_to_delete.empty:
-                if st.button("Delete Selected Trades", type="primary"):
-                    for _, row in rows_to_delete.iterrows():
-                        trade_id = row["Trade_ID"]
-                        delete_row_by_id("portfolio_positions", "Trade_ID", trade_id)  # <-- ADJUST TABLE NAME HERE
-                    st.success(f"Deleted {len(rows_to_delete)} trade(s).")
-                    st.experimental_rerun()
+            if st.button("Delete Selected Trades", type="primary"):
+                for _, row in rows_to_delete.iterrows():
+                    trade_id = row["ID"]
+                    delete_row_by_id("portfolio_strategies", "ID", trade_id)
+                st.success(f"Deleted {len(rows_to_delete)} trade(s).")
+                st.experimental_rerun()
+
+        from services.portfolio_storage import list_tables, show_sqlite_table
+        with st.expander("🗄️ View SQLite Database Tables"):
+            st.subheader("SQLite Table Viewer")
+
+            tables = list_tables()
+
+            if not tables:
+                st.warning("No tables found in trades.db.")
+            else:
+                table_name = st.selectbox("Select a table:", tables)
+
+                if st.button("Show Table"):
+                    df_sql = show_sqlite_table(table_name)
+                    st.dataframe(df_sql, use_container_width=True)
 
         # -----------------------------
         # Performance Summary
@@ -1316,21 +1346,21 @@ with tabs[8]:
             st.subheader("🔍 Trade Drill-Down")
 
             trade_ids = filtered["Trade_ID"].tolist()
-            selected_id = st.selectbox("Select Trade:", trade_ids)
+            if trade_ids:
+                selected_id = st.selectbox("Select Trade:", trade_ids)
 
-            trade_row = filtered[filtered["Trade_ID"] == selected_id].iloc[0]
-            st.write("### Trade Details")
-            st.json(trade_row.to_dict())
+                trade_row = filtered[filtered["Trade_ID"] == selected_id].iloc[0]
+                st.write("### Trade Details")
+                st.json(trade_row.to_dict())
 
-            import yfinance as yf
+                import yfinance as yf
 
-            tk = trade_row["Ticker"]
-            hist = yf.Ticker(tk).history(period="6mo")
+                tk = trade_row["Ticker"]
+                hist = yf.Ticker(tk).history(period="6mo")
 
-            if not hist.empty:
-                st.subheader(f"📊 Price Chart: {tk}")
-                st.line_chart(hist["Close"])
-
+                if not hist.empty:
+                    st.subheader(f"📊 Price Chart: {tk}")
+                    st.line_chart(hist["Close"])
 
 # ===================================================================
 # 📘 Portfolio Strategies (Robinhood)
@@ -1343,7 +1373,7 @@ with tabs[9]:
     uploaded = st.file_uploader("Upload activity CSV", type=["csv"])
 
     holdings = None
-     
+
     if uploaded is not None:
         try:
             holdings = positions_from_activity_csv(uploaded)
@@ -1372,7 +1402,7 @@ with tabs[9]:
 
         # Save reconstructed Robinhood positions
         save_portfolio_positions(holdings, source="Robinhood")
-        
+
         with st.spinner("Building strategies based on your risk settings…"):
             strat_df = build_robinhood_strategies(
                 holdings_df=holdings,
@@ -1382,8 +1412,9 @@ with tabs[9]:
         save_portfolio_strategies(
             strat_df,
             risk_profile=risk_profile,
-            risk_factor=risk_factor
+            risk_factor=risk_factor,
         )
+
         if strat_df.empty:
             st.warning("⚠ No valid strategies generated.")
         else:
@@ -1440,7 +1471,7 @@ with tabs[10]:
     total_returns = []
 
     st.markdown("### Enter Position Details")
-    
+
     for i in range(num_rows):
         st.markdown(f"#### Position {i + 1}")
 
@@ -1468,8 +1499,7 @@ with tabs[10]:
         from services.portfolio_storage import save_portfolio_positions, save_portfolio_strategies, load_table
 
         save_portfolio_positions(holdings, source="Manual")
-        # Save reconstructed Robinhood positions
-         
+
         if holdings.empty:
             st.error("No valid positions entered.")
         else:
@@ -1486,10 +1516,10 @@ with tabs[10]:
                     risk_factor=risk_factor,
                 )
             save_portfolio_strategies(
-            strat_df,
-            risk_profile=risk_profile,
-            risk_factor=risk_factor
-        )
+                strat_df,
+                risk_profile=risk_profile,
+                risk_factor=risk_factor,
+            )
             summary = summarize_portfolio(strat_df)
 
             st.markdown(
@@ -1526,7 +1556,8 @@ with tabs[10]:
 # ===================================================================
 if run_single_analysis and ticker:
     with st.spinner(f"Running {analysis_type} for {ticker}…"):
-        result = get_analysis(analysis_type, ticker, research_prompt)
+        result = get_analysis(analysis_type, ticker, research_prompt or None)
+    st.sidebar.write("🧠 Using Agent Tools…")
     st.sidebar.success("Single analysis complete. See result below.")
     st.sidebar.write(result)
 

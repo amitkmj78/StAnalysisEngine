@@ -1,59 +1,74 @@
 import yfinance as yf
 from datetime import datetime
-info=""
+
+
+def safe(info, key, default="N/A"):
+    """Safely extract fields from Yahoo info dict."""
+    try:
+        val = info.get(key, default)
+        return val if val not in (None, "", "None") else default
+    except Exception:
+        return default
+
+
 def get_basic_stock_info(ticker: str) -> str:
     """
-    Fetches and returns a detailed overview of a company's stock information for a given ticker symbol.
-
-    Parameters:
-    ticker (str): The stock ticker symbol.
-
-    Returns:
-    str: A formatted string containing the company's stock realted information or an error message.
-    {info}
+    Returns a clean, reliable company snapshot for the given ticker.
+    Always returns non-empty markdown suitable for the meta-agent.
     """
+
     try:
-        # Fetch stock information
         stock = yf.Ticker(ticker)
-        info = stock.info
+
+        # Primary data source
+        info = stock.info or {}
+
+        # If .info is empty (common now), fall back to fast_info
+        if not info:
+            try:
+                info = stock.fast_info or {}
+            except Exception:
+                info = {}
 
         if not info:
-            return f"No data found for the ticker {ticker}."
+            return f"⚠️ No data found for ticker **{ticker}**."
 
-        # Get the current date
-        today_date = datetime.now().strftime('%Y-%m-%d')
+        today = datetime.now().strftime("%Y-%m-%d")
 
-        # Construct the detailed stock overview
         return f"""
-        **Stock Information for {ticker} as of {today_date}:**
-        
-        - **Name:** {info.get('longName', 'N/A')}
-        - **Sector:** {info.get('sector', 'N/A')}
-        - **Industry:** {info.get('industry', 'N/A')}
-        - **Current Price:** ${info.get('currentPrice', 'N/A')}
-        - **Market Cap:** {info.get('marketCap', 'N/A')}
-        - **Full-Time Employees:** {info.get('fullTimeEmployees', 'N/A')}
-        - **Enterprise Value:** {info.get('enterpriseValue', 'N/A')}
-        - **200-Day Average:** ${info.get('twoHundredDayAverage', 'N/A')}
-        - **52-Week High/Low:** ${info.get('fiftyTwoWeekHigh', 'N/A')} / ${info.get('fiftyTwoWeekLow', 'N/A')}
-        - **Trailing P/E:** {info.get('trailingPE', 'N/A')}
-        - **Forward P/E:** {info.get('forwardPE', 'N/A')}
-        - **EBITDA:** {info.get('ebitda', 'N/A')}
-        - **Total Revenue:** {info.get('totalRevenue', 'N/A')}
-        - **Revenue Per Share:** ${info.get('revenuePerShare', 'N/A')}
-        - **Operating Cashflow:** {info.get('operatingCashflow', 'N/A')}
+## 📌 Basic Company Snapshot — {ticker}  
+_As of {today}_  
 
-        **--- Highlights:**
-        - Recent trading activity includes notable price fluctuations:
-          - **Previous Close:** ${info.get('previousClose', 'N/A')}
-          - **Day Range (Low/High):** ${info.get('regularMarketDayLow', 'N/A')} / ${info.get('regularMarketDayHigh', 'N/A')}
-        - Analyst targets:
-          - **Target High Price:** ${info.get('targetHighPrice', 'N/A')}
-          - **Target Low Price:** ${info.get('targetLowPrice', 'N/A')}
-          - **Target Mean Price:** ${info.get('targetMeanPrice', 'N/A')}
+### 🏢 Company Profile
+- **Name:** {safe(info, 'longName')}
+- **Sector:** {safe(info, 'sector')}
+- **Industry:** {safe(info, 'industry')}
 
-        This information reflects the most recent data available for {ticker}.
-        """
+### 💰 Stock Price & Valuation
+- **Current Price:** ${safe(info, 'currentPrice')}
+- **Market Cap:** {safe(info, 'marketCap')}
+- **Trailing P/E:** {safe(info, 'trailingPE')}
+- **Forward P/E:** {safe(info, 'forwardPE')}
+- **Revenue Per Share:** {safe(info, 'revenuePerShare')}
+
+### 📊 Fundamental Metrics
+- **Total Revenue:** {safe(info, 'totalRevenue')}
+- **EBITDA:** {safe(info, 'ebitda')}
+- **Operating Cashflow:** {safe(info, 'operatingCashflow')}
+
+### 📈 Trading Range
+- **52-Week High / Low:** {safe(info, 'fiftyTwoWeekHigh')} / {safe(info, 'fiftyTwoWeekLow')}
+- **Day Low / High:** {safe(info, 'regularMarketDayLow')} / {safe(info, 'regularMarketDayHigh')}
+- **Previous Close:** {safe(info, 'previousClose')}
+
+### 🎯 Analyst Targets
+- **High:** {safe(info, 'targetHighPrice')}
+- **Mean:** {safe(info, 'targetMeanPrice')}
+- **Low:** {safe(info, 'targetLowPrice')}
+
+---
+
+📝 _Data sourced from Yahoo Finance. Metrics may vary depending on availability._
+"""
     except Exception as e:
-        # Handle exceptions and return a formatted error message
-        return f"An error occurred while fetching data for {ticker}: {str(e)}"
+        return f"❌ Error fetching data for {ticker}: {e}"

@@ -1,33 +1,63 @@
-from typing import List, Tuple, Optional
+# services/llm_setup.py
 
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
+import os
 
-from .config import GROQ_API_KEY, OPENAI_API_KEY
 
-
-def init_llms() -> Tuple[Optional[ChatOpenAI], Optional[ChatGroq], List[str]]:
+def init_llms():
     """
-    Initialize available LLMs based on env keys.
-    Returns: (llm_openai, llm_groq, available_labels)
+    Initialize OpenAI + Groq safely.
+    Returns:
+        llm_openai, llm_groq, llm_labels
     """
     llm_openai = None
     llm_groq = None
-    labels: List[str] = []
+    llm_labels = []
 
-    if OPENAI_API_KEY:
-        llm_openai = ChatOpenAI(
-            model="gpt-4o-mini",
-            temperature=0.4,
-        )
-        labels.append("OpenAI GPT")
+    # ----------------------------
+    # TRY INITIALIZING OPENAI
+    # ----------------------------
+    openai_key = os.getenv("OPENAI_API_KEY")
 
-    if GROQ_API_KEY:
-        llm_groq = ChatGroq(
-            model="llama3-70b-8192",
-            temperature=0.1,
-            groq_api_key=GROQ_API_KEY,
-        )
-        labels.append("Groq Llama3-70B")
+    if openai_key:
+        try:
+            llm_openai = ChatOpenAI(
+                model="gpt-4o-mini",
+                temperature=0.3,
+                timeout=20,
+            )
+            llm_labels.append("GPT-4o mini")
+        except Exception as e:
+            print("OpenAI init failed:", e)
+    else:
+        print("⚠️ OPENAI_API_KEY not found. Skipping OpenAI models.")
 
-    return llm_openai, llm_groq, labels
+    # ----------------------------
+    # TRY INITIALIZING GROQ
+    # ----------------------------
+    groq_key = os.getenv("GROQ_API_KEY")
+
+    if groq_key:
+        try:
+            llm_groq = ChatGroq(
+                model="openai/gpt-oss-120b",   # SUPPORTED MODEL
+                temperature=0.2,
+                timeout=30,
+            )
+            llm_labels.append("Groq Model")
+        except Exception as e:
+                print(f"Groq model failed: {e}")
+                llm_groq = None
+
+    else:
+        print("⚠️ GROQ_API_KEY not found. Skipping Groq models.")
+
+    # ----------------------------
+    # FAILSAFE: If NOTHING loads
+    # ----------------------------
+    if not llm_labels:
+        print("❌ No LLMs initialized. Check API keys.")
+        return None, None, []
+
+    return llm_openai, llm_groq, llm_labels

@@ -1,31 +1,57 @@
-import datetime
+# Agent/reasearchAgent.py
 
-# Get today's date
-today_date = datetime.date.today()
+"""
+Research Agent
+--------------
+This module provides a lightweight wrapper used by your meta-agent
+to perform deep qualitative research on a stock.
 
-def research(company_stock: str, user_prompt: str = None) -> str:
+IMPORTANT:
+- This version does NOT depend on get_research_llm().
+- LLM must be passed in from app.py or handled at agent level.
+"""
+
+def research(company_stock: str, user_prompt: str | None = None, llm=None):
     """
-    Collect and summarize recent news about a given stock.
+    Perform qualitative long-form research about a stock.
 
     Parameters:
-    - company_stock (str): The stock ticker symbol.
-    - user_prompt (str): Optional custom user-defined prompt.
+    - company_stock (str): The stock ticker.
+    - user_prompt (str, optional): Custom override prompt.
+    - llm: Optional LLM instance to produce real text.
 
-    Returns:
-    - str: Research summary prompt.
-    """
-    today_date = datetime.date.today()
-
-    # Default prompt
-    default_prompt = f"""
-    Collect and summarize recent news as of {today_date}, articles, press releases, and market analyses 
-    related to the {company_stock} stock and its industry. Pay special attention to any significant events, 
-    market sentiments, and analysts' opinions. Include upcoming events like earnings and others.
-    
-    expected_output: 
-    A report that includes a comprehensive summary of the latest news, including today's date {today_date}, 
-    any notable shifts in market sentiment, and potential impacts on the stock.
+    If llm is provided → returns real LLM output.
+    If llm is None → returns a placeholder summary.
     """
 
-    # Use custom prompt if provided, else use the default
-    return user_prompt or default_prompt
+    base_prompt = f"""
+Provide deep qualitative research insights for stock {company_stock}.
+
+Focus on:
+- Competitive landscape
+- Market position
+- Key risks and vulnerabilities
+- Strategic advantages
+- Long-term growth opportunities
+- Macro factors impacting the business
+- Industry outlook
+
+Write in 2–4 short paragraphs, clear and professional.
+"""
+
+    final_prompt = user_prompt if user_prompt else base_prompt
+
+    # If the LLM is available, use it
+    if llm:
+        try:
+            result = llm.invoke(final_prompt)
+            return getattr(result, "content", str(result))
+        except Exception as e:
+            return f"[ResearchAgent LLM error: {e}]"
+
+    # Fallback if no LLM provided
+    return (
+        f"[Offline Research Summary for {company_stock}]\n\n"
+        f"{final_prompt}\n\n"
+        "Note: No LLM was provided to generate detailed analysis."
+    )

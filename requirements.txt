@@ -28,6 +28,7 @@ langchain-community
 
 tavily-python
 websocket-client
+sec-api beautifulsoup4 requests
 
 nltk
 requests

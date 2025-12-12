@@ -22,6 +22,24 @@ SQLITE_PATH = os.path.join(BASE_DIR, "portfolio.db")
 # ------------------------------------------
 # Helper: Auto-migrate SQLite tables
 # ------------------------------------------
+def show_sqlite_table(table_name: str):
+    """Returns the entire SQLite table as a pandas DataFrame."""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
+    except Exception as e:
+        df = pd.DataFrame({"error": [str(e)]})
+    conn.close()
+    return df
+
+def list_tables():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    tables = [row[0] for row in cur.fetchall()]
+    conn.close()
+    return tables
+
 def delete_all_rows(table_name: str):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()

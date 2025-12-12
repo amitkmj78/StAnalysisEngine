@@ -1,7 +1,6 @@
 # services/config.py
 import datetime
 import os
-
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -39,5 +38,4 @@ def validate_environment():
             "Set either FINNHUB_API_KEY or WS_PRICE_FEED_URL in your .env "
             "to enable the Live Price tab."
         )
-
     st.info(f"Today's Date: {datetime.date.today()}")

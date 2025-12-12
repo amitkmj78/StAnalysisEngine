@@ -17,72 +17,111 @@ from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_community.tools.tavily_search import TavilySearchResults
 
+# ------------------------------------------------------------------
+#                 LOAD ENV FIRST (IMPORTANT)
+# ------------------------------------------------------------------
+
+load_dotenv()
+
 # WebSocket client (optional real-time feed)
-
-FINNHUB_WS = f"wss://ws.finnhub.io?token={os.getenv('FINNHUB_API_KEY')}"
-
-# Global state to hold latest price
-latest_price = st.session_state.get("latest_price", None)
-
-def on_message(ws, message):
-    data = json.loads(message)
-    if data.get("type") == "trade":
-        price = data["data"][0]["p"]
-        st.session_state.latest_price = price
-
-def on_error(ws, error):
-    print("WebSocket error:", error)
-
-def on_close(ws):
-    print("### WebSocket closed ###")
-
-def run_ws(ticker):
-    ws = websocket.WebSocketApp(
-        FINNHUB_WS,
-        on_message=on_message,
-        on_error=on_error,
-        on_close=on_close
-    )
-
-    def subscribe():
-        time.sleep(1)
-        ws.send(json.dumps({"type": "subscribe", "symbol": ticker.upper()}))
-
-    threading.Thread(target=subscribe).start()
-    ws.run_forever()
-
-def start_price_feed(ticker):
-    if "ws_thread" not in st.session_state or not st.session_state.ws_thread.is_alive():
-        st.session_state.ws_thread = threading.Thread(target=run_ws, args=(ticker,))
-        st.session_state.ws_thread.daemon = True
-        st.session_state.ws_thread.start()
-
 try:
     import websocket  # pip install websocket-client
 except ImportError:
     websocket = None
 
-# Importing agent-like helper functions (your modules)
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
+WS_PRICE_FEED_URL = os.getenv("WS_PRICE_FEED_URL")  # optional custom WebSocket URL
+
+# Global state to hold latest price
+latest_price = st.session_state.get("latest_price", None)
+
+# ------------------------------------------------------------------
+#                     FINNHUB REAL-TIME FEED
+# ------------------------------------------------------------------
+
+def on_message(ws, message):
+    data = json.loads(message)
+    if data.get("type") == "trade" and data.get("data"):
+        price = data["data"][0].get("p")
+        if price:
+            st.session_state.latest_price = price
+
+
+def on_error(ws, error):
+    print("WebSocket error:", error)
+
+
+def on_close(ws, *args):
+    print("### WebSocket closed ###")
+
+
+def run_ws(ticker):
+    if not FINNHUB_API_KEY:
+        print("FINNHUB_API_KEY not set, skipping WebSocket connection.")
+        return
+    if websocket is None:
+        print("websocket-client not installed, skipping WebSocket connection.")
+        return
+
+    finnhub_ws_url = f"wss://ws.finnhub.io?token={FINNHUB_API_KEY}"
+
+    ws = websocket.WebSocketApp(
+        finnhub_ws_url,
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close,
+    )
+
+    def subscribe():
+        time.sleep(1)
+        try:
+            ws.send(json.dumps({"type": "subscribe", "symbol": ticker.upper()}))
+        except Exception as e:
+            print("Error subscribing to Finnhub:", e)
+
+    threading.Thread(target=subscribe, daemon=True).start()
+    ws.run_forever()
+
+
+def start_price_feed(ticker):
+    if websocket is None:
+        st.warning("websocket-client not installed. Run `pip install websocket-client`.")
+        return
+    if not FINNHUB_API_KEY:
+        st.warning("FINNHUB_API_KEY not configured. Real-time Finnhub feed disabled.")
+        return
+
+    if "ws_thread" not in st.session_state or not st.session_state.ws_thread.is_alive():
+        st.session_state.ws_thread = threading.Thread(target=run_ws, args=(ticker,), daemon=True)
+        st.session_state.ws_thread.start()
+        st.success(f"Real-time Finnhub feed started for {ticker}")
+    else:
+        st.info("Real-time feed already running.")
+
+# ------------------------------------------------------------------
+#              IMPORT YOUR ANALYSIS / AGENT MODULES
+# ------------------------------------------------------------------
+
 from Agent.newAgent import news_summary
 from Agent.basicAgent import get_basic_stock_info
 from Agent.technicalAgent import get_technical_analysis
 from Agent.filingAgent import filings_analysis
 from Agent.financialAgent import financial_analysis
 from Agent.recommendAgent import recommend
-from Agent.reasearchAgent import research
+
+# researchAgent spelling-safe import
+try:
+    from Agent.reasearchAgent import research
+except ImportError:
+    from Agent.researchAgent import research
 
 # ------------------------------------------------------------------
 #                    ENVIRONMENT SETUP & VALIDATION
 # ------------------------------------------------------------------
 
-load_dotenv()
-
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-WS_PRICE_FEED_URL = os.getenv("WS_PRICE_FEED_URL")  # optional WebSocket URL
-
-
 
 if not GROQ_API_KEY and not OPENAI_API_KEY:
     st.error(
@@ -111,14 +150,14 @@ llm_groq = None
 if OPENAI_API_KEY:
     llm_openai = ChatOpenAI(
         model="gpt-4o-mini",
-        temperature=0.4
+        temperature=0.4,
     )
 
 if GROQ_API_KEY:
     llm_groq = ChatGroq(
         model="llama3-70b-8192",
         temperature=0.1,
-        groq_api_key=GROQ_API_KEY
+        groq_api_key=GROQ_API_KEY,
     )
 
 available_llms = []
@@ -132,29 +171,26 @@ if not available_llms:
     st.stop()
 
 select_llm = st.sidebar.selectbox("Select LLM Type", available_llms, key="llm_select")
+llm = llm_groq if select_llm == "Groq Llama3-70B" else llm_openai
 
-if select_llm == "Groq Llama3-70B":
-    llm = llm_groq
-else:
-    llm = llm_openai
 # ------------------------------------------------------------------
 #                         SIDEBAR / UI INPUTS
 # ------------------------------------------------------------------
 
 st.sidebar.header("Stock Query")
-ticker = st.text_input("Enter Stock Ticker", "AAPL")
+ticker_input = st.text_input("Enter Stock Ticker", "AAPL")
 
 if st.button("Stream Live Price"):
-    start_price_feed(ticker)
-    st.success(f"Real-time feed started for {ticker}")
+    start_price_feed(ticker_input)
 
-placeholder = st.empty()
+# Show last known WebSocket price (no infinite loop!)
+live_placeholder = st.empty()
+if "latest_price" in st.session_state and st.session_state.latest_price:
+    live_placeholder.metric(
+        label=f"Live Price (Finnhub): {ticker_input.upper()}",
+        value=f"${st.session_state.latest_price:.2f}",
+    )
 
-while "latest_price" in st.session_state:
-    price = st.session_state.latest_price
-    if price:
-        placeholder.metric(label=f"Live Price: {ticker.upper()}", value=f"${price:.2f}")
-    time.sleep(1)
 raw_query = st.sidebar.text_input("Enter Stock ticker (e.g., AAPL):", value="AAPL", key="ticker_input")
 query = raw_query.strip().upper()
 
@@ -183,7 +219,7 @@ analysis_type = st.sidebar.selectbox(
         "Financial Analysis",
         "Filings Analysis",
         "News Analysis",
-        "Recommend",
+        "Recommend",           # meta-report
         "Real-Time Price",
         "Sentiment Analysis",
     ],
@@ -223,7 +259,7 @@ ml_model_type = st.sidebar.selectbox(
 )
 
 enable_ws_live_feed = st.sidebar.checkbox(
-    "Enable Real-time WebSocket Price Feed (if configured)",
+    "Enable Custom WebSocket Price Feed (if configured)",
     value=False,
     key="ws_live_feed",
 )
@@ -403,9 +439,9 @@ def predict_next_30_days(ticker: str, period: str, days_ahead: int = 30):
         last_gap = new_gap
 
     if include_earnings_impact:
-        earnings_impact = get_earnings_impact(ticker)
+        earnings_impact = get_earnings_impact(query)
         factor_earnings = 0.05
-        st.info(f"AI Earnings Impact factor for {ticker}: {earnings_impact}")
+        st.info(f"AI Earnings Impact factor for {query}: {earnings_impact}")
         predictions = [p * (1 + factor_earnings * earnings_impact) for p in predictions]
 
     last_date = data.index[-1]
@@ -489,7 +525,150 @@ def adjust_prediction_with_sentiment(prediction: float, ticker: str):
     return adjusted, scores
 
 # ------------------------------------------------------------------
-#                  SIMPLE ANALYSIS DISPATCHER (NO AGENTS)
+#      META "AGENT": INVESTMENT REPORT VIA LLM ORCHESTRATION
+# ------------------------------------------------------------------
+
+def generate_investment_recommendation_report(ticker: str) -> str:
+    """
+    Call all analysis helpers (your 'agents') and synthesize
+    a full investment recommendation report using the LLM.
+
+    This simulates a meta-agent: it uses
+    - basic info
+    - technical
+    - financial
+    - filings
+    - news
+    - sentiment
+    - research (with llm)
+    - base recommendAgent output
+
+    and then lets the LLM create a structured report.
+    """
+    if llm is None:
+        return "LLM is not configured."
+
+    today_str = datetime.date.today().isoformat()
+
+    # Gather tool outputs (your existing agents)
+    try:
+        basic_info = str(get_basic_stock_info(ticker))
+    except Exception as e:
+        basic_info = f"Error in basic info: {e}"
+
+    try:
+        technical_info = str(get_technical_analysis(ticker))
+    except Exception as e:
+        technical_info = f"Error in technical analysis: {e}"
+
+    try:
+        financial_info = str(financial_analysis(ticker))
+    except Exception as e:
+        financial_info = f"Error in financial analysis: {e}"
+
+    try:
+        filings_info = str(filings_analysis(ticker))
+    except Exception as e:
+        filings_info = f"Error in filings analysis: {e}"
+
+    try:
+        news_info = str(news_summary(ticker))
+    except Exception as e:
+        news_info = f"Error in news analysis: {e}"
+
+    try:
+        sentiment_info = str(get_sentiment_analysis(ticker))
+    except Exception as e:
+        sentiment_info = f"Error in sentiment analysis: {e}"
+
+    try:
+        research_info = str(
+            research(company_stock=ticker, user_prompt=research_prompt or None, llm=llm)
+        )
+    except Exception as e:
+        research_info = f"Error in research analysis: {e}"
+
+    try:
+        base_recommendation = str(recommend(ticker))
+    except Exception as e:
+        base_recommendation = f"Error in recommendAgent: {e}"
+
+    # Build a SINGLE prompt with all context and a strict structure
+    prompt = f"""
+You are an AI Investment Meta-Analyst.
+
+You are given multiple expert analyses about stock {ticker} as of {today_str}.
+Use them to create ONE cohesive, professional **Investment Recommendation Report**.
+
+Follow this exact structure:
+
+Investment Recommendation Report
+Stock: {ticker}
+Date: {today_str}
+
+Executive Summary:
+- 3–5 sentences summarizing overall outlook and core thesis.
+
+Section 1: Financial Analysis
+- Key metrics (PE, EPS, revenue growth, margins, cash flow).
+- Balance sheet (liquidity, debt, asset quality).
+- Overall financial health.
+
+Section 2: Market Sentiment & Price Action
+- Recent stock performance, volatility, and trend (technical picture).
+- Analyst or target commentary if inferred.
+- News sentiment and media narrative.
+
+Section 3: Filings & Qualitative Disclosures
+- Important management commentary and risk factors.
+- Strategic moves, capital allocation, or material changes.
+
+Section 4: Deep Research & Strategic Positioning
+- Competitive landscape, industry trends, and long-term tailwinds/headwinds.
+- Moat, innovation, management quality, and long-term thesis.
+
+Section 5: Final Recommendation
+- Explicit stance: Strong Buy / Buy / Hold / Sell / Strong Sell.
+- 3–6 bullet points with the main reasons.
+- Strategy: suggested time horizon, key risks to monitor, and any rough entry/exit thinking.
+
+Do NOT mention that these came from tools or agents. Just present the report.
+
+Here is the raw context (do NOT copy verbatim; synthesize and clean up):
+
+[BASIC INFO]
+{basic_info}
+
+[TECHNICAL ANALYSIS]
+{technical_info}
+
+[FINANCIAL ANALYSIS]
+{financial_info}
+
+[FILINGS ANALYSIS]
+{filings_info}
+
+[NEWS ANALYSIS]
+{news_info}
+
+[SENTIMENT ANALYSIS]
+{sentiment_info}
+
+[RESEARCH ANALYSIS]
+{research_info}
+
+[BASE RECOMMENDATION AGENT OUTPUT]
+{base_recommendation}
+"""
+
+    try:
+        result = llm.invoke(prompt)
+        return getattr(result, "content", str(result))
+    except Exception as e:
+        return f"Error generating investment report with LLM: {e}"
+
+# ------------------------------------------------------------------
+#                  SIMPLE ANALYSIS DISPATCHER
 # ------------------------------------------------------------------
 
 def get_analysis(analysis_type: str, ticker: str):
@@ -508,9 +687,6 @@ def get_analysis(analysis_type: str, ticker: str):
     if analysis_type == "News Analysis":
         return news_summary(ticker)
 
-    if analysis_type == "Recommend":
-        return recommend(ticker)
-
     if analysis_type == "Real-Time Price":
         price = get_real_time_stock_price(ticker)
         return f"Real-time price for {ticker}: {price}"
@@ -519,12 +695,16 @@ def get_analysis(analysis_type: str, ticker: str):
         return get_sentiment_analysis(ticker)
 
     if analysis_type == "Research Analysis":
-        return research(company_stock=ticker, user_prompt=research_prompt)
+        return research(company_stock=ticker, user_prompt=research_prompt or None, llm=llm)
+
+    if analysis_type == "Recommend":
+        # meta-orchestrated report
+        return generate_investment_recommendation_report(ticker)
 
     return f"Unknown analysis type: {analysis_type}"
 
 # ------------------------------------------------------------------
-#                REAL-TIME WEBSOCKET PRICE FEED (OPTIONAL)
+#                REAL-TIME GENERIC WEBSOCKET PRICE FEED
 # ------------------------------------------------------------------
 
 def websocket_price_feed(symbol: str):
@@ -541,31 +721,30 @@ def websocket_price_feed(symbol: str):
         st.warning("WS_PRICE_FEED_URL is not configured in environment. WebSocket feed disabled.")
         return
 
-    def on_message(ws, message):
+    def _on_message(ws, message):
         try:
-            import json
             data = json.loads(message)
             if data.get("symbol", "").upper() == symbol.upper():
                 st.session_state.live_price = float(data.get("price"))
         except Exception:
             pass
 
-    def on_error(ws, err):
+    def _on_error(ws, err):
         print("WebSocket error:", err)
 
-    def on_close(ws, close_status_code, close_msg):
+    def _on_close(ws, close_status_code, close_msg):
         print("WebSocket closed:", close_status_code, close_msg)
 
-    def on_open(ws):
+    def _on_open(ws):
         # If provider requires subscription message, send it here.
         pass
 
     ws = websocket.WebSocketApp(
         WS_PRICE_FEED_URL,
-        on_open=on_open,
-        on_message=on_message,
-        on_error=on_error,
-        on_close=on_close,
+        on_open=_on_open,
+        on_message=_on_message,
+        on_error=_on_error,
+        on_close=_on_close,
     )
 
     thread = threading.Thread(target=ws.run_forever, daemon=True)
@@ -690,105 +869,6 @@ def ShowData():
     else:
         st.warning("Not enough data to predict the next stock price.")
 
-    # --- Graph 3: Last 30 Days Actual vs Predicted (backtest) ---
-    if len(stock_data) >= 30:
-        actual_prices = []
-        predicted_prices = []
-        date_labels = []
-
-        n = len(stock_data)
-
-        for i in range(n - 30, n):
-            if i < 5:
-                continue
-
-            sub_data = stock_data.iloc[:i].copy()
-            sub_data["Index"] = np.arange(len(sub_data))
-            sub_data["Lag1"] = sub_data["Close"].shift(1)
-            sub_data["MA3"] = sub_data["Close"].rolling(window=3).mean()
-            sub_data["Return"] = sub_data["Close"].pct_change()
-            sub_data = sub_data.dropna()
-            if len(sub_data) < 5:
-                continue
-
-            features = ["Index", "Lag1", "MA3", "Return"]
-            X = sub_data[features].values
-            y = sub_data["Close"].values
-
-            temp_model = train_gbm_model(X, y, n_estimators=150, learning_rate=0.02, max_depth=3)
-            last_index_sub = sub_data["Index"].iloc[-1] + 1
-            last_lag1 = sub_data["Close"].iloc[-1]
-            last_ma3 = sub_data["MA3"].iloc[-1]
-            last_return = sub_data["Return"].iloc[-1]
-            X_new = np.array([[last_index_sub, last_lag1, last_ma3, last_return]])
-            pred = float(temp_model.predict(X_new)[0])
-
-            predicted_prices.append(pred)
-            actual_prices.append(stock_data["Close"].iloc[i])
-            date_labels.append(stock_data.index[i].strftime("%b %d"))
-
-        if date_labels:
-            fig3 = go.Figure(data=[
-                go.Bar(name="Actual Price", x=date_labels, y=actual_prices, marker_color="#5DE2E7"),
-                go.Bar(name="Predicted Price", x=date_labels, y=predicted_prices, marker_color="#4AFC5C"),
-            ])
-            fig3.update_layout(
-                title=f"{query} Last 30 Days: Actual vs Predicted Prices",
-                yaxis_title="Price (USD)",
-                barmode="group",
-                template="plotly_white",
-            )
-            st.plotly_chart(fig3, use_container_width=True)
-
-            # --- Graph 4: Average of Last 30 Days Actual vs Predicted ---
-            avg_actual = float(np.mean(actual_prices)) if actual_prices else 0
-            avg_predicted = float(np.mean(predicted_prices)) if predicted_prices else 0
-
-            fig4 = go.Figure(data=[
-                go.Bar(name="Avg Actual", x=["Avg Actual"], y=[avg_actual], marker_color="#5DE2E7"),
-                go.Bar(name="Avg Predicted", x=["Avg Predicted"], y=[avg_predicted], marker_color="#4AFC5C"),
-            ])
-            fig4.update_layout(
-                title="Average of Last 30 Days: Actual vs Predicted",
-                yaxis_title="Price (USD)",
-                barmode="group",
-                template="plotly_white",
-            )
-            st.plotly_chart(fig4, use_container_width=True)
-            st.metric(label="Avg Actual Price (Last 30 Days)", value=f"${avg_actual:.2f}")
-            st.metric(label="Avg Predicted Price (Last 30 Days)", value=f"${avg_predicted:.2f}")
-        else:
-            st.warning("Not enough data to generate last 30 days predictions comparison.")
-
-        # --- Graph 5: Predicted Next N Days Prices ---
-        future_dates, future_predictions = predict_next_30_days(
-            query,
-            timeframe_mapping[timeframe],
-            days_ahead=prediction_days,
-        )
-        if future_dates is not None and future_predictions is not None:
-            fig5 = go.Figure()
-            fig5.add_trace(go.Scatter(
-                x=future_dates,
-                y=future_predictions,
-                mode="lines+markers",
-                marker=dict(size=8),
-                line=dict(width=2),
-                name="Predicted Price",
-            ))
-            fig5.update_layout(
-                title=f"{query} GEN AI Agent Based Predicted Prices for Next {prediction_days} Days",
-                xaxis_title="Date",
-                yaxis_title="Predicted Price (USD)",
-                template="plotly_white",
-                xaxis=dict(tickangle=45),
-            )
-            st.plotly_chart(fig5, use_container_width=True)
-        else:
-            st.warning("Not enough data to predict the next days' prices.")
-    else:
-        st.warning("Not enough historical data to run the last 30 days backtest.")
-
 # ------------------------------------------------------------------
 #                           MAIN EXECUTION
 # ------------------------------------------------------------------
@@ -799,7 +879,7 @@ if "responses" not in st.session_state:
 if "live_price" not in st.session_state:
     st.session_state.live_price = None
 
-# Optional WebSocket live feed
+# Optional custom WebSocket live feed
 if enable_ws_live_feed and query:
     websocket_price_feed(query)
     live_price_placeholder = st.empty()
@@ -821,20 +901,7 @@ if analyze_button:
         ShowData()
         st.info(f"Analyzing stock: {query}")
         try:
-            if analysis_type == "Recommend":
-                basic_info = get_analysis("Basic Info", query)
-                financial_info = get_analysis("Financial Analysis", query)
-                sentiment_info = get_analysis("Sentiment Analysis", query)
-                recommendation = get_analysis("Recommend", query)
-
-                response = (
-                    f"Basic Info:\n{basic_info}\n\n"
-                    f"Financial Analysis:\n{financial_info}\n\n"
-                    f"Sentiment Analysis:\n{sentiment_info}\n\n"
-                    f"Final Recommendation:\n{recommendation}"
-                )
-            else:
-                response = get_analysis(analysis_type, query)
+            response = get_analysis(analysis_type, query)
 
             st.success(f"{analysis_type} Complete")
             st.write(response)
