@@ -122,7 +122,9 @@ validate_environment()
 # -------------------------------------------------------------
 # LLM Setup & Meta-Agent
 # -------------------------------------------------------------
-llm_openai, llm_groq, llm_labels = init_llms()
+# llm_openai, llm_groq, llm_labels = init_llms()
+
+llm_openai, llm_groq, llm_ollama, llm_labels = init_llms()
 
 if not llm_labels:
     st.error("❌ No working LLM loaded.")
@@ -131,11 +133,14 @@ if not llm_labels:
 # Model selection dropdown
 select_llm = st.sidebar.selectbox("Select LLM Model", llm_labels)
 
-# Map selection → correct instance
-if select_llm.startswith("Groq"):
-    llm = llm_groq
-else:
+if select_llm.startswith("OpenAI"):
     llm = llm_openai
+elif select_llm.startswith("Groq"):
+    llm = llm_groq
+elif select_llm.startswith("Local"):
+    llm = llm_ollama
+else:
+    llm = None
 
 # Safety: ensure llm is not None
 if llm is None:
