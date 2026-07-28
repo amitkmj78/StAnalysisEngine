@@ -584,9 +584,17 @@ def _worker_deploy(job_id: str, req: DeployRequest) -> None:
         sftp = client.open_sftp()
 
         _, _, rc = _ssh_exec(client, f"test -d {REMOTE_DIR}/.git")
-        first_run = rc != 0
+        repo_exists = rc == 0
 
-        if first_run:
+        # Setup completion is tracked independently of the clone: a partial
+        # first attempt (e.g. clone succeeds, schema/env/systemd step fails)
+        # must not permanently strand the box in the "existing install, just
+        # git pull" path on every later retry — check the last artifact this
+        # block writes, not just whether the repo directory exists.
+        _, _, rc = _ssh_exec(client, "test -f /etc/systemd/system/stanalysisengine-api.service")
+        setup_done = rc == 0
+
+        if not repo_exists:
             log(job, "Waiting for server setup (nginx/postgres/node) to finish...")
             setup_ready = False
             for _ in range(36):  # up to ~3 min at 5s intervals
@@ -608,8 +616,17 @@ def _worker_deploy(job_id: str, req: DeployRequest) -> None:
             if rc != 0:
                 raise RuntimeError(f"git clone failed: {err[-400:]}")
             log(job, "✓ Repo cloned")
+        else:
+            log(job, "Repo already present — pulling latest")
+            out, err, rc = _ssh_exec(client, f"cd {REMOTE_DIR} && git pull", timeout=120)
+            if rc != 0:
+                raise RuntimeError(f"git pull failed: {err[-400:]}")
+            log(job, f"✓ {out.strip().splitlines()[-1] if out.strip() else 'up to date'}")
 
-            log(job, "Setting up Postgres schema + roles")
+        if setup_done:
+            log(job, "Server already configured (schema/env/services/nginx) — skipping")
+        else:
+            log(job, "Completing first-time setup: Postgres schema + roles")
             app_user_pw = secrets.token_hex(16)
             app_service_pw = secrets.token_hex(16)
             session_secret = secrets.token_hex(32)
@@ -654,12 +671,6 @@ def _worker_deploy(job_id: str, req: DeployRequest) -> None:
             else:
                 log(job, "✓ nginx configured")
             _ssh_exec(client, "sudo systemctl daemon-reload")
-        else:
-            log(job, "Existing install found — pulling latest and redeploying")
-            out, err, rc = _ssh_exec(client, f"cd {REMOTE_DIR} && git pull", timeout=120)
-            if rc != 0:
-                raise RuntimeError(f"git pull failed: {err[-400:]}")
-            log(job, f"✓ {out.strip().splitlines()[-1] if out.strip() else 'up to date'}")
 
         log(job, "Installing backend deps (this can take a few minutes)...")
         out, err, rc = _ssh_exec(

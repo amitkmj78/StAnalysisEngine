@@ -15,3 +15,9 @@ scikit-learn
 yfinance
 ta
 langchain-openai
+langchain-groq
+langchain-anthropic
+langchain-ollama
+langchain-community
+tavily-python
+streamlit
