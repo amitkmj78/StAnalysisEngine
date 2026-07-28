@@ -717,12 +717,21 @@ def _worker_deploy(job_id: str, req: DeployRequest) -> None:
         _ssh_exec(client, "sudo systemctl restart stanalysisengine-api stanalysisengine-web")
         log(job, "✓ Services restarted")
 
-        time.sleep(3)
-        out, _, _ = _ssh_exec(client, "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health")
-        if out.strip() == "200":
+        # The app imports pandas/numpy/scikit-learn/streamlit/langchain at
+        # startup, which routinely takes ~10s — a fixed short sleep here
+        # produces false-negative "HTTP 000" warnings on a service that is
+        # actually fine a few seconds later, so poll instead of a single shot.
+        healthy = False
+        for _ in range(10):  # up to ~20s
+            time.sleep(2)
+            out, _, _ = _ssh_exec(client, "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health")
+            if out.strip() == "200":
+                healthy = True
+                break
+        if healthy:
             log(job, "✓ Backend health check passed")
         else:
-            log(job, f"⚠ Backend health check returned HTTP {out.strip() or '(no response)'}")
+            log(job, f"⚠ Backend health check returned HTTP {out.strip() or '(no response)'} after 20s")
 
         client.close()
         finish(job, True)
