@@ -20,7 +20,7 @@ export default async function AdminUsersPage() {
       </p>
 
       <div className="mt-6">
-        <UserApprovalPanel />
+        <UserApprovalPanel currentUserEmail={user!.email} />
       </div>
     </div>
   );

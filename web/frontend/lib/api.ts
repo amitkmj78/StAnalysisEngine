@@ -303,3 +303,7 @@ export function approveUser(userId: string) {
 export function rejectUser(userId: string) {
   return apiSend<{ ok: boolean }>(`/api/v1/admin/users/${userId}/reject`, "POST");
 }
+
+export function deleteUser(userId: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/admin/users/${userId}`, "DELETE");
+}

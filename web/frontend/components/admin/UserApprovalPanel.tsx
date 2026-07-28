@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, approveUser, getAdminUsers, rejectUser } from "@/lib/api";
+import { ApiError, approveUser, deleteUser, getAdminUsers, rejectUser } from "@/lib/api";
 import type { AdminUser } from "@/lib/types";
 
-export default function UserApprovalPanel() {
+export default function UserApprovalPanel({ currentUserEmail }: { currentUserEmail: string }) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -42,6 +42,21 @@ export default function UserApprovalPanel() {
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Reject failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDelete(id: string, email: string) {
+    if (!window.confirm(`Delete ${email}? This removes their account and all their saved data — this can't be undone.`)) {
+      return;
+    }
+    setBusyId(id);
+    try {
+      await deleteUser(id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Delete failed.");
     } finally {
       setBusyId(null);
     }
@@ -113,6 +128,7 @@ export default function UserApprovalPanel() {
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Signed Up</th>
+                <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -120,6 +136,17 @@ export default function UserApprovalPanel() {
                 <tr key={u.id} className="border-b border-slate-100 last:border-0">
                   <td className="px-3 py-2 text-slate-700">{u.email}</td>
                   <td className="px-3 py-2 text-slate-500">{new Date(u.created_at).toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right">
+                    {u.email.toLowerCase() !== currentUserEmail.toLowerCase() && (
+                      <button
+                        onClick={() => handleDelete(u.id, u.email)}
+                        disabled={busyId === u.id}
+                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

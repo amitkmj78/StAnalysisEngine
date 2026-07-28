@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from web.backend.admin import require_admin
+from web.backend.admin import ADMIN_EMAIL, require_admin
 from web.backend.db import service_conn
 
 router = APIRouter(
@@ -50,4 +50,19 @@ async def reject_user(user_id: str):
         )
     if row is None:
         raise HTTPException(404, "No pending user with that id.")
+    return {"ok": True}
+
+
+@router.delete("/{user_id}")
+async def delete_user(user_id: str):
+    # Revokes an already-approved user's access entirely — distinct from
+    # reject (which only ever declines a still-pending signup). Cascades to
+    # their trades/portfolio/saved_predictions via the FK on those tables.
+    async with service_conn() as conn:
+        row = await conn.fetchrow("SELECT email FROM users WHERE id = $1", user_id)
+        if row is None:
+            raise HTTPException(404, "User not found.")
+        if row["email"].lower() == ADMIN_EMAIL.lower():
+            raise HTTPException(400, "Cannot delete the admin account.")
+        await conn.execute("DELETE FROM users WHERE id = $1", user_id)
     return {"ok": True}
