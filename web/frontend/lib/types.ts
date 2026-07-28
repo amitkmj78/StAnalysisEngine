@@ -326,3 +326,11 @@ export interface ChatAskResponse {
   provider: string;
   answer: string;
 }
+
+// Admin — user approvals
+export interface AdminUser {
+  id: string;
+  email: string;
+  approved: boolean;
+  created_at: string;
+}

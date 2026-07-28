@@ -7,6 +7,7 @@ import jwt
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr
 
+from web.backend.admin import ADMIN_EMAIL
 from web.backend.auth import SESSION_COOKIE_NAME, verify_bearer_token
 from web.backend.db import service_conn
 
@@ -51,16 +52,27 @@ async def signup(body: SignupRequest, response: Response):
         raise HTTPException(422, "Password must be at least 8 characters.")
 
     password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    # The admin account bootstraps itself approved (otherwise nobody could
+    # ever approve the very first signup); every other signup starts pending
+    # and needs an explicit approval from the admin users page before login
+    # will issue a session.
+    approved = body.email.lower() == ADMIN_EMAIL.lower()
 
     async with service_conn() as conn:
         try:
             row = await conn.fetchrow(
-                "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email",
+                "INSERT INTO users (email, password_hash, approved) VALUES ($1, $2, $3) RETURNING id, email, approved",
                 body.email.lower(),
                 password_hash,
+                approved,
             )
         except asyncpg.UniqueViolationError:
             raise HTTPException(409, "An account with that email already exists.")
+
+    if not row["approved"]:
+        # No session issued — signing up does not grant access until an
+        # admin approves the account.
+        return {"id": str(row["id"]), "email": row["email"], "pending": True}
 
     token = _issue_token(str(row["id"]), row["email"])
     _set_session_cookie(response, token)
@@ -68,19 +80,22 @@ async def signup(body: SignupRequest, response: Response):
     # only caller is our own Next.js Server Action, calling server-to-server —
     # its fetch() doesn't forward this response's Set-Cookie to the browser,
     # so it re-sets the cookie itself on the response the browser actually gets.
-    return {"id": str(row["id"]), "email": row["email"], "token": token}
+    return {"id": str(row["id"]), "email": row["email"], "token": token, "pending": False}
 
 
 @router.post("/login")
 async def login(body: LoginRequest, response: Response):
     async with service_conn() as conn:
         row = await conn.fetchrow(
-            "SELECT id, email, password_hash FROM users WHERE email = $1",
+            "SELECT id, email, password_hash, approved FROM users WHERE email = $1",
             body.email.lower(),
         )
 
     if row is None or not bcrypt.checkpw(body.password.encode(), row["password_hash"].encode()):
         raise HTTPException(401, "Incorrect email or password.")
+
+    if not row["approved"]:
+        raise HTTPException(403, "Your account is pending admin approval. You'll be able to sign in once it's approved.")
 
     token = _issue_token(str(row["id"]), row["email"])
     _set_session_cookie(response, token)

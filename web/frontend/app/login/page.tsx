@@ -5,7 +5,7 @@ import { login } from "./actions";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; info?: string }>;
 }) {
   const params = await searchParams;
 
@@ -14,6 +14,9 @@ export default async function LoginPage({
       <h1 className="mb-1 text-2xl font-semibold text-slate-900">Log in</h1>
       <p className="mb-6 text-sm text-slate-500">AI Price Prediction &amp; Best Stock Finder</p>
 
+      {params.info && (
+        <p className="mb-4 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700">{params.info}</p>
+      )}
       {params.error && (
         <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{params.error}</p>
       )}

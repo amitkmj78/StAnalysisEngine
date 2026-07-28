@@ -25,12 +25,20 @@ export async function signup(formData: FormData) {
     redirect(`/signup?error=${encodeURIComponent(body.detail || "Sign up failed")}`);
   }
 
-  // No email-confirmation loop in v1 (no email-sending infra without
-  // Supabase) — the account is active immediately, so log the user straight
-  // in rather than showing a "check your email" message that would be a lie.
-  const { token } = await res.json();
+  const data = await res.json();
+
+  // Every signup except the admin's own account starts pending — no session
+  // is issued until an admin approves it from /admin/users, so there is no
+  // token to set a cookie with here.
+  if (data.pending) {
+    redirect(
+      "/login?info=" +
+        encodeURIComponent("Account created — it needs admin approval before you can sign in.")
+    );
+  }
+
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, token, {
+  cookieStore.set(SESSION_COOKIE_NAME, data.token, {
     httpOnly: true,
     secure: COOKIE_SECURE,
     sameSite: "lax",

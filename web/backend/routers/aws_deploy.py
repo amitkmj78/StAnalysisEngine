@@ -419,6 +419,7 @@ create table if not exists users (
   id uuid primary key default gen_random_uuid(),
   email text unique not null,
   password_hash text not null,
+  approved boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -521,7 +522,7 @@ grant usage on schema public to app_user, app_service;
 grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;
-grant select, insert on users to app_service;
+grant select, insert, update on users to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """
 

@@ -16,6 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from web.backend.db import close_pools, init_pools
 from web.backend.rate_limit import limiter
 from web.backend.routers import (
+    admin_users,
     auth,
     aws_deploy,
     chat,
@@ -64,6 +65,7 @@ app.include_router(portfolio.router)
 app.include_router(chat.router)
 app.include_router(aws_deploy.router)
 app.include_router(search.router)
+app.include_router(admin_users.router)
 
 
 @app.get("/health")

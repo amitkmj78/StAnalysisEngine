@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  AdminUser,
   ChatAskResponse,
   ChatProvidersResponse,
   EntryHistory,
@@ -288,4 +289,17 @@ export function getChatProviders() {
 
 export function askMetaAgent(ticker: string, question: string, provider?: string) {
   return apiSend<ChatAskResponse>("/api/v1/chat/ask", "POST", { ticker, question, provider });
+}
+
+// Admin — user approvals
+export function getAdminUsers() {
+  return apiFetch<AdminUser[]>("/api/v1/admin/users");
+}
+
+export function approveUser(userId: string) {
+  return apiSend<AdminUser>(`/api/v1/admin/users/${userId}/approve`, "POST");
+}
+
+export function rejectUser(userId: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/admin/users/${userId}/reject`, "POST");
 }

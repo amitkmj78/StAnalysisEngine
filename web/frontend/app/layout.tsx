@@ -64,9 +64,14 @@ export default async function RootLayout({
                   Chat
                 </Link>
                 {isAdmin(user.email) && (
-                  <Link href="/admin/deploy" className="text-slate-900 hover:text-slate-600">
-                    Deploy
-                  </Link>
+                  <>
+                    <Link href="/admin/users" className="text-slate-900 hover:text-slate-600">
+                      Users
+                    </Link>
+                    <Link href="/admin/deploy" className="text-slate-900 hover:text-slate-600">
+                      Deploy
+                    </Link>
+                  </>
                 )}
               </nav>
               <div className="flex items-center gap-3 text-sm text-slate-500">
