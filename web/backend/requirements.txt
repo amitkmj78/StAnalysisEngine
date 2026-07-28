@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+cachetools
+PyJWT
+slowapi
+asyncpg
+bcrypt
+email-validator
+boto3
+paramiko
+python-dotenv
+pandas
+numpy
+scikit-learn
+yfinance
+ta
+langchain-openai

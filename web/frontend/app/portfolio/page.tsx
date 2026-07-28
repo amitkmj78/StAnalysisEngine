@@ -1,0 +1,243 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import {
+  ApiError,
+  getPortfolioStrategies,
+  getPortfolioSummary,
+  importPortfolioCsv,
+  submitManualPositions,
+} from "@/lib/api";
+import type { ManualPositionInput, PortfolioStrategyRow, PortfolioSummary } from "@/lib/types";
+
+const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
+
+type Mode = "manual" | "csv";
+
+const EMPTY_ROW: ManualPositionInput = { name: "", ticker: "", shares: 0, current_price: 0, avg_cost: 0 };
+
+export default function PortfolioPage() {
+  const [mode, setMode] = useState<Mode>("manual");
+  const [riskProfile, setRiskProfile] = useState("Balanced");
+  const [riskFactor, setRiskFactor] = useState(5);
+
+  const [rows, setRows] = useState<ManualPositionInput[]>([{ ...EMPTY_ROW }]);
+  const [file, setFile] = useState<File | null>(null);
+
+  const [strategies, setStrategies] = useState<PortfolioStrategyRow[]>([]);
+  const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refresh() {
+    setLoading(true);
+    setError(null);
+    try {
+      const [stratRes, summaryRes] = await Promise.all([getPortfolioStrategies(), getPortfolioSummary()]);
+      setStrategies(stratRes.strategies);
+      setSummary(summaryRes.summary);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not load portfolio.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  function updateRow(i: number, patch: Partial<ManualPositionInput>) {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, { ...EMPTY_ROW }]);
+  }
+
+  function removeRow(i: number) {
+    setRows((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  async function submitManual(e: React.FormEvent) {
+    e.preventDefault();
+    const valid = rows.filter((r) => r.ticker.trim() && r.shares > 0);
+    if (valid.length === 0) {
+      setError("Add at least one position with a ticker and share count.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await submitManualPositions(
+        valid.map((r) => ({ ...r, ticker: r.ticker.trim().toUpperCase() })),
+        riskProfile,
+        riskFactor,
+      );
+      setRows([{ ...EMPTY_ROW }]);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not save positions.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitCsv(e: React.FormEvent) {
+    e.preventDefault();
+    if (!file) {
+      setError("Choose a Robinhood activity CSV first.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await importPortfolioCsv(file, riskProfile, riskFactor);
+      setFile(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not process CSV.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <h1 className="text-2xl font-semibold text-slate-900">Portfolio Strategies</h1>
+      <p className="mt-1 text-sm text-slate-500">
+        Import a Robinhood activity CSV or enter positions manually to get short- and long-term plans per holding.
+      </p>
+
+      <div className="mt-6 flex flex-wrap items-end gap-3">
+        <Field label="Risk profile">
+          <select value={riskProfile} onChange={(e) => setRiskProfile(e.target.value)} className="input">
+            {RISK_PROFILES.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Risk factor (1-10)">
+          <input type="number" min={1} max={10} value={riskFactor} onChange={(e) => setRiskFactor(Number(e.target.value))} className="input w-20" />
+        </Field>
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button
+          onClick={() => setMode("manual")}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "manual" ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"}`}
+        >
+          Manual Entry
+        </button>
+        <button
+          onClick={() => setMode("csv")}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "csv" ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"}`}
+        >
+          Import Robinhood CSV
+        </button>
+      </div>
+
+      {mode === "manual" ? (
+        <form onSubmit={submitManual} className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5">
+          {rows.map((row, i) => (
+            <div key={i} className="flex flex-wrap items-end gap-2">
+              <Field label="Ticker">
+                <input value={row.ticker} onChange={(e) => updateRow(i, { ticker: e.target.value })} className="input w-24 uppercase" />
+              </Field>
+              <Field label="Name">
+                <input value={row.name} onChange={(e) => updateRow(i, { name: e.target.value })} className="input w-32" />
+              </Field>
+              <Field label="Shares">
+                <input type="number" step="0.0001" value={row.shares || ""} onChange={(e) => updateRow(i, { shares: Number(e.target.value) })} className="input w-24" />
+              </Field>
+              <Field label="Avg cost">
+                <input type="number" step="0.01" value={row.avg_cost || ""} onChange={(e) => updateRow(i, { avg_cost: Number(e.target.value) })} className="input w-24" />
+              </Field>
+              <Field label="Current price">
+                <input type="number" step="0.01" value={row.current_price || ""} onChange={(e) => updateRow(i, { current_price: Number(e.target.value) })} className="input w-24" />
+              </Field>
+              {rows.length > 1 && (
+                <button type="button" onClick={() => removeRow(i)} className="text-xs text-red-600 hover:underline">
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={addRow} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
+              + Add Position
+            </button>
+            <button type="submit" disabled={submitting} className="btn-primary">
+              {submitting ? "Saving…" : "Save Positions"}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form onSubmit={submitCsv} className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5">
+          <Field label="Robinhood activity CSV">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="text-sm text-slate-700"
+            />
+          </Field>
+          <button type="submit" disabled={submitting} className="btn-primary self-start">
+            {submitting ? "Processing…" : "Import CSV"}
+          </button>
+        </form>
+      )}
+
+      {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+      {summary && (
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <MetricTile label="Positions" value={String(summary.total_positions)} />
+          <MetricTile label="Total Value" value={`$${summary.total_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
+          <MetricTile label="Unrealized PnL" value={`${summary.total_pnl_pct.toFixed(2)}%`} />
+        </div>
+      )}
+
+      <h2 className="mt-6 text-lg font-semibold text-slate-900">Strategies</h2>
+      {loading ? (
+        <p className="mt-2 text-sm text-slate-500">Loading…</p>
+      ) : strategies.length === 0 ? (
+        <p className="mt-2 text-sm text-slate-500">No saved strategies yet.</p>
+      ) : (
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {strategies.map((s) => (
+            <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-5">
+              <h3 className="font-semibold text-slate-900">{s.ticker}</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                {s.shares} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${s.current_price?.toFixed(2)} (
+                {s.unrealized_pnl_pct !== null ? `${s.unrealized_pnl_pct.toFixed(2)}%` : "—"})
+              </p>
+              <p className="mt-2 text-sm text-slate-700"><strong>Short term:</strong> {s.short_term_plan}</p>
+              <p className="mt-1 text-sm text-slate-700"><strong>Long term:</strong> {s.long_term_plan}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium text-slate-500">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function MetricTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
