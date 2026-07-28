@@ -340,6 +340,13 @@ def _ssh_exec(client, cmd: str, timeout: int = 300) -> tuple[str, str, int]:
 _USER_DATA = """#!/bin/bash
 set -e
 export DEBIAN_FRONTEND=noninteractive
+if [ ! -f /swapfile ]; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
 apt-get update -y
 apt-get install -y python3-venv python3-pip nginx git curl postgresql
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -671,6 +678,21 @@ def _worker_deploy(job_id: str, req: DeployRequest) -> None:
             else:
                 log(job, "✓ nginx configured")
             _ssh_exec(client, "sudo systemctl daemon-reload")
+
+        _, _, rc = _ssh_exec(client, "swapon --show=NAME --noheadings | grep -q /swapfile")
+        if rc != 0:
+            log(job, "No swap found — small instances OOM-kill during npm build without it. Adding 2GB swap...")
+            out, err, rc = _ssh_exec(
+                client,
+                "sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && "
+                "sudo swapon /swapfile && "
+                "grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab",
+                timeout=60,
+            )
+            if rc != 0:
+                log(job, f"⚠ swap setup failed (continuing anyway): {err[-300:]}")
+            else:
+                log(job, "✓ 2GB swap enabled")
 
         log(job, "Installing backend deps (this can take a few minutes)...")
         out, err, rc = _ssh_exec(
