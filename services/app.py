@@ -7,12 +7,13 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-
+import ta
 import streamlit as st
 
 # -------------------------------------------------------------
 # Imports for services / agents
 # -------------------------------------------------------------
+from SetupLLMBase.vectorStoreDB import save_analysis_to_rag
 from services.config import validate_environment
 from services.llm_setup import init_llms
 from services.data_service import TIMEFRAME_MAPPING, get_stock_data, get_latest_price
@@ -40,6 +41,7 @@ from services.portfolio_strategy import (
 from services.manual_positions import build_manual_positions
 from Agent.meta_agent import build_agent, ask_meta_agent
 from langchain_openai import ChatOpenAI
+
 from Agent.meta_agent import get_debug_logs
 # -------------------------------------------------------------
 # 🛡️ Risk Settings (Sidebar)
@@ -133,10 +135,11 @@ if not llm_labels:
 # Model selection dropdown
 select_llm = st.sidebar.selectbox("Select LLM Model", llm_labels)
 
-if select_llm.startswith("OpenAI"):
-    llm = llm_openai
-elif select_llm.startswith("Groq"):
+
+if select_llm.startswith("Groq"):
     llm = llm_groq
+elif select_llm.startswith("OpenAI"):
+    llm = llm_openai    
 elif select_llm.startswith("Local"):
     llm = llm_ollama
 else:
@@ -299,7 +302,7 @@ def render_price_chart(ticker: str, timeframe_label: str):
 with tabs[0]:
     st.title("📊 AI Stock Intelligence Dashboard")
     
-    st.text_area("Debug Output", get_debug_logs(), height=400)
+    #st.text_area("Debug Output", get_debug_logs(), height=400)
     if ticker:
         st.subheader(f"Overview — {ticker}")
         last_price = get_latest_price(ticker)
@@ -325,7 +328,12 @@ with tabs[0]:
             st.warning(f"Unable to load basic info right now: {e}")
     else:
         st.info("Enter a ticker in the sidebar to get started.")
-
+save_analysis_to_rag(
+    ticker="AAPL",
+    analysis_type="technical_short_term",
+    analysis_text=snapshot,
+    confidence="high"
+)
 # ===================================================================
 # 📈 Charts & Prediction Tab
 # ===================================================================
@@ -375,8 +383,8 @@ with tabs[1]:
 
         st.markdown("---")
 
-        # Short-term (7D) AI summary
-        short_term_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.4)
+        from langchain_groq import ChatGroq      # Short-term (7D) AI summary
+        short_term_llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.4)
 
         def get_short_term_summary(ticker: str, future_df: pd.DataFrame) -> str:
             prompt = f"""
@@ -412,6 +420,12 @@ with tabs[1]:
             colA.metric("Signal", signal_info_short["signal"])
             colB.metric("Expected Return (7d)", f"{exp_ret:.2f}%")
             colC.metric("Target Price", f"${tgt_price:.2f}")
+
+            st.caption(
+                "This is one data-driven signal, not a guarantee — see "
+                "'Backtest Accuracy' below for how it has historically "
+                "performed against a simple no-change baseline."
+            )
 
             summary = get_short_term_summary(ticker, future_df_short)
             st.info(summary)
@@ -450,11 +464,12 @@ with tabs[1]:
                 return "color: #28a745" if val >= 0 else "color: #dc3545"
 
             st.dataframe(
-                backtest_df[["Actual", "Predicted", "Delta", "Delta_Pct"]]
+                backtest_df[["Actual", "Predicted", "Naive", "Delta", "Delta_Pct"]]
                 .style.format(
                     {
                         "Actual": "${:.2f}",
                         "Predicted": "${:.2f}",
+                        "Naive": "${:.2f}",
                         "Delta": "${:.2f}",
                         "Delta_Pct": "{:.2f}%",
                     }
@@ -500,6 +515,15 @@ with tabs[1]:
                     name="Predicted",
                 )
             )
+            fig_bt.add_trace(
+                go.Scatter(
+                    x=backtest_df.index,
+                    y=backtest_df["Naive"],
+                    mode="lines",
+                    name="Naive (no-change)",
+                    line=dict(dash="dot", color="gray"),
+                )
+            )
 
             residual_std = backtest_df["Delta"].std()
             fig_bt.add_trace(
@@ -529,12 +553,44 @@ with tabs[1]:
             )
             st.plotly_chart(fig_bt, use_container_width=True)
 
+            st.subheader("🎯 Backtest Accuracy")
             metrics = compute_backtest_metrics(backtest_df)
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("RMSE", f"{metrics['rmse']:.2f}")
             c2.metric("MAE", f"{metrics['mae']:.2f}")
             c3.metric("MAPE", f"{metrics['mape']:.2f}%")
             c4.metric("Directional Accuracy", f"{dir_acc:.1f}%")
+
+            if "naive_rmse" in metrics:
+                st.caption(
+                    "Naive baseline = predicting no price change "
+                    "(tomorrow's price = today's close). RMSE/MAE shown as "
+                    "model minus naive, so negative is better."
+                )
+                n1, n2, n3, n4 = st.columns(4)
+                n1.metric(
+                    "RMSE vs Naive",
+                    f"{metrics['naive_rmse']:.2f}",
+                    delta=f"{metrics['rmse'] - metrics['naive_rmse']:.2f}",
+                    delta_color="inverse",
+                )
+                n2.metric(
+                    "MAE vs Naive",
+                    f"{metrics['naive_mae']:.2f}",
+                    delta=f"{metrics['mae'] - metrics['naive_mae']:.2f}",
+                    delta_color="inverse",
+                )
+                n3.metric(
+                    "MAPE vs Naive",
+                    f"{metrics['naive_mape']:.2f}%",
+                    delta=f"{metrics['mape'] - metrics['naive_mape']:.2f}%",
+                    delta_color="inverse",
+                )
+                if metrics["beats_naive"]:
+                    n4.success("Model beats naive baseline")
+                else:
+                    n4.error("Model does not beat naive baseline")
+
             st.markdown("---")
 
             # Simple trading simulation

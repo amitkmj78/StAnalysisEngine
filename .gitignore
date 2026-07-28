@@ -1,0 +1,4 @@
+.env
+docs/local-dev-credentials.md
+__pycache__/
+*.pyc
