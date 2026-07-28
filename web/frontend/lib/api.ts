@@ -26,9 +26,11 @@ import type {
   UniversesResponse,
 } from "@/lib/types";
 
-// Absolute in local dev (http://127.0.0.1:8010); becomes a relative "/api"
-// path once deployed behind nginx on the same origin (see plan §5) — the
-// URL construction below handles both without any code change.
+// Absolute in local dev (http://127.0.0.1:8010); empty once deployed behind
+// nginx on the same origin, since every call site below already passes the
+// full "/api/v1/..." path — nginx's /api/ location proxies that literal
+// path straight to the backend. Do NOT set this to "/api" in production:
+// that doubles the prefix into "/api/api/v1/...", a 404.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 export class ApiError extends Error {
