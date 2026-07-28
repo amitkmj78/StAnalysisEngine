@@ -170,14 +170,15 @@ def simple_verdict(score, info, dupont):
 # -------------------------------------------------------------
 # UNBIASED AI INTERPRETATION
 # -------------------------------------------------------------
-def ai_top_interpretation(text):
+def ai_top_interpretation(text, llm=None):
     """
     A purely objective, neutral AI interpretation.
     No opinions, no recommendations, no bias.
     Only clarifies the numbers.
     """
+    llm_to_use = llm or llm_financial
     try:
-        res = llm_financial.invoke(
+        res = llm_to_use.invoke(
             "Provide an unbiased, strictly factual interpretation of the financial data below. "
             "Do NOT give investment advice, do NOT recommend buy/sell, do NOT express opinion. "
             "Simply summarize what the numbers objectively indicate: trends, strengths, weaknesses, and risks.\n\n"
@@ -223,7 +224,7 @@ def peer_compare(ticker):
 # -------------------------------------------------------------
 # MAIN ENGINE
 # -------------------------------------------------------------
-def financial_analysis(ticker: str) -> str:
+def financial_analysis(ticker: str, llm=None) -> str:
 
     info = fetch_financials(ticker)
     if not info:
@@ -316,6 +317,6 @@ PEER COMPARISON
 TOP AI INTERPRETATION (UNBIASED)
 -------------------------
 """
-    report += ai_top_interpretation(report)
+    report += ai_top_interpretation(report, llm)
 
     return report

@@ -1,62 +1,101 @@
 import datetime
+
+from Agent.basicAgent import get_basic_stock_info
+from Agent.technicalAgent import get_technical_analysis
+from Agent.financialAgent import financial_analysis
+from Agent.filingAgent import filings_analysis
+from Agent.newAgent import news_summary
+from Agent.reasearchAgent import research
+
 today_date = datetime.date.today()
 
-def recommend(company_stock: str):
-    
-    return f"""
-    **Investment Recommendation Report**  
-    **Stock:** {company_stock}  
-    **Date:** {today_date}  
 
-    ---  
-
-    **Executive Summary:**  
-    This report synthesizes analyses provided by the Financial Analyst and the Research Analyst. It integrates insights into the financial health, market sentiment, and qualitative data extracted from EDGAR filings.  
-
-    ---  
-
-    **Section 1: Financial Analysis**  
-    - **Key Metrics:** (Include PE ratio, EPS, revenue growth, profit margins, etc.)  
-    - **Balance Sheet Health:** (Assess liquidity, debt levels, and asset quality.)  
-    - **Cash Flow Trends:** (Highlight operating, investing, and financing cash flows.)  
-
-    **Section 2: Market Sentiment**  
-    - **Recent Stock Performance:** (Evaluate price movements, volatility, and trends.)  
-    - **Analyst Ratings:** (Summarize ratings, price targets, and consensus opinions.)  
-    - **News Sentiment:** (Include notable headlines and sentiment analysis.)  
-
-    **Section 3: Qualitative Insights from EDGAR Filings**  
-    - **Key Disclosures:** (Discuss management commentary, risks, and strategies.)  
-    - **Material Changes:** (Identify significant changes in operations or outlook.)  
-    - **Other Highlights:** (Extract any unique insights or observations.)  
-
-    **Section 4: Insider Trading Activity**  
-    - **Recent Transactions:** (Summarize insider buying/selling activity.)  
-    - **Implications:** (Discuss whether this reflects confidence or caution.)  
-
-    **Section 5: Upcoming Events**  
-    - **Earnings Report Date:** (Include relevant dates and anticipated impacts.)  
-    - **Dividends/Buybacks:** (Note any announced plans.)  
-    - **Corporate Events:** (Highlight conferences, product launches, etc.)  
-
-    ---  
-
-    **Recommendation:**  
-    Based on the analysis above, our recommendation for {company_stock} is:  
-    - **Investment Stance:** (e.g., Buy, Hold, or Sell)  
-    - **Rationale:** (Summarize key factors supporting this stance.)  
-    - **Strategy:** (Provide actionable advice, such as entry/exit points, long-term expectations, and risk management tips.)  
-
-    ---  
-
-    **Supporting Evidence:**  
-    - Include relevant charts, graphs, or tables to enhance understanding.  
-    - Ensure the report is professional and visually appealing for the customer.  
-
-    ---  
-
-    **Note:**  
-    This recommendation is based on the data available as of {today_date}. Market conditions may change, and it is advised to reassess periodically.  
-
+def recommend(company_stock: str, llm=None) -> str:
     """
+    Synthesize basic info, technical, financial, filings, news, and
+    research analyses into one Investment Recommendation Report.
 
+    Requires an LLM to actually synthesize the report; without one, this
+    returns the raw gathered context instead of guessing at a report.
+    """
+    try:
+        basic_info = get_basic_stock_info(company_stock)
+    except Exception as e:
+        basic_info = f"Error in basic info: {e}"
+
+    try:
+        technical_info = get_technical_analysis(company_stock)
+    except Exception as e:
+        technical_info = f"Error in technical analysis: {e}"
+
+    try:
+        financial_info = financial_analysis(company_stock, llm=llm)
+    except Exception as e:
+        financial_info = f"Error in financial analysis: {e}"
+
+    try:
+        filings_info = filings_analysis(company_stock, llm=llm)
+    except Exception as e:
+        filings_info = f"Error in filings analysis: {e}"
+
+    try:
+        news_info = news_summary(company_stock, llm=llm)
+    except Exception as e:
+        news_info = f"Error in news analysis: {e}"
+
+    try:
+        research_info = research(company_stock=company_stock, llm=llm)
+    except Exception as e:
+        research_info = f"Error in research analysis: {e}"
+
+    context = f"""
+[BASIC INFO]
+{basic_info}
+
+[TECHNICAL ANALYSIS]
+{technical_info}
+
+[FINANCIAL ANALYSIS]
+{financial_info}
+
+[FILINGS ANALYSIS]
+{filings_info}
+
+[NEWS ANALYSIS]
+{news_info}
+
+[RESEARCH ANALYSIS]
+{research_info}
+"""
+
+    prompt = f"""
+You are an AI investment analyst. Using ONLY the research context below for
+{company_stock} as of {today_date}, write a structured Investment
+Recommendation Report with these sections:
+
+1. Executive Summary (3-5 sentences)
+2. Financial Analysis (key metrics, balance sheet health, cash flow trends)
+3. Market Sentiment (recent price action, news sentiment)
+4. Qualitative Insights (filings, risks, strategic changes)
+5. Final Recommendation — an explicit Buy / Hold / Sell stance, the
+   rationale behind it, a suggested time horizon, and key risks to monitor.
+
+Write one cohesive report; do not mention that this came from separate
+tools. Do not invent numbers that are not present in the context below.
+
+Context:
+{context}
+"""
+
+    if llm is None:
+        return (
+            f"[Offline Recommendation Context for {company_stock}]\n\n{context}\n\n"
+            "Note: No LLM was provided, so this shows the gathered research "
+            "instead of a synthesized recommendation."
+        )
+
+    try:
+        result = llm.invoke(prompt)
+        return getattr(result, "content", str(result))
+    except Exception as e:
+        return f"[RecommendAgent LLM error: {e}]"

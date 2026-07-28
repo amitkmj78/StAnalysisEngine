@@ -16,7 +16,7 @@ def _get_llm():
 
 
 
-def news_summary(ticker: str) -> str:
+def news_summary(ticker: str, llm=None) -> str:
     """
     Fetch real news using Tavily API, then summarize & analyze with LLM.
     Returns a detailed professional news intelligence brief.
@@ -41,8 +41,8 @@ def news_summary(ticker: str) -> str:
         return f"Error fetching news: {e}"
 
     # Step 2 — Use LLM to analyze & summarize
-    llm = _get_llm()
-    if llm is None:
+    llm_to_use = llm or _get_llm()
+    if llm_to_use is None:
         return raw_news  # fallback to raw text
 
     prompt = f"""
@@ -68,7 +68,7 @@ Do NOT hallucinate — use only info from the news.
 """
 
     try:
-        result = llm.invoke(prompt)
+        result = llm_to_use.invoke(prompt)
         return result.content if hasattr(result, "content") else str(result)
     except Exception as e:
         return f"[LLM Error] {e}"

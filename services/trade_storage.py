@@ -127,7 +127,7 @@ def save_trade_idea(
     trade_id = f"{ticker}_{int(created_at.timestamp())}"
 
     if _trade_exists(trade_id):
-        print(f"⚠ Trade already exists — skipping {trade_id}")
+        print(f"WARNING: Trade already exists, skipping {trade_id}")
         return
 
     # Build row dynamically from schema
@@ -157,7 +157,7 @@ def save_trade_idea(
     conn.commit()
     conn.close()
 
-    print(f"✅ Saved trade {trade_id}")
+    print(f"Saved trade {trade_id}")
 
 
 # ============================================================

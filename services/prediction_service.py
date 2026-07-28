@@ -1,69 +1,10 @@
 from typing import Optional, Dict
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.model_selection import GridSearchCV
 
 from .data_service import get_stock_data
-
-
-# ============================================
-#   INTERNAL MODEL TRAINING UTILITIES
-# ============================================
-
-def _base_gbm() -> GradientBoostingRegressor:
-    """Base GBM config used as a starting point."""
-    return GradientBoostingRegressor(
-        n_estimators=400,
-        learning_rate=0.01,
-        max_depth=4,
-        random_state=42,
-    )
-
-
-def _train_price_model(df: pd.DataFrame, tune: bool = False) -> GradientBoostingRegressor:
-    """
-    Train a GBM model on engineered features.
-    If tune=True, run a very small GridSearchCV to auto-tune hyperparams.
-    """
-    features = ["Index", "Lag1", "MA5", "MA10"]
-    X = df[features].values
-    y = df["Close"].values
-
-    if not tune:
-        model = _base_gbm()
-        model.fit(X, y)
-        return model
-
-    # Very small grid to avoid being too slow
-    param_grid = {
-        "n_estimators": [200, 400],
-        "learning_rate": [0.01, 0.02],
-        "max_depth": [3, 4],
-    }
-
-    grid = GridSearchCV(
-        _base_gbm(),
-        param_grid,
-        cv=3,
-        n_jobs=-1,
-        scoring="neg_mean_squared_error",
-    )
-    grid.fit(X, y)
-    return grid.best_estimator_
-
-
-def _prepare_feature_frame(data: pd.DataFrame) -> pd.DataFrame:
-    """
-    Take raw OHLC data and add features needed for the model.
-    """
-    df = data.copy()
-    df["Index"] = np.arange(len(df))
-    df["Lag1"] = df["Close"].shift(1)
-    df["MA5"] = df["Close"].rolling(window=5).mean()
-    df["MA10"] = df["Close"].rolling(window=10).mean()
-    df = df.dropna()
-    return df
+from .feature_service import FEATURE_COLUMNS, build_feature_frame, next_step_features
+from .model_service import RETURN_SHRINKAGE, get_price_model, train_model_on_frame
 
 
 # ============================================
@@ -78,15 +19,17 @@ def predict_next_price(ticker: str, period: str, tune: bool = False) -> Optional
     if data.empty or len(data) < 20:
         return None
 
-    df = _prepare_feature_frame(data)
+    df = build_feature_frame(data)
     if df.empty:
         return None
 
-    model = _train_price_model(df, tune=tune)
-
-    last = df.iloc[-1]
-    X_new = np.array([[last["Index"] + 1, last["Close"], last["MA5"], last["MA10"]]])
-    return float(model.predict(X_new)[0])
+    model = get_price_model(ticker, period, tune=tune)
+    if model is None:
+        return None
+    X_new = next_step_features(df)
+    pred_return = float(model.predict(X_new)[0]) * RETURN_SHRINKAGE
+    last_close = float(df["Close"].iloc[-1])
+    return last_close * (1 + pred_return)
 
 
 def predict_backtest_prices(
@@ -102,35 +45,49 @@ def predict_backtest_prices(
     Returns a DataFrame indexed by date with columns: Actual, Predicted.
     """
     data = get_stock_data(ticker, period)
-    if data.empty or len(data) < days_back + 25:
+    if data.empty or len(data) < days_back + 26:
         return None
 
-    df = _prepare_feature_frame(data)
+    df = build_feature_frame(data)
     if df.empty:
         return None
 
     actual_list = []
     predicted_list = []
+    naive_list = []
     dates_list = []
 
     n = len(df)
 
     for i in range(n - days_back, n):
         sample = df.iloc[:i]
-        if len(sample) < 25:
+
+        # Exclude the sample's own last row from training: its Target is
+        # the return from day i-1 to day i, i.e. exactly the value this
+        # step is trying to predict. Precomputing Target over the whole
+        # series and then slicing a prefix would otherwise leak that
+        # answer into training, even though the row's *features* (used
+        # below as the prediction input) are legitimately known already.
+        train_sample = sample.iloc[:-1]
+        if len(train_sample) < 25:
             continue
 
-        model = _train_price_model(sample, tune=tune)
+        model = train_model_on_frame(train_sample, tune=tune)
+        X_next = next_step_features(sample)
+        pred_return = float(model.predict(X_next)[0]) * RETURN_SHRINKAGE
 
-        last_sample = sample.iloc[-1]
-        X_next = np.array(
-            [[last_sample["Index"] + 1, last_sample["Close"], last_sample["MA5"], last_sample["MA10"]]]
-        )
-        pred = float(model.predict(X_next)[0])
+        last_close = float(sample["Close"].iloc[-1])
+        pred = last_close * (1 + pred_return)
+
+        # Naive baseline: "tomorrow's price = today's close" (no-change
+        # random-walk forecast). A model that can't beat this isn't adding
+        # predictive value, however good its raw error numbers look alone.
+        naive_pred = last_close
 
         actual = df["Close"].iloc[i]
         actual_list.append(actual)
         predicted_list.append(pred)
+        naive_list.append(naive_pred)
         dates_list.append(df.index[i])
 
     if not dates_list:
@@ -141,6 +98,7 @@ def predict_backtest_prices(
             "Date": dates_list,
             "Actual": actual_list,
             "Predicted": predicted_list,
+            "Naive": naive_list,
         }
     ).set_index("Date")
 
@@ -161,18 +119,25 @@ def predict_future_prices(
     if data.empty or len(data) < 40:
         return None
 
-    df = _prepare_feature_frame(data)
+    df = build_feature_frame(data)
     if df.empty:
         return None
 
-    model = _train_price_model(df, tune=tune)
+    model = get_price_model(ticker, period, tune=tune)
+    if model is None:
+        return None
 
-    # Compute residual std for CI
-    features = ["Index", "Lag1", "MA5", "MA10"]
-    X_full = df[features].values
-    y_full = df["Close"].values
-    y_hat = model.predict(X_full)
-    residuals = y_full - y_hat
+    # Compute residual std for CI, converted back to price space: the
+    # model predicts a return, so in-sample error has to be measured as
+    # (predicted next price) vs (actual next price), not on the raw
+    # return values.
+    trainable = df.dropna(subset=["Target"])
+    X_full = trainable[FEATURE_COLUMNS].values
+    prev_close = trainable["Close"].values
+    y_hat_return = model.predict(X_full) * RETURN_SHRINKAGE
+    y_hat_price = prev_close * (1 + y_hat_return)
+    actual_next_price = prev_close * (1 + trainable["Target"].values)
+    residuals = y_hat_price - actual_next_price
     sigma = np.std(residuals, ddof=1) if len(residuals) > 1 else 0.0
 
     # Future dates: business days
@@ -183,8 +148,17 @@ def predict_future_prices(
         freq="B",
     )[1:]  # skip the current last_date
 
-    last_index = df["Index"].iloc[-1]
     rolling_closes = list(df["Close"].values)
+
+    # RSI/MACD/Bollinger move slowly relative to a one-day step, so they're
+    # held at their last observed value for the whole horizon rather than
+    # recursively re-simulated — a known simplification, not a true
+    # multi-day forecast of oscillator state.
+    last_row = df.iloc[-1]
+    fixed_rsi = last_row["RSI"]
+    fixed_macd = last_row["MACD"]
+    fixed_macd_signal = last_row["MACD_signal"]
+    fixed_bb_pctb = last_row["BB_pctB"]
 
     preds = []
     lower_ci = []
@@ -192,14 +166,15 @@ def predict_future_prices(
 
     z = 1.96  # 95% CI
 
-    for i in range(1, days_ahead + 1):
-        new_index = last_index + i
+    for _ in range(days_ahead):
         lag1 = rolling_closes[-1]
         ma5 = np.mean(rolling_closes[-5:])
         ma10 = np.mean(rolling_closes[-10:]) if len(rolling_closes) >= 10 else ma5
+        return1 = (rolling_closes[-1] - rolling_closes[-2]) / rolling_closes[-2] if len(rolling_closes) >= 2 else 0.0
 
-        X_new = np.array([[new_index, lag1, ma5, ma10]])
-        pred = float(model.predict(X_new)[0])
+        X_new = np.array([[lag1, ma5, ma10, return1, fixed_rsi, fixed_macd, fixed_macd_signal, fixed_bb_pctb]])
+        pred_return = float(model.predict(X_new)[0]) * RETURN_SHRINKAGE
+        pred = rolling_closes[-1] * (1 + pred_return)
 
         preds.append(pred)
 
@@ -228,13 +203,7 @@ def predict_future_prices(
 #   METRICS & SIGNALS
 # ============================================
 
-def compute_backtest_metrics(backtest_df: pd.DataFrame) -> Dict[str, float]:
-    """
-    Compute RMSE, MAE, and MAPE from a backtest DataFrame.
-    """
-    actual = backtest_df["Actual"].values
-    predicted = backtest_df["Predicted"].values
-
+def _error_stats(predicted: np.ndarray, actual: np.ndarray) -> Dict[str, float]:
     errors = predicted - actual
     rmse = float(np.sqrt(np.mean(errors ** 2)))
     mae = float(np.mean(np.abs(errors)))
@@ -252,6 +221,28 @@ def compute_backtest_metrics(backtest_df: pd.DataFrame) -> Dict[str, float]:
         mape = float("nan")
 
     return {"rmse": rmse, "mae": mae, "mape": mape}
+
+
+def compute_backtest_metrics(backtest_df: pd.DataFrame) -> Dict[str, float]:
+    """
+    Compute RMSE, MAE, and MAPE for the model's predictions, and — when a
+    "Naive" column is present — for a naive "no price change" baseline too,
+    so the model's accuracy is judged against doing nothing rather than in
+    isolation. Adds `beats_naive` (True if the model's RMSE is lower).
+    """
+    actual = backtest_df["Actual"].values
+    predicted = backtest_df["Predicted"].values
+
+    metrics = _error_stats(predicted, actual)
+
+    if "Naive" in backtest_df.columns:
+        naive_stats = _error_stats(backtest_df["Naive"].values, actual)
+        metrics["naive_rmse"] = naive_stats["rmse"]
+        metrics["naive_mae"] = naive_stats["mae"]
+        metrics["naive_mape"] = naive_stats["mape"]
+        metrics["beats_naive"] = metrics["rmse"] < naive_stats["rmse"]
+
+    return metrics
 
 
 def generate_trading_signal(

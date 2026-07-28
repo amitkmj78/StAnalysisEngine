@@ -1,8 +1,7 @@
 langchain-openai
-langchain
 langchain-core
 langchain-groq
-
+langchain-anthropic
 langgraph
 matplotlib
 mplfinance
@@ -21,15 +20,12 @@ numpy
 plotly
 scikit-learn
 python-dotenv
-
 langchain
-langchain-groq
 langchain-community
-
 tavily-python
 websocket-client
-
-
 nltk
-requests
+faiss-cpu 
+tiktoken
+install sentence-transformers
 

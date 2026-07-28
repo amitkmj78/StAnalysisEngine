@@ -2,10 +2,8 @@
 # meta_agent.py — FINAL STABLE VERSION WITH FULL DEBUG LOGGING
 # ============================================================
 
-import json
 import datetime
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 
@@ -27,73 +25,71 @@ def get_debug_logs():
 
 
 # ------------------------------------------------------------
-# TOOL DEFINITIONS (ALL DOCSTRINGS FIXED)
-# ------------------------------------------------------------
-
-@tool
-def company_basics(ticker: str):
-    """Return basic company profile such as name, sector, industry, and price."""
-    from Agent.basicAgent import get_basic_stock_info
-    return get_basic_stock_info(ticker)
-
-
-@tool
-def technical_analysis(ticker: str):
-    """Return technical indicators such as RSI and MACD signals."""
-    from Agent.technicalAgent import get_technical_analysis
-    return get_technical_analysis(ticker)
-
-
-@tool
-def financial_analysis_tool(ticker: str):
-    """Return valuation metrics, profitability, ROE, DuPont, and financial strength."""
-    from Agent.financialAgent import financial_analysis
-    return financial_analysis(ticker)
-
-
-@tool
-def filings_analysis_tool(ticker: str):
-    """Return SEC filings analysis including 10-K risk factors and red flags."""
-    from Agent.filingAgent import filings_analysis
-    return filings_analysis(ticker)
-
-
-@tool
-def news_sentiment(ticker: str):
-    """Return summarized news sentiment and headline sentiment score."""
-    from Agent.newAgent import news_summary
-    return news_summary(ticker)
-
-
-@tool
-def research_report(ticker: str):
-    """Return full professional equity research report with catalysts and risks."""
-    from Agent.reasearchAgent import research
-    return research(ticker)
-
-
-@tool
-def final_recommendation(ticker: str):
-    """Return final Buy / Hold / Sell recommendation."""
-    from Agent.recommendAgent import recommend
-    return recommend(ticker)
-
-
-TOOLS = [
-    company_basics,
-    technical_analysis,
-    financial_analysis_tool,
-    filings_analysis_tool,
-    news_sentiment,
-    research_report,
-    final_recommendation,
-]
-
-
-# ------------------------------------------------------------
 # BUILD META-AGENT
 # ------------------------------------------------------------
-def build_agent(llm: ChatOpenAI):
+def build_agent(llm):
+    """
+    Build the meta-agent's orchestration chain and its tools.
+
+    The tools are defined here (not at module level) so each one closes
+    over `llm` — the same model the user picked in the sidebar is what
+    actually answers financial/filings/news/research/recommendation
+    sub-questions, instead of those tools silently hardcoding their own
+    model regardless of the user's selection.
+    """
+
+    @tool
+    def company_basics(ticker: str):
+        """Return basic company profile such as name, sector, industry, and price."""
+        from Agent.basicAgent import get_basic_stock_info
+        return get_basic_stock_info(ticker)
+
+    @tool
+    def technical_analysis(ticker: str):
+        """Return technical indicators such as RSI and MACD signals."""
+        from Agent.technicalAgent import get_technical_analysis
+        return get_technical_analysis(ticker)
+
+    @tool
+    def financial_analysis_tool(ticker: str):
+        """Return valuation metrics, profitability, ROE, DuPont, and financial strength."""
+        from Agent.financialAgent import financial_analysis
+        return financial_analysis(ticker, llm=llm)
+
+    @tool
+    def filings_analysis_tool(ticker: str):
+        """Return SEC filings analysis including 10-K risk factors and red flags."""
+        from Agent.filingAgent import filings_analysis
+        return filings_analysis(ticker, llm=llm)
+
+    @tool
+    def news_sentiment(ticker: str):
+        """Return summarized news sentiment and headline sentiment score."""
+        from Agent.newAgent import news_summary
+        return news_summary(ticker, llm=llm)
+
+    @tool
+    def research_report(ticker: str):
+        """Return full professional equity research report with catalysts and risks."""
+        from Agent.reasearchAgent import research
+        return research(ticker, llm=llm)
+
+    @tool
+    def final_recommendation(ticker: str):
+        """Return final Buy / Hold / Sell recommendation."""
+        from Agent.recommendAgent import recommend
+        return recommend(ticker, llm=llm)
+
+    tools = [
+        company_basics,
+        technical_analysis,
+        financial_analysis_tool,
+        filings_analysis_tool,
+        news_sentiment,
+        research_report,
+        final_recommendation,
+    ]
+
     system_prompt = """
     You are a Wall Street equity analyst.
     RULES:
@@ -106,21 +102,24 @@ def build_agent(llm: ChatOpenAI):
     """
 
     log_debug("BUILD_AGENT — SYSTEM PROMPT", system_prompt)
-    log_debug("BUILD_AGENT — TOOLS LOADED", str([t.name for t in TOOLS]))
+    log_debug("BUILD_AGENT — TOOLS LOADED", str([t.name for t in tools]))
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", "{input}")
     ])
 
-    agent = prompt | llm.bind_tools(TOOLS)
-    return agent
+    agent_runnable = prompt | llm.bind_tools(tools)
+    return {"agent": agent_runnable, "tools": tools}
 
 
 # ------------------------------------------------------------
 # MAIN EXECUTION FUNCTION (SAFE)
 # ------------------------------------------------------------
-def ask_meta_agent(agent, ticker: str, question: str) -> str:
+def ask_meta_agent(meta_agent, ticker: str, question: str) -> str:
+    agent = meta_agent["agent"]
+    tools = meta_agent["tools"]
+
     full_input = f"""
     Analyze stock: {ticker}
 
@@ -155,7 +154,7 @@ def ask_meta_agent(agent, ticker: str, question: str) -> str:
                 log_debug("TOOL INVOCATION", f"Tool: {tool_name}\nArgs: {args}")
 
                 try:
-                    tool_fn = next(t for t in TOOLS if t.name == tool_name)
+                    tool_fn = next(t for t in tools if t.name == tool_name)
                     result = tool_fn.run(args)
                     tool_outputs.append(f"Tool {tool_name} result:\n{result}")
                 except Exception as e:

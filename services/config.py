@@ -1,7 +1,6 @@
 # services/config.py
 import datetime
 import os
-import streamlit as st
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,6 +16,10 @@ WS_PRICE_FEED_URL = os.getenv("WS_PRICE_FEED_URL")  # optional custom feed URL
 
 def validate_environment():
     """Validate env config and show helpful messages in the UI."""
+    # Imported lazily — this module is also imported by the FastAPI backend
+    # (via sentiment_service.py), which doesn't have/need a Streamlit context.
+    import streamlit as st
+
     if not GROQ_API_KEY and not OPENAI_API_KEY:
         st.error(
             "❌ No LLM API keys configured.\n\n"
@@ -38,4 +41,4 @@ def validate_environment():
             "Set either FINNHUB_API_KEY or WS_PRICE_FEED_URL in your .env "
             "to enable the Live Price tab."
         )
-    st.info(f"Today's Date: {datetime.date.today()}")
+    st.caption(f"As of {datetime.date.today():%B %d, %Y}")
