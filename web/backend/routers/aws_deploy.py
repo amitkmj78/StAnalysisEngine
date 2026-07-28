@@ -522,7 +522,7 @@ grant usage on schema public to app_user, app_service;
 grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;
-grant select, insert, update on users to app_service;
+grant select, insert, update, delete on users to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """
 
