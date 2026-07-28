@@ -659,7 +659,16 @@ def _worker_deploy(job_id: str, req: DeployRequest) -> None:
             )
             sftp.putfo(io.BytesIO(backend_env.encode()), f"{REMOTE_DIR}/web/backend/.env")
 
-            frontend_env = f"NEXT_PUBLIC_API_BASE_URL=/api\nSESSION_SECRET={session_secret}\nCOOKIE_SECURE=false\n"
+            # NEXT_PUBLIC_API_BASE_URL is for the browser (relative, resolved
+            # against the page origin via nginx's /api/ proxy). Server
+            # Actions run in Node with no page origin, so they need a real
+            # absolute URL — hit the backend directly, bypassing nginx.
+            frontend_env = (
+                f"NEXT_PUBLIC_API_BASE_URL=/api\n"
+                f"BACKEND_INTERNAL_URL=http://127.0.0.1:8000\n"
+                f"SESSION_SECRET={session_secret}\n"
+                f"COOKIE_SECURE=false\n"
+            )
             sftp.putfo(io.BytesIO(frontend_env.encode()), f"{REMOTE_DIR}/web/frontend/.env.local")
             log(job, "✓ .env files written (fresh secrets generated, never logged)")
 
