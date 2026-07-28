@@ -2,10 +2,10 @@
 
 import subprocess
 import os
-
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
+from langchain_anthropic import ChatAnthropic
 
 
 def get_local_ollama_models():
@@ -20,18 +20,19 @@ def get_local_ollama_models():
         lines = result.stdout.splitlines()[1:]  # skip header
         return [line.split()[0] for line in lines if line.strip()]
     except Exception as e:
-        print("⚠️ Failed to list Ollama models:", e)
+        print("WARNING: Failed to list Ollama models:", e)
         return []
 
 
 def init_llms():
     """
-    Initialize OpenAI + Groq + Ollama safely.
+    Initialize OpenAI + Groq + Claude + Ollama safely.
     Returns:
-        llm_openai, llm_groq, llm_ollama, llm_labels
+        llm_openai, llm_groq, llm_claude, llm_ollama, llm_labels
     """
     llm_openai = None
     llm_groq = None
+    llm_claude = None
     llm_ollama = None
     llm_labels = []
 
@@ -42,15 +43,15 @@ def init_llms():
     if openai_key:
         try:
             llm_openai = ChatOpenAI(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 temperature=0.3,
                 timeout=20,
             )
-            llm_labels.append("OpenAI · GPT-4o mini")
+            llm_labels.append("OpenAI · GPT-4.0")
         except Exception as e:
-            print("❌ OpenAI init failed:", e)
+            print("ERROR: OpenAI init failed:", e)
     else:
-        print("⚠️ OPENAI_API_KEY not found. Skipping OpenAI models.")
+        print("WARNING: OPENAI_API_KEY not found. Skipping OpenAI models.")
 
     # ----------------------------
     # GROQ
@@ -59,16 +60,34 @@ def init_llms():
     if groq_key:
         try:
             llm_groq = ChatGroq(
-                model="openai/gpt-oss-120b",
+                model="llama-3.1-8b-instant",
                 temperature=0.2,
                 timeout=30,
             )
-            llm_labels.append("Groq · GPT-OSS-120B")
+            llm_labels.append("Groq · llama-3.1-8b-instant")
         except Exception as e:
-            print("❌ Groq init failed:", e)
+            print("ERROR: Groq init failed:", e)
             llm_groq = None
     else:
-        print("⚠️ GROQ_API_KEY not found. Skipping Groq models.")
+        print("WARNING: GROQ_API_KEY not found. Skipping Groq models.")
+
+    # ----------------------------
+    # CLAUDE (ANTHROPIC)
+    # ----------------------------
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    if anthropic_key:
+        try:
+            llm_claude = ChatAnthropic(
+                model="claude-sonnet-5",
+                temperature=0.3,
+                timeout=30,
+            )
+            llm_labels.append("Claude · Sonnet 5")
+        except Exception as e:
+            print("ERROR: Claude init failed:", e)
+            llm_claude = None
+    else:
+        print("WARNING: ANTHROPIC_API_KEY not found. Skipping Claude models.")
 
     # ----------------------------
     # OLLAMA (LOCAL)
@@ -87,16 +106,16 @@ def init_llms():
                 temperature=0.3,
             )
         except Exception as e:
-            print("⚠️ Ollama init failed:", e)
+            print("WARNING: Ollama init failed:", e)
             llm_ollama = None
     else:
-        print("⚠️ No local Ollama models found.")
+        print("WARNING: No local Ollama models found.")
 
     # ----------------------------
     # FAILSAFE
     # ----------------------------
     if not llm_labels:
-        print("❌ No LLMs initialized. Check API keys / Ollama.")
-        return None, None, None, []
+        print("ERROR: No LLMs initialized. Check API keys / Ollama.")
+        return None, None, None, None, []
 
-    return llm_openai, llm_groq, llm_ollama, llm_labels
+    return llm_openai, llm_groq, llm_claude, llm_ollama, llm_labels
