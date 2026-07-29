@@ -4,6 +4,7 @@ import type {
   AdminUser,
   ChatAskResponse,
   ChatProvidersResponse,
+  CurrentPriceResponse,
   EntryHistory,
   EntryPlan,
   EntryScanRow,
@@ -94,6 +95,10 @@ export function getStockUniverses() {
 
 export function searchTickers(q: string) {
   return apiFetch<{ results: TickerSearchResult[] }>("/api/v1/search/tickers", { q });
+}
+
+export function getCurrentPrice(ticker: string) {
+  return apiFetch<CurrentPriceResponse>("/api/v1/search/price", { ticker });
 }
 
 export function getStockRanking(goal: string, universe: string) {

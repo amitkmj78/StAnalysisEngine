@@ -95,6 +95,11 @@ export interface TickerSearchResult {
   type: string;
 }
 
+export interface CurrentPriceResponse {
+  ticker: string;
+  price: number | null;
+}
+
 // Index Fund Finder
 export interface FundRankRow {
   Ticker: string;

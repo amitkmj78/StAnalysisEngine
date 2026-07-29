@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import BacktestChart from "@/components/prediction/BacktestChart";
 import ForecastChart from "@/components/prediction/ForecastChart";
@@ -165,6 +166,7 @@ export default function PredictPage() {
             className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+        <CurrentPriceBadge ticker={ticker} />
         <div className="flex flex-col gap-1">
           <label htmlFor="period" className="text-xs font-medium text-slate-500">
             Historical window

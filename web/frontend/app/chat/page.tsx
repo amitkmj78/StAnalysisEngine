@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import { ApiError, askMetaAgent, getChatProviders } from "@/lib/api";
 import type { ChatAskResponse } from "@/lib/types";
 
@@ -58,6 +59,7 @@ export default function ChatPage() {
               maxLength={10}
             />
           </Field>
+          <CurrentPriceBadge ticker={ticker} />
           <Field label="Provider">
             <select value={provider} onChange={(e) => setProvider(e.target.value)} className="input">
               {providers.map((p) => (
