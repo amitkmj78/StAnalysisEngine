@@ -95,9 +95,16 @@ export interface TickerSearchResult {
   type: string;
 }
 
+export interface ExtendedHoursPrice {
+  state: "PRE" | "POST";
+  price: number;
+  change_pct: number | null;
+}
+
 export interface CurrentPriceResponse {
   ticker: string;
   price: number | null;
+  extended_hours: ExtendedHoursPrice | null;
 }
 
 // Index Fund Finder

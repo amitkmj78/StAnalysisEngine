@@ -46,3 +46,37 @@ def get_latest_price(ticker: str):
     except Exception as e:
         logger.warning("Error fetching latest price for %s: %s", ticker, e)
         return None
+
+
+@ttl_cache(maxsize=256, ttl_seconds=60)
+def get_extended_hours_price(ticker: str):
+    """
+    Pre/post-market price, when the market is actually in one of those states.
+    yfinance's regular history/fast_info only reflect the regular session —
+    a stock can move sharply after hours (earnings, news) and that's invisible
+    there, which reads as "wrong" even though the regular-session number is
+    correct for what it is. Returns None outside pre/post market hours.
+    """
+    if not ticker:
+        return None
+    try:
+        info = yf.Ticker(ticker).info
+        state = info.get("marketState")
+        if state == "POST":
+            price = info.get("postMarketPrice")
+            change_pct = info.get("postMarketChangePercent")
+        elif state == "PRE":
+            price = info.get("preMarketPrice")
+            change_pct = info.get("preMarketChangePercent")
+        else:
+            return None
+        if price is None:
+            return None
+        return {
+            "state": state,
+            "price": round(float(price), 2),
+            "change_pct": round(float(change_pct), 2) if change_pct is not None else None,
+        }
+    except Exception as e:
+        logger.warning("Error fetching extended-hours price for %s: %s", ticker, e)
+        return None

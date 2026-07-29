@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { getCurrentPrice } from "@/lib/api";
+import type { ExtendedHoursPrice } from "@/lib/types";
 
 export default function CurrentPriceBadge({ ticker }: { ticker: string }) {
   const [price, setPrice] = useState<number | null>(null);
+  const [extendedHours, setExtendedHours] = useState<ExtendedHoursPrice | null>(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -13,6 +15,7 @@ export default function CurrentPriceBadge({ ticker }: { ticker: string }) {
     const trimmed = ticker.trim().toUpperCase();
     if (!trimmed) {
       setPrice(null);
+      setExtendedHours(null);
       setFailed(false);
       return;
     }
@@ -23,7 +26,10 @@ export default function CurrentPriceBadge({ ticker }: { ticker: string }) {
     const debounce = setTimeout(async () => {
       try {
         const res = await getCurrentPrice(trimmed);
-        if (!cancelled) setPrice(res.price);
+        if (!cancelled) {
+          setPrice(res.price);
+          setExtendedHours(res.extended_hours);
+        }
       } catch {
         if (!cancelled) setFailed(true);
       } finally {
@@ -42,10 +48,22 @@ export default function CurrentPriceBadge({ ticker }: { ticker: string }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-xs font-medium text-slate-500">Current Price</span>
-      <span className="flex h-[38px] items-center text-sm text-slate-700">
+      <span className="flex min-h-[38px] flex-col justify-center text-sm text-slate-700">
         {loading && "…"}
         {!loading && failed && <span className="text-slate-400">unavailable</span>}
-        {!loading && !failed && price !== null && <strong>${price.toFixed(2)}</strong>}
+        {!loading && !failed && price !== null && (
+          <>
+            <strong>${price.toFixed(2)}</strong>
+            {extendedHours && (
+              <span className={`text-xs ${(extendedHours.change_pct ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                {extendedHours.state === "POST" ? "After hours" : "Pre-market"}: ${extendedHours.price.toFixed(2)}
+                {extendedHours.change_pct !== null && (
+                  <> ({extendedHours.change_pct >= 0 ? "+" : ""}{extendedHours.change_pct.toFixed(2)}%)</>
+                )}
+              </span>
+            )}
+          </>
+        )}
         {!loading && !failed && price === null && <span className="text-slate-400">no data</span>}
       </span>
     </div>
