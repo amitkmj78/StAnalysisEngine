@@ -30,7 +30,10 @@ def news_summary(ticker: str, llm=None) -> str:
         # Step 1 — Fetch real news from Tavily
         tavily = TavilySearchResults(api_key=tavily_key)
 
-        query = f"Latest breaking news, financial updates, and market-moving headlines about {ticker} stock. Summarize factual content only."
+        query = (
+            f"Latest breaking news, earnings report results (EPS, revenue, guidance), and other "
+            f"market-moving headlines about {ticker} stock. Summarize factual content only."
+        )
 
         raw_news = tavily.run(query)
 
@@ -57,11 +60,13 @@ Analyze the following raw news results about **{ticker}**:
 Produce a **professional, structured intelligence summary** including:
 
 1. **Top Headlines (bullet summary)**
-2. **Market Impact**
-3. **Key Risks Discussed in News**
-4. **Positive Catalysts / Opportunities**
-5. **Sentiment Score (-1 to +1)**
-6. **Overall Outlook in 3–5 sentences**
+2. **Earnings & Financial Results** — most recent quarterly earnings if mentioned: EPS/revenue vs.
+   estimates, guidance changes, and analyst reaction. Say explicitly if no earnings news is present.
+3. **Market Impact** — does anything here plausibly explain a large recent price move?
+4. **Key Risks Discussed in News**
+5. **Positive Catalysts / Opportunities**
+6. **Sentiment Score (-1 to +1)**
+7. **Overall Outlook in 3–5 sentences**
 
 Be concise but insightful.
 Do NOT hallucinate — use only info from the news.

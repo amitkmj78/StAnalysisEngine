@@ -329,9 +329,10 @@ export default function PredictPage() {
               )}
             </div>
             <p className="mt-1 text-sm text-slate-600">
-              Ask an LLM to summarize this forecast in plain English alongside today&apos;s news/sentiment, and
-              flag whether they agree. This does not change the numbers above or below — it&apos;s a separate,
-              on-demand read generated fresh each time you ask.
+              Ask an LLM to summarize this forecast in plain English alongside recent news and earnings context —
+              including calling out what might explain a big pre/post-market move — and flag whether they agree.
+              This does not change the numbers above or below — it&apos;s a separate, on-demand read generated
+              fresh each time you ask.
             </p>
             <button
               onClick={runNarrative}
@@ -348,11 +349,13 @@ export default function PredictPage() {
             {narrative && !narrativeLoading && (
               <div className="mt-4 flex flex-col gap-3">
                 <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-800">{narrative.narrative}</p>
-                <details className="text-xs text-slate-500">
-                  <summary className="cursor-pointer font-medium text-slate-600">
-                    Source news/sentiment context ({narrative.provider})
+                <details className="text-xs text-slate-600" open>
+                  <summary className="cursor-pointer font-medium text-slate-700">
+                    Recent News &amp; Earnings Context ({narrative.provider})
                   </summary>
-                  <p className="mt-2 whitespace-pre-wrap">{narrative.sentiment_context}</p>
+                  <p className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-md bg-white p-3">
+                    {narrative.sentiment_context}
+                  </p>
                 </details>
               </div>
             )}

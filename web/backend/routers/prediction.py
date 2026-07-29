@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from services.data_service import TIMEFRAME_MAPPING, get_latest_price
+from services.data_service import TIMEFRAME_MAPPING, get_extended_hours_price, get_latest_price
 from services.prediction_narrative_service import build_prediction_narrative
 from services.prediction_service import (
     compute_backtest_metrics,
@@ -221,11 +221,14 @@ async def predict_narrative(
         raise HTTPException(422, f"provider must be one of {labels}")
     llm = resolve_llm(provider, llm_openai, llm_groq, llm_claude, llm_ollama)
 
+    extended_hours = await run_in_threadpool(get_extended_hours_price, ticker)
+
     context = {
         "last_close": last_close,
         "next_price": next_price,
         "signal": signal,
         "metrics": metrics,
+        "extended_hours": extended_hours,
     }
     result = await run_in_threadpool(build_prediction_narrative, llm, ticker, context)
 

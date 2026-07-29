@@ -64,7 +64,9 @@ def build_agent(llm):
 
     @tool
     def news_sentiment(ticker: str):
-        """Return summarized news sentiment and headline sentiment score."""
+        """Return recent news, earnings results/guidance, and headline sentiment score for a
+        ticker. Use this whenever the user asks what's driving the stock's price, including
+        explaining a large recent move or an after-hours/pre-market jump."""
         from Agent.newAgent import news_summary
         return news_summary(ticker, llm=llm)
 
