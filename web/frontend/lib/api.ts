@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  AdminActivityRow,
   AdminUser,
   ChatAskResponse,
   ChatProvidersResponse,
@@ -311,4 +312,8 @@ export function rejectUser(userId: string) {
 
 export function deleteUser(userId: string) {
   return apiSend<{ ok: boolean }>(`/api/v1/admin/users/${userId}`, "DELETE");
+}
+
+export function getAdminActivity(limit = 200) {
+  return apiFetch<AdminActivityRow[]>("/api/v1/admin/activity", { limit: String(limit) });
 }

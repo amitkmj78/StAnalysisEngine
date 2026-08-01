@@ -346,3 +346,10 @@ export interface AdminUser {
   approved: boolean;
   created_at: string;
 }
+
+export interface AdminActivityRow {
+  id: number;
+  email: string;
+  endpoint: string;
+  created_at: string;
+}
