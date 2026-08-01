@@ -67,6 +67,29 @@ export interface SavedPrediction {
   verified_at: string | null;
 }
 
+export interface TopFund {
+  ticker: string;
+  name: string;
+}
+
+export interface PredictionComparisonRow {
+  prediction_id: number;
+  ticker: string;
+  predicted_at: string;
+  signal: string | null;
+  predicted_return_pct: number | null;
+  actual_return_pct: number | null;
+  stock_return_since_saved_pct: number | null;
+  fund_return_since_saved_pct: number | null;
+  signal_correct: boolean | null;
+}
+
+export interface PredictionCompareResponse {
+  top_fund: TopFund | null;
+  fund_current_price: number | null;
+  comparisons: PredictionComparisonRow[];
+}
+
 export interface StockRankRow {
   Ticker: string;
   Name: string;

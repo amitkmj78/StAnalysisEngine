@@ -19,6 +19,7 @@ import type {
   PortfolioStrategyRow,
   PortfolioSubmitResponse,
   PortfolioSummary,
+  PredictionCompareResponse,
   PredictionNarrative,
   PredictionSummary,
   SavedPrediction,
@@ -355,4 +356,11 @@ export function enableVerifyPredictions() {
 
 export function disableVerifyPredictions() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/verify-predictions/disable", "POST");
+}
+
+export function comparePredictionsToFund(fundGoal = "Balanced Core", fundCategory = "All") {
+  return apiFetch<PredictionCompareResponse>("/api/v1/predict/compare", {
+    fund_goal: fundGoal,
+    fund_category: fundCategory,
+  });
 }

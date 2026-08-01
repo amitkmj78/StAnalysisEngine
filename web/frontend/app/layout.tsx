@@ -39,6 +39,9 @@ export default async function RootLayout({
                 <Link href="/predict" className="text-slate-900 hover:text-slate-600">
                   Price Prediction
                 </Link>
+                <Link href="/predictions" className="text-slate-900 hover:text-slate-600">
+                  My Predictions
+                </Link>
                 <Link href="/stock-finder" className="text-slate-900 hover:text-slate-600">
                   Best Stock Finder
                 </Link>

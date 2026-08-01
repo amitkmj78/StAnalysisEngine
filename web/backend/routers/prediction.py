@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from services.data_service import TIMEFRAME_MAPPING, get_extended_hours_price, get_latest_price
+from services.fund_comparison_service import get_top_fund, price_near_date
 from services.prediction_narrative_service import build_prediction_narrative
 from services.prediction_service import (
     compute_backtest_metrics,
@@ -329,3 +330,68 @@ async def prediction_history(request: Request, ticker: str | None = Query(None))
             row.update(updates)
 
     return {"predictions": rows}
+
+
+@router.get("/compare")
+@limiter.limit("10/minute")
+async def compare_to_fund(
+    request: Request,
+    fund_goal: str = Query("Balanced Core"),
+    fund_category: str = Query("All"),
+):
+    """
+    Every saved prediction next to the same-window return of the
+    current top-ranked fund for fund_goal/fund_category — two angles at
+    once: (1) how the stock actually did since you saved it vs. the fund
+    over that same stretch, and (2) whether the model's own predicted
+    return would have beaten the fund, using what's already measured.
+    """
+    await enforce_daily_quota(request, "predict/compare")
+    user_id = request.state.user["id"]
+
+    top_fund = await run_in_threadpool(get_top_fund, fund_goal, fund_category)
+    if top_fund is None:
+        return {"top_fund": None, "comparisons": []}
+
+    fund_current_price = await run_in_threadpool(get_latest_price, top_fund["ticker"])
+
+    async with user_conn(user_id) as conn:
+        records = await conn.fetch("SELECT * FROM saved_predictions ORDER BY predicted_at DESC")
+    rows = [_record_to_dict(r) for r in records]
+
+    comparisons = []
+    for row in rows:
+        stock_current_price = await run_in_threadpool(get_latest_price, row["ticker"])
+        fund_price_then = await run_in_threadpool(price_near_date, top_fund["ticker"], row["predicted_at"])
+
+        stock_return_pct = None
+        if stock_current_price is not None and row.get("last_close"):
+            stock_return_pct = round((stock_current_price - row["last_close"]) / row["last_close"] * 100, 2)
+
+        fund_return_pct = None
+        if fund_current_price is not None and fund_price_then:
+            fund_return_pct = round((fund_current_price - fund_price_then) / fund_price_then * 100, 2)
+
+        actual_return_pct = None
+        if row.get("actual_target_price") is not None and row.get("last_close"):
+            actual_return_pct = round(
+                (row["actual_target_price"] - row["last_close"]) / row["last_close"] * 100, 2
+            )
+
+        comparisons.append({
+            "prediction_id": row["id"],
+            "ticker": row["ticker"],
+            "predicted_at": row["predicted_at"].isoformat(),
+            "signal": row.get("signal"),
+            "predicted_return_pct": row.get("expected_return_pct"),
+            "actual_return_pct": actual_return_pct,
+            "stock_return_since_saved_pct": stock_return_pct,
+            "fund_return_since_saved_pct": fund_return_pct,
+            "signal_correct": row.get("signal_correct"),
+        })
+
+    return {
+        "top_fund": top_fund,
+        "fund_current_price": fund_current_price,
+        "comparisons": comparisons,
+    }
