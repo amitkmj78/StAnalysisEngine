@@ -61,7 +61,7 @@ def simulate_monthly_plan(
     if hist.empty:
         return pd.DataFrame(), {}
 
-    monthly_close = hist["Close"].resample("M").last().dropna()
+    monthly_close = hist["Close"].resample("ME").last().dropna()
     if monthly_close.empty:
         return pd.DataFrame(), {}
 
