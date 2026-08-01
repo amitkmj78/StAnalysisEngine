@@ -262,6 +262,9 @@ export default function PredictPage() {
                     <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                       <th className="px-2 py-2">Saved</th>
                       <th className="px-2 py-2">Last Close</th>
+                      <th className="px-2 py-2">Predicted Next Close</th>
+                      <th className="px-2 py-2">Actual Next Close</th>
+                      <th className="px-2 py-2">Next-Day Error %</th>
                       <th className="px-2 py-2">Target Date</th>
                       <th className="px-2 py-2">Predicted Target</th>
                       <th className="px-2 py-2">Open Price</th>
@@ -277,6 +280,15 @@ export default function PredictPage() {
                         <td className="px-2 py-2 text-slate-700">{new Date(p.predicted_at).toLocaleDateString()}</td>
                         <td className="px-2 py-2 text-slate-700">
                           {p.last_close !== null ? `$${p.last_close.toFixed(2)}` : "—"}
+                        </td>
+                        <td className="px-2 py-2 text-slate-700">
+                          {p.next_price !== null ? `$${p.next_price.toFixed(2)}` : "—"}
+                        </td>
+                        <td className="px-2 py-2 text-slate-700">
+                          {p.actual_next_price !== null ? `$${p.actual_next_price.toFixed(2)}` : "pending"}
+                        </td>
+                        <td className="px-2 py-2 text-slate-700">
+                          {p.next_price_error_pct !== null ? `${p.next_price_error_pct.toFixed(2)}%` : "—"}
                         </td>
                         <td className="px-2 py-2 text-slate-700">
                           {p.target_date ? new Date(p.target_date).toLocaleDateString() : "—"}
