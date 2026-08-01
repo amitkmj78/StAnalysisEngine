@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
+import TickerSearchInput from "@/components/TickerSearchInput";
 import {
   ApiError,
   createWatchlistAlert,
@@ -92,12 +93,10 @@ export default function WatchlistPage() {
       <form onSubmit={handleCreate} className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-500">Ticker</label>
-          <input
+          <TickerSearchInput
             value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
-            placeholder="e.g. AAPL"
-            className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm uppercase"
-            maxLength={10}
+            onChange={setTicker}
+            className="w-40 rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
         <CurrentPriceBadge ticker={ticker} />

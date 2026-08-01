@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
+import TickerSearchInput from "@/components/TickerSearchInput";
 import { ApiError, askMetaAgent, getChatProviders } from "@/lib/api";
 import type { ChatAskResponse } from "@/lib/types";
 
@@ -52,12 +53,7 @@ export default function ChatPage() {
       <form onSubmit={ask} className="mt-6 flex flex-col gap-3">
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Ticker">
-            <input
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value)}
-              className="input w-28 uppercase"
-              maxLength={10}
-            />
+            <TickerSearchInput value={ticker} onChange={setTicker} className="input w-36" />
           </Field>
           <CurrentPriceBadge ticker={ticker} />
           <Field label="Provider">

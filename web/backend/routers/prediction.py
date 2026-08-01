@@ -188,6 +188,7 @@ async def predict_narrative(
     ticker: str = Query(..., min_length=1),
     period: str = Query("1y"),
     provider: str | None = Query(None),
+    days_ahead: int = Query(10, ge=1, le=60),
 ):
     await enforce_daily_quota(request, "predict/narrative")
 
@@ -200,7 +201,7 @@ async def predict_narrative(
 
     next_price = await run_in_threadpool(predict_next_price, ticker, period, False)
 
-    future_df = await run_in_threadpool(predict_future_prices, ticker, period, 10, False)
+    future_df = await run_in_threadpool(predict_future_prices, ticker, period, days_ahead, False)
     signal = None
     if future_df is not None and not future_df.empty:
         sig = generate_trading_signal(last_close, future_df)
@@ -229,6 +230,7 @@ async def predict_narrative(
         "signal": signal,
         "metrics": metrics,
         "extended_hours": extended_hours,
+        "days_ahead": days_ahead,
     }
     result = await run_in_threadpool(build_prediction_narrative, llm, ticker, context)
 
@@ -251,6 +253,7 @@ def _record_to_dict(record) -> dict:
 class SavePredictionRequest(BaseModel):
     ticker: str
     period: str = "1y"
+    days_ahead: int = 10
 
 
 @router.post("/save")
@@ -261,13 +264,15 @@ async def save_prediction(request: Request, body: SavePredictionRequest):
 
     ticker = body.ticker.strip().upper()
     _validate_period(body.period)
+    if not 1 <= body.days_ahead <= 60:
+        raise HTTPException(422, "days_ahead must be between 1 and 60")
 
     last_close = await run_in_threadpool(get_latest_price, ticker)
     if last_close is None:
         raise HTTPException(422, "No price data available for that ticker.")
 
     next_price = await run_in_threadpool(predict_next_price, ticker, body.period, False)
-    future_df = await run_in_threadpool(predict_future_prices, ticker, body.period, 10, False)
+    future_df = await run_in_threadpool(predict_future_prices, ticker, body.period, body.days_ahead, False)
     if future_df is None or future_df.empty:
         raise HTTPException(422, "Not enough history to forecast this ticker yet.")
 

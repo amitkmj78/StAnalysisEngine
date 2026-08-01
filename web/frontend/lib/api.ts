@@ -72,18 +72,26 @@ async function apiFetch<T>(path: string, params?: Record<string, string>): Promi
   return res.json();
 }
 
-export function getPredictionSummary(ticker: string, period: string) {
-  return apiFetch<PredictionSummary>("/api/v1/predict/summary", { ticker, period });
+export function getPredictionSummary(ticker: string, period: string, daysAhead = 10) {
+  return apiFetch<PredictionSummary>("/api/v1/predict/summary", {
+    ticker,
+    period,
+    days_ahead: String(daysAhead),
+  });
 }
 
-export function getPredictionNarrative(ticker: string, period: string, provider?: string) {
-  const params: Record<string, string> = { ticker, period };
+export function getPredictionNarrative(ticker: string, period: string, provider?: string, daysAhead = 10) {
+  const params: Record<string, string> = { ticker, period, days_ahead: String(daysAhead) };
   if (provider) params.provider = provider;
   return apiFetch<PredictionNarrative>("/api/v1/predict/narrative", params);
 }
 
-export function savePrediction(ticker: string, period: string) {
-  return apiSend<{ prediction: SavedPrediction }>("/api/v1/predict/save", "POST", { ticker, period });
+export function savePrediction(ticker: string, period: string, daysAhead = 10) {
+  return apiSend<{ prediction: SavedPrediction }>("/api/v1/predict/save", "POST", {
+    ticker,
+    period,
+    days_ahead: daysAhead,
+  });
 }
 
 export function getPredictionHistory(ticker?: string) {

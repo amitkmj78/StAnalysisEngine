@@ -34,7 +34,7 @@ export default function ForecastChart({ ticker, forecast }: { ticker: string; fo
         },
       ]}
       layout={{
-        title: { text: `${ticker} — 10-Day Forecast` },
+        title: { text: `${ticker} — ${forecast.dates.length}-Day Forecast` },
         xaxis: { title: { text: "Date" } },
         yaxis: { title: { text: "Price (USD)" } },
         paper_bgcolor: "#ffffff",

@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 
+import TickerSearchInput from "@/components/TickerSearchInput";
 import { ApiError, createTrade, deleteTrade, evaluateTrades, listTrades } from "@/lib/api";
 import type { Trade } from "@/lib/types";
 
@@ -111,7 +112,7 @@ export default function TradeJournalPage() {
         <h2 className="text-sm font-semibold text-slate-900">New Trade Idea</h2>
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Ticker">
-            <input value={ticker} onChange={(e) => setTicker(e.target.value)} className="input w-24 uppercase" maxLength={10} />
+            <TickerSearchInput value={ticker} onChange={setTicker} className="input w-36" />
           </Field>
           <Field label="Direction">
             <select value={direction} onChange={(e) => setDirection(e.target.value)} className="input">

@@ -32,8 +32,9 @@ def _build_prompt(ticker: str, context: Dict[str, Any], sentiment_text: str) -> 
         )
     signal = context.get("signal")
     if signal:
+        days_ahead = context.get("days_ahead", 10)
         lines.append(
-            f"10-day signal: {signal['signal']} (expected return {signal['expected_return_pct']}%, "
+            f"{days_ahead}-day signal: {signal['signal']} (expected return {signal['expected_return_pct']}%, "
             f"target price {signal['target_price']})"
         )
     metrics = context.get("metrics")

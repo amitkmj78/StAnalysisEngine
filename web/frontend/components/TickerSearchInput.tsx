@@ -10,11 +10,13 @@ export default function TickerSearchInput({
   onChange,
   placeholder = "Ticker or company name",
   className = "input w-56",
+  id,
 }: {
   value: string;
   onChange: (ticker: string) => void;
   placeholder?: string;
   className?: string;
+  id?: string;
 }) {
   const [query, setQuery] = useState(value);
   const [results, setResults] = useState<TickerSearchResult[]>([]);
@@ -72,6 +74,7 @@ export default function TickerSearchInput({
   return (
     <div ref={containerRef} className="relative">
       <input
+        id={id}
         value={query}
         onChange={(e) => handleInput(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}

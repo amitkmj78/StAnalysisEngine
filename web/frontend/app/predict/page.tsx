@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import TickerSearchInput from "@/components/TickerSearchInput";
 import BacktestChart from "@/components/prediction/BacktestChart";
 import ForecastChart from "@/components/prediction/ForecastChart";
 import {
@@ -16,12 +17,13 @@ import {
 } from "@/lib/api";
 import type { PredictionNarrative, PredictionSummary, SavedPrediction } from "@/lib/types";
 
-const METRIC_INFO: Record<string, ColumnInfo> = {
+function getMetricInfo(daysAhead: number): Record<string, ColumnInfo> {
+  return {
   signal: {
-    title: "10-Day Signal — what it means",
+    title: `${daysAhead}-Day Signal — what it means`,
     body: [
-      "BUY, HOLD, or SELL, derived directly from the model's own 10-day forecast versus today's close — nothing else feeds into it.",
-      "BUY: the forecast implies at least +5% expected return over 10 days.",
+      `BUY, HOLD, or SELL, derived directly from the model's own ${daysAhead}-day forecast versus today's close — nothing else feeds into it.`,
+      `BUY: the forecast implies at least +5% expected return over ${daysAhead} days.`,
       "SELL: the forecast implies -5% or worse.",
       "HOLD: the forecast falls between -5% and +5% — not enough expected movement either way to call it.",
       "It's a simple threshold read on the model's own point forecast, not a separate signal-generation model — so it's only as reliable as the forecast itself (see the backtest accuracy below).",
@@ -48,7 +50,8 @@ const METRIC_INFO: Record<string, ColumnInfo> = {
       "The average miss expressed as a percentage of the actual price, rather than in dollars — this is what makes it comparable across tickers at very different price levels (a $5 miss means very different things for a $20 stock vs. a $500 stock).",
     ],
   },
-};
+  };
+}
 
 const PERIODS = [
   { label: "1 Week", value: "5d" },
@@ -58,9 +61,13 @@ const PERIODS = [
   { label: "5 Years", value: "5y" },
 ];
 
+const FORECAST_HORIZONS = [5, 10, 20, 30, 60];
+
 export default function PredictPage() {
   const [ticker, setTicker] = useState("AAPL");
   const [period, setPeriod] = useState("1y");
+  const [daysAhead, setDaysAhead] = useState(10);
+  const [shownDaysAhead, setShownDaysAhead] = useState(10);
   const [data, setData] = useState<PredictionSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,8 +101,9 @@ export default function PredictPage() {
     setNarrativeError(null);
     setSaveMessage(null);
     try {
-      const summary = await getPredictionSummary(ticker.trim().toUpperCase(), period);
+      const summary = await getPredictionSummary(ticker.trim().toUpperCase(), period, daysAhead);
       setData(summary);
+      setShownDaysAhead(daysAhead);
       loadHistory(summary.ticker);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
@@ -122,7 +130,7 @@ export default function PredictPage() {
     setSaving(true);
     setSaveMessage(null);
     try {
-      await savePrediction(data.ticker, data.period);
+      await savePrediction(data.ticker, data.period, shownDaysAhead);
       setSaveMessage("Saved — check back after the forecast date to see how it did.");
       await loadHistory(data.ticker);
     } catch (err) {
@@ -137,7 +145,7 @@ export default function PredictPage() {
     setNarrativeLoading(true);
     setNarrativeError(null);
     try {
-      const res = await getPredictionNarrative(data.ticker, data.period, provider || undefined);
+      const res = await getPredictionNarrative(data.ticker, data.period, provider || undefined, shownDaysAhead);
       setNarrative(res);
     } catch (err) {
       setNarrativeError(err instanceof ApiError ? err.message : "Something went wrong.");
@@ -159,11 +167,11 @@ export default function PredictPage() {
           <label htmlFor="ticker" className="text-xs font-medium text-slate-500">
             Ticker
           </label>
-          <input
+          <TickerSearchInput
             id="ticker"
             value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
-            className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            onChange={setTicker}
+            className="w-40 rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
         <CurrentPriceBadge ticker={ticker} />
@@ -180,6 +188,23 @@ export default function PredictPage() {
             {PERIODS.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="days-ahead" className="text-xs font-medium text-slate-500">
+            Forecast horizon
+          </label>
+          <select
+            id="days-ahead"
+            value={daysAhead}
+            onChange={(e) => setDaysAhead(Number(e.target.value))}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            {FORECAST_HORIZONS.map((d) => (
+              <option key={d} value={d}>
+                {d} days
               </option>
             ))}
           </select>
@@ -223,8 +248,8 @@ export default function PredictPage() {
           {data.signal && (
             <div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <MetricTile label="10-Day Signal" value={data.signal.signal} onInfoClick={() => setActiveInfo("signal")} />
-                <MetricTile label="Expected Return (10d)" value={`${data.signal.expected_return_pct.toFixed(2)}%`} />
+                <MetricTile label={`${shownDaysAhead}-Day Signal`} value={data.signal.signal} onInfoClick={() => setActiveInfo("signal")} />
+                <MetricTile label={`Expected Return (${shownDaysAhead}d)`} value={`${data.signal.expected_return_pct.toFixed(2)}%`} />
                 <MetricTile label="Target Price" value={`$${data.signal.target_price.toFixed(2)}`} />
               </div>
               <p className="mt-2 text-xs text-slate-500">
@@ -378,7 +403,7 @@ export default function PredictPage() {
               <ForecastChart ticker={data.ticker} forecast={data.forecast} />
             </div>
           ) : (
-            <p className="text-sm text-slate-500">Not enough price history for a 10-day forecast.</p>
+            <p className="text-sm text-slate-500">Not enough price history for a {shownDaysAhead}-day forecast.</p>
           )}
 
           <hr className="border-slate-200" />
@@ -458,8 +483,8 @@ export default function PredictPage() {
         </div>
       )}
 
-      {activeInfo && METRIC_INFO[activeInfo] && (
-        <InfoModal info={METRIC_INFO[activeInfo]} onClose={() => setActiveInfo(null)} />
+      {activeInfo && getMetricInfo(shownDaysAhead)[activeInfo] && (
+        <InfoModal info={getMetricInfo(shownDaysAhead)[activeInfo]} onClose={() => setActiveInfo(null)} />
       )}
     </div>
   );
