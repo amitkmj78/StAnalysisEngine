@@ -332,6 +332,21 @@ async def prediction_history(request: Request, ticker: str | None = Query(None))
     return {"predictions": rows}
 
 
+@router.delete("/{prediction_id}")
+async def delete_prediction(request: Request, prediction_id: int):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        # RLS scopes this to the current user already — the WHERE clause
+        # here is just the lookup key, not the isolation boundary.
+        row = await conn.fetchrow(
+            "DELETE FROM saved_predictions WHERE id = $1 RETURNING id",
+            prediction_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Prediction not found.")
+    return {"ok": True}
+
+
 @router.get("/compare")
 @limiter.limit("10/minute")
 async def compare_to_fund(

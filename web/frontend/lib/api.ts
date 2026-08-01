@@ -364,3 +364,7 @@ export function comparePredictionsToFund(fundGoal = "Balanced Core", fundCategor
     fund_category: fundCategory,
   });
 }
+
+export function deletePrediction(predictionId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/predict/${predictionId}`, "DELETE");
+}

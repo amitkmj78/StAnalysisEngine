@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, comparePredictionsToFund, getPredictionHistory } from "@/lib/api";
+import { ApiError, comparePredictionsToFund, deletePrediction, getPredictionHistory } from "@/lib/api";
 import type { PredictionCompareResponse, SavedPrediction } from "@/lib/types";
 
 export default function PredictionsPage() {
@@ -12,6 +12,7 @@ export default function PredictionsPage() {
   const [compareError, setCompareError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [compareLoading, setCompareLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     load();
@@ -27,6 +28,19 @@ export default function PredictionsPage() {
       setError(err instanceof ApiError ? err.message : "Failed to load saved predictions.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    setDeletingId(id);
+    setError(null);
+    try {
+      await deletePrediction(id);
+      setPredictions((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete this prediction.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -76,6 +90,7 @@ export default function PredictionsPage() {
                   <th className="px-3 py-2">Error %</th>
                   <th className="px-3 py-2">Signal</th>
                   <th className="px-3 py-2">Correct?</th>
+                  <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -101,6 +116,15 @@ export default function PredictionsPage() {
                       ) : (
                         <span className="text-red-600">✗ wrong</span>
                       )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        disabled={deletingId === p.id}
+                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {deletingId === p.id ? "…" : "Delete"}
+                      </button>
                     </td>
                   </tr>
                 ))}

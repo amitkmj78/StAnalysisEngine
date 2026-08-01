@@ -9,6 +9,7 @@ import BacktestChart from "@/components/prediction/BacktestChart";
 import ForecastChart from "@/components/prediction/ForecastChart";
 import {
   ApiError,
+  deletePrediction,
   getChatProviders,
   getPredictionHistory,
   getPredictionNarrative,
@@ -83,6 +84,7 @@ export default function PredictPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     getChatProviders()
@@ -122,6 +124,18 @@ export default function PredictPage() {
       // Non-fatal — history is supplementary, don't block the main page on it.
     } finally {
       setHistoryLoading(false);
+    }
+  }
+
+  async function handleDeletePrediction(id: number) {
+    setDeletingId(id);
+    try {
+      await deletePrediction(id);
+      setHistory((prev) => prev.filter((p) => p.id !== id));
+    } catch {
+      // Non-fatal — leave the row in place if delete failed.
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -297,6 +311,7 @@ export default function PredictPage() {
                       <th className="px-2 py-2">Error %</th>
                       <th className="px-2 py-2">Signal</th>
                       <th className="px-2 py-2">Correct?</th>
+                      <th className="px-2 py-2"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -339,6 +354,15 @@ export default function PredictPage() {
                           ) : (
                             <span className="text-red-600">✗ wrong</span>
                           )}
+                        </td>
+                        <td className="px-2 py-2 text-right">
+                          <button
+                            onClick={() => handleDeletePrediction(p.id)}
+                            disabled={deletingId === p.id}
+                            className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            {deletingId === p.id ? "…" : "Delete"}
+                          </button>
                         </td>
                       </tr>
                     ))}
