@@ -521,6 +521,14 @@ create policy watchlist_alerts_isolation on watchlist_alerts for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+create table if not exists app_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+insert into app_settings (key, value) values ('verify_predictions_enabled', 'true')
+  on conflict (key) do nothing;
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -544,6 +552,7 @@ grant select, insert on request_log to app_service;
 grant select, insert, update, delete on users to app_service;
 grant select, update on saved_predictions to app_service;
 grant select, update on watchlist_alerts to app_service;
+grant select, insert, update on app_settings to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """
 

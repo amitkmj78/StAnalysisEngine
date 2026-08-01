@@ -6,6 +6,7 @@ from starlette.concurrency import run_in_threadpool
 
 from services.alert_engine_service import evaluate_alert
 from services.prediction_verification_service import verify_prediction
+from web.backend.app_settings import VERIFY_PREDICTIONS_ENABLED_KEY, get_setting_bool
 from web.backend.db import service_conn
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,10 @@ async def _verify_all_saved_predictions() -> None:
     someone happens to revisit the page. Uses service_conn() (bypasses RLS)
     since this isn't scoped to one request's user.
     """
+    if not await get_setting_bool(VERIFY_PREDICTIONS_ENABLED_KEY, default=True):
+        logger.info("Scheduler: verify_saved_predictions is disabled, skipping this run")
+        return
+
     async with service_conn() as conn:
         rows = await conn.fetch("SELECT * FROM saved_predictions WHERE verified_at IS NULL")
         if not rows:

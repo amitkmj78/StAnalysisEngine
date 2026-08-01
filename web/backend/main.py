@@ -18,6 +18,7 @@ from web.backend.rate_limit import limiter
 from web.backend.scheduler import start_scheduler, stop_scheduler
 from web.backend.routers import (
     admin_activity,
+    admin_settings,
     admin_users,
     auth,
     aws_deploy,
@@ -73,6 +74,7 @@ app.include_router(search.router)
 app.include_router(watchlist.router)
 app.include_router(admin_users.router)
 app.include_router(admin_activity.router)
+app.include_router(admin_settings.router)
 
 
 @app.get("/health")

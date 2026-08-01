@@ -2,6 +2,7 @@
 
 import type {
   AdminActivityRow,
+  AdminSettings,
   AdminUser,
   AlertConditionType,
   ChatAskResponse,
@@ -334,4 +335,16 @@ export function deleteWatchlistAlert(alertId: number) {
 
 export function dismissWatchlistAlert(alertId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/watchlist/${alertId}/dismiss`, "POST");
+}
+
+export function getAdminSettings() {
+  return apiFetch<AdminSettings>("/api/v1/admin/settings");
+}
+
+export function enableVerifyPredictions() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/verify-predictions/enable", "POST");
+}
+
+export function disableVerifyPredictions() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/verify-predictions/disable", "POST");
 }

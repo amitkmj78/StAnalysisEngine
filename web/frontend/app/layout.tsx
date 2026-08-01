@@ -74,6 +74,9 @@ export default async function RootLayout({
                     <Link href="/admin/activity" className="text-slate-900 hover:text-slate-600">
                       Activity
                     </Link>
+                    <Link href="/admin/scheduler" className="text-slate-900 hover:text-slate-600">
+                      Scheduler
+                    </Link>
                     <Link href="/admin/deploy" className="text-slate-900 hover:text-slate-600">
                       Deploy
                     </Link>

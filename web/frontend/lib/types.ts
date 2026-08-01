@@ -367,3 +367,7 @@ export interface WatchlistAlert {
   triggered_price: number | null;
   seen_at: string | null;
 }
+
+export interface AdminSettings {
+  verify_predictions_enabled: boolean;
+}
