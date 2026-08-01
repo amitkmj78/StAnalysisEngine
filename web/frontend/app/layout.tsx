@@ -60,6 +60,9 @@ export default async function RootLayout({
                 <Link href="/portfolio" className="text-slate-900 hover:text-slate-600">
                   Portfolio
                 </Link>
+                <Link href="/watchlist" className="text-slate-900 hover:text-slate-600">
+                  Watchlist
+                </Link>
                 <Link href="/chat" className="text-slate-900 hover:text-slate-600">
                   Chat
                 </Link>

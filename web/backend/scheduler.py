@@ -4,12 +4,14 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from starlette.concurrency import run_in_threadpool
 
+from services.alert_engine_service import evaluate_alert
 from services.prediction_verification_service import verify_prediction
 from web.backend.db import service_conn
 
 logger = logging.getLogger(__name__)
 
 VERIFY_INTERVAL_MINUTES = 15
+ALERT_INTERVAL_MINUTES = 5
 
 _scheduler: AsyncIOScheduler | None = None
 
@@ -46,6 +48,34 @@ async def _verify_all_saved_predictions() -> None:
     logger.info("Scheduler: checked %d unverified saved predictions, updated %d", checked, updated)
 
 
+async def _evaluate_watchlist_alerts() -> None:
+    """Second scheduler job: check every not-yet-triggered watchlist alert's
+    condition against a live price, across every user, on its own (shorter)
+    interval since price moves faster than what the prediction-verify job
+    cares about."""
+    async with service_conn() as conn:
+        rows = await conn.fetch("SELECT * FROM watchlist_alerts WHERE triggered_at IS NULL")
+        if not rows:
+            return
+
+        checked = 0
+        triggered = 0
+        for row in rows:
+            price = await run_in_threadpool(
+                evaluate_alert, row["ticker"], row["condition_type"], row["threshold"]
+            )
+            checked += 1
+            if price is None:
+                continue
+            await conn.execute(
+                "UPDATE watchlist_alerts SET triggered_at = now(), triggered_price = $2 WHERE id = $1",
+                row["id"], price,
+            )
+            triggered += 1
+
+    logger.info("Scheduler: checked %d watchlist alerts, triggered %d", checked, triggered)
+
+
 def start_scheduler() -> AsyncIOScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -61,8 +91,20 @@ def start_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         max_instances=1,
     )
+    _scheduler.add_job(
+        _evaluate_watchlist_alerts,
+        "interval",
+        minutes=ALERT_INTERVAL_MINUTES,
+        id="evaluate_watchlist_alerts",
+        next_run_time=datetime.now(),
+        coalesce=True,
+        max_instances=1,
+    )
     _scheduler.start()
-    logger.info("Background scheduler started (verify_saved_predictions every %d min)", VERIFY_INTERVAL_MINUTES)
+    logger.info(
+        "Background scheduler started (verify_saved_predictions every %d min, evaluate_watchlist_alerts every %d min)",
+        VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES,
+    )
     return _scheduler
 
 

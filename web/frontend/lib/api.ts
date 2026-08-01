@@ -3,6 +3,7 @@
 import type {
   AdminActivityRow,
   AdminUser,
+  AlertConditionType,
   ChatAskResponse,
   ChatProvidersResponse,
   CurrentPriceResponse,
@@ -27,6 +28,7 @@ import type {
   Trade,
   TradeCreateInput,
   UniversesResponse,
+  WatchlistAlert,
 } from "@/lib/types";
 
 // Absolute in local dev (http://127.0.0.1:8010); empty once deployed behind
@@ -316,4 +318,20 @@ export function deleteUser(userId: string) {
 
 export function getAdminActivity(limit = 200) {
   return apiFetch<AdminActivityRow[]>("/api/v1/admin/activity", { limit: String(limit) });
+}
+
+export function getWatchlistAlerts() {
+  return apiFetch<WatchlistAlert[]>("/api/v1/watchlist");
+}
+
+export function createWatchlistAlert(ticker: string, condition_type: AlertConditionType, threshold: number) {
+  return apiSend<WatchlistAlert>("/api/v1/watchlist", "POST", { ticker, condition_type, threshold });
+}
+
+export function deleteWatchlistAlert(alertId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/watchlist/${alertId}`, "DELETE");
+}
+
+export function dismissWatchlistAlert(alertId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/watchlist/${alertId}/dismiss`, "POST");
 }

@@ -502,6 +502,25 @@ create policy saved_predictions_isolation on saved_predictions for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+create table if not exists watchlist_alerts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  ticker text not null,
+  condition_type text not null,
+  threshold real not null,
+  created_at timestamptz not null default now(),
+  active boolean not null default true,
+  triggered_at timestamptz,
+  triggered_price real,
+  seen_at timestamptz
+);
+create index if not exists watchlist_alerts_user_idx on watchlist_alerts(user_id, created_at desc);
+alter table watchlist_alerts enable row level security;
+drop policy if exists watchlist_alerts_isolation on watchlist_alerts;
+create policy watchlist_alerts_isolation on watchlist_alerts for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -519,11 +538,12 @@ $$;
 
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
-grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions to app_user;
+grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;
 grant select, insert, update, delete on users to app_service;
 grant select, update on saved_predictions to app_service;
+grant select, update on watchlist_alerts to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """
 

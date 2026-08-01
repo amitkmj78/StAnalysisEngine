@@ -353,3 +353,17 @@ export interface AdminActivityRow {
   endpoint: string;
   created_at: string;
 }
+
+export type AlertConditionType = "price_above" | "price_below";
+
+export interface WatchlistAlert {
+  id: number;
+  ticker: string;
+  condition_type: AlertConditionType;
+  threshold: number;
+  created_at: string;
+  active: boolean;
+  triggered_at: string | null;
+  triggered_price: number | null;
+  seen_at: string | null;
+}

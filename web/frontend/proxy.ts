@@ -12,6 +12,7 @@ const PROTECTED_PREFIXES = [
   "/strategies",
   "/trade-journal",
   "/portfolio",
+  "/watchlist",
   "/chat",
   "/admin",
 ];
