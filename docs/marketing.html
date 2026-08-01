@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StAnalysisEngine — A Forecast Honest Enough to Argue With Itself</title>
+<style>
+  :root {
+    --paper: #eef1f4;
+    --paper-raised: #ffffff;
+    --ink: #141c28;
+    --ink-soft: #4a5568;
+    --ink-faint: #7b8798;
+    --line: rgba(20, 28, 40, 0.12);
+    --line-strong: rgba(20, 28, 40, 0.22);
+    --accent: #0e6e5c;
+    --accent-ink: #ffffff;
+    --accent-soft: #e2f0ec;
+    --warm: #b85c1e;
+    --warm-soft: #f5e6da;
+    --actual: #2563eb;
+    --predicted: #0e6e5c;
+    --naive: #94a3b8;
+    --radius-sm: 3px;
+    --radius-md: 6px;
+    --serif: "Iowan Old Style", "Sitka Text", Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0d1420;
+    --paper-raised: #131c2b;
+    --ink: #e7e9ec;
+    --ink-soft: #aab3c2;
+    --ink-faint: #6c7a8e;
+    --line: rgba(231, 233, 236, 0.14);
+    --line-strong: rgba(231, 233, 236, 0.26);
+    --accent: #3fd9b9;
+    --accent-ink: #06251f;
+    --accent-soft: #10322b;
+    --warm: #f0975a;
+    --warm-soft: #2e2013;
+    --actual: #6ea8ff;
+    --predicted: #3fd9b9;
+    --naive: #5b6b80;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0d1420;
+      --paper-raised: #131c2b;
+      --ink: #e7e9ec;
+      --ink-soft: #aab3c2;
+      --ink-faint: #6c7a8e;
+      --line: rgba(231, 233, 236, 0.14);
+      --line-strong: rgba(231, 233, 236, 0.26);
+      --accent: #3fd9b9;
+      --accent-ink: #06251f;
+      --accent-soft: #10322b;
+      --warm: #f0975a;
+      --warm-soft: #2e2013;
+      --actual: #6ea8ff;
+      --predicted: #3fd9b9;
+      --naive: #5b6b80;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: var(--accent-soft); color: var(--ink); }
+
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 28px;
+  }
+
+  a { color: inherit; }
+
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+    z-index: 20;
+  }
+  .topbar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0;
+    gap: 16px;
+  }
+  .wordmark {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .wordmark .dot { color: var(--accent); }
+  .topnav {
+    display: flex;
+    gap: 26px;
+    font-size: 0.86rem;
+    color: var(--ink-soft);
+  }
+  .topnav a { text-decoration: none; }
+  .topnav a:hover { color: var(--ink); }
+  .topnav a:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  @media (max-width: 720px) {
+    .topnav { display: none; }
+  }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    padding: 76px 0 64px;
+    border-bottom: 1px solid var(--line);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 56px;
+    align-items: center;
+  }
+  @media (max-width: 880px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 18px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  h1.headline {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(2.1rem, 4.4vw, 3.15rem);
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    margin: 0 0 22px;
+    text-wrap: balance;
+  }
+  h1.headline em { color: var(--accent); font-style: normal; }
+
+  .lede {
+    font-size: 1.09rem;
+    color: var(--ink-soft);
+    max-width: 46ch;
+    margin: 0 0 30px;
+  }
+
+  .cta-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 0.92rem;
+    font-weight: 600;
+    padding: 12px 22px;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    border: 1px solid transparent;
+    cursor: default;
+  }
+  .btn-primary { background: var(--ink); color: var(--paper); }
+  :root[data-theme="dark"] .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  }
+  .btn-ghost { border-color: var(--line-strong); color: var(--ink); }
+  .cta-note { font-size: 0.8rem; color: var(--ink-faint); }
+
+  /* ---------- Hero chart card ---------- */
+  .chart-card {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 20px 20px 14px;
+  }
+  .chart-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .chart-title { font-size: 0.82rem; font-weight: 600; color: var(--ink); }
+  .chart-sub { font-family: var(--mono); font-size: 0.68rem; color: var(--ink-faint); }
+  canvas#heroChart { width: 100%; height: 210px; display: block; }
+  .chart-legend {
+    display: flex;
+    gap: 18px;
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font-size: 0.76rem;
+    color: var(--ink-soft);
+    flex-wrap: wrap;
+  }
+  .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  /* ---------- Section shell ---------- */
+  section { padding: 68px 0; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: none; }
+  .section-head { max-width: 62ch; margin-bottom: 42px; }
+  .kicker {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 10px;
+  }
+  h2.section-title {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(1.55rem, 2.6vw, 2.05rem);
+    line-height: 1.2;
+    margin: 0 0 12px;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .section-desc { color: var(--ink-soft); font-size: 1rem; }
+
+  /* ---------- Method: numbered ledger ---------- */
+  .method-list { display: flex; flex-direction: column; }
+  .method-row {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 22px;
+    padding: 26px 0;
+    border-top: 1px solid var(--line);
+  }
+  .method-row:last-child { border-bottom: 1px solid var(--line); }
+  .method-num {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: var(--accent);
+    padding-top: 3px;
+  }
+  .method-body h3 {
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+  .method-body p { margin: 0; color: var(--ink-soft); max-width: 66ch; }
+  .method-body .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 2px 7px;
+    margin-top: 12px;
+  }
+
+  @media (max-width: 640px) {
+    .method-row { grid-template-columns: 1fr; gap: 6px; }
+  }
+
+  /* ---------- Honesty pull-quote ---------- */
+  .honesty {
+    background: var(--paper-raised);
+  }
+  .quote-block {
+    border-left: 3px solid var(--accent);
+    padding-left: 28px;
+  }
+  .quote-block p.big {
+    font-family: var(--serif);
+    font-size: clamp(1.3rem, 2.6vw, 1.7rem);
+    line-height: 1.4;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  .quote-cite {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+  }
+  .honesty-example {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+  .metric-tile {
+    background: var(--paper-raised);
+    padding: 18px 18px 16px;
+  }
+  .metric-tile .label { font-size: 0.72rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+  .metric-tile .value { font-family: var(--mono); font-size: 1.3rem; margin-top: 6px; }
+  .metric-tile.flag { background: var(--warm-soft); }
+  .metric-tile.flag .value { color: var(--warm); font-size: 0.98rem; font-weight: 600; }
+  @media (max-width: 720px) {
+    .honesty-example { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ---------- Feature grid ---------- */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+  @media (max-width: 880px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .feature-grid { grid-template-columns: 1fr; } }
+
+  .feature-cell {
+    background: var(--paper-raised);
+    padding: 24px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 168px;
+  }
+  .feature-cell.span-all {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+    min-height: 0;
+  }
+  .feature-cell.span-all .feature-route { flex-shrink: 0; width: 132px; }
+  .feature-cell.span-all h3 { flex-shrink: 0; }
+  .feature-cell.span-all p { max-width: 62ch; }
+  @media (max-width: 640px) {
+    .feature-cell.span-all { flex-direction: column; align-items: flex-start; }
+  }
+  .feature-route {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+  .feature-cell h3 {
+    font-family: var(--serif);
+    font-size: 1.08rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  .feature-cell p {
+    margin: 0;
+    font-size: 0.89rem;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- Closing ---------- */
+  .closing { text-align: left; }
+  .closing-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 40px;
+    align-items: start;
+  }
+  @media (max-width: 780px) { .closing-grid { grid-template-columns: 1fr; } }
+
+  .disclaimer {
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    border-top: 1px solid var(--line);
+    padding-top: 18px;
+    margin-top: 18px;
+    max-width: 60ch;
+  }
+
+  footer {
+    padding: 30px 0 50px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  footer .fmark { font-family: var(--mono); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="wordmark">StAnalysis<span class="dot">Engine</span></div>
+    <nav class="topnav">
+      <a href="#method">Method</a>
+      <a href="#honesty">Honesty</a>
+      <a href="#features">Features</a>
+      <a href="#start">Get Started</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">AI-Assisted Stock Analysis</div>
+      <h1 class="headline">A forecast is only useful once you know <em>when to ignore it.</em></h1>
+      <p class="lede">
+        StAnalysisEngine predicts prices the way a rigorous analyst would — then tests its own
+        model against the simplest possible alternative, every time, and shows you which one won.
+        No black box. No cherry-picked backtest.
+      </p>
+      <div class="cta-row">
+        <span class="btn btn-primary">Explore the Engine</span>
+        <span class="btn btn-ghost">See a live forecast</span>
+      </div>
+      <p class="cta-note" style="margin-top:16px;">Free-tier friendly · No trading, ever — analysis and planning only</p>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-head">
+        <span class="chart-title">30-Day Walk-Forward Backtest</span>
+        <span class="chart-sub tabular">ILLUSTRATIVE</span>
+      </div>
+      <canvas id="heroChart" width="960" height="420"></canvas>
+      <div class="chart-legend">
+        <span><i class="swatch" style="background:var(--actual)"></i>Actual</span>
+        <span><i class="swatch" style="background:var(--predicted)"></i>Predicted</span>
+        <span><i class="swatch" style="background:var(--naive)"></i>Naive (no-change)</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="method">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">How a prediction actually gets made</div>
+      <h2 class="section-title">Five steps, every one of them checkable.</h2>
+      <p class="section-desc">
+        The forecast on every ticker page is built the same way, in the same order, with nothing
+        hidden between steps.
+      </p>
+    </div>
+
+    <div class="method-list">
+      <div class="method-row">
+        <div class="method-num tabular">01</div>
+        <div class="method-body">
+          <h3>Price-native features only</h3>
+          <p>
+            RSI, MACD, Bollinger position, and lagged returns — computed from the ticker's own
+            trading history. The core numeric forecast never touches news, filings, or sentiment,
+            so it can be backtested honestly against real historical dates.
+          </p>
+          <span class="tag">gradient-boosted regressor</span>
+        </div>
+      </div>
+
+      <div class="method-row">
+        <div class="method-num tabular">02</div>
+        <div class="method-body">
+          <h3>Walk-forward training, never a peek ahead</h3>
+          <p>
+            For every day in the backtest window, the model is trained only on data that existed
+            strictly before that day, then asked to predict it. The day's own outcome is never in
+            its own training set — the single most common way naive backtests lie to you.
+          </p>
+          <span class="tag">no look-ahead leakage</span>
+        </div>
+      </div>
+
+      <div class="method-row">
+        <div class="method-num tabular">03</div>
+        <div class="method-body">
+          <h3>Return shrinkage, applied because it measurably helps</h3>
+          <p>
+            A raw model's predicted move is dampened toward "no change" before it's ever shown —
+            not for show, but because testing it across tickers and time windows produced a
+            better real-world error rate than trusting the raw number. If a future test stops
+            showing that benefit, the shrink factor changes.
+          </p>
+          <span class="tag">validated by backtest, not assumed</span>
+        </div>
+      </div>
+
+      <div class="method-row">
+        <div class="method-num tabular">04</div>
+        <div class="method-body">
+          <h3>Scored against doing nothing</h3>
+          <p>
+            Every forecast ships next to a naive baseline: "assume tomorrow's price equals
+            today's close." RMSE, MAE, and MAPE are reported for both, side by side, so beating a
+            coin flip isn't quietly implied — it's measured.
+          </p>
+          <span class="tag">RMSE · MAE · MAPE vs. naive</span>
+        </div>
+      </div>
+
+      <div class="method-row">
+        <div class="method-num tabular">05</div>
+        <div class="method-body">
+          <h3>Saved predictions verify themselves</h3>
+          <p>
+            Save a forecast — 5 to 60 days out, your choice — and a background job checks it
+            automatically once the target date arrives — a live accuracy record that builds over
+            time, distinct from the historical backtest above it. Nobody has to remember to come
+            back and check. An admin control can pause this job without touching any code.
+          </p>
+          <span class="tag">auto-verified, every 15 minutes · adjustable horizon</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="honesty" class="honesty">
+  <div class="wrap">
+    <div class="quote-block">
+      <p class="big">
+        "The metrics above are the actual, current test for this ticker —
+        not a marketing claim."
+      </p>
+      <p class="quote-cite">— copy shown directly on the Price Prediction page, every time</p>
+    </div>
+
+    <div class="honesty-example">
+      <div class="metric-tile">
+        <div class="label">RMSE vs Naive</div>
+        <div class="value tabular">+0.01</div>
+      </div>
+      <div class="metric-tile">
+        <div class="label">MAE vs Naive</div>
+        <div class="value tabular">−0.03</div>
+      </div>
+      <div class="metric-tile">
+        <div class="label">MAPE vs Naive</div>
+        <div class="value tabular">+0.01%</div>
+      </div>
+      <div class="metric-tile flag">
+        <div class="label">Verdict</div>
+        <div class="value">Does not beat naive</div>
+      </div>
+    </div>
+    <p class="section-desc" style="margin-top:18px; max-width:66ch;">
+      This is a real, unedited example of what the tool shows when its own model loses to the
+      simplest possible guess. Most forecasting tools would just not show you this ticker.
+      StAnalysisEngine shows it anyway, because the trend across tickers — not any single
+      number — is the honest signal.
+    </p>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">One engine, the whole workflow</div>
+      <h2 class="section-title">From "what should I buy" to "did it work."</h2>
+      <p class="section-desc">
+        Prediction is one tool among ten — screening, planning, journaling, and alerting all run
+        on the same transparent scoring philosophy.
+      </p>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-cell">
+        <span class="feature-route">/predict</span>
+        <h3>Price Prediction</h3>
+        <p>5-to-60-day forecast with confidence interval, BUY/SELL/HOLD signal, live current price, and the full backtest shown above — all reflecting the same horizon you choose.</p>
+      </div>
+      <div class="feature-cell">
+        <span class="feature-route">/stock-finder · /index-fund</span>
+        <h3>Best Stock &amp; Fund Finder</h3>
+        <p>Goal-weighted rankings — Short Term, Long Term, Lowest Cost, Most Stable — with the exact weight of every factor shown per pick, not a hidden score.</p>
+      </div>
+      <div class="feature-cell">
+        <span class="feature-route">/entry</span>
+        <h3>Best To Enter Now</h3>
+        <p>Scans for tickers whose technical setup currently favors a new entry point.</p>
+      </div>
+      <div class="feature-cell">
+        <span class="feature-route">/monthly-plan · /strategies</span>
+        <h3>Goal-Based Planning</h3>
+        <p>Set a target amount and horizon; get contribution schedules across every fund and stock philosophy at once, not one narrow slice.</p>
+      </div>
+      <div class="feature-cell">
+        <span class="feature-route">/trade-journal</span>
+        <h3>Trade Journal</h3>
+        <p>Log real trades with live current price, risk/reward ratio, and stop or take-profit suggestions as they move.</p>
+      </div>
+      <div class="feature-cell">
+        <span class="feature-route">/portfolio</span>
+        <h3>Portfolio Tracking</h3>
+        <p>Manual positions rolled up into one summary — cost basis, current value, and return, in one place.</p>
+      </div>
+      <div class="feature-cell">
+        <span class="feature-route">/watchlist</span>
+        <h3>Watchlist Alerts</h3>
+        <p>Set a price target — above or below — and a background job checks it every 5 minutes and flags it the moment it fires. No tab left open, no polling required.</p>
+      </div>
+      <div class="feature-cell">
+        <span class="feature-route">AI Context</span>
+        <h3>News &amp; Earnings, Explained</h3>
+        <p>A plain-English read on what's actually moving a stock — including the earnings beat or miss behind a pre/post-market swing.</p>
+      </div>
+      <div class="feature-cell">
+        <span class="feature-route">/chat</span>
+        <h3>Meta-Agent Chat</h3>
+        <p>Ask a free-form question; the agent pulls live financials, filings, technicals, news, and research tools to answer it.</p>
+      </div>
+      <div class="feature-cell span-all">
+        <span class="feature-route">search everywhere</span>
+        <h3>Find It By Name</h3>
+        <p>Type "Microsoft" instead of memorizing "MSFT" — every ticker field across the app resolves company names, not just symbols.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="start" class="closing">
+  <div class="wrap closing-grid">
+    <div>
+      <div class="kicker">Start where the data is honest</div>
+      <h2 class="section-title">Run a forecast. Watch it get checked.</h2>
+      <p class="section-desc">
+        Every number on this page is a real pattern this tool already shows — not a projection of
+        what it might do someday.
+      </p>
+      <div class="cta-row" style="margin-top:26px;">
+        <span class="btn btn-primary">Open StAnalysisEngine</span>
+      </div>
+    </div>
+    <div class="disclaimer">
+      StAnalysisEngine is a planning and analysis tool, not a broker and not financial advice.
+      Forecasts, scores, and backtests reflect historical and model-derived data and are not a
+      promise of future results — markets change, and a model that beat a naive baseline
+      yesterday can lose to it tomorrow. Always confirm decisions against your own judgment and,
+      where appropriate, a licensed advisor.
+    </div>
+  </div>
+</section>
+
+<footer class="wrap">
+  <span class="fmark">StAnalysisEngine</span>
+  <span>Built for people who'd rather see the miss than be told there wasn't one.</span>
+</footer>
+
+<script>
+  (function () {
+    var canvas = document.getElementById('heroChart');
+    var ctx = canvas.getContext('2d');
+    var W = canvas.width, H = canvas.height;
+    var pad = { l: 6, r: 6, t: 16, b: 16 };
+
+    function seeded(seed) {
+      var s = seed;
+      return function () {
+        s = (s * 9301 + 49297) % 233280;
+        return s / 233280;
+      };
+    }
+    var rnd = seeded(42);
+
+    var n = 30;
+    var actual = [], naive = [], predicted = [];
+    var base = 100;
+    for (var i = 0; i < n; i++) {
+      var drift = Math.sin(i / 4.2) * 3.2 + (rnd() - 0.5) * 4.5;
+      base += drift;
+      actual.push(base);
+    }
+    for (i = 0; i < n; i++) {
+      naive.push(i === 0 ? actual[0] : actual[i - 1]);
+    }
+    for (i = 0; i < n; i++) {
+      var noise = (rnd() - 0.5) * 3.0;
+      var shrinkTowardNaive = 0.35;
+      var raw = actual[i] + noise;
+      predicted.push(naive[i] + (raw - naive[i]) * (1 - shrinkTowardNaive));
+    }
+
+    var all = actual.concat(naive).concat(predicted);
+    var min = Math.min.apply(null, all), max = Math.max.apply(null, all);
+    var range = (max - min) || 1;
+
+    function x(i) { return pad.l + (i / (n - 1)) * (W - pad.l - pad.r); }
+    function y(v) { return H - pad.b - ((v - min) / range) * (H - pad.t - pad.b); }
+
+    function drawLine(series, color, width, dashed) {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.setLineDash(dashed ? [4, 4] : []);
+      series.forEach(function (v, i) {
+        var px = x(i), py = y(v);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function dot(i, v, color) {
+      ctx.beginPath();
+      ctx.fillStyle = color;
+      ctx.arc(x(i), y(v), 3.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, W, H);
+
+      var styles = getComputedStyle(document.documentElement);
+      var cActual = styles.getPropertyValue('--actual').trim() || '#2563eb';
+      var cPred = styles.getPropertyValue('--predicted').trim() || '#0e6e5c';
+      var cNaive = styles.getPropertyValue('--naive').trim() || '#94a3b8';
+      var cLine = styles.getPropertyValue('--line').trim() || 'rgba(0,0,0,0.1)';
+
+      ctx.strokeStyle = cLine;
+      ctx.lineWidth = 1;
+      for (var g = 0; g <= 3; g++) {
+        var gy = pad.t + (g / 3) * (H - pad.t - pad.b);
+        ctx.beginPath();
+        ctx.moveTo(pad.l, gy);
+        ctx.lineTo(W - pad.r, gy);
+        ctx.stroke();
+      }
+
+      drawLine(naive, cNaive, 1.6, true);
+      drawLine(actual, cActual, 2.2, false);
+      drawLine(predicted, cPred, 2.2, false);
+
+      actual.forEach(function (v, i) { if (i % 4 === 0) dot(i, v, cActual); });
+      predicted.forEach(function (v, i) { if (i % 4 === 0) dot(i, v, cPred); });
+    }
+
+    render();
+    window.addEventListener('resize', render);
+
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+    }
+    var mo = new MutationObserver(render);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  })();
+</script>
+
+</body>
+</html>

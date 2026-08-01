@@ -12,7 +12,12 @@ export default async function SignupPage({
   return (
     <div className="mx-auto mt-24 max-w-sm px-4">
       <h1 className="mb-1 text-2xl font-semibold text-slate-900">Sign up</h1>
-      <p className="mb-6 text-sm text-slate-500">AI Price Prediction &amp; Best Stock Finder</p>
+      <p className="mb-1 text-sm text-slate-500">AI Price Prediction &amp; Best Stock Finder</p>
+      <p className="mb-6 text-sm">
+        <a href="/marketing.html" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline hover:text-emerald-800">
+          How it works &amp; what&apos;s inside
+        </a>
+      </p>
 
       {params.error && (
         <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{params.error}</p>
