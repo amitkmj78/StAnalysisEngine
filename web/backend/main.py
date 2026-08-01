@@ -15,6 +15,7 @@ from slowapi.errors import RateLimitExceeded
 
 from web.backend.db import close_pools, init_pools
 from web.backend.rate_limit import limiter
+from web.backend.scheduler import start_scheduler, stop_scheduler
 from web.backend.routers import (
     admin_activity,
     admin_users,
@@ -36,7 +37,9 @@ from web.backend.routers import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_pools()
+    start_scheduler()
     yield
+    stop_scheduler()
     await close_pools()
 
 

@@ -21,3 +21,4 @@ langchain-ollama
 langchain-community
 tavily-python
 streamlit
+apscheduler
