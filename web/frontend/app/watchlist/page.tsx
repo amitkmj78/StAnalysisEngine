@@ -197,7 +197,17 @@ export default function WatchlistPage() {
                   <tbody>
                     {pending.map((a) => (
                       <tr key={a.id} className="border-b border-slate-100 last:border-0">
-                        <td className="px-3 py-2 font-medium text-slate-800">{a.ticker}</td>
+                        <td className="px-3 py-2 font-medium text-slate-800">
+                          {a.ticker}
+                          {a.source === "portfolio_auto" && (
+                            <span
+                              title="Set automatically from your Portfolio strategy's target/stop"
+                              className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-600"
+                            >
+                              From Portfolio
+                            </span>
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-slate-600">
                           {a.condition_type === "price_above" ? "Price above" : "Price below"} ${a.threshold.toFixed(2)}
                         </td>

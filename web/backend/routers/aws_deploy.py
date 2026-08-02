@@ -512,8 +512,10 @@ create table if not exists watchlist_alerts (
   active boolean not null default true,
   triggered_at timestamptz,
   triggered_price real,
-  seen_at timestamptz
+  seen_at timestamptz,
+  source text
 );
+alter table watchlist_alerts add column if not exists source text;
 create index if not exists watchlist_alerts_user_idx on watchlist_alerts(user_id, created_at desc);
 alter table watchlist_alerts enable row level security;
 drop policy if exists watchlist_alerts_isolation on watchlist_alerts;

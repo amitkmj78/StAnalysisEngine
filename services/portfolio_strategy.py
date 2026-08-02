@@ -55,6 +55,29 @@ def _get_live_price(ticker: str) -> float:
 # -------------------------------------------------------------
 # Strategy Logic
 # -------------------------------------------------------------
+def _compute_short_term_targets(pos: EnrichedPosition) -> tuple[float, float]:
+    """
+    Upside target / protective stop prices for the short-term (1-4 week) plan.
+    Split out from _compute_short_term_plan so callers (e.g. auto-populating
+    a watchlist) can get the numeric targets without parsing the plan text.
+    """
+    cp = pos.current_price
+    rp = pos.risk_profile.lower()
+    rf = pos.risk_factor
+
+    if rp == "conservative":
+        base_target, base_stop = 5.0, 3.0
+    elif rp == "aggressive":
+        base_target, base_stop = 12.0, 7.0
+    else:
+        base_target, base_stop = 8.0, 4.5
+
+    target_pct = _clamp(base_target + (rf - 5) * 0.7, 3.0, 20.0)
+    stop_pct = _clamp(base_stop + (rf - 5) * 0.4, 2.0, 15.0)
+
+    return cp * (1 + target_pct / 100.0), cp * (1 - stop_pct / 100.0)
+
+
 def _compute_short_term_plan(pos: EnrichedPosition) -> str:
     """
     Generate a short-term (1–4 weeks) strategy description
@@ -63,31 +86,11 @@ def _compute_short_term_plan(pos: EnrichedPosition) -> str:
     cp = pos.current_price
     ac = pos.avg_cost
     pnl = pos.pnl_pct
-    rp = pos.risk_profile.lower()
     rf = pos.risk_factor
 
-    # ---- Base target/stop by risk profile ----
-    if rp == "conservative":
-        base_target = 5.0
-        base_stop = 3.0
-    elif rp == "aggressive":
-        base_target = 12.0
-        base_stop = 7.0
-    else:  # balanced / default
-        base_target = 8.0
-        base_stop = 4.5
-
-    # Fine-tune using risk_factor (1–10)
-    # Higher risk_factor → larger target, looser stop
-    target_pct = base_target + (rf - 5) * 0.7
-    stop_pct = base_stop + (rf - 5) * 0.4
-
-    target_pct = _clamp(target_pct, 3.0, 20.0)
-    stop_pct = _clamp(stop_pct, 2.0, 15.0)
-
-    # Short-term target and stop are from CURRENT price (not avg cost)
-    target_price = cp * (1 + target_pct / 100.0)
-    stop_price = cp * (1 - stop_pct / 100.0)
+    target_price, stop_price = _compute_short_term_targets(pos)
+    target_pct = (target_price / cp - 1) * 100.0
+    stop_pct = (1 - stop_price / cp) * 100.0
 
     # Behaviour depending on PnL
     if pnl >= 20:
@@ -296,6 +299,8 @@ def build_robinhood_strategies(
                 "Unrealized_PnL_%",
                 "Short_Term_Plan",
                 "Long_Term_Plan",
+                "Target_Price",
+                "Stop_Price",
             ]
         )
 
@@ -311,6 +316,7 @@ def build_robinhood_strategies(
 
             short_plan = _compute_short_term_plan(pos)
             long_plan = _compute_long_term_plan(pos)
+            target_price, stop_price = _compute_short_term_targets(pos)
 
             rows.append(
                 {
@@ -323,6 +329,8 @@ def build_robinhood_strategies(
                     "Long_Term_Plan": long_plan,
                     "Risk_Profile": rp,
                     "Risk_Factor": rf,
+                    "Target_Price": target_price,
+                    "Stop_Price": stop_price,
                 }
             )
         except Exception:

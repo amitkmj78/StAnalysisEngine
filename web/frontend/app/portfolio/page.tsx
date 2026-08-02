@@ -33,6 +33,7 @@ export default function PortfolioPage() {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [watchlistNote, setWatchlistNote] = useState<string | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -73,13 +74,15 @@ export default function PortfolioPage() {
     }
     setSubmitting(true);
     setError(null);
+    setWatchlistNote(null);
     try {
-      await submitManualPositions(
+      const res = await submitManualPositions(
         valid.map((r) => ({ ...r, ticker: r.ticker.trim().toUpperCase() })),
         riskProfile,
         riskFactor,
       );
       setRows([{ ...EMPTY_ROW }]);
+      noteWatchlist(res.watchlist_alerts_created);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save positions.");
@@ -88,11 +91,21 @@ export default function PortfolioPage() {
     }
   }
 
+  function noteWatchlist(count: number) {
+    if (count > 0) {
+      setWatchlistNote(
+        `${count} watchlist alert${count === 1 ? "" : "s"} set from your strategies' upside targets and stops.`
+      );
+    }
+  }
+
   async function handleRefresh() {
     setRefreshing(true);
     setError(null);
+    setWatchlistNote(null);
     try {
-      await refreshPortfolio(riskProfile, riskFactor);
+      const res = await refreshPortfolio(riskProfile, riskFactor);
+      noteWatchlist(res.watchlist_alerts_created);
       await refresh();
     } catch (err) {
       setError(
@@ -113,9 +126,11 @@ export default function PortfolioPage() {
     }
     setSubmitting(true);
     setError(null);
+    setWatchlistNote(null);
     try {
-      await importPortfolioCsv(file, riskProfile, riskFactor);
+      const res = await importPortfolioCsv(file, riskProfile, riskFactor);
       setFile(null);
+      noteWatchlist(res.watchlist_alerts_created);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not process CSV.");
@@ -129,6 +144,7 @@ export default function PortfolioPage() {
       <h1 className="text-2xl font-semibold text-slate-900">Portfolio Strategies</h1>
       <p className="mt-1 text-sm text-slate-500">
         Import a Robinhood activity CSV or enter positions manually to get short- and long-term plans per holding.
+        Each save also sets watchlist alerts by default at the suggested upside target and stop for every position.
       </p>
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
@@ -211,6 +227,14 @@ export default function PortfolioPage() {
       )}
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {watchlistNote && (
+        <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {watchlistNote}{" "}
+          <a href="/watchlist" className="underline">
+            View watchlist
+          </a>
+        </p>
+      )}
 
       {summary && (
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">

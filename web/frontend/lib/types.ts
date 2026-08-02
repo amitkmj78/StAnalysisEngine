@@ -349,6 +349,7 @@ export interface PortfolioSubmitResponse {
   positions: PortfolioPosition[];
   strategies: PortfolioStrategyRow[];
   summary: PortfolioSummary;
+  watchlist_alerts_created: number;
 }
 
 // Meta-Agent Chat
@@ -389,6 +390,7 @@ export interface WatchlistAlert {
   triggered_at: string | null;
   triggered_price: number | null;
   seen_at: string | null;
+  source: string | null;
 }
 
 export interface AdminSettings {

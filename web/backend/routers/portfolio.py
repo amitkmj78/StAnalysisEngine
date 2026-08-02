@@ -75,10 +75,37 @@ async def _save_and_respond(conn, user_id: str, holdings_df: pd.DataFrame, risk_
         )
         strategy_rows.append(_record_to_dict(record))
 
+    # Auto-populate the watchlist with this snapshot's short-term upside
+    # target / protective stop — the "best strategy" numbers already computed
+    # above — so alerts exist without the user setting them up by hand.
+    # Tagged 'portfolio_auto' so re-saving/refreshing only replaces these,
+    # never alerts the user created themselves on the Watchlist page.
+    await conn.execute(
+        "DELETE FROM watchlist_alerts WHERE user_id = $1::uuid AND source = 'portfolio_auto'",
+        user_id,
+    )
+    watchlist_alerts_created = 0
+    for _, row in strat_df.iterrows():
+        for condition_type, threshold in (
+            ("price_above", _nan_to_none(row.get("Target_Price"))),
+            ("price_below", _nan_to_none(row.get("Stop_Price"))),
+        ):
+            if threshold is None or threshold <= 0:
+                continue
+            await conn.execute(
+                """
+                INSERT INTO watchlist_alerts (user_id, ticker, condition_type, threshold, source)
+                VALUES ($1::uuid, $2, $3, $4, 'portfolio_auto')
+                """,
+                user_id, row["Ticker"], condition_type, threshold,
+            )
+            watchlist_alerts_created += 1
+
     return {
         "positions": position_rows,
         "strategies": strategy_rows,
         "summary": summarize_portfolio(strat_df),
+        "watchlist_alerts_created": watchlist_alerts_created,
     }
 
 
