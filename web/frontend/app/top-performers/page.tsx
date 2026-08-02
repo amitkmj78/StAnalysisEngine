@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, getMomentumOptions, getTopPerformers } from "@/lib/api";
-import type { TopPerformerRow } from "@/lib/types";
+import { ApiError, getMomentumBacktest, getMomentumOptions, getTopPerformers } from "@/lib/api";
+import type { MomentumBacktestResponse, TopPerformerRow } from "@/lib/types";
 
 const WINDOW_LABELS: Record<number, string> = {
   10: "10 Days",
@@ -25,6 +25,10 @@ export default function TopPerformersPage() {
   const [funds, setFunds] = useState<TopPerformerRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [backtest, setBacktest] = useState<MomentumBacktestResponse | null>(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestError, setBacktestError] = useState<string | null>(null);
 
   useEffect(() => {
     getMomentumOptions()
@@ -59,6 +63,18 @@ export default function TopPerformersPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function runBacktest() {
+    setBacktestLoading(true);
+    setBacktestError(null);
+    try {
+      setBacktest(await getMomentumBacktest("Stock", stockUniverse, window, 5, 3));
+    } catch (err) {
+      setBacktestError(err instanceof ApiError ? err.message : "Backtest failed.");
+    } finally {
+      setBacktestLoading(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -117,6 +133,100 @@ export default function TopPerformersPage() {
         <TopPerformersTable title="Top Funds" rows={funds} loading={loading} windowLabel={WINDOW_LABELS[window] ?? `${window} Days`} />
       </div>
 
+      <hr className="mt-8 border-slate-200" />
+      <div className="mt-6 rounded-lg border border-indigo-200 bg-indigo-50/40 p-5">
+        <h2 className="font-semibold text-slate-900">3-Year Backtest: Did This Ranking Hold Up?</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Walk-forward test, not a simulation you can cherry-pick: every ~month for the last 3 years, rank the{" "}
+          {stockUniverse} stock universe by trailing {WINDOW_LABELS[window] ?? `${window}-day`} return using only
+          price data available up to that point, buy the top 5, hold until the next rebalance, and compare to
+          buying the whole universe equally. Same ranking metric as the leaderboard above — no fundamentals, so
+          it can be reconstructed honestly at any past date.
+        </p>
+        <button
+          onClick={runBacktest}
+          disabled={backtestLoading}
+          className="mt-3 rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+        >
+          {backtestLoading ? "Running 3-year backtest…" : backtest ? "Re-run Backtest" : "Run 3-Year Backtest"}
+        </button>
+
+        {backtestError && (
+          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{backtestError}</p>
+        )}
+
+        {backtest && !backtestLoading && (
+          <div className="mt-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <BacktestTile label="Rebalance Periods" value={String(backtest.num_periods)} />
+              <BacktestTile
+                label="Hit Rate"
+                value={backtest.hit_rate_pct !== null ? `${backtest.hit_rate_pct.toFixed(1)}%` : "N/A"}
+              />
+              <BacktestTile
+                label="Strategy Cumulative"
+                value={backtest.strategy_cumulative_return_pct !== null ? `${backtest.strategy_cumulative_return_pct.toFixed(1)}%` : "N/A"}
+                positive={backtest.strategy_cumulative_return_pct !== null && backtest.strategy_cumulative_return_pct >= 0}
+              />
+              <BacktestTile
+                label="Benchmark Cumulative"
+                value={backtest.benchmark_cumulative_return_pct !== null ? `${backtest.benchmark_cumulative_return_pct.toFixed(1)}%` : "N/A"}
+                positive={backtest.benchmark_cumulative_return_pct !== null && backtest.benchmark_cumulative_return_pct >= 0}
+              />
+              <BacktestTile
+                label="Beat Benchmark?"
+                value={
+                  backtest.strategy_cumulative_return_pct !== null && backtest.benchmark_cumulative_return_pct !== null
+                    ? backtest.strategy_cumulative_return_pct > backtest.benchmark_cumulative_return_pct
+                      ? "Yes"
+                      : "No"
+                    : "N/A"
+                }
+              />
+            </div>
+
+            <p className="mt-3 text-xs text-slate-500">
+              &quot;Hit Rate&quot; is the share of rebalance periods where the top-5 picks beat the
+              equal-weight-universe benchmark over that same period — a hit rate near 50% means this ranking is
+              close to a coin flip period-to-period, even if the cumulative return looks better or worse.
+              &quot;Cumulative&quot; compounds every period&apos;s return in sequence over the full {backtest.years} years.
+            </p>
+
+            <details className="mt-3 text-xs text-slate-600">
+              <summary className="cursor-pointer font-medium text-slate-700">
+                Show all {backtest.periods.length} rebalance periods
+              </summary>
+              <div className="mt-2 max-h-80 overflow-y-auto rounded-md border border-slate-200 bg-white">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                      <th className="px-2 py-1.5">Date</th>
+                      <th className="px-2 py-1.5">Picks</th>
+                      <th className="px-2 py-1.5 text-right">Strategy</th>
+                      <th className="px-2 py-1.5 text-right">Benchmark</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {backtest.periods.map((p) => (
+                      <tr key={p.date} className="border-b border-slate-100 last:border-0">
+                        <td className="px-2 py-1.5 text-slate-600">{p.date}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{p.picks.join(", ")}</td>
+                        <td className="px-2 py-1.5 text-right text-slate-700">
+                          {p.strategy_return_pct !== null ? `${p.strategy_return_pct.toFixed(2)}%` : "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-slate-700">
+                          {p.benchmark_return_pct !== null ? `${p.benchmark_return_pct.toFixed(2)}%` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        )}
+      </div>
+
       <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
         <h3 className="font-semibold text-slate-900">How To Read This Page</h3>
         <p className="mt-2 text-sm text-slate-600">
@@ -126,6 +236,21 @@ export default function TopPerformersPage() {
           whether a run continues.
         </p>
       </div>
+    </div>
+  );
+}
+
+function BacktestTile({ label, value, positive }: { label: string; value: string; positive?: boolean }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p
+        className={`mt-1 text-lg font-semibold ${
+          positive === undefined ? "text-slate-900" : positive ? "text-emerald-600" : "text-red-600"
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }

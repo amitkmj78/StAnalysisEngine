@@ -412,3 +412,25 @@ export interface MomentumOptions {
   stock_universes: string[];
   fund_categories: string[];
 }
+
+export interface MomentumBacktestPeriod {
+  date: string;
+  picks: string[];
+  strategy_return_pct: number | null;
+  benchmark_return_pct: number | null;
+}
+
+export interface MomentumBacktestResponse {
+  asset_type: string;
+  universe: string;
+  lookback_days: number;
+  top_n: number;
+  years: number;
+  num_periods: number;
+  hit_rate_pct: number | null;
+  strategy_cumulative_return_pct: number | null;
+  benchmark_cumulative_return_pct: number | null;
+  avg_strategy_period_return_pct: number | null;
+  avg_benchmark_period_return_pct: number | null;
+  periods: MomentumBacktestPeriod[];
+}

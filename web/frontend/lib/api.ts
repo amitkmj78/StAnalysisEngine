@@ -14,6 +14,7 @@ import type {
   FundRankResponse,
   FundScoreResponse,
   ManualPositionInput,
+  MomentumBacktestResponse,
   MomentumOptions,
   MonthlyPlanResponse,
   PortfolioPosition,
@@ -381,5 +382,21 @@ export function getTopPerformers(window: number, assetType: "Stock" | "Fund", un
     asset_type: assetType,
     universe,
     top_n: String(topN),
+  });
+}
+
+export function getMomentumBacktest(
+  assetType: "Stock" | "Fund",
+  universe: string,
+  lookbackDays: number,
+  topN = 5,
+  years = 3,
+) {
+  return apiFetch<MomentumBacktestResponse>("/api/v1/momentum/backtest", {
+    asset_type: assetType,
+    universe,
+    lookback_days: String(lookbackDays),
+    top_n: String(topN),
+    years: String(years),
   });
 }
