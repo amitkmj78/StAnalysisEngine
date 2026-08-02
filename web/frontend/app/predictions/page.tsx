@@ -170,45 +170,37 @@ export default function PredictionsPage() {
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                       <th className="px-3 py-2">Ticker</th>
-                      <th className="px-3 py-2">Saved</th>
-                      <th className="px-3 py-2">Model Predicted</th>
-                      <th className="px-3 py-2">Stock Actual (target)</th>
-                      <th className="px-3 py-2">Stock Since Saved</th>
-                      <th className="px-3 py-2">Fund Since Saved</th>
-                      <th className="px-3 py-2">Stock Beat Fund?</th>
+                      <th className="px-3 py-2">Held</th>
+                      <th className="px-3 py-2 text-right">Return</th>
+                      <th className="px-3 py-2 text-right">Benchmark</th>
+                      <th className="px-3 py-2 text-right">vs. Bmk</th>
+                      <th className="px-3 py-2 text-right">Predicted</th>
+                      <th className="px-3 py-2 text-right">Error</th>
                     </tr>
                   </thead>
                   <tbody>
                     {compare.comparisons.map((c) => {
-                      const beat =
+                      const heldDays = Math.max(
+                        0,
+                        Math.floor((Date.now() - new Date(c.predicted_at).getTime()) / 86_400_000)
+                      );
+                      const vsBmk =
                         c.stock_return_since_saved_pct !== null && c.fund_return_since_saved_pct !== null
-                          ? c.stock_return_since_saved_pct > c.fund_return_since_saved_pct
+                          ? c.stock_return_since_saved_pct - c.fund_return_since_saved_pct
+                          : null;
+                      const errorPct =
+                        c.stock_return_since_saved_pct !== null && c.predicted_return_pct !== null
+                          ? c.stock_return_since_saved_pct - c.predicted_return_pct
                           : null;
                       return (
                         <tr key={c.prediction_id} className="border-b border-slate-100 last:border-0">
                           <td className="px-3 py-2 font-medium text-slate-800">{c.ticker}</td>
-                          <td className="px-3 py-2 text-slate-600">{new Date(c.predicted_at).toLocaleDateString()}</td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {c.predicted_return_pct !== null ? `${c.predicted_return_pct.toFixed(2)}%` : "—"}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {c.actual_return_pct !== null ? `${c.actual_return_pct.toFixed(2)}%` : "pending"}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {c.stock_return_since_saved_pct !== null ? `${c.stock_return_since_saved_pct.toFixed(2)}%` : "—"}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {c.fund_return_since_saved_pct !== null ? `${c.fund_return_since_saved_pct.toFixed(2)}%` : "—"}
-                          </td>
-                          <td className="px-3 py-2">
-                            {beat === null ? (
-                              <span className="text-slate-400">—</span>
-                            ) : beat ? (
-                              <span className="text-emerald-600">✓ beat fund</span>
-                            ) : (
-                              <span className="text-red-600">✗ lagged fund</span>
-                            )}
-                          </td>
+                          <td className="px-3 py-2 text-slate-600">{heldDays}d</td>
+                          <Signed value={c.stock_return_since_saved_pct} />
+                          <Signed value={c.fund_return_since_saved_pct} />
+                          <Signed value={vsBmk} bold />
+                          <Signed value={c.predicted_return_pct} />
+                          <Signed value={errorPct} invert />
                         </tr>
                       );
                     })}
@@ -217,15 +209,33 @@ export default function PredictionsPage() {
               </div>
             )}
             <p className="mt-3 text-xs text-slate-500">
-              &quot;Stock Since Saved&quot; and &quot;Fund Since Saved&quot; are both measured from the date you
-              saved the prediction to right now — an apples-to-apples window regardless of whether the
-              target date has arrived yet. &quot;Model Predicted&quot; and &quot;Stock Actual (target)&quot;
-              instead compare the original forecast horizon specifically, and stay &quot;pending&quot; until
-              that target date passes.
+              <strong>Return</strong> / <strong>Benchmark</strong> are measured from the date you saved the
+              prediction to right now (the benchmark is the current top-ranked fund) — an apples-to-apples
+              window regardless of whether the target date has arrived yet. <strong>vs. Bmk</strong> is Return
+              minus Benchmark (positive = the stock beat the fund). <strong>Predicted</strong> is the model&apos;s
+              original forecast return; <strong>Error</strong> is Return minus Predicted (negative = the model
+              overshot; positive = it undershot).
             </p>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function Signed({ value, bold, invert }: { value: number | null; bold?: boolean; invert?: boolean }) {
+  if (value === null) {
+    return <td className="px-3 py-2 text-right text-slate-400">—</td>;
+  }
+  // `invert` flips the color read for Error, where negative (model
+  // overshot) isn't necessarily "bad" the way a negative Return is —
+  // still shown with sign, just without implying "red = worse" here.
+  const positive = value >= 0;
+  const colorClass = invert ? "text-slate-700" : positive ? "text-emerald-600" : "text-red-600";
+  return (
+    <td className={`px-3 py-2 text-right ${bold ? "font-semibold" : ""} ${colorClass}`}>
+      {positive ? "+" : ""}
+      {value.toFixed(1)}%
+    </td>
   );
 }
