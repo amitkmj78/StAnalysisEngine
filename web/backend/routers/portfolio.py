@@ -40,6 +40,11 @@ async def _save_and_respond(conn, user_id: str, holdings_df: pd.DataFrame, risk_
     if strat_df.empty:
         return {"positions": [], "strategies": [], "summary": summarize_portfolio(strat_df)}
 
+    # A save always represents the user's current portfolio snapshot, not an
+    # addition to history — replace what's there instead of accumulating duplicates.
+    await conn.execute("DELETE FROM portfolio_positions WHERE user_id = $1::uuid", user_id)
+    await conn.execute("DELETE FROM portfolio_strategies WHERE user_id = $1::uuid", user_id)
+
     position_rows = []
     for _, row in strat_df.iterrows():
         record = await conn.fetchrow(
@@ -132,6 +137,37 @@ async def import_csv(
 
     async with user_conn(user_id) as conn:
         return await _save_and_respond(conn, user_id, holdings_df, risk_profile, risk_factor, "Robinhood")
+
+
+@router.post("/refresh")
+@limiter.limit("10/minute")
+async def refresh_portfolio(request: Request, risk_profile: str = "Balanced", risk_factor: int = 5):
+    """Re-fetch current market prices for the user's saved positions and
+    recompute strategies from them — no re-entry/re-upload required."""
+    await enforce_daily_quota(request, "portfolio/refresh")
+    user_id = request.state.user["id"]
+
+    async with user_conn(user_id) as conn:
+        records = await conn.fetch(
+            "SELECT ticker, shares, avg_cost, name FROM portfolio_positions WHERE user_id = $1::uuid",
+            user_id,
+        )
+        if not records:
+            raise HTTPException(404, "No saved portfolio positions to refresh yet.")
+
+        # Built directly (not via build_manual_positions) so no placeholder
+        # Current_Price/Unrealized_PnL_% columns are present — that lets
+        # _normalize_holdings_row fetch a live price AND derive PnL from it,
+        # instead of PnL getting locked in against a 0/stale price first.
+        holdings_df = pd.DataFrame(
+            {
+                "Ticker": [r["ticker"] for r in records],
+                "Name": [r["name"] or r["ticker"] for r in records],
+                "Shares": [r["shares"] for r in records],
+                "Avg_Cost": [r["avg_cost"] for r in records],
+            }
+        )
+        return await _save_and_respond(conn, user_id, holdings_df, risk_profile, risk_factor, "Refreshed")
 
 
 @router.get("/positions")

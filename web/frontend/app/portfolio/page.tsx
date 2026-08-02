@@ -7,6 +7,7 @@ import {
   getPortfolioStrategies,
   getPortfolioSummary,
   importPortfolioCsv,
+  refreshPortfolio,
   submitManualPositions,
 } from "@/lib/api";
 import type { ManualPositionInput, PortfolioStrategyRow, PortfolioSummary } from "@/lib/types";
@@ -29,6 +30,7 @@ export default function PortfolioPage() {
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
@@ -82,6 +84,23 @@ export default function PortfolioPage() {
       setError(err instanceof ApiError ? err.message : "Could not save positions.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    setError(null);
+    try {
+      await refreshPortfolio(riskProfile, riskFactor);
+      await refresh();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not refresh your portfolio against current market prices."
+      );
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -200,7 +219,22 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      <h2 className="mt-6 text-lg font-semibold text-slate-900">Strategies</h2>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold text-slate-900">Strategies</h2>
+        {strategies.length > 0 && (
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          >
+            {refreshing ? "Refreshing…" : "Refresh with Current Market"}
+          </button>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-slate-500">
+        Pulls today&apos;s prices for the positions you&apos;ve already saved and recomputes the plans below —
+        no need to re-enter or re-upload anything.
+      </p>
       {loading ? (
         <p className="mt-2 text-sm text-slate-500">Loading…</p>
       ) : strategies.length === 0 ? (

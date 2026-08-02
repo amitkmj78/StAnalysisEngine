@@ -291,6 +291,14 @@ export async function importPortfolioCsv(
   return apiUpload<PortfolioSubmitResponse>(`/api/v1/portfolio/import-csv?${params.toString()}`, formData);
 }
 
+export function refreshPortfolio(riskProfile: string, riskFactor: number) {
+  const params = new URLSearchParams({
+    risk_profile: riskProfile,
+    risk_factor: String(riskFactor),
+  });
+  return apiSend<PortfolioSubmitResponse>(`/api/v1/portfolio/refresh?${params.toString()}`, "POST");
+}
+
 export function getPortfolioPositions() {
   return apiFetch<{ positions: PortfolioPosition[] }>("/api/v1/portfolio/positions");
 }
