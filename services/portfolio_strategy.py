@@ -100,7 +100,12 @@ def _compute_short_term_plan(pos: EnrichedPosition) -> str:
             "Position is working. You can keep holding, but think about defining a level "
             "where you'd trim if momentum fades."
         )
-    elif -10 <= pnl < 5:
+    elif 0 <= pnl < 5:
+        stance = (
+            "PnL is roughly flat to slightly positive — not enough of a move to change your plan. "
+            "Focus on whether the thesis still holds and be disciplined with your stop."
+        )
+    elif -10 <= pnl < 0:
         stance = (
             "PnL is roughly flat to slightly negative. Focus on whether the thesis "
             "still holds and be disciplined with your stop."
@@ -158,7 +163,13 @@ def _compute_long_term_plan(pos: EnrichedPosition) -> str:
             "you can keep holding and use fundamentals (revenue/earnings trends, margins, "
             "competitive position) as your primary decision anchors."
         )
-    elif -15 <= pnl < 5:
+    elif 0 <= pnl < 5:
+        guidance = (
+            "Returns are flat to modestly positive. Long-term, the key is whether the company still "
+            "fits your portfolio story (sector exposure, growth vs value, diversification). "
+            "If yes, treating this as a normal fluctuation is reasonable."
+        )
+    elif -15 <= pnl < 0:
         guidance = (
             "Returns are flat to modestly negative. Long-term, the key is whether the company still "
             "fits your portfolio story (sector exposure, growth vs value, diversification). "
