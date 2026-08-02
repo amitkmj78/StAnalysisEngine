@@ -11,6 +11,7 @@ import {
   submitManualPositions,
 } from "@/lib/api";
 import type { ManualPositionInput, PortfolioStrategyRow, PortfolioSummary } from "@/lib/types";
+import PlanText from "@/components/PlanText";
 
 const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
 
@@ -240,18 +241,41 @@ export default function PortfolioPage() {
       ) : strategies.length === 0 ? (
         <p className="mt-2 text-sm text-slate-500">No saved strategies yet.</p>
       ) : (
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {strategies.map((s) => (
-            <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-5">
-              <h3 className="font-semibold text-slate-900">{s.ticker}</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                {s.shares} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${s.current_price?.toFixed(2)} (
-                {s.unrealized_pnl_pct !== null ? `${s.unrealized_pnl_pct.toFixed(2)}%` : "—"})
-              </p>
-              <p className="mt-2 text-sm text-slate-700"><strong>Short term:</strong> {s.short_term_plan}</p>
-              <p className="mt-1 text-sm text-slate-700"><strong>Long term:</strong> {s.long_term_plan}</p>
-            </div>
-          ))}
+        <div className="mt-3 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {strategies.map((s) => {
+            const pnl = s.unrealized_pnl_pct;
+            const pnlPositive = pnl !== null && pnl >= 0;
+            return (
+              <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-5">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <h3 className="text-base font-semibold text-slate-900">{s.ticker}</h3>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      pnl === null
+                        ? "bg-slate-100 text-slate-500"
+                        : pnlPositive
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {pnl === null ? "—" : `${pnlPositive ? "+" : ""}${pnl.toFixed(2)}%`}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-slate-500">
+                  {s.shares} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${s.current_price?.toFixed(2)}
+                </p>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
+                    <PlanText text={s.short_term_plan} />
+                  </div>
+                  <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
+                    <PlanText text={s.long_term_plan} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
