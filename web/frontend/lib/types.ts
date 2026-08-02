@@ -394,3 +394,21 @@ export interface WatchlistAlert {
 export interface AdminSettings {
   verify_predictions_enabled: boolean;
 }
+
+export interface TopPerformerRow {
+  ticker: string;
+  name: string;
+  return_pct: number;
+}
+
+export interface TopPerformersResponse {
+  results: TopPerformerRow[];
+  window: number;
+  asset_type: string;
+}
+
+export interface MomentumOptions {
+  windows: number[];
+  stock_universes: string[];
+  fund_categories: string[];
+}

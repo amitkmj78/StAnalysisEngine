@@ -14,6 +14,7 @@ import type {
   FundRankResponse,
   FundScoreResponse,
   ManualPositionInput,
+  MomentumOptions,
   MonthlyPlanResponse,
   PortfolioPosition,
   PortfolioStrategyRow,
@@ -27,6 +28,7 @@ import type {
   StockScoreResponse,
   StrategiesSummaryResponse,
   TickerSearchResult,
+  TopPerformersResponse,
   Trade,
   TradeCreateInput,
   UniversesResponse,
@@ -367,4 +369,17 @@ export function comparePredictionsToFund(fundGoal = "Balanced Core", fundCategor
 
 export function deletePrediction(predictionId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/predict/${predictionId}`, "DELETE");
+}
+
+export function getMomentumOptions() {
+  return apiFetch<MomentumOptions>("/api/v1/momentum/options");
+}
+
+export function getTopPerformers(window: number, assetType: "Stock" | "Fund", universe: string, topN = 15) {
+  return apiFetch<TopPerformersResponse>("/api/v1/momentum/top-performers", {
+    window: String(window),
+    asset_type: assetType,
+    universe,
+    top_n: String(topN),
+  });
 }

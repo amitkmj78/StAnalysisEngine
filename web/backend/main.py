@@ -25,6 +25,7 @@ from web.backend.routers import (
     chat,
     entry_strategy,
     index_fund,
+    momentum,
     monthly_plan,
     portfolio,
     prediction,
@@ -72,6 +73,7 @@ app.include_router(chat.router)
 app.include_router(aws_deploy.router)
 app.include_router(search.router)
 app.include_router(watchlist.router)
+app.include_router(momentum.router)
 app.include_router(admin_users.router)
 app.include_router(admin_activity.router)
 app.include_router(admin_settings.router)

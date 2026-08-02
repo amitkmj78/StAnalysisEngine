@@ -110,6 +110,19 @@ def _annualized_return(prices: pd.Series, trading_days: int = 252) -> Optional[f
     return (float(total_return) ** (1 / years) - 1) * 100
 
 
+def _lookback_return(prices: pd.Series, trading_days: int) -> Optional[float]:
+    """Trailing % return over the last `trading_days` bars — same semantics
+    as stock_finder_service._pct_return, kept local since funds and stocks
+    build their rows from separate history fetches."""
+    if prices.empty or len(prices) <= trading_days:
+        return None
+    start = float(prices.iloc[-trading_days - 1])
+    end = float(prices.iloc[-1])
+    if start == 0:
+        return None
+    return (end / start - 1.0) * 100
+
+
 def _build_fund_row(ticker_symbol: str, fallback_category: str = "Custom") -> Optional[Dict[str, object]]:
     try:
         ticker = yf.Ticker(ticker_symbol)
@@ -129,6 +142,11 @@ def _build_fund_row(ticker_symbol: str, fallback_category: str = "Custom") -> Op
         volatility_1y = float(daily_returns.std() * np.sqrt(252) * 100) if not daily_returns.empty else None
         return_3y_annualized = _annualized_return(close_3y)
         max_drawdown_3y = _max_drawdown(close_3y)
+
+        return_10d = _lookback_return(close_1y, 10)
+        return_30d = _lookback_return(close_1y, 30)
+        return_60d = _lookback_return(close_1y, 60)
+        return_90d = _lookback_return(close_1y, 90)
 
         expense_ratio = (
             info.get("annualReportExpenseRatio")
@@ -154,6 +172,10 @@ def _build_fund_row(ticker_symbol: str, fallback_category: str = "Custom") -> Op
             "1Y Volatility %": volatility_1y,
             "3Y Max Drawdown %": max_drawdown_3y,
             "Assets ($B)": (float(assets) / 1_000_000_000) if assets else None,
+            "Return 10D %": return_10d,
+            "Return 30D %": return_30d,
+            "Return 60D %": return_60d,
+            "Return 90D %": return_90d,
         }
     except Exception:
         return None

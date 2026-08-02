@@ -51,6 +51,9 @@ export default async function RootLayout({
                 <Link href="/entry" className="text-slate-900 hover:text-slate-600">
                   Best To Enter Now
                 </Link>
+                <Link href="/top-performers" className="text-slate-900 hover:text-slate-600">
+                  Top Performers
+                </Link>
                 <Link href="/monthly-plan" className="text-slate-900 hover:text-slate-600">
                   Monthly Plan
                 </Link>

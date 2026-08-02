@@ -8,6 +8,7 @@ const PROTECTED_PREFIXES = [
   "/stock-finder",
   "/index-fund",
   "/entry",
+  "/top-performers",
   "/monthly-plan",
   "/strategies",
   "/trade-journal",

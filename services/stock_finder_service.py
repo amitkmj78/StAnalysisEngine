@@ -152,6 +152,16 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
         return_6m = _pct_return(close, 126)
         return_1y = _pct_return(close, 252)
         return_3y_annualized = _annualized_return(close)
+
+        # Literal trading-day trailing windows for the Top Performers
+        # leaderboard — deliberately separate from the 1M/3M/6M/1Y columns
+        # above (21/63/126/252-day approximations used by the composite
+        # scoring system) so the two features can't drift into confusing
+        # near-duplicates of each other.
+        return_10d = _pct_return(close, 10)
+        return_30d = _pct_return(close, 30)
+        return_60d = _pct_return(close, 60)
+        return_90d = _pct_return(close, 90)
         max_drawdown_1y = _max_drawdown(close.tail(252))
 
         daily_returns_6m = close.tail(126).pct_change().dropna()
@@ -199,6 +209,10 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
             "6M Return %": return_6m,
             "1Y Return %": return_1y,
             "3Y Annualized %": return_3y_annualized,
+            "Return 10D %": return_10d,
+            "Return 30D %": return_30d,
+            "Return 60D %": return_60d,
+            "Return 90D %": return_90d,
             "RSI": rsi,
             "RSI Balance": _rsi_balance_score(rsi),
             "MACD Strength": macd_signal_strength,
