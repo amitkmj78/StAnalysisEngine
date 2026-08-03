@@ -6,6 +6,7 @@ from starlette.concurrency import run_in_threadpool
 
 from services.data_service import TIMEFRAME_MAPPING, get_extended_hours_price, get_latest_price
 from services.fund_comparison_service import get_top_fund, price_near_date
+from services.ownership_activity_service import get_volume_and_ownership_activity
 from services.prediction_narrative_service import build_prediction_narrative
 from services.prediction_service import (
     compute_backtest_metrics,
@@ -241,6 +242,20 @@ async def predict_narrative(
         narrative=result["narrative"],
         sentiment_context=result["sentiment_context"],
     )
+
+
+@router.get("/activity")
+@limiter.limit("15/minute")
+async def predict_activity(request: Request, ticker: str = Query(..., min_length=1)):
+    """Trading volume plus insider (officer/director) and institutional
+    ("outsider") buy/sell activity — straight from yfinance, not modeled."""
+    await enforce_daily_quota(request, "predict/activity")
+    ticker = ticker.strip().upper()
+
+    result = await run_in_threadpool(get_volume_and_ownership_activity, ticker)
+    if result is None:
+        raise HTTPException(422, "No activity data available for that ticker.")
+    return result
 
 
 # --- Save a prediction now, auto-verify it against real outcomes later.

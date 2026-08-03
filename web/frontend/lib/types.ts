@@ -47,6 +47,20 @@ export interface PredictionNarrative {
   sentiment_context: string;
 }
 
+export interface PredictionActivity {
+  ticker: string;
+  latest_volume: number | null;
+  avg_volume_10d: number | null;
+  insider_buys: number | null;
+  insider_sells: number | null;
+  insider_period: string;
+  institutional_increased: number | null;
+  institutional_decreased: number | null;
+  institutional_unchanged: number | null;
+  institutional_holder_count: number | null;
+  institutional_as_of: string | null;
+}
+
 export interface SavedPrediction {
   id: number;
   ticker: string;

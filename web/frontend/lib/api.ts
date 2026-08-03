@@ -22,6 +22,7 @@ import type {
   PortfolioStrategyRow,
   PortfolioSubmitResponse,
   PortfolioSummary,
+  PredictionActivity,
   PredictionCompareResponse,
   PredictionNarrative,
   PredictionSummary,
@@ -89,6 +90,10 @@ export function getPredictionNarrative(ticker: string, period: string, provider?
   const params: Record<string, string> = { ticker, period, days_ahead: String(daysAhead) };
   if (provider) params.provider = provider;
   return apiFetch<PredictionNarrative>("/api/v1/predict/narrative", params);
+}
+
+export function getPredictionActivity(ticker: string) {
+  return apiFetch<PredictionActivity>("/api/v1/predict/activity", { ticker });
 }
 
 export function savePrediction(ticker: string, period: string, daysAhead = 10) {

@@ -11,12 +11,13 @@ import {
   ApiError,
   deletePrediction,
   getChatProviders,
+  getPredictionActivity,
   getPredictionHistory,
   getPredictionNarrative,
   getPredictionSummary,
   savePrediction,
 } from "@/lib/api";
-import type { PredictionNarrative, PredictionSummary, SavedPrediction } from "@/lib/types";
+import type { PredictionActivity, PredictionNarrative, PredictionSummary, SavedPrediction } from "@/lib/types";
 
 function getMetricInfo(daysAhead: number): Record<string, ColumnInfo> {
   return {
@@ -80,6 +81,10 @@ export default function PredictPage() {
   const [narrativeLoading, setNarrativeLoading] = useState(false);
   const [narrativeError, setNarrativeError] = useState<string | null>(null);
 
+  const [activity, setActivity] = useState<PredictionActivity | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
+
   const [history, setHistory] = useState<SavedPrediction[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -102,6 +107,8 @@ export default function PredictPage() {
     setError(null);
     setNarrative(null);
     setNarrativeError(null);
+    setActivity(null);
+    setActivityError(null);
     setSaveMessage(null);
     try {
       const summary = await getPredictionSummary(ticker.trim().toUpperCase(), period, daysAhead);
@@ -153,6 +160,20 @@ export default function PredictPage() {
       setSaveMessage(err instanceof ApiError ? err.message : "Could not save this prediction.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function runActivity() {
+    if (!data) return;
+    setActivityLoading(true);
+    setActivityError(null);
+    try {
+      const res = await getPredictionActivity(data.ticker);
+      setActivity(res);
+    } catch (err) {
+      setActivityError(err instanceof ApiError ? err.message : "Something went wrong.");
+    } finally {
+      setActivityLoading(false);
     }
   }
 
@@ -284,6 +305,80 @@ export default function PredictPage() {
               </div>
             </div>
           )}
+
+          <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <h3 className="font-semibold text-slate-900">Volume &amp; Ownership Activity</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Trading volume, plus who&apos;s actually been buying or selling: company insiders (officers and
+              directors, from SEC filings) and institutional &quot;outsider&quot; holders (funds and firms with
+              13F filings). Real counts, nothing modeled.
+            </p>
+            <button
+              onClick={runActivity}
+              disabled={activityLoading}
+              className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {activityLoading ? "Loading…" : activity ? "Refresh" : "Load Volume & Ownership Activity"}
+            </button>
+
+            {activityError && (
+              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{activityError}</p>
+            )}
+
+            {activity && !activityLoading && (
+              <div className="mt-4 flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <MetricTile
+                    label="Latest Volume"
+                    value={activity.latest_volume !== null ? activity.latest_volume.toLocaleString() : "—"}
+                  />
+                  <MetricTile
+                    label="Avg Volume (10d)"
+                    value={activity.avg_volume_10d !== null ? activity.avg_volume_10d.toLocaleString() : "—"}
+                  />
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Insiders — {activity.insider_period}
+                  </p>
+                  {activity.insider_buys === null && activity.insider_sells === null ? (
+                    <p className="mt-1 text-sm text-slate-400">
+                      No insider filing data available for this ticker (common for ETFs/funds — there&apos;s no
+                      officer or director to file as an insider).
+                    </p>
+                  ) : (
+                    <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <MetricTile label="Insider Buys" value={String(activity.insider_buys ?? "—")} />
+                      <MetricTile label="Insider Sells" value={String(activity.insider_sells ?? "—")} />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Institutional (&quot;Outsider&quot;) Holders
+                    {activity.institutional_as_of && ` — as of ${activity.institutional_as_of.slice(0, 10)}`}
+                  </p>
+                  {activity.institutional_increased === null && activity.institutional_decreased === null ? (
+                    <p className="mt-1 text-sm text-slate-400">No institutional holder data available for this ticker.</p>
+                  ) : (
+                    <>
+                      <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <MetricTile label="Increased Position" value={String(activity.institutional_increased ?? "—")} />
+                        <MetricTile label="Decreased Position" value={String(activity.institutional_decreased ?? "—")} />
+                        <MetricTile label="Unchanged" value={String(activity.institutional_unchanged ?? "—")} />
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">
+                        Among the top {activity.institutional_holder_count} reported holders, by their most
+                        recently filed position change — not the same as buy/sell transaction counts.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="rounded-lg border border-slate-200 bg-white p-5">
             <h3 className="font-semibold text-slate-900">Prediction History for {data.ticker}</h3>
