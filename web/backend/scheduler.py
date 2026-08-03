@@ -2,17 +2,26 @@ import logging
 from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from starlette.concurrency import run_in_threadpool
 
 from services.alert_engine_service import evaluate_alert
 from services.prediction_verification_service import verify_prediction
-from web.backend.app_settings import VERIFY_PREDICTIONS_ENABLED_KEY, get_setting_bool
+from web.backend.app_settings import (
+    PUBLISH_SIGNALS_ENABLED_KEY,
+    VERIFY_PREDICTIONS_ENABLED_KEY,
+    get_setting_bool,
+)
 from web.backend.db import service_conn
+from web.backend.signal_publication import publish_daily_signals
 
 logger = logging.getLogger(__name__)
 
 VERIFY_INTERVAL_MINUTES = 15
 ALERT_INTERVAL_MINUTES = 5
+# TR-1 / NFR-01: publish within 60 minutes of the US market close (4:00pm ET).
+PUBLISH_HOUR_ET = 16
+PUBLISH_MINUTE_ET = 10
 
 _scheduler: AsyncIOScheduler | None = None
 
@@ -81,6 +90,22 @@ async def _evaluate_watchlist_alerts() -> None:
     logger.info("Scheduler: checked %d watchlist alerts, triggered %d", checked, triggered)
 
 
+async def _publish_daily_signals_job() -> None:
+    """TR-1: commit today's Signal Set to the public ledger. Off by default
+    (see PUBLISH_SIGNALS_ENABLED_KEY) until an admin explicitly enables it —
+    deploying this pipeline must not itself be the act that starts the
+    public track record. Wraps publish_daily_signals(), which is itself
+    idempotent per (target_date, universe, lookback) — safe to run more than
+    once (scheduler restart, catching up after a missed run) without
+    double-publishing."""
+    if not await get_setting_bool(PUBLISH_SIGNALS_ENABLED_KEY, default=False):
+        logger.info("Scheduler: publish_daily_signals is disabled, skipping this run")
+        return
+    published = await publish_daily_signals()
+    if published:
+        logger.info("Scheduler: published %d daily signals", published)
+
+
 def start_scheduler() -> AsyncIOScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -105,10 +130,22 @@ def start_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         max_instances=1,
     )
+    _scheduler.add_job(
+        _publish_daily_signals_job,
+        CronTrigger(
+            hour=PUBLISH_HOUR_ET, minute=PUBLISH_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="publish_daily_signals",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,  # catch up if the process was down at 4:10pm ET
+    )
     _scheduler.start()
     logger.info(
-        "Background scheduler started (verify_saved_predictions every %d min, evaluate_watchlist_alerts every %d min)",
-        VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES,
+        "Background scheduler started (verify_saved_predictions every %d min, "
+        "evaluate_watchlist_alerts every %d min, publish_daily_signals weekdays %02d:%02d ET)",
+        VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PUBLISH_HOUR_ET, PUBLISH_MINUTE_ET,
     )
     return _scheduler
 

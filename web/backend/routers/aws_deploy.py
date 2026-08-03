@@ -530,6 +530,29 @@ create table if not exists app_settings (
 );
 insert into app_settings (key, value) values ('verify_predictions_enabled', 'true')
   on conflict (key) do nothing;
+insert into app_settings (key, value) values ('publish_signals_enabled', 'false')
+  on conflict (key) do nothing;
+
+-- Public track-record ledger (TR-1/TR-2). Not user-scoped, no RLS: this is
+-- deliberately a public record, not private data. Rows are never updated or
+-- deleted by the app — corrections are new rows with reason_code/corrects_id
+-- set, so the append-only history stays intact.
+create table if not exists published_signals (
+  id bigint generated always as identity primary key,
+  published_at_utc timestamptz not null default now(),
+  model_version_hash text not null,
+  as_of_data_timestamp timestamptz not null,
+  target_date date not null,
+  universe_id text not null,
+  lookback_days integer not null,
+  rank integer not null,
+  ticker text not null,
+  trailing_return_pct real not null,
+  reason_code text,
+  corrects_id bigint references published_signals(id)
+);
+create index if not exists published_signals_lookup_idx
+  on published_signals(target_date, universe_id, lookback_days);
 
 do $$
 begin
@@ -555,6 +578,8 @@ grant select, insert, update, delete on users to app_service;
 grant select, update on saved_predictions to app_service;
 grant select, update on watchlist_alerts to app_service;
 grant select, insert, update on app_settings to app_service;
+grant select on published_signals to app_user;
+grant select, insert on published_signals to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """
 

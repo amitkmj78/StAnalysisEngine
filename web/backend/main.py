@@ -30,6 +30,7 @@ from web.backend.routers import (
     portfolio,
     prediction,
     search,
+    signals,
     stock_finder,
     strategies,
     trade_journal,
@@ -77,6 +78,7 @@ app.include_router(momentum.router)
 app.include_router(admin_users.router)
 app.include_router(admin_activity.router)
 app.include_router(admin_settings.router)
+app.include_router(signals.router)
 
 
 @app.get("/health")

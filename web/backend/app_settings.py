@@ -1,6 +1,11 @@
 from web.backend.db import service_conn
 
 VERIFY_PREDICTIONS_ENABLED_KEY = "verify_predictions_enabled"
+# Defaults OFF deliberately: CMP-01/Q-01/Q-02 require counsel confirmation
+# that unpaid, impersonal publication carries no registration requirement
+# *before* the first real publication happens. Deploying the publication
+# pipeline must not itself start publishing — an explicit admin opt-in does.
+PUBLISH_SIGNALS_ENABLED_KEY = "publish_signals_enabled"
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:
