@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { getCurrentPrice } from "@/lib/api";
 import type { ExtendedHoursPrice } from "@/lib/types";
 
-export default function CurrentPriceBadge({ ticker }: { ticker: string }) {
+export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: string; refreshKey?: number | string }) {
   const [price, setPrice] = useState<number | null>(null);
   const [extendedHours, setExtendedHours] = useState<ExtendedHoursPrice | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,9 +20,15 @@ export default function CurrentPriceBadge({ ticker }: { ticker: string }) {
       return;
     }
 
+    // `refreshKey` changing (e.g. right after an analysis finishes) re-runs
+    // this fetch even though `ticker` itself didn't change — so the badge
+    // doesn't sit on a price fetched before a slow analysis started while
+    // the actual market has since moved. Skip the debounce in that case;
+    // it's a single deliberate refresh, not a user still typing a ticker.
     let cancelled = false;
     setLoading(true);
     setFailed(false);
+    const delay = refreshKey !== undefined ? 0 : 400;
     const debounce = setTimeout(async () => {
       try {
         const res = await getCurrentPrice(trimmed);
@@ -35,13 +41,13 @@ export default function CurrentPriceBadge({ ticker }: { ticker: string }) {
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }, 400);
+    }, delay);
 
     return () => {
       cancelled = true;
       clearTimeout(debounce);
     };
-  }, [ticker]);
+  }, [ticker, refreshKey]);
 
   if (!ticker.trim()) return null;
 

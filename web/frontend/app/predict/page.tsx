@@ -85,6 +85,7 @@ export default function PredictPage() {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [priceRefreshKey, setPriceRefreshKey] = useState(0);
 
   useEffect(() => {
     getChatProviders()
@@ -106,6 +107,7 @@ export default function PredictPage() {
       const summary = await getPredictionSummary(ticker.trim().toUpperCase(), period, daysAhead);
       setData(summary);
       setShownDaysAhead(daysAhead);
+      setPriceRefreshKey((k) => k + 1);
       loadHistory(summary.ticker);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
@@ -188,7 +190,7 @@ export default function PredictPage() {
             className="w-40 rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
-        <CurrentPriceBadge ticker={ticker} />
+        <CurrentPriceBadge ticker={ticker} refreshKey={priceRefreshKey} />
         <div className="flex flex-col gap-1">
           <label htmlFor="period" className="text-xs font-medium text-slate-500">
             Historical window
