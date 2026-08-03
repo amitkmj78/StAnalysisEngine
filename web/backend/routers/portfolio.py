@@ -244,11 +244,11 @@ async def portfolio_performance(request: Request, lookback_days: int = 30):
 
     async with user_conn(user_id) as conn:
         records = await conn.fetch(
-            "SELECT ticker, shares FROM portfolio_positions WHERE user_id = $1::uuid",
+            "SELECT ticker, shares, avg_cost FROM portfolio_positions WHERE user_id = $1::uuid",
             user_id,
         )
 
-    positions = [{"ticker": r["ticker"], "shares": r["shares"]} for r in records]
+    positions = [{"ticker": r["ticker"], "shares": r["shares"], "avg_cost": r["avg_cost"]} for r in records]
     if not positions:
         return {
             "lookback_days": lookback_days,
@@ -257,6 +257,9 @@ async def portfolio_performance(request: Request, lookback_days: int = 30):
             "total_value_30d_ago": 0.0,
             "value_diff": 0.0,
             "value_diff_pct": None,
+            "total_cost_basis": 0.0,
+            "total_gain_vs_cost": 0.0,
+            "total_gain_vs_cost_pct": None,
         }
 
     return await run_in_threadpool(compute_portfolio_performance, positions, lookback_days)

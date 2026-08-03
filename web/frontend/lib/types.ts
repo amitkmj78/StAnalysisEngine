@@ -339,12 +339,17 @@ export interface PortfolioSummary {
 export interface PortfolioPerformanceRow {
   ticker: string;
   shares: number;
-  price_now: number;
-  price_30d_ago: number;
-  value_now: number;
-  value_30d_ago: number;
-  diff: number;
+  avg_cost: number | null;
+  cost_basis: number | null;
+  price_now: number | null;
+  price_30d_ago: number | null;
+  value_now: number | null;
+  value_30d_ago: number | null;
+  diff: number | null;
   diff_pct: number | null;
+  gain_vs_cost: number | null;
+  gain_vs_cost_pct: number | null;
+  price_unavailable: boolean;
 }
 
 export interface PortfolioPerformance {
@@ -354,6 +359,9 @@ export interface PortfolioPerformance {
   total_value_30d_ago: number;
   value_diff: number;
   value_diff_pct: number | null;
+  total_cost_basis: number;
+  total_gain_vs_cost: number;
+  total_gain_vs_cost_pct: number | null;
 }
 
 export interface ManualPositionInput {

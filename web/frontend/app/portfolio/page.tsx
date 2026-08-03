@@ -260,10 +260,11 @@ export default function PortfolioPage() {
 
       {summary && summary.total_positions > 0 && (
         <div className="mt-6">
-          <h2 className="text-lg font-semibold text-slate-900">Value Change (Last 30 Days)</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Value vs. 30 Days Ago &amp; What You Paid</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Today&apos;s market price for every holding against its price {performance?.lookback_days ?? 30} days
-            ago — priced fresh each time, independent of when you last saved or refreshed.
+            Today&apos;s market price for every holding — against its price {performance?.lookback_days ?? 30} days
+            ago, and against your average cost — priced fresh each time, independent of when you last saved or
+            refreshed.
           </p>
 
           {performanceLoading && !performance && <p className="mt-2 text-sm text-slate-500">Loading…</p>}
@@ -273,14 +274,10 @@ export default function PortfolioPage() {
 
           {performance && performance.rows.length > 0 && (
             <>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
                 <MetricTile
                   label="Value Now"
                   value={`$${performance.total_value_now.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
-                />
-                <MetricTile
-                  label="Value 30D Ago"
-                  value={`$${performance.total_value_30d_ago.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
                 />
                 <MetricTile
                   label="30D Change"
@@ -290,6 +287,19 @@ export default function PortfolioPage() {
                       : ""
                   }`}
                   positive={performance.value_diff >= 0}
+                />
+                <MetricTile
+                  label="Total Paid"
+                  value={`$${performance.total_cost_basis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                />
+                <MetricTile
+                  label="Gain vs. Paid"
+                  value={`${performance.total_gain_vs_cost >= 0 ? "+" : ""}$${performance.total_gain_vs_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
+                    performance.total_gain_vs_cost_pct !== null
+                      ? ` (${performance.total_gain_vs_cost_pct >= 0 ? "+" : ""}${performance.total_gain_vs_cost_pct.toFixed(2)}%)`
+                      : ""
+                  }`}
+                  positive={performance.total_gain_vs_cost >= 0}
                 />
               </div>
 
@@ -301,9 +311,9 @@ export default function PortfolioPage() {
                       <th className="px-3 py-2 text-right">Shares</th>
                       <th className="px-3 py-2 text-right">Price Now</th>
                       <th className="px-3 py-2 text-right">Price 30D Ago</th>
-                      <th className="px-3 py-2 text-right">Value Now</th>
-                      <th className="px-3 py-2 text-right">Value 30D Ago</th>
-                      <th className="px-3 py-2 text-right">Diff</th>
+                      <th className="px-3 py-2 text-right">30D Diff</th>
+                      <th className="px-3 py-2 text-right">Avg Cost Paid</th>
+                      <th className="px-3 py-2 text-right">Gain vs. Paid</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -311,23 +321,49 @@ export default function PortfolioPage() {
                       <tr key={r.ticker} className="border-b border-slate-100 last:border-0">
                         <td className="px-3 py-2 font-medium text-slate-800">{r.ticker}</td>
                         <td className="px-3 py-2 text-right text-slate-600">{r.shares}</td>
-                        <td className="px-3 py-2 text-right text-slate-600">${r.price_now.toFixed(2)}</td>
-                        <td className="px-3 py-2 text-right text-slate-600">${r.price_30d_ago.toFixed(2)}</td>
-                        <td className="px-3 py-2 text-right text-slate-600">
-                          ${r.value_now.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        </td>
-                        <td className="px-3 py-2 text-right text-slate-600">
-                          ${r.value_30d_ago.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        </td>
-                        <td
-                          className={`px-3 py-2 text-right font-medium ${
-                            r.diff >= 0 ? "text-emerald-600" : "text-red-600"
-                          }`}
-                        >
-                          {r.diff >= 0 ? "+" : ""}
-                          {r.diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          {r.diff_pct !== null && ` (${r.diff_pct >= 0 ? "+" : ""}${r.diff_pct.toFixed(1)}%)`}
-                        </td>
+                        {r.price_unavailable ? (
+                          <td colSpan={4} className="px-3 py-2 text-slate-400">
+                            No market data found for this ticker — check it&apos;s a valid, publicly-traded symbol.
+                          </td>
+                        ) : (
+                          <>
+                            <td className="px-3 py-2 text-right text-slate-600">${r.price_now!.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right text-slate-600">
+                              {r.price_30d_ago !== null ? `$${r.price_30d_ago.toFixed(2)}` : "—"}
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-right font-medium ${
+                                r.diff === null ? "text-slate-400" : r.diff >= 0 ? "text-emerald-600" : "text-red-600"
+                              }`}
+                            >
+                              {r.diff === null
+                                ? "—"
+                                : `${r.diff >= 0 ? "+" : ""}${r.diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
+                                    r.diff_pct !== null ? ` (${r.diff_pct >= 0 ? "+" : ""}${r.diff_pct.toFixed(1)}%)` : ""
+                                  }`}
+                            </td>
+                            <td className="px-3 py-2 text-right text-slate-600">
+                              {r.avg_cost !== null ? `$${r.avg_cost.toFixed(2)}` : "—"}
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-right font-medium ${
+                                r.gain_vs_cost === null
+                                  ? "text-slate-400"
+                                  : r.gain_vs_cost >= 0
+                                  ? "text-emerald-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {r.gain_vs_cost === null
+                                ? "—"
+                                : `${r.gain_vs_cost >= 0 ? "+" : ""}${r.gain_vs_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
+                                    r.gain_vs_cost_pct !== null
+                                      ? ` (${r.gain_vs_cost_pct >= 0 ? "+" : ""}${r.gain_vs_cost_pct.toFixed(1)}%)`
+                                      : ""
+                                  }`}
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>

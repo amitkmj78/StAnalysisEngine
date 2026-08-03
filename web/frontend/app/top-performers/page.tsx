@@ -135,13 +135,14 @@ export default function TopPerformersPage() {
 
       <hr className="mt-8 border-slate-200" />
       <div className="mt-6 rounded-lg border border-indigo-200 bg-indigo-50/40 p-5">
-        <h2 className="font-semibold text-slate-900">3-Year Backtest: Did This Ranking Hold Up?</h2>
+        <h2 className="font-semibold text-slate-900">3-Year Test: Does This Ranking Actually Work?</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Walk-forward test, not a simulation you can cherry-pick: every ~month for the last 3 years, rank the{" "}
-          {stockUniverse} stock universe by trailing {WINDOW_LABELS[window] ?? `${window}-day`} return using only
-          price data available up to that point, buy the top 5, hold until the next rebalance, and compare to
-          buying the whole universe equally. Same ranking metric as the leaderboard above — no fundamentals, so
-          it can be reconstructed honestly at any past date.
+          We rewound the clock 3 years and pretended to invest for real. About once a month, we picked the 5{" "}
+          {stockUniverse} stocks with the best recent run (the same {WINDOW_LABELS[window] ?? `${window}-day`}{" "}
+          ranking you see above), using only what would have been known at that moment — never a peek at what
+          happened next. We held those 5 until the next check-in, then compared the result to simply owning
+          every stock in the universe equally over that same stretch. No cherry-picking: it&apos;s the identical
+          rule applied consistently, so it can be re-checked honestly at any past date.
         </p>
         <button
           onClick={runBacktest}
@@ -158,23 +159,27 @@ export default function TopPerformersPage() {
         {backtest && !backtestLoading && (
           <div className="mt-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <BacktestTile label="Rebalance Periods" value={String(backtest.num_periods)} />
+              <BacktestTile label="Times We Checked" hint="how many monthly rounds" value={String(backtest.num_periods)} />
               <BacktestTile
-                label="Hit Rate"
+                label="Win Rate"
+                hint="rounds our picks beat the market"
                 value={backtest.hit_rate_pct !== null ? `${backtest.hit_rate_pct.toFixed(1)}%` : "N/A"}
               />
               <BacktestTile
-                label="Strategy Cumulative"
+                label="Our Picks, Total"
+                hint={`compounded over ${backtest.years} yrs`}
                 value={backtest.strategy_cumulative_return_pct !== null ? `${backtest.strategy_cumulative_return_pct.toFixed(1)}%` : "N/A"}
                 positive={backtest.strategy_cumulative_return_pct !== null && backtest.strategy_cumulative_return_pct >= 0}
               />
               <BacktestTile
-                label="Benchmark Cumulative"
+                label="Own Everything, Total"
+                hint="the no-skill comparison"
                 value={backtest.benchmark_cumulative_return_pct !== null ? `${backtest.benchmark_cumulative_return_pct.toFixed(1)}%` : "N/A"}
                 positive={backtest.benchmark_cumulative_return_pct !== null && backtest.benchmark_cumulative_return_pct >= 0}
               />
               <BacktestTile
-                label="Beat Benchmark?"
+                label="Beat the Market?"
+                hint="picks vs. owning everything"
                 value={
                   backtest.strategy_cumulative_return_pct !== null && backtest.benchmark_cumulative_return_pct !== null
                     ? backtest.strategy_cumulative_return_pct > backtest.benchmark_cumulative_return_pct
@@ -186,24 +191,26 @@ export default function TopPerformersPage() {
             </div>
 
             <p className="mt-3 text-xs text-slate-500">
-              &quot;Hit Rate&quot; is the share of rebalance periods where the top-5 picks beat the
-              equal-weight-universe benchmark over that same period — a hit rate near 50% means this ranking is
-              close to a coin flip period-to-period, even if the cumulative return looks better or worse.
-              &quot;Cumulative&quot; compounds every period&apos;s return in sequence over the full {backtest.years} years.
+              In plain terms: <strong>Win Rate</strong> is how often, round by round, our 5 picks did better than
+              just owning everything — close to 50% means it&apos;s basically a coin flip each time, even if the
+              overall total still comes out ahead (or behind) over the full stretch. The two &quot;Total&quot;
+              numbers show what happened if you strung every round&apos;s result together in sequence over all{" "}
+              {backtest.years} years — that&apos;s why they can look bigger than any single round&apos;s win or
+              loss.
             </p>
 
             <details className="mt-3 text-xs text-slate-600">
               <summary className="cursor-pointer font-medium text-slate-700">
-                Show all {backtest.periods.length} rebalance periods
+                Show all {backtest.periods.length} rounds, one by one
               </summary>
               <div className="mt-2 max-h-80 overflow-y-auto rounded-md border border-slate-200 bg-white">
                 <table className="min-w-full text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
                       <th className="px-2 py-1.5">Date</th>
-                      <th className="px-2 py-1.5">Picks</th>
-                      <th className="px-2 py-1.5 text-right">Strategy</th>
-                      <th className="px-2 py-1.5 text-right">Benchmark</th>
+                      <th className="px-2 py-1.5">Our 5 Picks</th>
+                      <th className="px-2 py-1.5 text-right">Picks Return</th>
+                      <th className="px-2 py-1.5 text-right">Own-Everything Return</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -240,10 +247,20 @@ export default function TopPerformersPage() {
   );
 }
 
-function BacktestTile({ label, value, positive }: { label: string; value: string; positive?: boolean }) {
+function BacktestTile({
+  label,
+  value,
+  hint,
+  positive,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  positive?: boolean;
+}) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-xs font-medium text-slate-700">{label}</p>
       <p
         className={`mt-1 text-lg font-semibold ${
           positive === undefined ? "text-slate-900" : positive ? "text-emerald-600" : "text-red-600"
@@ -251,6 +268,7 @@ function BacktestTile({ label, value, positive }: { label: string; value: string
       >
         {value}
       </p>
+      {hint && <p className="mt-0.5 text-[11px] leading-tight text-slate-400">{hint}</p>}
     </div>
   );
 }

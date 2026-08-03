@@ -41,6 +41,12 @@ def get_latest_price(ticker: str):
     try:
         data = get_stock_data(ticker, "1d")
         if data.empty:
+            # Mutual funds (e.g. FXAIX) often have no "1d" bar since they
+            # price once at end of day rather than trading intraday — fall
+            # back to a wider window and take the most recent close instead
+            # of treating them as unpriceable.
+            data = get_stock_data(ticker, "5d")
+        if data.empty:
             return None
         return round(float(data["Close"].iloc[-1]), 2)
     except Exception as e:
