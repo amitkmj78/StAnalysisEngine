@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { getCurrentPrice } from "@/lib/api";
 import type { ExtendedHoursPrice } from "@/lib/types";
 
+const POLL_INTERVAL_MS = 1000;
+
 export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: string; refreshKey?: number | string }) {
   const [price, setPrice] = useState<number | null>(null);
   const [extendedHours, setExtendedHours] = useState<ExtendedHoursPrice | null>(null);
@@ -20,32 +22,46 @@ export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: stri
       return;
     }
 
-    // `refreshKey` changing (e.g. right after an analysis finishes) re-runs
-    // this fetch even though `ticker` itself didn't change — so the badge
-    // doesn't sit on a price fetched before a slow analysis started while
-    // the actual market has since moved. Skip the debounce in that case;
-    // it's a single deliberate refresh, not a user still typing a ticker.
     let cancelled = false;
-    setLoading(true);
-    setFailed(false);
-    const delay = refreshKey !== undefined ? 0 : 400;
-    const debounce = setTimeout(async () => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    async function fetchPrice(showLoading: boolean) {
+      if (showLoading) setLoading(true);
       try {
         const res = await getCurrentPrice(trimmed);
         if (!cancelled) {
           setPrice(res.price);
           setExtendedHours(res.extended_hours);
+          setFailed(false);
         }
       } catch {
         if (!cancelled) setFailed(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && showLoading) setLoading(false);
+      }
+    }
+
+    // `refreshKey` changing (e.g. right after an analysis finishes) skips
+    // the debounce for a single deliberate refresh. Otherwise the first
+    // fetch is debounced so a user still typing a ticker doesn't fire one
+    // per keystroke. Once settled, poll once a second so the price keeps
+    // ticking live without needing any further trigger — the underlying
+    // lookup is cached for 60s server-side, so this is cheap even though
+    // it's polling every second (only actually refetches from the market
+    // whenever that cache turns over, not on every request).
+    setFailed(false);
+    const delay = refreshKey !== undefined ? 0 : 400;
+    const debounce = setTimeout(async () => {
+      await fetchPrice(true);
+      if (!cancelled) {
+        interval = setInterval(() => fetchPrice(false), POLL_INTERVAL_MS);
       }
     }, delay);
 
     return () => {
       cancelled = true;
       clearTimeout(debounce);
+      if (interval) clearInterval(interval);
     };
   }, [ticker, refreshKey]);
 

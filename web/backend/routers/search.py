@@ -18,7 +18,7 @@ async def search(request: Request, q: str = Query(..., min_length=1)):
 
 
 @router.get("/price")
-@limiter.limit("60/minute")
+@limiter.limit("150/minute")
 async def price(request: Request, ticker: str = Query(..., min_length=1)):
     # Both are ttl_cache'd (services/data_service.py, 60s), so a user
     # re-checking the same ticker while typing doesn't refetch from yfinance
