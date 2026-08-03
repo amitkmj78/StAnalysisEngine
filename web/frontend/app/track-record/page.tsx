@@ -168,7 +168,9 @@ export default function TrackRecordPage() {
                   </table>
                   <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
                     Predict-algo view uses a {comparison.predict_days_ahead}-day forecast horizon over{" "}
-                    {comparison.predict_period} of history — the same defaults as the Price Prediction page.
+                    {comparison.predict_period} of history — matched to the momentum ranking&apos;s own
+                    lookback window (not the Price Prediction page&apos;s own 10-day default) so both sides
+                    are looking at the same stretch of time.
                   </p>
                 </div>
               )}

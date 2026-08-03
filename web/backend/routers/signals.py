@@ -5,7 +5,6 @@ from starlette.concurrency import run_in_threadpool
 
 from services.signal_publication_service import (
     DEFAULT_LOOKBACK_DAYS,
-    DEFAULT_PREDICT_DAYS_AHEAD,
     DEFAULT_PREDICT_PERIOD,
     DEFAULT_UNIVERSE,
     compute_predict_algo_comparison,
@@ -96,7 +95,13 @@ async def compare_to_predict_algo(
     against an older published date would mix in price data the model
     couldn't have had at that original date, since there's no point-in-time
     store yet to prevent that honestly.
+
+    The Predict-algo forecast horizon matches lookback_days (capped at 60,
+    the model's supported max) rather than a fixed default — comparing a
+    30-day trailing momentum return against only a 10-day forward forecast
+    was mixing two different time windows.
     """
+    predict_days_ahead = max(1, min(lookback_days, 60))
     async with service_conn() as conn:
         latest_date = await conn.fetchval(
             """
@@ -119,14 +124,14 @@ async def compare_to_predict_algo(
 
     tickers = [r["ticker"] for r in rows]
     comparison = await run_in_threadpool(
-        compute_predict_algo_comparison, tickers, DEFAULT_PREDICT_PERIOD, DEFAULT_PREDICT_DAYS_AHEAD
+        compute_predict_algo_comparison, tickers, DEFAULT_PREDICT_PERIOD, predict_days_ahead
     )
     comparison_by_ticker = {c["ticker"]: c for c in comparison}
 
     return {
         "target_date": str(latest_date),
         "predict_period": DEFAULT_PREDICT_PERIOD,
-        "predict_days_ahead": DEFAULT_PREDICT_DAYS_AHEAD,
+        "predict_days_ahead": predict_days_ahead,
         "comparisons": [
             {
                 "rank": r["rank"],
