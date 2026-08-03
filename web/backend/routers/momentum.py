@@ -66,6 +66,7 @@ async def top_performers(
         {
             "ticker": str(row["Ticker"]),
             "name": str(row[name_col]),
+            "price": round(float(row["Price"]), 2) if "Price" in row and row["Price"] == row["Price"] else None,
             "return_pct": round(float(row[col]), 2),
         }
         for _, row in ranked.iterrows()

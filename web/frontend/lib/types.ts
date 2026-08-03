@@ -428,6 +428,7 @@ export interface AdminSettings {
 export interface TopPerformerRow {
   ticker: string;
   name: string;
+  price: number | null;
   return_pct: number;
 }
 

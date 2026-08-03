@@ -301,6 +301,7 @@ function TopPerformersTable({
               <th className="px-3 py-2">#</th>
               <th className="px-3 py-2">Ticker</th>
               <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2 text-right">Price</th>
               <th className="px-3 py-2 text-right">Return</th>
             </tr>
           </thead>
@@ -310,6 +311,9 @@ function TopPerformersTable({
                 <td className="px-3 py-2 text-slate-400">{i + 1}</td>
                 <td className="px-3 py-2 font-medium text-slate-800">{r.ticker}</td>
                 <td className="px-3 py-2 text-slate-600">{r.name}</td>
+                <td className="px-3 py-2 text-right text-slate-600">
+                  {r.price !== null ? `$${r.price.toFixed(2)}` : "—"}
+                </td>
                 <td className={`px-3 py-2 text-right font-medium ${r.return_pct >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                   {r.return_pct >= 0 ? "+" : ""}
                   {r.return_pct.toFixed(2)}%
