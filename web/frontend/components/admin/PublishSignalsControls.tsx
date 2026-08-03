@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, disablePublishSignals, enablePublishSignals, getAdminSettings } from "@/lib/api";
+import { ApiError, disablePublishSignals, enablePublishSignals, getAdminSettings, publishSignalsNow } from "@/lib/api";
 
 export default function PublishSignalsControls() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
+
+  const [publishing, setPublishing] = useState(false);
+  const [publishResult, setPublishResult] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   async function load() {
     setError(null);
@@ -42,6 +46,24 @@ export default function PublishSignalsControls() {
     }
   }
 
+  async function handlePublishNow() {
+    setPublishing(true);
+    setPublishError(null);
+    setPublishResult(null);
+    try {
+      const res = await publishSignalsNow();
+      setPublishResult(
+        res.published > 0
+          ? `Published ${res.published} signals just now.`
+          : "Already published for today — nothing new to publish."
+      );
+    } catch (err) {
+      setPublishError(err instanceof ApiError ? err.message : "Failed to publish.");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-5">
       <div className="flex items-center justify-between gap-4">
@@ -52,6 +74,11 @@ export default function PublishSignalsControls() {
             append-only track record. This is irreversible once turned on — enabling it starts the real
             publication clock, not a preview. Do not enable before counsel has confirmed unpaid, impersonal
             publication carries no registration requirement.
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Note: enabling this only affects <em>future</em> scheduled runs — if today&apos;s 4:10pm ET run
+            already passed, use &quot;Publish Now&quot; below to catch up today instead of waiting until
+            tomorrow.
           </p>
         </div>
         {enabled !== null && (
@@ -96,7 +123,19 @@ export default function PublishSignalsControls() {
             Cancel
           </button>
         )}
+        {enabled && (
+          <button
+            onClick={handlePublishNow}
+            disabled={publishing}
+            className="rounded-md border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+          >
+            {publishing ? "Publishing…" : "Publish Now"}
+          </button>
+        )}
       </div>
+
+      {publishResult && <p className="mt-3 text-sm text-emerald-700">{publishResult}</p>}
+      {publishError && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{publishError}</p>}
     </div>
   );
 }
