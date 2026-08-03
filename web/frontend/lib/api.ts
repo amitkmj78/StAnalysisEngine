@@ -203,7 +203,7 @@ export function getStrategiesSummary(params: Record<string, string>) {
 
 async function apiSend<T>(
   path: string,
-  method: "POST" | "DELETE",
+  method: "POST" | "PUT" | "DELETE",
   body?: unknown,
 ): Promise<T> {
   const res = await fetch(new URL(`${API_BASE}${path}`, window.location.origin).toString(), {
@@ -290,6 +290,21 @@ export async function importPortfolioCsv(
     risk_factor: String(riskFactor),
   });
   return apiUpload<PortfolioSubmitResponse>(`/api/v1/portfolio/import-csv?${params.toString()}`, formData);
+}
+
+export function editPortfolioPosition(
+  ticker: string,
+  shares: number,
+  avgCost: number,
+  riskProfile: string,
+  riskFactor: number,
+) {
+  return apiSend<PortfolioSubmitResponse>(`/api/v1/portfolio/positions/${encodeURIComponent(ticker)}`, "PUT", {
+    shares,
+    avg_cost: avgCost,
+    risk_profile: riskProfile,
+    risk_factor: riskFactor,
+  });
 }
 
 export function refreshPortfolio(riskProfile: string, riskFactor: number) {

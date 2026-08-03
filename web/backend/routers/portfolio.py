@@ -198,6 +198,53 @@ async def refresh_portfolio(request: Request, risk_profile: str = "Balanced", ri
         return await _save_and_respond(conn, user_id, holdings_df, risk_profile, risk_factor, "Refreshed")
 
 
+class PositionEditRequest(BaseModel):
+    shares: float
+    avg_cost: float
+    name: Optional[str] = None
+    risk_profile: str = "Balanced"
+    risk_factor: int = 5
+
+
+@router.put("/positions/{ticker}")
+@limiter.limit("20/minute")
+async def edit_position(request: Request, ticker: str, body: PositionEditRequest):
+    """Edit a single saved position's shares/avg cost without re-entering the
+    whole portfolio — rebuilds the full snapshot through the same save path
+    (so strategies and auto-watchlist alerts stay in sync), touching only
+    this one ticker's numbers."""
+    await enforce_daily_quota(request, "portfolio/edit-position")
+    if body.shares <= 0:
+        raise HTTPException(422, "Shares must be positive.")
+    if body.avg_cost <= 0:
+        raise HTTPException(422, "Avg cost must be positive.")
+
+    ticker = ticker.strip().upper()
+    user_id = request.state.user["id"]
+
+    async with user_conn(user_id) as conn:
+        records = await conn.fetch(
+            "SELECT ticker, shares, avg_cost, name FROM portfolio_positions WHERE user_id = $1::uuid",
+            user_id,
+        )
+        if not any(r["ticker"] == ticker for r in records):
+            raise HTTPException(404, f"No saved position for {ticker}.")
+
+        rows = []
+        for r in records:
+            if r["ticker"] == ticker:
+                rows.append(
+                    {"Ticker": ticker, "Name": body.name or ticker, "Shares": body.shares, "Avg_Cost": body.avg_cost}
+                )
+            else:
+                rows.append(
+                    {"Ticker": r["ticker"], "Name": r["name"] or r["ticker"], "Shares": r["shares"], "Avg_Cost": r["avg_cost"]}
+                )
+
+        holdings_df = pd.DataFrame(rows)
+        return await _save_and_respond(conn, user_id, holdings_df, body.risk_profile, body.risk_factor, "Edited")
+
+
 @router.get("/positions")
 async def list_positions(request: Request):
     user_id = request.state.user["id"]

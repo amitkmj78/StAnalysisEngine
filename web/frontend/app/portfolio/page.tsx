@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import {
   ApiError,
+  editPortfolioPosition,
   getPortfolioPerformance,
   getPortfolioStrategies,
   getPortfolioSummary,
@@ -38,6 +39,12 @@ export default function PortfolioPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [watchlistNote, setWatchlistNote] = useState<string | null>(null);
+
+  const [editingTicker, setEditingTicker] = useState<string | null>(null);
+  const [editShares, setEditShares] = useState("");
+  const [editAvgCost, setEditAvgCost] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -129,6 +136,44 @@ export default function PortfolioPage() {
       );
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  function startEdit(s: PortfolioStrategyRow) {
+    setEditingTicker(s.ticker);
+    setEditShares(String(s.shares ?? ""));
+    setEditAvgCost(String(s.avg_cost ?? ""));
+    setEditError(null);
+  }
+
+  function cancelEdit() {
+    setEditingTicker(null);
+    setEditError(null);
+  }
+
+  async function saveEdit(ticker: string) {
+    const shares = Number(editShares);
+    const avgCost = Number(editAvgCost);
+    if (!shares || shares <= 0) {
+      setEditError("Shares must be a positive number.");
+      return;
+    }
+    if (!avgCost || avgCost <= 0) {
+      setEditError("Avg cost must be a positive number.");
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    setWatchlistNote(null);
+    try {
+      const res = await editPortfolioPosition(ticker, shares, avgCost, riskProfile, riskFactor);
+      noteWatchlist(res.watchlist_alerts_created);
+      setEditingTicker(null);
+      await refresh();
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : "Could not save this position.");
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -399,25 +444,75 @@ export default function PortfolioPage() {
           {strategies.map((s) => {
             const pnl = s.unrealized_pnl_pct;
             const pnlPositive = pnl !== null && pnl >= 0;
+            const isEditing = editingTicker === s.ticker;
             return (
               <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <h3 className="text-base font-semibold text-slate-900">{s.ticker}</h3>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      pnl === null
-                        ? "bg-slate-100 text-slate-500"
-                        : pnlPositive
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-red-50 text-red-700"
-                    }`}
-                  >
-                    {pnl === null ? "—" : `${pnlPositive ? "+" : ""}${pnl.toFixed(2)}%`}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        pnl === null
+                          ? "bg-slate-100 text-slate-500"
+                          : pnlPositive
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-red-50 text-red-700"
+                      }`}
+                    >
+                      {pnl === null ? "—" : `${pnlPositive ? "+" : ""}${pnl.toFixed(2)}%`}
+                    </span>
+                    {!isEditing && (
+                      <button
+                        onClick={() => startEdit(s)}
+                        className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <p className="mt-1 text-sm text-slate-500">
-                  {s.shares} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${s.current_price?.toFixed(2)}
-                </p>
+
+                {isEditing ? (
+                  <div className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <Field label="Shares">
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={editShares}
+                        onChange={(e) => setEditShares(e.target.value)}
+                        className="input w-24"
+                      />
+                    </Field>
+                    <Field label="Avg cost">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editAvgCost}
+                        onChange={(e) => setEditAvgCost(e.target.value)}
+                        className="input w-24"
+                      />
+                    </Field>
+                    <button
+                      onClick={() => saveEdit(s.ticker)}
+                      disabled={editSaving}
+                      className="btn-primary"
+                    >
+                      {editSaving ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      disabled={editSaving}
+                      className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                    >
+                      Cancel
+                    </button>
+                    {editError && <p className="w-full text-xs text-red-600">{editError}</p>}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-slate-500">
+                    {s.shares} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${s.current_price?.toFixed(2)}
+                  </p>
+                )}
 
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
