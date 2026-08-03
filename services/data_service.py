@@ -33,11 +33,27 @@ def get_stock_data(ticker: str, period: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-@ttl_cache(maxsize=256, ttl_seconds=60)
+@ttl_cache(maxsize=256, ttl_seconds=2)
 def get_latest_price(ticker: str):
-    """Get the latest closing price for the given ticker."""
+    """
+    Get the latest live price for the given ticker.
+
+    Uses yfinance's lightweight `fast_info` quote (a single quote lookup,
+    not a full history fetch) so this stays cheap enough to genuinely poll
+    every second or two from the UI — `get_stock_data` is itself cached for
+    5 minutes, so routing through it here would make "live" price polling
+    silently return the same stale number for minutes at a time.
+    """
     if not ticker:
         return None
+    try:
+        price = yf.Ticker(ticker).fast_info.get("lastPrice")
+        if price is not None:
+            return round(float(price), 2)
+    except Exception as e:
+        logger.warning("Error fetching fast_info for %s: %s", ticker, e)
+
+    # Fallback for tickers fast_info can't quote — same as before.
     try:
         data = get_stock_data(ticker, "1d")
         if data.empty:
@@ -54,7 +70,7 @@ def get_latest_price(ticker: str):
         return None
 
 
-@ttl_cache(maxsize=256, ttl_seconds=60)
+@ttl_cache(maxsize=256, ttl_seconds=10)
 def get_extended_hours_price(ticker: str):
     """
     Pre/post-market price, when the market is actually in one of those states.
@@ -62,6 +78,10 @@ def get_extended_hours_price(ticker: str):
     a stock can move sharply after hours (earnings, news) and that's invisible
     there, which reads as "wrong" even though the regular-session number is
     correct for what it is. Returns None outside pre/post market hours.
+
+    Cached shorter than before (10s, not 60s) to keep pace with the price
+    badge's 1s polling, but longer than get_latest_price's 2s since this
+    goes through the heavier `.info` full-quote call, not fast_info.
     """
     if not ticker:
         return None
