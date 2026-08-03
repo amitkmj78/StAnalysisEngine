@@ -1,8 +1,15 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from starlette.concurrency import run_in_threadpool
 
-from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE
+from services.signal_publication_service import (
+    DEFAULT_LOOKBACK_DAYS,
+    DEFAULT_PREDICT_DAYS_AHEAD,
+    DEFAULT_PREDICT_PERIOD,
+    DEFAULT_UNIVERSE,
+    compute_predict_algo_comparison,
+)
 from web.backend.admin import require_admin
 from web.backend.app_settings import PUBLISH_SIGNALS_ENABLED_KEY, get_setting_bool
 from web.backend.db import service_conn
@@ -71,6 +78,64 @@ async def list_published_signals(
         "signals": [_record_to_dict(r) for r in rows],
         "record_start_date": str(record_start_date) if record_start_date else None,
         "days_published": days_published,
+    }
+
+
+@router.get("/published/compare-to-predict-algo")
+@limiter.limit("10/minute")
+async def compare_to_predict_algo(
+    request: Request,
+    universe_id: str = Query(DEFAULT_UNIVERSE),
+    lookback_days: int = Query(DEFAULT_LOOKBACK_DAYS),
+):
+    """
+    What the separate, trained Predict-page model currently says about
+    today's published momentum picks — a different algorithm, not a
+    validation of this one. Deliberately only ever compares against the
+    *latest* publication (no target_date param): running today's model
+    against an older published date would mix in price data the model
+    couldn't have had at that original date, since there's no point-in-time
+    store yet to prevent that honestly.
+    """
+    async with service_conn() as conn:
+        latest_date = await conn.fetchval(
+            """
+            SELECT max(target_date) FROM published_signals
+            WHERE universe_id = $1 AND lookback_days = $2 AND reason_code IS NULL
+            """,
+            universe_id, lookback_days,
+        )
+        if latest_date is None:
+            return {"target_date": None, "comparisons": []}
+
+        rows = await conn.fetch(
+            """
+            SELECT ticker, rank, trailing_return_pct FROM published_signals
+            WHERE target_date = $1 AND universe_id = $2 AND lookback_days = $3 AND reason_code IS NULL
+            ORDER BY rank ASC
+            """,
+            latest_date, universe_id, lookback_days,
+        )
+
+    tickers = [r["ticker"] for r in rows]
+    comparison = await run_in_threadpool(
+        compute_predict_algo_comparison, tickers, DEFAULT_PREDICT_PERIOD, DEFAULT_PREDICT_DAYS_AHEAD
+    )
+    comparison_by_ticker = {c["ticker"]: c for c in comparison}
+
+    return {
+        "target_date": str(latest_date),
+        "predict_period": DEFAULT_PREDICT_PERIOD,
+        "predict_days_ahead": DEFAULT_PREDICT_DAYS_AHEAD,
+        "comparisons": [
+            {
+                "rank": r["rank"],
+                "ticker": r["ticker"],
+                "trailing_return_pct": r["trailing_return_pct"],
+                **comparison_by_ticker.get(r["ticker"], {}),
+            }
+            for r in rows
+        ],
     }
 
 

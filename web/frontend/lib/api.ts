@@ -22,6 +22,7 @@ import type {
   PortfolioStrategyRow,
   PortfolioSubmitResponse,
   PortfolioSummary,
+  PredictAlgoComparisonResponse,
   PredictionActivity,
   PredictionCompareResponse,
   PredictionNarrative,
@@ -413,6 +414,10 @@ export function getPublishedSignals(params?: { targetDate?: string; universeId?:
   if (params?.universeId) query.universe_id = params.universeId;
   if (params?.lookbackDays) query.lookback_days = String(params.lookbackDays);
   return apiFetch<PublishedSignalsResponse>("/api/v1/signals/published", query);
+}
+
+export function getPredictAlgoComparison() {
+  return apiFetch<PredictAlgoComparisonResponse>("/api/v1/signals/published/compare-to-predict-algo");
 }
 
 export function comparePredictionsToFund(fundGoal = "Balanced Core", fundCategory = "All") {

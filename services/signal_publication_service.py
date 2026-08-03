@@ -2,6 +2,8 @@ import logging
 import subprocess
 from functools import lru_cache
 
+from .data_service import get_latest_price
+from .prediction_service import generate_trading_signal, predict_future_prices
 from .stock_finder_service import get_stock_finder_table
 
 logger = logging.getLogger(__name__)
@@ -9,6 +11,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_UNIVERSE = "All"
 DEFAULT_LOOKBACK_DAYS = 30
 DEFAULT_TOP_N = 5
+DEFAULT_PREDICT_PERIOD = "1y"
+DEFAULT_PREDICT_DAYS_AHEAD = 10
 
 
 @lru_cache(maxsize=1)
@@ -57,3 +61,48 @@ def build_daily_signal_set(
         }
         for i, (_, row) in enumerate(ranked.iterrows())
     ]
+
+
+def compute_predict_algo_comparison(
+    tickers: list[str],
+    period: str = DEFAULT_PREDICT_PERIOD,
+    days_ahead: int = DEFAULT_PREDICT_DAYS_AHEAD,
+) -> list[dict]:
+    """
+    For each ticker, runs the same trained-model algorithm used on /predict
+    (predict_future_prices + generate_trading_signal) — a completely
+    different, non-deterministic signal from the momentum ranking above —
+    so a reader can see what that separate model currently says about
+    today's published picks.
+
+    Only valid against the *current* (latest) publication: this always
+    reflects today's price data, so running it against an older published
+    date would silently use data the model couldn't have had at that
+    original date — there's no point-in-time store yet to prevent that
+    honestly. Callers must not offer this for historical dates.
+    """
+    rows = []
+    for ticker in tickers:
+        last_close = get_latest_price(ticker)
+        future_df = predict_future_prices(ticker, period, days_ahead, False)
+        if last_close is None or future_df is None or future_df.empty:
+            rows.append(
+                {
+                    "ticker": ticker,
+                    "predict_signal": None,
+                    "predict_expected_return_pct": None,
+                    "predict_target_price": None,
+                }
+            )
+            continue
+
+        sig = generate_trading_signal(last_close, future_df)
+        rows.append(
+            {
+                "ticker": ticker,
+                "predict_signal": sig.get("signal"),
+                "predict_expected_return_pct": sig.get("expected_return_pct"),
+                "predict_target_price": sig.get("target_price"),
+            }
+        )
+    return rows

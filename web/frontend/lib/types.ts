@@ -464,6 +464,22 @@ export interface PublishedSignalsResponse {
   days_published: number;
 }
 
+export interface PredictAlgoComparisonRow {
+  rank: number;
+  ticker: string;
+  trailing_return_pct: number;
+  predict_signal: string | null;
+  predict_expected_return_pct: number | null;
+  predict_target_price: number | null;
+}
+
+export interface PredictAlgoComparisonResponse {
+  target_date: string | null;
+  predict_period: string;
+  predict_days_ahead: number;
+  comparisons: PredictAlgoComparisonRow[];
+}
+
 export interface TopPerformerRow {
   ticker: string;
   name: string;
