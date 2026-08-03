@@ -416,8 +416,10 @@ export function getPublishedSignals(params?: { targetDate?: string; universeId?:
   return apiFetch<PublishedSignalsResponse>("/api/v1/signals/published", query);
 }
 
-export function getPredictAlgoComparison() {
-  return apiFetch<PredictAlgoComparisonResponse>("/api/v1/signals/published/compare-to-predict-algo");
+export function getPredictAlgoComparison(daysAhead = 30) {
+  return apiFetch<PredictAlgoComparisonResponse>("/api/v1/signals/published/compare-to-predict-algo", {
+    days_ahead: String(daysAhead),
+  });
 }
 
 export function comparePredictionsToFund(fundGoal = "Balanced Core", fundCategory = "All") {

@@ -13,6 +13,11 @@ DEFAULT_LOOKBACK_DAYS = 30
 DEFAULT_TOP_N = 5
 DEFAULT_PREDICT_PERIOD = "1y"
 DEFAULT_PREDICT_DAYS_AHEAD = 10
+# Selectable horizons for comparing the Predict-page algorithm against the
+# published momentum picks. Capped at 30 to match the published lookback
+# window (comparing beyond that would forecast further out than the
+# momentum return it's being set against).
+PREDICT_COMPARE_HORIZONS = [1, 5, 10, 30]
 
 
 @lru_cache(maxsize=1)

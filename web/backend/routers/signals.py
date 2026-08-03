@@ -7,6 +7,7 @@ from services.signal_publication_service import (
     DEFAULT_LOOKBACK_DAYS,
     DEFAULT_PREDICT_PERIOD,
     DEFAULT_UNIVERSE,
+    PREDICT_COMPARE_HORIZONS,
     compute_predict_algo_comparison,
 )
 from web.backend.admin import require_admin
@@ -86,6 +87,7 @@ async def compare_to_predict_algo(
     request: Request,
     universe_id: str = Query(DEFAULT_UNIVERSE),
     lookback_days: int = Query(DEFAULT_LOOKBACK_DAYS),
+    days_ahead: int = Query(DEFAULT_LOOKBACK_DAYS),
 ):
     """
     What the separate, trained Predict-page model currently says about
@@ -96,12 +98,14 @@ async def compare_to_predict_algo(
     couldn't have had at that original date, since there's no point-in-time
     store yet to prevent that honestly.
 
-    The Predict-algo forecast horizon matches lookback_days (capped at 60,
-    the model's supported max) rather than a fixed default — comparing a
-    30-day trailing momentum return against only a 10-day forward forecast
-    was mixing two different time windows.
+    days_ahead is the Predict-algo forecast horizon, restricted to
+    PREDICT_COMPARE_HORIZONS (1/5/10/30) so short reads (does the algorithm
+    agree over the next day or week?) are possible too, not just the
+    30-day window matching the momentum lookback.
     """
-    predict_days_ahead = max(1, min(lookback_days, 60))
+    if days_ahead not in PREDICT_COMPARE_HORIZONS:
+        raise HTTPException(422, f"days_ahead must be one of {PREDICT_COMPARE_HORIZONS}")
+    predict_days_ahead = days_ahead
     async with service_conn() as conn:
         latest_date = await conn.fetchval(
             """

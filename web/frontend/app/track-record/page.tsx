@@ -5,11 +5,14 @@ import { useEffect, useState } from "react";
 import { ApiError, getPredictAlgoComparison, getPublishedSignals } from "@/lib/api";
 import type { PredictAlgoComparisonResponse, PublishedSignalsResponse } from "@/lib/types";
 
+const COMPARE_HORIZONS = [1, 5, 10, 30];
+
 export default function TrackRecordPage() {
   const [data, setData] = useState<PublishedSignalsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [compareHorizon, setCompareHorizon] = useState(30);
   const [comparison, setComparison] = useState<PredictAlgoComparisonResponse | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
@@ -21,11 +24,12 @@ export default function TrackRecordPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function loadComparison() {
+  async function loadComparison(horizon: number) {
+    setCompareHorizon(horizon);
     setComparisonLoading(true);
     setComparisonError(null);
     try {
-      setComparison(await getPredictAlgoComparison());
+      setComparison(await getPredictAlgoComparison(horizon));
     } catch (err) {
       setComparisonError(err instanceof ApiError ? err.message : "Failed to load the comparison.");
     } finally {
@@ -105,13 +109,31 @@ export default function TrackRecordPage() {
                 shown against the latest publication, since re-running today&apos;s model against an older
                 publish date would unfairly give it information it couldn&apos;t have had at the time.
               </p>
-              <button
-                onClick={loadComparison}
-                disabled={comparisonLoading}
-                className="mt-3 rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
-              >
-                {comparisonLoading ? "Comparing…" : comparison ? "Refresh" : "Compare"}
-              </button>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-slate-500">Forecast Horizon</label>
+                  <div className="flex gap-1 rounded-md border border-indigo-300 bg-white p-1">
+                    {COMPARE_HORIZONS.map((h) => (
+                      <button
+                        key={h}
+                        onClick={() => setCompareHorizon(h)}
+                        className={`rounded px-3 py-1 text-sm font-medium ${
+                          compareHorizon === h ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-indigo-50"
+                        }`}
+                      >
+                        {h}d
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={() => loadComparison(compareHorizon)}
+                  disabled={comparisonLoading}
+                  className="rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 self-end"
+                >
+                  {comparisonLoading ? "Comparing…" : comparison ? "Refresh" : "Compare"}
+                </button>
+              </div>
 
               {comparisonError && (
                 <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{comparisonError}</p>
@@ -167,10 +189,12 @@ export default function TrackRecordPage() {
                     </tbody>
                   </table>
                   <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
-                    Predict-algo view uses a {comparison.predict_days_ahead}-day forecast horizon over{" "}
-                    {comparison.predict_period} of history — matched to the momentum ranking&apos;s own
-                    lookback window (not the Price Prediction page&apos;s own 10-day default) so both sides
-                    are looking at the same stretch of time.
+                    Predict-algo forecast: {comparison.predict_days_ahead} trading day
+                    {comparison.predict_days_ahead === 1 ? "" : "s"} ahead, using {comparison.predict_period} of
+                    history. The Momentum Return column stays fixed at the published{" "}
+                    {data.lookback_days}-day trailing window regardless of the horizon chosen here — pick a
+                    shorter horizon to ask &quot;does the algorithm agree over the near term?&quot; rather than
+                    over the full window the picks were ranked on.
                   </p>
                 </div>
               )}
