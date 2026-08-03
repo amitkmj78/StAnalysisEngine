@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from services.manual_positions import build_manual_positions
+from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
 from services.positions_from_csv import positions_from_activity_csv
 
@@ -231,3 +232,31 @@ async def portfolio_summary(request: Request):
         }
     )
     return {"summary": summarize_portfolio(df)}
+
+
+@router.get("/performance")
+@limiter.limit("15/minute")
+async def portfolio_performance(request: Request, lookback_days: int = 30):
+    """Live portfolio value vs. what the same shares were worth `lookback_days`
+    ago — always priced fresh against the market, not the last-saved snapshot."""
+    await enforce_daily_quota(request, "portfolio/performance")
+    user_id = request.state.user["id"]
+
+    async with user_conn(user_id) as conn:
+        records = await conn.fetch(
+            "SELECT ticker, shares FROM portfolio_positions WHERE user_id = $1::uuid",
+            user_id,
+        )
+
+    positions = [{"ticker": r["ticker"], "shares": r["shares"]} for r in records]
+    if not positions:
+        return {
+            "lookback_days": lookback_days,
+            "rows": [],
+            "total_value_now": 0.0,
+            "total_value_30d_ago": 0.0,
+            "value_diff": 0.0,
+            "value_diff_pct": None,
+        }
+
+    return await run_in_threadpool(compute_portfolio_performance, positions, lookback_days)

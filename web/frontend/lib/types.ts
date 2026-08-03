@@ -336,6 +336,26 @@ export interface PortfolioSummary {
   total_pnl_pct: number;
 }
 
+export interface PortfolioPerformanceRow {
+  ticker: string;
+  shares: number;
+  price_now: number;
+  price_30d_ago: number;
+  value_now: number;
+  value_30d_ago: number;
+  diff: number;
+  diff_pct: number | null;
+}
+
+export interface PortfolioPerformance {
+  lookback_days: number;
+  rows: PortfolioPerformanceRow[];
+  total_value_now: number;
+  total_value_30d_ago: number;
+  value_diff: number;
+  value_diff_pct: number | null;
+}
+
 export interface ManualPositionInput {
   name: string;
   ticker: string;

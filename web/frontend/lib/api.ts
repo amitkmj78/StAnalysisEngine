@@ -17,6 +17,7 @@ import type {
   MomentumBacktestResponse,
   MomentumOptions,
   MonthlyPlanResponse,
+  PortfolioPerformance,
   PortfolioPosition,
   PortfolioStrategyRow,
   PortfolioSubmitResponse,
@@ -309,6 +310,10 @@ export function getPortfolioStrategies() {
 
 export function getPortfolioSummary() {
   return apiFetch<{ summary: PortfolioSummary }>("/api/v1/portfolio/summary");
+}
+
+export function getPortfolioPerformance(lookbackDays = 30) {
+  return apiFetch<PortfolioPerformance>("/api/v1/portfolio/performance", { lookback_days: String(lookbackDays) });
 }
 
 // Meta-Agent Chat

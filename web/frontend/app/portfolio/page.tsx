@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 
 import {
   ApiError,
+  getPortfolioPerformance,
   getPortfolioStrategies,
   getPortfolioSummary,
   importPortfolioCsv,
   refreshPortfolio,
   submitManualPositions,
 } from "@/lib/api";
-import type { ManualPositionInput, PortfolioStrategyRow, PortfolioSummary } from "@/lib/types";
+import type { ManualPositionInput, PortfolioPerformance, PortfolioStrategyRow, PortfolioSummary } from "@/lib/types";
 import PlanText from "@/components/PlanText";
 
 const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
@@ -29,6 +30,9 @@ export default function PortfolioPage() {
 
   const [strategies, setStrategies] = useState<PortfolioStrategyRow[]>([]);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [performance, setPerformance] = useState<PortfolioPerformance | null>(null);
+  const [performanceError, setPerformanceError] = useState<string | null>(null);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,6 +50,16 @@ export default function PortfolioPage() {
       setError(err instanceof ApiError ? err.message : "Could not load portfolio.");
     } finally {
       setLoading(false);
+    }
+
+    setPerformanceLoading(true);
+    setPerformanceError(null);
+    try {
+      setPerformance(await getPortfolioPerformance(30));
+    } catch (err) {
+      setPerformanceError(err instanceof ApiError ? err.message : "Could not load 30-day performance.");
+    } finally {
+      setPerformanceLoading(false);
     }
   }
 
@@ -244,6 +258,86 @@ export default function PortfolioPage() {
         </div>
       )}
 
+      {summary && summary.total_positions > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-slate-900">Value Change (Last 30 Days)</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Today&apos;s market price for every holding against its price {performance?.lookback_days ?? 30} days
+            ago — priced fresh each time, independent of when you last saved or refreshed.
+          </p>
+
+          {performanceLoading && !performance && <p className="mt-2 text-sm text-slate-500">Loading…</p>}
+          {performanceError && (
+            <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{performanceError}</p>
+          )}
+
+          {performance && performance.rows.length > 0 && (
+            <>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <MetricTile
+                  label="Value Now"
+                  value={`$${performance.total_value_now.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                />
+                <MetricTile
+                  label="Value 30D Ago"
+                  value={`$${performance.total_value_30d_ago.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                />
+                <MetricTile
+                  label="30D Change"
+                  value={`${performance.value_diff >= 0 ? "+" : ""}$${performance.value_diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
+                    performance.value_diff_pct !== null
+                      ? ` (${performance.value_diff_pct >= 0 ? "+" : ""}${performance.value_diff_pct.toFixed(2)}%)`
+                      : ""
+                  }`}
+                  positive={performance.value_diff >= 0}
+                />
+              </div>
+
+              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <th className="px-3 py-2">Ticker</th>
+                      <th className="px-3 py-2 text-right">Shares</th>
+                      <th className="px-3 py-2 text-right">Price Now</th>
+                      <th className="px-3 py-2 text-right">Price 30D Ago</th>
+                      <th className="px-3 py-2 text-right">Value Now</th>
+                      <th className="px-3 py-2 text-right">Value 30D Ago</th>
+                      <th className="px-3 py-2 text-right">Diff</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {performance.rows.map((r) => (
+                      <tr key={r.ticker} className="border-b border-slate-100 last:border-0">
+                        <td className="px-3 py-2 font-medium text-slate-800">{r.ticker}</td>
+                        <td className="px-3 py-2 text-right text-slate-600">{r.shares}</td>
+                        <td className="px-3 py-2 text-right text-slate-600">${r.price_now.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right text-slate-600">${r.price_30d_ago.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right text-slate-600">
+                          ${r.value_now.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="px-3 py-2 text-right text-slate-600">
+                          ${r.value_30d_ago.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td
+                          className={`px-3 py-2 text-right font-medium ${
+                            r.diff >= 0 ? "text-emerald-600" : "text-red-600"
+                          }`}
+                        >
+                          {r.diff >= 0 ? "+" : ""}
+                          {r.diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          {r.diff_pct !== null && ` (${r.diff_pct >= 0 ? "+" : ""}${r.diff_pct.toFixed(1)}%)`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-slate-900">Strategies</h2>
         {strategies.length > 0 && (
@@ -315,11 +409,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function MetricTile({ label, value, positive }: { label: string; value: string; positive?: boolean }) {
+  const valueClass =
+    positive === undefined ? "text-slate-900" : positive ? "text-emerald-600" : "text-red-600";
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
       <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
+      <p className={`mt-1 text-lg font-semibold ${valueClass}`}>{value}</p>
     </div>
   );
 }
