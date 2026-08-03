@@ -26,6 +26,7 @@ import type {
   PredictionCompareResponse,
   PredictionNarrative,
   PredictionSummary,
+  PublishedSignalsResponse,
   SavedPrediction,
   StockRankResponse,
   StockScoreResponse,
@@ -392,6 +393,22 @@ export function enableVerifyPredictions() {
 
 export function disableVerifyPredictions() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/verify-predictions/disable", "POST");
+}
+
+export function enablePublishSignals() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/publish-signals/enable", "POST");
+}
+
+export function disablePublishSignals() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/publish-signals/disable", "POST");
+}
+
+export function getPublishedSignals(params?: { targetDate?: string; universeId?: string; lookbackDays?: number }) {
+  const query: Record<string, string> = {};
+  if (params?.targetDate) query.target_date = params.targetDate;
+  if (params?.universeId) query.universe_id = params.universeId;
+  if (params?.lookbackDays) query.lookback_days = String(params.lookbackDays);
+  return apiFetch<PublishedSignalsResponse>("/api/v1/signals/published", query);
 }
 
 export function comparePredictionsToFund(fundGoal = "Balanced Core", fundCategory = "All") {

@@ -30,16 +30,30 @@ async def list_published_signals(
     publication for the given universe/lookback when no date is given.
     """
     async with service_conn() as conn:
+        summary = await conn.fetchrow(
+            """
+            SELECT min(target_date) AS record_start_date,
+                   max(target_date) AS latest_date,
+                   count(DISTINCT target_date) AS days_published
+            FROM published_signals
+            WHERE universe_id = $1 AND lookback_days = $2 AND reason_code IS NULL
+            """,
+            universe_id, lookback_days,
+        )
+        record_start_date = summary["record_start_date"] if summary else None
+        days_published = summary["days_published"] if summary else 0
+
         if target_date is None:
-            target_date = await conn.fetchval(
-                """
-                SELECT max(target_date) FROM published_signals
-                WHERE universe_id = $1 AND lookback_days = $2 AND reason_code IS NULL
-                """,
-                universe_id, lookback_days,
-            )
+            target_date = summary["latest_date"] if summary else None
             if target_date is None:
-                return {"target_date": None, "universe_id": universe_id, "lookback_days": lookback_days, "signals": []}
+                return {
+                    "target_date": None,
+                    "universe_id": universe_id,
+                    "lookback_days": lookback_days,
+                    "signals": [],
+                    "record_start_date": None,
+                    "days_published": 0,
+                }
 
         rows = await conn.fetch(
             """
@@ -55,6 +69,8 @@ async def list_published_signals(
         "universe_id": universe_id,
         "lookback_days": lookback_days,
         "signals": [_record_to_dict(r) for r in rows],
+        "record_start_date": str(record_start_date) if record_start_date else None,
+        "days_published": days_published,
     }
 
 

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import PublishSignalsControls from "@/components/admin/PublishSignalsControls";
 import SchedulerControls from "@/components/admin/SchedulerControls";
 import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
@@ -19,8 +20,9 @@ export default async function AdminSchedulerPage() {
         Controls for the background jobs that run automatically without anyone visiting a page.
       </p>
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-col gap-4">
         <SchedulerControls />
+        <PublishSignalsControls />
       </div>
     </div>
   );

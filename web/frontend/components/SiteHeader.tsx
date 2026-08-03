@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: "/index-fund", label: "Best Index Fund" },
   { href: "/entry", label: "Best To Enter Now" },
   { href: "/top-performers", label: "Top Performers" },
+  { href: "/track-record", label: "Track Record" },
   { href: "/monthly-plan", label: "Monthly Plan" },
   { href: "/strategies", label: "Strategies" },
   { href: "/trade-journal", label: "Trade Journal" },

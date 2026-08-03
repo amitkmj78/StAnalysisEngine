@@ -437,6 +437,31 @@ export interface WatchlistAlert {
 
 export interface AdminSettings {
   verify_predictions_enabled: boolean;
+  publish_signals_enabled: boolean;
+}
+
+export interface PublishedSignalRow {
+  id: number;
+  published_at_utc: string;
+  model_version_hash: string;
+  as_of_data_timestamp: string;
+  target_date: string;
+  universe_id: string;
+  lookback_days: number;
+  rank: number;
+  ticker: string;
+  trailing_return_pct: number;
+  reason_code: string | null;
+  corrects_id: number | null;
+}
+
+export interface PublishedSignalsResponse {
+  target_date: string | null;
+  universe_id: string;
+  lookback_days: number;
+  signals: PublishedSignalRow[];
+  record_start_date: string | null;
+  days_published: number;
 }
 
 export interface TopPerformerRow {

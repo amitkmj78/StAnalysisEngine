@@ -13,10 +13,13 @@ export default async function SignupPage({
     <div className="mx-auto mt-24 max-w-sm px-4">
       <h1 className="mb-1 text-2xl font-semibold text-slate-900">Sign up</h1>
       <p className="mb-1 text-sm text-slate-500">AI Price Prediction &amp; Best Stock Finder</p>
-      <p className="mb-6 text-sm">
+      <p className="mb-6 flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <a href="/marketing.html" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline hover:text-emerald-800">
           How it works &amp; what&apos;s inside
         </a>
+        <Link href="/track-record" className="text-emerald-700 underline hover:text-emerald-800">
+          Live track record
+        </Link>
       </p>
 
       {params.error && (
