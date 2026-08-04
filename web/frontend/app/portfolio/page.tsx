@@ -414,7 +414,26 @@ export default function PortfolioPage() {
                           </td>
                         ) : (
                           <>
-                            <td className="px-3 py-2 text-right text-slate-600">${r.price_now!.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right text-slate-600">
+                              ${r.price_now!.toFixed(2)}
+                              {r.extended_hours && (
+                                <div
+                                  className={`text-xs ${
+                                    (r.extended_hours.change_pct ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"
+                                  }`}
+                                >
+                                  {r.extended_hours.state === "POST" ? "After hours" : "Pre-market"}: $
+                                  {r.extended_hours.price.toFixed(2)}
+                                  {r.extended_hours.change_pct !== null && (
+                                    <>
+                                      {" "}
+                                      ({r.extended_hours.change_pct >= 0 ? "+" : ""}
+                                      {r.extended_hours.change_pct.toFixed(2)}%)
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </td>
                             <td className="px-3 py-2 text-right text-slate-600">
                               {r.price_30d_ago !== null ? `$${r.price_30d_ago.toFixed(2)}` : "—"}
                             </td>
@@ -525,6 +544,7 @@ export default function PortfolioPage() {
             const pnl = s.unrealized_pnl_pct;
             const pnlPositive = pnl !== null && pnl >= 0;
             const isEditing = editingTicker === s.ticker;
+            const extendedHours = performance?.rows.find((r) => r.ticker === s.ticker)?.extended_hours ?? null;
             return (
               <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -591,6 +611,16 @@ export default function PortfolioPage() {
                 ) : (
                   <p className="mt-1 text-sm text-slate-500">
                     {s.shares} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${s.current_price?.toFixed(2)}
+                    {extendedHours && (
+                      <span className={extendedHours.change_pct !== null && extendedHours.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}>
+                        {" "}
+                        · {extendedHours.state === "POST" ? "after hours" : "pre-market"}: $
+                        {extendedHours.price.toFixed(2)}
+                        {extendedHours.change_pct !== null && (
+                          <> ({extendedHours.change_pct >= 0 ? "+" : ""}{extendedHours.change_pct.toFixed(2)}%)</>
+                        )}
+                      </span>
+                    )}
                   </p>
                 )}
 

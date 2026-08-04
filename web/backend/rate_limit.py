@@ -6,7 +6,7 @@ from slowapi.util import get_remote_address
 
 from web.backend.db import service_conn
 
-DAILY_QUOTA = 200
+DAILY_QUOTA = 600
 
 
 def _rate_limit_key(request: Request) -> str:

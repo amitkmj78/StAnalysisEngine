@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from .data_service import get_latest_price
+from .data_service import get_extended_hours_price, get_latest_price
 from .fund_comparison_service import price_near_date
 
 DEFAULT_LOOKBACK_DAYS = 30
@@ -39,6 +39,7 @@ def compute_portfolio_performance(positions: list[dict], lookback_days: int = DE
 
         price_now = get_latest_price(ticker)
         price_then = price_near_date(ticker, when)
+        extended_hours = get_extended_hours_price(ticker)
 
         if price_now is None:
             rows.append(
@@ -56,6 +57,7 @@ def compute_portfolio_performance(positions: list[dict], lookback_days: int = DE
                     "gain_vs_cost": None,
                     "gain_vs_cost_pct": None,
                     "price_unavailable": True,
+                    "extended_hours": None,
                 }
             )
             continue
@@ -83,6 +85,7 @@ def compute_portfolio_performance(positions: list[dict], lookback_days: int = DE
                 "gain_vs_cost": gain_vs_cost,
                 "gain_vs_cost_pct": gain_vs_cost_pct,
                 "price_unavailable": False,
+                "extended_hours": extended_hours,
             }
         )
         total_now += value_now

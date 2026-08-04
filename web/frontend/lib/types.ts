@@ -364,6 +364,7 @@ export interface PortfolioPerformanceRow {
   gain_vs_cost: number | null;
   gain_vs_cost_pct: number | null;
   price_unavailable: boolean;
+  extended_hours: ExtendedHoursPrice | null;
 }
 
 export interface PortfolioPerformance {
