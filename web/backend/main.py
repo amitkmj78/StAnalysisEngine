@@ -19,6 +19,7 @@ from web.backend.scheduler import start_scheduler, stop_scheduler
 from web.backend.routers import (
     admin_activity,
     admin_settings,
+    admin_sql,
     admin_users,
     auth,
     aws_deploy,
@@ -78,6 +79,7 @@ app.include_router(momentum.router)
 app.include_router(admin_users.router)
 app.include_router(admin_activity.router)
 app.include_router(admin_settings.router)
+app.include_router(admin_sql.router)
 app.include_router(signals.router)
 
 

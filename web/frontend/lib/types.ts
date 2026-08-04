@@ -521,3 +521,26 @@ export interface MomentumBacktestResponse {
   avg_benchmark_period_return_pct: number | null;
   periods: MomentumBacktestPeriod[];
 }
+
+// Admin — SQL runner
+export interface AdminSqlColumn {
+  name: string;
+  type: string;
+}
+
+export interface AdminSqlTable {
+  table_name: string;
+  approx_row_count: number | null;
+  columns: AdminSqlColumn[];
+}
+
+export interface AdminSqlTablesResponse {
+  tables: AdminSqlTable[];
+}
+
+export interface AdminSqlQueryResponse {
+  columns: string[];
+  rows: unknown[][];
+  row_count: number;
+  truncated: boolean;
+}

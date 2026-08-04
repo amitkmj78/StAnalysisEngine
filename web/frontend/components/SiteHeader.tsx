@@ -26,6 +26,7 @@ const ADMIN_LINKS = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/activity", label: "Activity" },
   { href: "/admin/scheduler", label: "Scheduler" },
+  { href: "/admin/sql", label: "SQL" },
   { href: "/admin/deploy", label: "Deploy" },
 ];
 

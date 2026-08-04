@@ -3,6 +3,8 @@
 import type {
   AdminActivityRow,
   AdminSettings,
+  AdminSqlQueryResponse,
+  AdminSqlTablesResponse,
   AdminUser,
   AlertConditionType,
   ChatAskResponse,
@@ -460,4 +462,12 @@ export function getMomentumBacktest(
     top_n: String(topN),
     years: String(years),
   });
+}
+
+export function getAdminSqlTables() {
+  return apiFetch<AdminSqlTablesResponse>("/api/v1/admin/sql/tables");
+}
+
+export function runAdminSqlQuery(sql: string) {
+  return apiSend<AdminSqlQueryResponse>("/api/v1/admin/sql/query", "POST", { sql });
 }
