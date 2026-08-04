@@ -87,19 +87,27 @@ def get_extended_hours_price(ticker: str):
         return None
     try:
         info = yf.Ticker(ticker).info
-        state = info.get("marketState")
-        if state == "POST":
+        state = info.get("marketState") or ""
+        # Yahoo isn't just "PRE"/"POST" — it also returns "POSTPOST" (after
+        # the post-market session itself has quieted down, still before the
+        # next pre-market) and presumably "PREPRE". Matching the exact
+        # string meant this silently returned nothing during POSTPOST even
+        # though postMarketPrice was populated. Normalize to PRE/POST so the
+        # frontend's exact-match check still works.
+        if state.startswith("POST"):
             price = info.get("postMarketPrice")
             change_pct = info.get("postMarketChangePercent")
-        elif state == "PRE":
+            normalized_state = "POST"
+        elif state.startswith("PRE"):
             price = info.get("preMarketPrice")
             change_pct = info.get("preMarketChangePercent")
+            normalized_state = "PRE"
         else:
             return None
         if price is None:
             return None
         return {
-            "state": state,
+            "state": normalized_state,
             "price": round(float(price), 2),
             "change_pct": round(float(change_pct), 2) if change_pct is not None else None,
         }
