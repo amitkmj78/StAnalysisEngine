@@ -465,6 +465,29 @@ export interface PublishedSignalsResponse {
   days_published: number;
 }
 
+export interface SignalOutcomeRow {
+  target_date: string;
+  ticker: string;
+  rank: number;
+  entry_price: number;
+  exit_price: number;
+  realized_return_pct: number;
+  benchmark_return_pct: number;
+  beat_benchmark: boolean;
+}
+
+export interface SignalOutcomesResponse {
+  universe_id: string;
+  lookback_days: number;
+  horizon_days: number;
+  num_evaluated_dates: number;
+  num_evaluated_picks: number;
+  hit_rate_pct: number | null;
+  information_coefficient: number | null;
+  quintile_spread_pct: number | null;
+  outcomes: SignalOutcomeRow[];
+}
+
 export interface PredictAlgoComparisonRow {
   rank: number;
   ticker: string;

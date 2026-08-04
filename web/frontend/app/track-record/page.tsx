@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, getPredictAlgoComparison, getPublishedSignals } from "@/lib/api";
-import type { PredictAlgoComparisonResponse, PublishedSignalsResponse } from "@/lib/types";
+import { ApiError, getPredictAlgoComparison, getPublishedSignals, getSignalOutcomes } from "@/lib/api";
+import type { PredictAlgoComparisonResponse, PublishedSignalsResponse, SignalOutcomesResponse } from "@/lib/types";
 
 const COMPARE_HORIZONS = [1, 5, 10, 30];
 
@@ -11,6 +11,9 @@ export default function TrackRecordPage() {
   const [data, setData] = useState<PublishedSignalsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [outcomes, setOutcomes] = useState<SignalOutcomesResponse | null>(null);
+  const [outcomesError, setOutcomesError] = useState<string | null>(null);
 
   const [compareHorizon, setCompareHorizon] = useState(30);
   const [comparison, setComparison] = useState<PredictAlgoComparisonResponse | null>(null);
@@ -22,6 +25,10 @@ export default function TrackRecordPage() {
       .then(setData)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load the track record."))
       .finally(() => setLoading(false));
+
+    getSignalOutcomes()
+      .then(setOutcomes)
+      .catch((err) => setOutcomesError(err instanceof ApiError ? err.message : "Failed to load evaluated outcomes."));
   }, []);
 
   async function loadComparison(horizon: number) {
@@ -98,6 +105,96 @@ export default function TrackRecordPage() {
               </p>
             </div>
           )}
+
+          <div className="mt-8 rounded-lg border border-emerald-200 bg-emerald-50/40 p-5">
+            <h2 className="font-semibold text-slate-900">Live Performance to Date</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              Real, out-of-sample results only — never a simulation, never blended with any backtest. Each
+              published pick is scored once its full holding window has actually elapsed: entry priced at
+              publication, exit priced {outcomes?.horizon_days ?? 30} trading days later, compared against
+              equally owning the whole universe over that identical stretch.
+            </p>
+
+            {outcomesError && (
+              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{outcomesError}</p>
+            )}
+
+            {outcomes && !outcomesError && (
+              <>
+                {outcomes.num_evaluated_dates === 0 ? (
+                  <p className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm text-slate-500">
+                    No published picks have completed their {outcomes.horizon_days}-trading-day holding window
+                    yet — nothing is evaluated or estimated before it&apos;s actually knowable. Check back once
+                    the earliest publication is that far out.
+                  </p>
+                ) : (
+                  <>
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                      <RecordTile label="Dates Evaluated" value={String(outcomes.num_evaluated_dates)} />
+                      <RecordTile label="Picks Evaluated" value={String(outcomes.num_evaluated_picks)} />
+                      <RecordTile
+                        label="Hit Rate"
+                        value={outcomes.hit_rate_pct !== null ? `${outcomes.hit_rate_pct.toFixed(1)}%` : "—"}
+                      />
+                      <RecordTile
+                        label="Information Coeff."
+                        value={outcomes.information_coefficient !== null ? outcomes.information_coefficient.toFixed(3) : "—"}
+                      />
+                      <RecordTile
+                        label="Quintile Spread"
+                        value={outcomes.quintile_spread_pct !== null ? `${outcomes.quintile_spread_pct >= 0 ? "+" : ""}${outcomes.quintile_spread_pct.toFixed(2)}%` : "—"}
+                      />
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500">
+                      <strong>Hit Rate</strong> is the share of individual picks that beat the equal-weight
+                      universe. <strong>Information Coefficient</strong> is the average correlation between a
+                      pick&apos;s rank and its realized return — positive means better-ranked picks really did do
+                      better. <strong>Quintile Spread</strong> is the best-ranked fifth&apos;s average return
+                      minus the worst-ranked fifth&apos;s, averaged across evaluated dates.
+                    </p>
+
+                    <details className="mt-3 text-xs text-slate-600">
+                      <summary className="cursor-pointer font-medium text-slate-700">
+                        Show all {outcomes.outcomes.length} evaluated picks
+                      </summary>
+                      <div className="mt-2 max-h-80 overflow-y-auto overflow-x-auto rounded-md border border-slate-200 bg-white">
+                        <table className="min-w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                              <th className="px-2 py-1.5">Date</th>
+                              <th className="px-2 py-1.5">Ticker</th>
+                              <th className="px-2 py-1.5 text-right">Rank</th>
+                              <th className="px-2 py-1.5 text-right">Realized</th>
+                              <th className="px-2 py-1.5 text-right">Benchmark</th>
+                              <th className="px-2 py-1.5 text-center">Beat?</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {outcomes.outcomes.map((o) => (
+                              <tr key={`${o.target_date}-${o.ticker}`} className="border-b border-slate-100 last:border-0">
+                                <td className="px-2 py-1.5 text-slate-600">{o.target_date}</td>
+                                <td className="px-2 py-1.5 font-medium text-slate-800">{o.ticker}</td>
+                                <td className="px-2 py-1.5 text-right text-slate-500">{o.rank}</td>
+                                <td className={`px-2 py-1.5 text-right ${o.realized_return_pct >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                                  {o.realized_return_pct >= 0 ? "+" : ""}
+                                  {o.realized_return_pct.toFixed(2)}%
+                                </td>
+                                <td className="px-2 py-1.5 text-right text-slate-600">
+                                  {o.benchmark_return_pct >= 0 ? "+" : ""}
+                                  {o.benchmark_return_pct.toFixed(2)}%
+                                </td>
+                                <td className="px-2 py-1.5 text-center">{o.beat_benchmark ? "✓" : ""}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  </>
+                )}
+              </>
+            )}
+          </div>
 
           {data.signals.length > 0 && (
             <div className="mt-8 rounded-lg border border-indigo-200 bg-indigo-50/40 p-5">

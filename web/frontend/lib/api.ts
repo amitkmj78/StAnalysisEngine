@@ -31,6 +31,7 @@ import type {
   PredictionSummary,
   PublishedSignalsResponse,
   SavedPrediction,
+  SignalOutcomesResponse,
   StockRankResponse,
   StockScoreResponse,
   StrategiesSummaryResponse,
@@ -422,6 +423,10 @@ export function getPredictAlgoComparison(daysAhead = 30) {
   return apiFetch<PredictAlgoComparisonResponse>("/api/v1/signals/published/compare-to-predict-algo", {
     days_ahead: String(daysAhead),
   });
+}
+
+export function getSignalOutcomes() {
+  return apiFetch<SignalOutcomesResponse>("/api/v1/signals/outcomes");
 }
 
 export function comparePredictionsToFund(fundGoal = "Balanced Core", fundCategory = "All") {
