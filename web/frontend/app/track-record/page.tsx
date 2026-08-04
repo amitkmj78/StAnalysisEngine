@@ -205,10 +205,10 @@ export default function TrackRecordPage() {
             <h2 className="font-semibold text-slate-900">Methodology</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
               Once a day, after market close, the rule ranks a fixed universe of large, liquid US stocks by
-              trailing price return over the stated lookback window, and publishes the top 5. It uses only
-              price data available at the time of publication — no future information, no fundamentals, no
-              subjective judgment. The same rule, applied consistently, so any past publication can be checked
-              against what actually happened next.
+              trailing price return over the stated lookback window, and publishes the top{" "}
+              {data.signals.length || 25}. It uses only price data available at the time of publication — no
+              future information, no fundamentals, no subjective judgment. The same rule, applied consistently,
+              so any past publication can be checked against what actually happened next.
             </p>
             <p className="mt-3 text-sm leading-relaxed text-slate-600">
               This is not personalized to any reader, does not consider anyone&apos;s holdings or goals, and is

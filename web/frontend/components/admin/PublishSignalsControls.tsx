@@ -70,7 +70,7 @@ export default function PublishSignalsControls() {
         <div>
           <h2 className="font-semibold text-slate-900">Public Signal Publication</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Daily scheduled job (weekdays, 4:10pm ET) that commits the top-5 momentum ranking to the public,
+            Daily scheduled job (weekdays, 4:10pm ET) that commits the top-25 momentum ranking to the public,
             append-only track record. This is irreversible once turned on — enabling it starts the real
             publication clock, not a preview. Do not enable before counsel has confirmed unpaid, impersonal
             publication carries no registration requirement.

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_UNIVERSE = "All"
 DEFAULT_LOOKBACK_DAYS = 30
-DEFAULT_TOP_N = 5
+DEFAULT_TOP_N = 25
 DEFAULT_PREDICT_PERIOD = "1y"
 DEFAULT_PREDICT_DAYS_AHEAD = 10
 # Selectable horizons for comparing the Predict-page algorithm against the
