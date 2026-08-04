@@ -4,17 +4,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 
 from services.signal_publication_service import (
+    DEFAULT_HORIZON_DAYS,
     DEFAULT_LOOKBACK_DAYS,
     DEFAULT_PREDICT_PERIOD,
     DEFAULT_UNIVERSE,
     PREDICT_COMPARE_HORIZONS,
+    compute_outcome_metrics,
     compute_predict_algo_comparison,
 )
 from web.backend.admin import require_admin
 from web.backend.app_settings import PUBLISH_SIGNALS_ENABLED_KEY, get_setting_bool
 from web.backend.db import service_conn
 from web.backend.rate_limit import limiter
-from web.backend.signal_publication import publish_daily_signals
+from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
 
 router = APIRouter(prefix="/api/v1/signals", tags=["signals"])
 
@@ -167,3 +169,60 @@ async def publish_now(
         )
     published = await publish_daily_signals(universe_id=universe_id, lookback_days=lookback_days)
     return {"published": published}
+
+
+@router.get("/outcomes")
+@limiter.limit("60/minute")
+async def list_signal_outcomes(
+    request: Request,
+    universe_id: str = Query(DEFAULT_UNIVERSE),
+    lookback_days: int = Query(DEFAULT_LOOKBACK_DAYS),
+    horizon_days: int = Query(DEFAULT_HORIZON_DAYS),
+):
+    """
+    TR-4: live performance to date — public, unauthenticated, same as
+    /published. Aggregate metrics (hit rate, information coefficient,
+    quintile spread) plus the full per-date history, computed only from
+    signal_outcomes (never blended with anything backtest-derived, per
+    TR-4's hard requirement).
+    """
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT target_date, ticker, rank, entry_price, exit_price,
+                   realized_return_pct, benchmark_return_pct, beat_benchmark
+            FROM signal_outcomes
+            WHERE universe_id = $1 AND lookback_days = $2 AND horizon_days = $3
+            ORDER BY target_date ASC, rank ASC
+            """,
+            universe_id, lookback_days, horizon_days,
+        )
+
+    row_dicts = [_record_to_dict(r) for r in rows]
+    metrics = compute_outcome_metrics(row_dicts)
+
+    return {
+        "universe_id": universe_id,
+        "lookback_days": lookback_days,
+        "horizon_days": horizon_days,
+        **metrics,
+        "outcomes": [
+            {**r, "target_date": str(r["target_date"])} for r in row_dicts
+        ],
+    }
+
+
+@router.post("/evaluate-now", dependencies=[Depends(require_admin)])
+async def evaluate_now(
+    universe_id: str = Query(DEFAULT_UNIVERSE),
+    lookback_days: int = Query(DEFAULT_LOOKBACK_DAYS),
+    horizon_days: int = Query(DEFAULT_HORIZON_DAYS),
+):
+    """Manual trigger for the same outcome evaluation the scheduler runs
+    daily — for verifying the pipeline and catching up, not routine use.
+    Unlike publish-now, no enable-gate: evaluating already-published,
+    already-public history isn't itself a new disclosure."""
+    evaluated = await evaluate_due_signal_outcomes(
+        universe_id=universe_id, lookback_days=lookback_days, horizon_days=horizon_days
+    )
+    return {"evaluated": evaluated}

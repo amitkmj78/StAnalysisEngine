@@ -13,7 +13,7 @@ from web.backend.app_settings import (
     get_setting_bool,
 )
 from web.backend.db import service_conn
-from web.backend.signal_publication import publish_daily_signals
+from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,10 @@ ALERT_INTERVAL_MINUTES = 5
 # TR-1 / NFR-01: publish within 60 minutes of the US market close (4:00pm ET).
 PUBLISH_HOUR_ET = 16
 PUBLISH_MINUTE_ET = 10
+# TR-4: evaluate outcomes once daily, after publication — no need to check
+# more often since "due" is measured in trading days, not minutes.
+EVALUATE_HOUR_ET = 17
+EVALUATE_MINUTE_ET = 0
 
 _scheduler: AsyncIOScheduler | None = None
 
@@ -106,6 +110,19 @@ async def _publish_daily_signals_job() -> None:
         logger.info("Scheduler: published %d daily signals", published)
 
 
+async def _evaluate_signal_outcomes_job() -> None:
+    """TR-4: check every published date old enough to have a knowable
+    outcome and record it. Gated by the same flag as publication — if
+    there's no live record (publishing is off), there's nothing to
+    evaluate."""
+    if not await get_setting_bool(PUBLISH_SIGNALS_ENABLED_KEY, default=False):
+        logger.info("Scheduler: publish_daily_signals is disabled, skipping outcome evaluation")
+        return
+    evaluated = await evaluate_due_signal_outcomes()
+    if evaluated:
+        logger.info("Scheduler: recorded %d signal outcomes", evaluated)
+
+
 def start_scheduler() -> AsyncIOScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -141,11 +158,24 @@ def start_scheduler() -> AsyncIOScheduler:
         max_instances=1,
         misfire_grace_time=3600,  # catch up if the process was down at 4:10pm ET
     )
+    _scheduler.add_job(
+        _evaluate_signal_outcomes_job,
+        CronTrigger(
+            hour=EVALUATE_HOUR_ET, minute=EVALUATE_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="evaluate_signal_outcomes",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
     _scheduler.start()
     logger.info(
         "Background scheduler started (verify_saved_predictions every %d min, "
-        "evaluate_watchlist_alerts every %d min, publish_daily_signals weekdays %02d:%02d ET)",
+        "evaluate_watchlist_alerts every %d min, publish_daily_signals weekdays %02d:%02d ET, "
+        "evaluate_signal_outcomes weekdays %02d:%02d ET)",
         VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PUBLISH_HOUR_ET, PUBLISH_MINUTE_ET,
+        EVALUATE_HOUR_ET, EVALUATE_MINUTE_ET,
     )
     return _scheduler
 

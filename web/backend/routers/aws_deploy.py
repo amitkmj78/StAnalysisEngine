@@ -554,6 +554,29 @@ create table if not exists published_signals (
 create index if not exists published_signals_lookup_idx
   on published_signals(target_date, universe_id, lookback_days);
 
+-- TR-4: realized outcomes for already-published signals, once enough
+-- trading days have elapsed to know them. Deliberately a separate table
+-- from published_signals (and from anything backtest-derived) — live and
+-- backtested results must never be combinable in any query or output.
+create table if not exists signal_outcomes (
+  id bigint generated always as identity primary key,
+  evaluated_at_utc timestamptz not null default now(),
+  target_date date not null,
+  universe_id text not null,
+  lookback_days integer not null,
+  horizon_days integer not null,
+  ticker text not null,
+  rank integer not null,
+  entry_price real not null,
+  exit_price real not null,
+  realized_return_pct real not null,
+  benchmark_return_pct real not null,
+  beat_benchmark boolean not null,
+  unique (target_date, universe_id, lookback_days, horizon_days, ticker)
+);
+create index if not exists signal_outcomes_lookup_idx
+  on signal_outcomes(target_date, universe_id, lookback_days, horizon_days);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -580,6 +603,8 @@ grant select, update on watchlist_alerts to app_service;
 grant select, insert, update on app_settings to app_service;
 grant select on published_signals to app_user;
 grant select, insert on published_signals to app_service;
+grant select on signal_outcomes to app_user;
+grant select, insert on signal_outcomes to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """
 
