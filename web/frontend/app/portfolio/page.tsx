@@ -54,6 +54,18 @@ export default function PortfolioPage() {
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
+  async function refreshPerformance(showLoading: boolean) {
+    if (showLoading) setPerformanceLoading(true);
+    setPerformanceError(null);
+    try {
+      setPerformance(await getPortfolioPerformance(30));
+    } catch (err) {
+      setPerformanceError(err instanceof ApiError ? err.message : "Could not load 30-day performance.");
+    } finally {
+      if (showLoading) setPerformanceLoading(false);
+    }
+  }
+
   async function refresh() {
     setLoading(true);
     setError(null);
@@ -67,20 +79,22 @@ export default function PortfolioPage() {
       setLoading(false);
     }
 
-    setPerformanceLoading(true);
-    setPerformanceError(null);
-    try {
-      setPerformance(await getPortfolioPerformance(30));
-    } catch (err) {
-      setPerformanceError(err instanceof ApiError ? err.message : "Could not load 30-day performance.");
-    } finally {
-      setPerformanceLoading(false);
-    }
+    await refreshPerformance(true);
   }
 
   useEffect(() => {
     refresh();
   }, []);
+
+  // Live-ish prices without per-position polling: one batched call for the
+  // whole portfolio every 10s (well under /performance's 15/min rate limit
+  // regardless of how many positions exist), instead of each position
+  // polling independently the way CurrentPriceBadge does elsewhere.
+  useEffect(() => {
+    if (summary === null || summary.total_positions === 0) return;
+    const interval = setInterval(() => refreshPerformance(false), 10000);
+    return () => clearInterval(interval);
+  }, [summary?.total_positions]);
 
   function updateRow(i: number, patch: Partial<ManualPositionInput>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
