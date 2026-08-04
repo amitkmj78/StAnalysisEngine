@@ -14,6 +14,8 @@ import {
 } from "@/lib/api";
 import type { ManualPositionInput, PortfolioPerformance, PortfolioStrategyRow, PortfolioSummary } from "@/lib/types";
 import PlanText from "@/components/PlanText";
+import TickerSearchInput from "@/components/TickerSearchInput";
+import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 
 const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
 
@@ -45,6 +47,12 @@ export default function PortfolioPage() {
   const [editAvgCost, setEditAvgCost] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+
+  const [addTicker, setAddTicker] = useState("");
+  const [addShares, setAddShares] = useState("");
+  const [addAvgCost, setAddAvgCost] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -174,6 +182,40 @@ export default function PortfolioPage() {
       setEditError(err instanceof ApiError ? err.message : "Could not save this position.");
     } finally {
       setEditSaving(false);
+    }
+  }
+
+  async function handleAddPosition(e: React.FormEvent) {
+    e.preventDefault();
+    const ticker = addTicker.trim().toUpperCase();
+    const shares = Number(addShares);
+    const avgCost = Number(addAvgCost);
+    if (!ticker) {
+      setAddError("Enter a ticker.");
+      return;
+    }
+    if (!shares || shares <= 0) {
+      setAddError("Shares must be a positive number.");
+      return;
+    }
+    if (!avgCost || avgCost <= 0) {
+      setAddError("Avg cost must be a positive number.");
+      return;
+    }
+    setAdding(true);
+    setAddError(null);
+    setWatchlistNote(null);
+    try {
+      const res = await editPortfolioPosition(ticker, shares, avgCost, riskProfile, riskFactor);
+      noteWatchlist(res.watchlist_alerts_created);
+      setAddTicker("");
+      setAddShares("");
+      setAddAvgCost("");
+      await refresh();
+    } catch (err) {
+      setAddError(err instanceof ApiError ? err.message : "Could not add this position.");
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -435,6 +477,44 @@ export default function PortfolioPage() {
         Pulls today&apos;s prices for the positions you&apos;ve already saved and recomputes the plans below —
         no need to re-enter or re-upload anything.
       </p>
+
+      <p className="mt-3 text-xs font-medium text-slate-500">
+        Add a new position — this only appends this one ticker, it won&apos;t touch anything else you&apos;ve
+        saved.
+      </p>
+      <form onSubmit={handleAddPosition} className="mt-1 flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-4">
+        <Field label="Ticker">
+          <TickerSearchInput
+            value={addTicker}
+            onChange={setAddTicker}
+            className="input w-32 uppercase"
+          />
+        </Field>
+        <CurrentPriceBadge ticker={addTicker} />
+        <Field label="Shares">
+          <input
+            type="number"
+            step="0.0001"
+            value={addShares}
+            onChange={(e) => setAddShares(e.target.value)}
+            className="input w-24"
+          />
+        </Field>
+        <Field label="Avg cost">
+          <input
+            type="number"
+            step="0.01"
+            value={addAvgCost}
+            onChange={(e) => setAddAvgCost(e.target.value)}
+            className="input w-24"
+          />
+        </Field>
+        <button type="submit" disabled={adding} className="btn-primary">
+          {adding ? "Adding…" : "Add to Portfolio"}
+        </button>
+        {addError && <p className="w-full text-xs text-red-600">{addError}</p>}
+      </form>
+
       {loading ? (
         <p className="mt-2 text-sm text-slate-500">Loading…</p>
       ) : strategies.length === 0 ? (

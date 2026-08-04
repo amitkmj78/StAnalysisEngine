@@ -209,10 +209,11 @@ class PositionEditRequest(BaseModel):
 @router.put("/positions/{ticker}")
 @limiter.limit("20/minute")
 async def edit_position(request: Request, ticker: str, body: PositionEditRequest):
-    """Edit a single saved position's shares/avg cost without re-entering the
-    whole portfolio — rebuilds the full snapshot through the same save path
-    (so strategies and auto-watchlist alerts stay in sync), touching only
-    this one ticker's numbers."""
+    """Add-or-update a single position's shares/avg cost without re-entering
+    the whole portfolio — rebuilds the full snapshot through the same save
+    path (so strategies and auto-watchlist alerts stay in sync), touching
+    only this one ticker's numbers. Upsert: if the ticker isn't already
+    saved, this appends it as a new position instead of erroring."""
     await enforce_daily_quota(request, "portfolio/edit-position")
     if body.shares <= 0:
         raise HTTPException(422, "Shares must be positive.")
@@ -227,12 +228,12 @@ async def edit_position(request: Request, ticker: str, body: PositionEditRequest
             "SELECT ticker, shares, avg_cost, name FROM portfolio_positions WHERE user_id = $1::uuid",
             user_id,
         )
-        if not any(r["ticker"] == ticker for r in records):
-            raise HTTPException(404, f"No saved position for {ticker}.")
 
         rows = []
+        found = False
         for r in records:
             if r["ticker"] == ticker:
+                found = True
                 rows.append(
                     {"Ticker": ticker, "Name": body.name or ticker, "Shares": body.shares, "Avg_Cost": body.avg_cost}
                 )
@@ -240,6 +241,10 @@ async def edit_position(request: Request, ticker: str, body: PositionEditRequest
                 rows.append(
                     {"Ticker": r["ticker"], "Name": r["name"] or r["ticker"], "Shares": r["shares"], "Avg_Cost": r["avg_cost"]}
                 )
+        if not found:
+            rows.append(
+                {"Ticker": ticker, "Name": body.name or ticker, "Shares": body.shares, "Avg_Cost": body.avg_cost}
+            )
 
         holdings_df = pd.DataFrame(rows)
         return await _save_and_respond(conn, user_id, holdings_df, body.risk_profile, body.risk_factor, "Edited")
