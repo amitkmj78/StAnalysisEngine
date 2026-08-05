@@ -8,17 +8,25 @@ from starlette.concurrency import run_in_threadpool
 from services.alert_engine_service import evaluate_alert
 from services.prediction_verification_service import verify_prediction
 from web.backend.app_settings import (
+    PIT_PRICE_CAPTURE_ENABLED_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
 )
 from web.backend.db import service_conn
+from web.backend.pit_prices import capture_and_persist_pit_prices
 from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
 
 logger = logging.getLogger(__name__)
 
 VERIFY_INTERVAL_MINUTES = 15
 ALERT_INTERVAL_MINUTES = 5
+# TR-3 Phase 1: capture PIT closes shortly after market close, ahead of
+# publication — independent today (nothing consumes this yet), but future
+# phases that make publication/comparison PIT-aware will want the day's
+# capture already on record before 16:10 ET runs.
+PIT_CAPTURE_HOUR_ET = 16
+PIT_CAPTURE_MINUTE_ET = 5
 # TR-1 / NFR-01: publish within 60 minutes of the US market close (4:00pm ET).
 PUBLISH_HOUR_ET = 16
 PUBLISH_MINUTE_ET = 10
@@ -94,6 +102,19 @@ async def _evaluate_watchlist_alerts() -> None:
     logger.info("Scheduler: checked %d watchlist alerts, triggered %d", checked, triggered)
 
 
+async def _capture_pit_prices_job() -> None:
+    """TR-3 Phase 1: append today's close for the tracked universe to the
+    point-in-time price store. Gated by its own flag, independent of
+    publish_signals_enabled — this is internal data accumulation, not a
+    public act, so it's safe to default on."""
+    if not await get_setting_bool(PIT_PRICE_CAPTURE_ENABLED_KEY, default=True):
+        logger.info("Scheduler: pit_price_capture is disabled, skipping this run")
+        return
+    inserted = await capture_and_persist_pit_prices()
+    if inserted:
+        logger.info("Scheduler: captured %d new PIT price rows", inserted)
+
+
 async def _publish_daily_signals_job() -> None:
     """TR-1: commit today's Signal Set to the public ledger. Off by default
     (see PUBLISH_SIGNALS_ENABLED_KEY) until an admin explicitly enables it —
@@ -148,6 +169,17 @@ def start_scheduler() -> AsyncIOScheduler:
         max_instances=1,
     )
     _scheduler.add_job(
+        _capture_pit_prices_job,
+        CronTrigger(
+            hour=PIT_CAPTURE_HOUR_ET, minute=PIT_CAPTURE_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="capture_pit_prices",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
         _publish_daily_signals_job,
         CronTrigger(
             hour=PUBLISH_HOUR_ET, minute=PUBLISH_MINUTE_ET,
@@ -172,10 +204,10 @@ def start_scheduler() -> AsyncIOScheduler:
     _scheduler.start()
     logger.info(
         "Background scheduler started (verify_saved_predictions every %d min, "
-        "evaluate_watchlist_alerts every %d min, publish_daily_signals weekdays %02d:%02d ET, "
-        "evaluate_signal_outcomes weekdays %02d:%02d ET)",
-        VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PUBLISH_HOUR_ET, PUBLISH_MINUTE_ET,
-        EVALUATE_HOUR_ET, EVALUATE_MINUTE_ET,
+        "evaluate_watchlist_alerts every %d min, capture_pit_prices weekdays %02d:%02d ET, "
+        "publish_daily_signals weekdays %02d:%02d ET, evaluate_signal_outcomes weekdays %02d:%02d ET)",
+        VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PIT_CAPTURE_HOUR_ET, PIT_CAPTURE_MINUTE_ET,
+        PUBLISH_HOUR_ET, PUBLISH_MINUTE_ET, EVALUATE_HOUR_ET, EVALUATE_MINUTE_ET,
     )
     return _scheduler
 

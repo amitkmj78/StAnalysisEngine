@@ -9,6 +9,10 @@ PUBLISH_SIGNALS_ENABLED_KEY = "publish_signals_enabled"
 # Defaults ON — the secure default. Admin can turn it off (e.g. temporarily,
 # to debug a signup issue) without a deploy.
 PASSWORD_POLICY_ENABLED_KEY = "password_policy_enabled"
+# Defaults ON — internal data capture with no legal/compliance gate like
+# publish_signals_enabled has. Admin can pause it (e.g. yfinance rate limits,
+# a bad run) without losing history already captured.
+PIT_PRICE_CAPTURE_ENABLED_KEY = "pit_price_capture_enabled"
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

@@ -28,6 +28,7 @@ from web.backend.routers import (
     index_fund,
     momentum,
     monthly_plan,
+    pit_prices,
     portfolio,
     prediction,
     search,
@@ -81,6 +82,7 @@ app.include_router(admin_activity.router)
 app.include_router(admin_settings.router)
 app.include_router(admin_sql.router)
 app.include_router(signals.router)
+app.include_router(pit_prices.router)
 
 
 @app.get("/health")

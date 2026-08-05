@@ -440,6 +440,17 @@ export interface AdminSettings {
   verify_predictions_enabled: boolean;
   publish_signals_enabled: boolean;
   password_policy_enabled: boolean;
+  pit_price_capture_enabled: boolean;
+}
+
+export interface PitPriceStatus {
+  universe_id: string;
+  row_count: number;
+  ticker_count: number;
+  trading_days_captured: number;
+  earliest_date: string | null;
+  latest_date: string | null;
+  last_captured_at_utc: string | null;
 }
 
 export interface PublishedSignalRow {

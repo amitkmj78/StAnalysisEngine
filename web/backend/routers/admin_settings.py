@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
     PASSWORD_POLICY_ENABLED_KEY,
+    PIT_PRICE_CAPTURE_ENABLED_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
@@ -22,6 +23,7 @@ async def get_settings():
         "verify_predictions_enabled": await get_setting_bool(VERIFY_PREDICTIONS_ENABLED_KEY, default=True),
         "publish_signals_enabled": await get_setting_bool(PUBLISH_SIGNALS_ENABLED_KEY, default=False),
         "password_policy_enabled": await get_setting_bool(PASSWORD_POLICY_ENABLED_KEY, default=True),
+        "pit_price_capture_enabled": await get_setting_bool(PIT_PRICE_CAPTURE_ENABLED_KEY, default=True),
     }
 
 
@@ -64,3 +66,15 @@ async def disable_password_policy():
     never lets through a password of any length."""
     await set_setting_bool(PASSWORD_POLICY_ENABLED_KEY, False)
     return {"password_policy_enabled": False}
+
+
+@router.post("/pit-price-capture/enable")
+async def enable_pit_price_capture():
+    await set_setting_bool(PIT_PRICE_CAPTURE_ENABLED_KEY, True)
+    return {"pit_price_capture_enabled": True}
+
+
+@router.post("/pit-price-capture/disable")
+async def disable_pit_price_capture():
+    await set_setting_bool(PIT_PRICE_CAPTURE_ENABLED_KEY, False)
+    return {"pit_price_capture_enabled": False}

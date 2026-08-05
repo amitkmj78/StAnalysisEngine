@@ -19,6 +19,7 @@ import type {
   MomentumBacktestResponse,
   MomentumOptions,
   MonthlyPlanResponse,
+  PitPriceStatus,
   PortfolioPerformance,
   PortfolioPosition,
   PortfolioStrategyRow,
@@ -413,6 +414,22 @@ export function enablePasswordPolicy() {
 
 export function disablePasswordPolicy() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/password-policy/disable", "POST");
+}
+
+export function enablePitPriceCapture() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/pit-price-capture/enable", "POST");
+}
+
+export function disablePitPriceCapture() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/pit-price-capture/disable", "POST");
+}
+
+export function getPitPriceStatus() {
+  return apiFetch<PitPriceStatus>("/api/v1/pit-prices/status");
+}
+
+export function capturePitPricesNow() {
+  return apiSend<{ inserted: number }>("/api/v1/pit-prices/capture-now", "POST");
 }
 
 export function publishSignalsNow() {

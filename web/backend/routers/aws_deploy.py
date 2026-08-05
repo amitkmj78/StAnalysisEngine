@@ -534,6 +534,8 @@ insert into app_settings (key, value) values ('publish_signals_enabled', 'false'
   on conflict (key) do nothing;
 insert into app_settings (key, value) values ('password_policy_enabled', 'true')
   on conflict (key) do nothing;
+insert into app_settings (key, value) values ('pit_price_capture_enabled', 'true')
+  on conflict (key) do nothing;
 
 -- Public track-record ledger (TR-1/TR-2). Not user-scoped, no RLS: this is
 -- deliberately a public record, not private data. Rows are never updated or
@@ -600,6 +602,23 @@ create table if not exists backtest_runs (
 create index if not exists backtest_runs_lookup_idx
   on backtest_runs(asset_type, universe, lookback_days, top_n, years);
 
+-- TR-3 Phase 1: append-only point-in-time price store. A row's mere
+-- presence proves this exact close was on record at captured_at_utc — the
+-- ON CONFLICT DO NOTHING below means a row is never overwritten once
+-- captured, so later data-vendor revisions (split/dividend reprocessing,
+-- corrections) can never quietly rewrite history out from under it. Not
+-- user-scoped, no RLS: internal engine data, same as backtest_runs.
+create table if not exists pit_prices (
+  id bigint generated always as identity primary key,
+  ticker text not null,
+  price_date date not null,
+  close real not null,
+  captured_at_utc timestamptz not null default now(),
+  source text not null default 'yfinance',
+  unique (ticker, price_date)
+);
+create index if not exists pit_prices_ticker_date_idx on pit_prices(ticker, price_date desc);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -630,6 +649,8 @@ grant select on signal_outcomes to app_user;
 grant select, insert on signal_outcomes to app_service;
 grant select on backtest_runs to app_user;
 grant select, insert on backtest_runs to app_service;
+grant select on pit_prices to app_user;
+grant select, insert on pit_prices to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """
 

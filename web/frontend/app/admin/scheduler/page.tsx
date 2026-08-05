@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import PitPriceControls from "@/components/admin/PitPriceControls";
 import PublishSignalsControls from "@/components/admin/PublishSignalsControls";
 import SchedulerControls from "@/components/admin/SchedulerControls";
 import { isAdmin } from "@/lib/admin";
@@ -23,6 +24,7 @@ export default async function AdminSchedulerPage() {
       <div className="mt-6 flex flex-col gap-4">
         <SchedulerControls />
         <PublishSignalsControls />
+        <PitPriceControls />
       </div>
     </div>
   );
