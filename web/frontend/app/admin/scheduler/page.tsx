@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import PitPriceControls from "@/components/admin/PitPriceControls";
+import PortfolioDropAlertsControls from "@/components/admin/PortfolioDropAlertsControls";
 import PublishSignalsControls from "@/components/admin/PublishSignalsControls";
 import SchedulerControls from "@/components/admin/SchedulerControls";
 import { isAdmin } from "@/lib/admin";
@@ -25,6 +26,7 @@ export default async function AdminSchedulerPage() {
         <SchedulerControls />
         <PublishSignalsControls />
         <PitPriceControls />
+        <PortfolioDropAlertsControls />
       </div>
     </div>
   );

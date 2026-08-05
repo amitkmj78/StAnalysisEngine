@@ -4,6 +4,7 @@ from web.backend.admin import require_admin
 from web.backend.app_settings import (
     PASSWORD_POLICY_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
+    PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
@@ -24,6 +25,7 @@ async def get_settings():
         "publish_signals_enabled": await get_setting_bool(PUBLISH_SIGNALS_ENABLED_KEY, default=False),
         "password_policy_enabled": await get_setting_bool(PASSWORD_POLICY_ENABLED_KEY, default=True),
         "pit_price_capture_enabled": await get_setting_bool(PIT_PRICE_CAPTURE_ENABLED_KEY, default=True),
+        "portfolio_drop_alerts_enabled": await get_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, default=False),
     }
 
 
@@ -78,3 +80,17 @@ async def enable_pit_price_capture():
 async def disable_pit_price_capture():
     await set_setting_bool(PIT_PRICE_CAPTURE_ENABLED_KEY, False)
     return {"pit_price_capture_enabled": False}
+
+
+@router.post("/portfolio-drop-alerts/enable")
+async def enable_portfolio_drop_alerts():
+    """Starts real per-drop Tavily + LLM calls and user-visible in-app
+    notifications on the next scheduler tick — not just a preview toggle."""
+    await set_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, True)
+    return {"portfolio_drop_alerts_enabled": True}
+
+
+@router.post("/portfolio-drop-alerts/disable")
+async def disable_portfolio_drop_alerts():
+    await set_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, False)
+    return {"portfolio_drop_alerts_enabled": False}

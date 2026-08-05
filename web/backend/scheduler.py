@@ -9,6 +9,7 @@ from services.alert_engine_service import evaluate_alert
 from services.prediction_verification_service import verify_prediction
 from web.backend.app_settings import (
     PIT_PRICE_CAPTURE_ENABLED_KEY,
+    PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
@@ -19,12 +20,17 @@ from web.backend.pit_prices import (
     capture_and_persist_pit_prices,
     capture_and_persist_universe_membership,
 )
+from web.backend.portfolio_alerts import scan_portfolios_for_drops
 from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
 
 logger = logging.getLogger(__name__)
 
 VERIFY_INTERVAL_MINUTES = 15
 ALERT_INTERVAL_MINUTES = 5
+# Same-day portfolio drop scan — heavier than watchlist's 5-min interval
+# since a fresh drop triggers a Tavily search + LLM call, but still needs
+# to catch moves throughout the trading day, not just once at close.
+PORTFOLIO_DROP_INTERVAL_MINUTES = 15
 # TR-3 Phase 1: capture PIT closes shortly after market close, ahead of
 # publication — independent today (nothing consumes this yet), but future
 # phases that make publication/comparison PIT-aware will want the day's
@@ -106,6 +112,21 @@ async def _evaluate_watchlist_alerts() -> None:
     logger.info("Scheduler: checked %d watchlist alerts, triggered %d", checked, triggered)
 
 
+async def _scan_portfolio_drops_job() -> None:
+    """Same-day portfolio drop alerts: for every user's holdings, flag any
+    ticker down ≥1% from yesterday's close, gather sentiment/news + the
+    Predict-page quant signal, and record an in-app recommended-action
+    alert. Off by default — unlike the other flags, enabling this starts
+    real per-drop external API + LLM spend and user-visible notifications,
+    so it's an admin's deliberate opt-in, not a safe-by-default background job."""
+    if not await get_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, default=False):
+        logger.info("Scheduler: portfolio_drop_alerts is disabled, skipping this run")
+        return
+    inserted = await scan_portfolios_for_drops()
+    if inserted:
+        logger.info("Scheduler: inserted %d portfolio drop alerts", inserted)
+
+
 async def _capture_pit_data_job() -> None:
     """TR-3: append today's prices (Phase 1), universe membership (Phase 2),
     and fundamentals (Phase 3) to their respective point-in-time stores. One
@@ -183,6 +204,15 @@ def start_scheduler() -> AsyncIOScheduler:
         max_instances=1,
     )
     _scheduler.add_job(
+        _scan_portfolio_drops_job,
+        "interval",
+        minutes=PORTFOLIO_DROP_INTERVAL_MINUTES,
+        id="scan_portfolio_drops",
+        next_run_time=datetime.now(),
+        coalesce=True,
+        max_instances=1,
+    )
+    _scheduler.add_job(
         _capture_pit_data_job,
         CronTrigger(
             hour=PIT_CAPTURE_HOUR_ET, minute=PIT_CAPTURE_MINUTE_ET,
@@ -218,9 +248,11 @@ def start_scheduler() -> AsyncIOScheduler:
     _scheduler.start()
     logger.info(
         "Background scheduler started (verify_saved_predictions every %d min, "
-        "evaluate_watchlist_alerts every %d min, capture_pit_data weekdays %02d:%02d ET, "
-        "publish_daily_signals weekdays %02d:%02d ET, evaluate_signal_outcomes weekdays %02d:%02d ET)",
-        VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PIT_CAPTURE_HOUR_ET, PIT_CAPTURE_MINUTE_ET,
+        "evaluate_watchlist_alerts every %d min, scan_portfolio_drops every %d min, "
+        "capture_pit_data weekdays %02d:%02d ET, publish_daily_signals weekdays %02d:%02d ET, "
+        "evaluate_signal_outcomes weekdays %02d:%02d ET)",
+        VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PORTFOLIO_DROP_INTERVAL_MINUTES,
+        PIT_CAPTURE_HOUR_ET, PIT_CAPTURE_MINUTE_ET,
         PUBLISH_HOUR_ET, PUBLISH_MINUTE_ET, EVALUATE_HOUR_ET, EVALUATE_MINUTE_ET,
     )
     return _scheduler

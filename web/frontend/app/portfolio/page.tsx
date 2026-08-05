@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import type { ManualPositionInput, PortfolioPerformance, PortfolioStrategyRow, PortfolioSummary } from "@/lib/types";
 import PlanText from "@/components/PlanText";
+import PortfolioDropAlerts from "@/components/PortfolioDropAlerts";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 
@@ -261,6 +262,8 @@ export default function PortfolioPage() {
         Import a Robinhood activity CSV or enter positions manually to get short- and long-term plans per holding.
         Each save also sets watchlist alerts by default at the suggested upside target and stop for every position.
       </p>
+
+      <PortfolioDropAlerts />
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
         <Field label="Risk profile">

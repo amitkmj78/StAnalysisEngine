@@ -441,6 +441,23 @@ export interface AdminSettings {
   publish_signals_enabled: boolean;
   password_policy_enabled: boolean;
   pit_price_capture_enabled: boolean;
+  portfolio_drop_alerts_enabled: boolean;
+}
+
+export interface PortfolioDropAlert {
+  id: number;
+  ticker: string;
+  alert_date: string;
+  prev_close: number;
+  price_at_check: number;
+  pct_change: number;
+  sentiment_summary: string | null;
+  predicted_signal: string | null;
+  predicted_expected_return_pct: number | null;
+  predicted_target_price: number | null;
+  recommended_action: string | null;
+  created_at: string;
+  seen_at: string | null;
 }
 
 export interface PitCaptureStats {

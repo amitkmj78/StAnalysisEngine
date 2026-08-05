@@ -12,8 +12,10 @@ from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
 from services.positions_from_csv import positions_from_activity_csv
 
+from web.backend.admin import require_admin
 from web.backend.auth import verify_bearer_token
 from web.backend.db import user_conn
+from web.backend.portfolio_alerts import scan_portfolios_for_drops
 from web.backend.rate_limit import enforce_daily_quota, limiter
 
 router = APIRouter(prefix="/api/v1/portfolio", tags=["portfolio"], dependencies=[Depends(verify_bearer_token)])
@@ -315,3 +317,41 @@ async def portfolio_performance(request: Request, lookback_days: int = 30):
         }
 
     return await run_in_threadpool(compute_portfolio_performance, positions, lookback_days)
+
+
+@router.get("/drop-alerts")
+async def list_drop_alerts(request: Request):
+    """Same-day drop alerts for the current user's holdings — sentiment/news
+    context plus the Predict-page quant signal, synthesized into a
+    recommended-action note. Populated by the scan_portfolio_drops
+    scheduler job (off by default; an admin opts in via /admin/settings)."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        records = await conn.fetch(
+            "SELECT * FROM portfolio_drop_alerts ORDER BY created_at DESC"
+        )
+    return {"alerts": [_record_to_dict(r) for r in records]}
+
+
+@router.post("/drop-alerts/{alert_id}/dismiss")
+async def dismiss_drop_alert(alert_id: int, request: Request):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "UPDATE portfolio_drop_alerts SET seen_at = now() WHERE id = $1 AND user_id = $2::uuid RETURNING id",
+            alert_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Alert not found.")
+    return {"ok": True}
+
+
+@router.post("/drop-alerts/scan-now", dependencies=[Depends(require_admin)])
+async def scan_drop_alerts_now():
+    """Manual trigger for the same scan the scheduler runs every 15
+    minutes — for verifying the pipeline, not routine use. No enable-gate:
+    unlike publish-now, this doesn't start a public/irreversible record,
+    it just checks current holdings and (if a drop is found) analyzes and
+    notifies — the same thing that would happen on the next tick anyway."""
+    inserted = await scan_portfolios_for_drops()
+    return {"inserted": inserted}

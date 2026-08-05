@@ -467,6 +467,33 @@ create policy portfolio_strategies_isolation on portfolio_strategies
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- One row per user/ticker/day a same-day drop was detected — the unique
+-- constraint is what keeps the scheduler from re-running the expensive
+-- sentiment+LLM analysis (and re-notifying) on every scan tick.
+create table if not exists portfolio_drop_alerts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  ticker text not null,
+  alert_date date not null,
+  prev_close real not null,
+  price_at_check real not null,
+  pct_change real not null,
+  sentiment_summary text,
+  predicted_signal text,
+  predicted_expected_return_pct real,
+  predicted_target_price real,
+  recommended_action text,
+  created_at timestamptz not null default now(),
+  seen_at timestamptz,
+  unique (user_id, ticker, alert_date)
+);
+create index if not exists portfolio_drop_alerts_user_idx on portfolio_drop_alerts(user_id, created_at desc);
+alter table portfolio_drop_alerts enable row level security;
+drop policy if exists portfolio_drop_alerts_isolation on portfolio_drop_alerts;
+create policy portfolio_drop_alerts_isolation on portfolio_drop_alerts
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 create table if not exists request_log (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,
@@ -535,6 +562,8 @@ insert into app_settings (key, value) values ('publish_signals_enabled', 'false'
 insert into app_settings (key, value) values ('password_policy_enabled', 'true')
   on conflict (key) do nothing;
 insert into app_settings (key, value) values ('pit_price_capture_enabled', 'true')
+  on conflict (key) do nothing;
+insert into app_settings (key, value) values ('portfolio_drop_alerts_enabled', 'false')
   on conflict (key) do nothing;
 
 -- Public track-record ledger (TR-1/TR-2). Not user-scoped, no RLS: this is
@@ -672,6 +701,7 @@ $$;
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
 grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts to app_user;
+grant select, update on portfolio_drop_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;
 grant select, insert, update, delete on users to app_service;
@@ -690,6 +720,7 @@ grant select on pit_universe_membership to app_user;
 grant select, insert on pit_universe_membership to app_service;
 grant select on pit_fundamentals to app_user;
 grant select, insert on pit_fundamentals to app_service;
+grant select, insert on portfolio_drop_alerts to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """
 

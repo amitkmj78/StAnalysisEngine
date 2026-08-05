@@ -17,6 +17,11 @@ PASSWORD_POLICY_ENABLED_KEY = "password_policy_enabled"
 # already live in production — renaming would need a settings migration for
 # no functional gain.
 PIT_PRICE_CAPTURE_ENABLED_KEY = "pit_price_capture_enabled"
+# Defaults OFF: unlike the other flags above, this triggers real external
+# cost per drop detected (a Tavily sentiment search plus an LLM call) and
+# writes user-visible content — an admin should opt in deliberately rather
+# than have it start emailing/notifying users the moment this deploys.
+PORTFOLIO_DROP_ALERTS_ENABLED_KEY = "portfolio_drop_alerts_enabled"
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

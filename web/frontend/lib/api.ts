@@ -20,6 +20,7 @@ import type {
   MomentumOptions,
   MonthlyPlanResponse,
   PitPriceStatus,
+  PortfolioDropAlert,
   PortfolioPerformance,
   PortfolioPosition,
   PortfolioStrategyRow,
@@ -342,6 +343,14 @@ export function getPortfolioPerformance(lookbackDays = 30) {
   return apiFetch<PortfolioPerformance>("/api/v1/portfolio/performance", { lookback_days: String(lookbackDays) });
 }
 
+export function getPortfolioDropAlerts() {
+  return apiFetch<{ alerts: PortfolioDropAlert[] }>("/api/v1/portfolio/drop-alerts");
+}
+
+export function dismissPortfolioDropAlert(alertId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/portfolio/drop-alerts/${alertId}/dismiss`, "POST");
+}
+
 // Meta-Agent Chat
 export function getChatProviders() {
   return apiFetch<ChatProvidersResponse>("/api/v1/chat/providers");
@@ -442,6 +451,18 @@ export function capturePitPricesNow() {
 
 export function publishSignalsNow() {
   return apiSend<{ published: number }>("/api/v1/signals/publish-now", "POST");
+}
+
+export function enablePortfolioDropAlerts() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/portfolio-drop-alerts/enable", "POST");
+}
+
+export function disablePortfolioDropAlerts() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/portfolio-drop-alerts/disable", "POST");
+}
+
+export function scanPortfolioDropAlertsNow() {
+  return apiSend<{ inserted: number }>("/api/v1/portfolio/drop-alerts/scan-now", "POST");
 }
 
 export function getPublishedSignals(params?: { targetDate?: string; universeId?: string; lookbackDays?: number }) {
