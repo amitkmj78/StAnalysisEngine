@@ -705,6 +705,10 @@ grant select, update on portfolio_drop_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;
 grant select, insert, update, delete on users to app_service;
+-- Read-only, cross-user: the portfolio drop-alert scan needs to see every
+-- user's holdings, not just one RLS-scoped user's own (service_conn
+-- bypasses RLS but still needs an explicit grant per table).
+grant select on portfolio_positions to app_service;
 grant select, update on saved_predictions to app_service;
 grant select, update on watchlist_alerts to app_service;
 grant select, insert, update on app_settings to app_service;
