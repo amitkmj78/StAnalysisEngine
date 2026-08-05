@@ -14,7 +14,11 @@ from web.backend.app_settings import (
     get_setting_bool,
 )
 from web.backend.db import service_conn
-from web.backend.pit_prices import capture_and_persist_pit_prices
+from web.backend.pit_prices import (
+    capture_and_persist_fundamentals,
+    capture_and_persist_pit_prices,
+    capture_and_persist_universe_membership,
+)
 from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
 
 logger = logging.getLogger(__name__)
@@ -102,17 +106,27 @@ async def _evaluate_watchlist_alerts() -> None:
     logger.info("Scheduler: checked %d watchlist alerts, triggered %d", checked, triggered)
 
 
-async def _capture_pit_prices_job() -> None:
-    """TR-3 Phase 1: append today's close for the tracked universe to the
-    point-in-time price store. Gated by its own flag, independent of
-    publish_signals_enabled — this is internal data accumulation, not a
-    public act, so it's safe to default on."""
+async def _capture_pit_data_job() -> None:
+    """TR-3: append today's prices (Phase 1), universe membership (Phase 2),
+    and fundamentals (Phase 3) to their respective point-in-time stores. One
+    flag gates all three — they're the same "start the clock" concern, just
+    different tables — independent of publish_signals_enabled since this is
+    internal data accumulation, not a public act, so it's safe to default
+    on. Membership runs first (cheapest, no external I/O), then prices,
+    then fundamentals (heaviest — one yfinance request per ticker)."""
     if not await get_setting_bool(PIT_PRICE_CAPTURE_ENABLED_KEY, default=True):
         logger.info("Scheduler: pit_price_capture is disabled, skipping this run")
         return
-    inserted = await capture_and_persist_pit_prices()
-    if inserted:
-        logger.info("Scheduler: captured %d new PIT price rows", inserted)
+
+    membership_inserted = await capture_and_persist_universe_membership()
+    price_inserted = await capture_and_persist_pit_prices()
+    fundamentals_inserted = await capture_and_persist_fundamentals()
+
+    if membership_inserted or price_inserted or fundamentals_inserted:
+        logger.info(
+            "Scheduler: PIT capture — %d membership rows, %d price rows, %d fundamentals rows",
+            membership_inserted, price_inserted, fundamentals_inserted,
+        )
 
 
 async def _publish_daily_signals_job() -> None:
@@ -169,12 +183,12 @@ def start_scheduler() -> AsyncIOScheduler:
         max_instances=1,
     )
     _scheduler.add_job(
-        _capture_pit_prices_job,
+        _capture_pit_data_job,
         CronTrigger(
             hour=PIT_CAPTURE_HOUR_ET, minute=PIT_CAPTURE_MINUTE_ET,
             day_of_week="mon-fri", timezone="America/New_York",
         ),
-        id="capture_pit_prices",
+        id="capture_pit_data",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,
@@ -204,7 +218,7 @@ def start_scheduler() -> AsyncIOScheduler:
     _scheduler.start()
     logger.info(
         "Background scheduler started (verify_saved_predictions every %d min, "
-        "evaluate_watchlist_alerts every %d min, capture_pit_prices weekdays %02d:%02d ET, "
+        "evaluate_watchlist_alerts every %d min, capture_pit_data weekdays %02d:%02d ET, "
         "publish_daily_signals weekdays %02d:%02d ET, evaluate_signal_outcomes weekdays %02d:%02d ET)",
         VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PIT_CAPTURE_HOUR_ET, PIT_CAPTURE_MINUTE_ET,
         PUBLISH_HOUR_ET, PUBLISH_MINUTE_ET, EVALUATE_HOUR_ET, EVALUATE_MINUTE_ET,

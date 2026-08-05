@@ -429,7 +429,11 @@ export function getPitPriceStatus() {
 }
 
 export function capturePitPricesNow() {
-  return apiSend<{ inserted: number }>("/api/v1/pit-prices/capture-now", "POST");
+  return apiSend<{
+    prices_inserted: number;
+    universe_membership_inserted: number;
+    fundamentals_inserted: number;
+  }>("/api/v1/pit-prices/capture-now", "POST");
 }
 
 export function publishSignalsNow() {

@@ -10,7 +10,43 @@ import {
   getAdminSettings,
   getPitPriceStatus,
 } from "@/lib/api";
-import type { PitPriceStatus } from "@/lib/types";
+import type { PitCaptureStats, PitPriceStatus } from "@/lib/types";
+
+function CaptureStatsGrid({
+  title,
+  countLabel,
+  countValue,
+  stats,
+}: {
+  title: string;
+  countLabel: string;
+  countValue: number;
+  stats: PitCaptureStats;
+}) {
+  return (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+      <dl className="mt-1 grid grid-cols-2 gap-3 rounded-md bg-slate-50 p-3 text-sm sm:grid-cols-4">
+        <div>
+          <dt className="text-xs text-slate-500">Days captured</dt>
+          <dd className="font-medium text-slate-900">{stats.days_captured}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">{countLabel}</dt>
+          <dd className="font-medium text-slate-900">{countValue}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Earliest date</dt>
+          <dd className="font-medium text-slate-900">{stats.earliest_date ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Latest date</dt>
+          <dd className="font-medium text-slate-900">{stats.latest_date ?? "—"}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
 
 export default function PitPriceControls() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -29,7 +65,7 @@ export default function PitPriceControls() {
       setEnabled(settings.pit_price_capture_enabled);
       setStatus(pitStatus);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load PIT price capture status.");
+      setError(err instanceof ApiError ? err.message : "Failed to load PIT capture status.");
     }
   }
 
@@ -44,7 +80,7 @@ export default function PitPriceControls() {
       const result = enabled ? await disablePitPriceCapture() : await enablePitPriceCapture();
       setEnabled(result.pit_price_capture_enabled);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to update PIT price capture setting.");
+      setError(err instanceof ApiError ? err.message : "Failed to update PIT capture setting.");
     } finally {
       setBusy(false);
     }
@@ -56,9 +92,11 @@ export default function PitPriceControls() {
     setCaptureResult(null);
     try {
       const res = await capturePitPricesNow();
+      const total = res.prices_inserted + res.universe_membership_inserted + res.fundamentals_inserted;
       setCaptureResult(
-        res.inserted > 0
-          ? `Captured ${res.inserted} new prices just now.`
+        total > 0
+          ? `Captured ${res.prices_inserted} price, ${res.universe_membership_inserted} membership, ` +
+            `${res.fundamentals_inserted} fundamentals rows just now.`
           : "Already captured for today — nothing new."
       );
       const pitStatus = await getPitPriceStatus();
@@ -74,13 +112,13 @@ export default function PitPriceControls() {
     <div className="rounded-lg border border-slate-200 bg-white p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Point-in-Time Price Store (TR-3 Phase 1)</h2>
+          <h2 className="font-semibold text-slate-900">Point-in-Time Data Store (TR-3)</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Daily job (weekdays, 4:05pm ET) that appends today&apos;s close for the tracked universe to an
-            append-only store. Once captured, a row is never overwritten — that&apos;s what makes it a
-            genuine point-in-time record rather than a snapshot that could quietly change if the data
-            vendor later revises history. Nothing reads from this store yet; it exists to accumulate
-            history for later phases (honest historical comparisons and PIT-aware backtests).
+            Daily job (weekdays, 4:05pm ET) that appends today&apos;s prices, universe membership, and
+            fundamentals to three append-only stores. Once captured, a row is never overwritten — that&apos;s
+            what makes it a genuine point-in-time record rather than a snapshot that could quietly change if
+            the data vendor later revises history. Nothing reads from these stores yet; they exist to
+            accumulate history for later phases (honest historical comparisons and PIT-aware backtests).
           </p>
         </div>
         {enabled !== null && (
@@ -95,24 +133,26 @@ export default function PitPriceControls() {
       </div>
 
       {status && (
-        <dl className="mt-4 grid grid-cols-2 gap-3 rounded-md bg-slate-50 p-3 text-sm sm:grid-cols-4">
-          <div>
-            <dt className="text-xs text-slate-500">Trading days captured</dt>
-            <dd className="font-medium text-slate-900">{status.trading_days_captured}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500">Tickers</dt>
-            <dd className="font-medium text-slate-900">{status.ticker_count}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500">Earliest date</dt>
-            <dd className="font-medium text-slate-900">{status.earliest_date ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500">Latest date</dt>
-            <dd className="font-medium text-slate-900">{status.latest_date ?? "—"}</dd>
-          </div>
-        </dl>
+        <div className="mt-4 flex flex-col gap-3">
+          <CaptureStatsGrid
+            title="Prices (Phase 1)"
+            countLabel="Tickers"
+            countValue={status.prices.ticker_count}
+            stats={status.prices}
+          />
+          <CaptureStatsGrid
+            title="Universe membership (Phase 2)"
+            countLabel="Universes"
+            countValue={status.universe_membership.universe_count}
+            stats={status.universe_membership}
+          />
+          <CaptureStatsGrid
+            title="Fundamentals (Phase 3)"
+            countLabel="Tickers"
+            countValue={status.fundamentals.ticker_count}
+            stats={status.fundamentals}
+          />
+        </div>
       )}
 
       {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

@@ -443,14 +443,31 @@ export interface AdminSettings {
   pit_price_capture_enabled: boolean;
 }
 
-export interface PitPriceStatus {
-  universe_id: string;
+export interface PitCaptureStats {
   row_count: number;
-  ticker_count: number;
-  trading_days_captured: number;
+  days_captured: number;
   earliest_date: string | null;
   latest_date: string | null;
   last_captured_at_utc: string | null;
+}
+
+export interface PitPricesStats extends PitCaptureStats {
+  ticker_count: number;
+}
+
+export interface PitUniverseMembershipStats extends PitCaptureStats {
+  universe_count: number;
+}
+
+export interface PitFundamentalsStats extends PitCaptureStats {
+  ticker_count: number;
+}
+
+export interface PitPriceStatus {
+  universe_id: string;
+  prices: PitPricesStats;
+  universe_membership: PitUniverseMembershipStats;
+  fundamentals: PitFundamentalsStats;
 }
 
 export interface PublishedSignalRow {

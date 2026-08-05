@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
+from starlette.concurrency import run_in_threadpool
 
+from services.email_service import send_welcome_email
 from web.backend.admin import ADMIN_EMAIL, require_admin
 from web.backend.db import service_conn
 
@@ -36,6 +38,9 @@ async def approve_user(user_id: str):
         )
     if row is None:
         raise HTTPException(404, "User not found.")
+    # Best-effort — send_welcome_email logs and returns False on failure
+    # rather than raising, so a broken mail provider can't block approval.
+    await run_in_threadpool(send_welcome_email, row["email"])
     return {"id": str(row["id"]), "email": row["email"], "approved": row["approved"]}
 
 

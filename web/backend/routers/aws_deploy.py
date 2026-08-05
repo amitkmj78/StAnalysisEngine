@@ -619,6 +619,41 @@ create table if not exists pit_prices (
 );
 create index if not exists pit_prices_ticker_date_idx on pit_prices(ticker, price_date desc);
 
+-- TR-3 Phase 2: point-in-time universe membership snapshots. INDEX_MAP /
+-- INDEX_FUND_UNIVERSE in code today are static — a delisted, merged, or
+-- renamed ticker just vanishes with no record. This starts an honest
+-- going-forward history; it cannot backfill what already changed before
+-- capture began.
+create table if not exists pit_universe_membership (
+  id bigint generated always as identity primary key,
+  asset_type text not null,
+  universe_key text not null,
+  ticker text not null,
+  snapshot_date date not null,
+  captured_at_utc timestamptz not null default now(),
+  unique (asset_type, universe_key, ticker, snapshot_date)
+);
+create index if not exists pit_universe_membership_lookup_idx
+  on pit_universe_membership(asset_type, universe_key, snapshot_date desc);
+
+-- TR-3 Phase 3: point-in-time fundamentals for the "Long Term" composite
+-- score's fundamental inputs (see stock_finder_service.GOAL_WEIGHTS) — the
+-- missing piece blocking an honest walk-forward backtest of Best Stock
+-- Finder / Best Index Fund's Long Term ranking, which today can only ever
+-- see today's fundamentals no matter what historical date it's asked about.
+create table if not exists pit_fundamentals (
+  id bigint generated always as identity primary key,
+  ticker text not null,
+  as_of_date date not null,
+  forward_pe real,
+  revenue_growth_pct real,
+  earnings_growth_pct real,
+  captured_at_utc timestamptz not null default now(),
+  source text not null default 'yfinance',
+  unique (ticker, as_of_date)
+);
+create index if not exists pit_fundamentals_ticker_date_idx on pit_fundamentals(ticker, as_of_date desc);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -651,6 +686,10 @@ grant select on backtest_runs to app_user;
 grant select, insert on backtest_runs to app_service;
 grant select on pit_prices to app_user;
 grant select, insert on pit_prices to app_service;
+grant select on pit_universe_membership to app_user;
+grant select, insert on pit_universe_membership to app_service;
+grant select on pit_fundamentals to app_user;
+grant select, insert on pit_fundamentals to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """
 

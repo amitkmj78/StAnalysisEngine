@@ -9,9 +9,13 @@ PUBLISH_SIGNALS_ENABLED_KEY = "publish_signals_enabled"
 # Defaults ON — the secure default. Admin can turn it off (e.g. temporarily,
 # to debug a signup issue) without a deploy.
 PASSWORD_POLICY_ENABLED_KEY = "password_policy_enabled"
-# Defaults ON — internal data capture with no legal/compliance gate like
-# publish_signals_enabled has. Admin can pause it (e.g. yfinance rate limits,
-# a bad run) without losing history already captured.
+# Gates all TR-3 daily capture — prices, universe membership, fundamentals
+# (Phases 1-3, one job, one flag). Defaults ON — internal data capture with
+# no legal/compliance gate like publish_signals_enabled has. Admin can pause
+# it (e.g. yfinance rate limits, a bad run) without losing history already
+# captured. Key name kept as-is (pit_price_capture_enabled) since it's
+# already live in production — renaming would need a settings migration for
+# no functional gain.
 PIT_PRICE_CAPTURE_ENABLED_KEY = "pit_price_capture_enabled"
 
 
