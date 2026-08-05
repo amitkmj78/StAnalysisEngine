@@ -368,6 +368,10 @@ export function deleteUser(userId: string) {
   return apiSend<{ ok: boolean }>(`/api/v1/admin/users/${userId}`, "DELETE");
 }
 
+export function sendWelcomeEmail(userId: string) {
+  return apiSend<{ ok: boolean; email: string }>(`/api/v1/admin/users/${userId}/send-welcome-email`, "POST");
+}
+
 export function getAdminActivity(limit = 200) {
   return apiFetch<AdminActivityRow[]>("/api/v1/admin/activity", { limit: String(limit) });
 }

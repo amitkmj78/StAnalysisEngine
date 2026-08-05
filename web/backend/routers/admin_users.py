@@ -40,8 +40,36 @@ async def approve_user(user_id: str):
         raise HTTPException(404, "User not found.")
     # Best-effort — send_welcome_email logs and returns False on failure
     # rather than raising, so a broken mail provider can't block approval.
-    await run_in_threadpool(send_welcome_email, row["email"])
-    return {"id": str(row["id"]), "email": row["email"], "approved": row["approved"]}
+    sent = await run_in_threadpool(send_welcome_email, row["email"])
+    return {
+        "id": str(row["id"]),
+        "email": row["email"],
+        "approved": row["approved"],
+        "welcome_email_sent": sent,
+    }
+
+
+@router.post("/{user_id}/send-welcome-email")
+async def send_welcome_email_now(user_id: str):
+    """Manual (re)send — for a user whose auto-send-on-approve failed (e.g.
+    mail wasn't configured yet at the time) or who just wants the info
+    again. Unlike the approval flow, a failure here is reported back rather
+    than swallowed, since sending the email is the whole point of the
+    admin clicking this button."""
+    async with service_conn() as conn:
+        row = await conn.fetchrow("SELECT email, approved FROM users WHERE id = $1", user_id)
+    if row is None:
+        raise HTTPException(404, "User not found.")
+    if not row["approved"]:
+        raise HTTPException(400, "User is not approved yet — approve them first.")
+    sent = await run_in_threadpool(send_welcome_email, row["email"])
+    if not sent:
+        raise HTTPException(
+            502,
+            "Email failed to send — check GMAIL_SENDER_EMAIL/GMAIL_APP_PASSWORD are configured "
+            "correctly and check server logs for the underlying error.",
+        )
+    return {"ok": True, "email": row["email"]}
 
 
 @router.post("/{user_id}/reject")

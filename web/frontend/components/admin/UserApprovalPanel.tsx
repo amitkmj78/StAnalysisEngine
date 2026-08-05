@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, approveUser, deleteUser, getAdminUsers, rejectUser } from "@/lib/api";
+import { ApiError, approveUser, deleteUser, getAdminUsers, rejectUser, sendWelcomeEmail } from "@/lib/api";
 import type { AdminUser } from "@/lib/types";
 
 export default function UserApprovalPanel({ currentUserEmail }: { currentUserEmail: string }) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [emailStatus, setEmailStatus] = useState<Record<string, "sent" | "failed">>({});
 
   async function load() {
     setError(null);
@@ -42,6 +43,24 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Reject failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleSendWelcomeEmail(id: string) {
+    setBusyId(id);
+    setEmailStatus((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    try {
+      await sendWelcomeEmail(id);
+      setEmailStatus((prev) => ({ ...prev, [id]: "sent" }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to send welcome email.");
+      setEmailStatus((prev) => ({ ...prev, [id]: "failed" }));
     } finally {
       setBusyId(null);
     }
@@ -137,15 +156,30 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                   <td className="px-3 py-2 text-slate-700">{u.email}</td>
                   <td className="px-3 py-2 text-slate-500">{new Date(u.created_at).toLocaleString()}</td>
                   <td className="px-3 py-2 text-right">
-                    {u.email.toLowerCase() !== currentUserEmail.toLowerCase() && (
+                    <div className="flex items-center justify-end gap-2">
+                      {emailStatus[u.id] === "sent" && (
+                        <span className="text-xs font-medium text-emerald-700">Sent</span>
+                      )}
+                      {emailStatus[u.id] === "failed" && (
+                        <span className="text-xs font-medium text-red-700">Failed</span>
+                      )}
                       <button
-                        onClick={() => handleDelete(u.id, u.email)}
+                        onClick={() => handleSendWelcomeEmail(u.id)}
                         disabled={busyId === u.id}
-                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
                       >
-                        Delete
+                        {busyId === u.id ? "Sending…" : "Send Welcome Email"}
                       </button>
-                    )}
+                      {u.email.toLowerCase() !== currentUserEmail.toLowerCase() && (
+                        <button
+                          onClick={() => handleDelete(u.id, u.email)}
+                          disabled={busyId === u.id}
+                          className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
