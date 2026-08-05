@@ -439,6 +439,7 @@ export interface WatchlistAlert {
 export interface AdminSettings {
   verify_predictions_enabled: boolean;
   publish_signals_enabled: boolean;
+  password_policy_enabled: boolean;
 }
 
 export interface PublishedSignalRow {

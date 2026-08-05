@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import PasswordPolicyControls from "@/components/admin/PasswordPolicyControls";
 import UserApprovalPanel from "@/components/admin/UserApprovalPanel";
 import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
@@ -21,6 +22,10 @@ export default async function AdminUsersPage() {
 
       <div className="mt-6">
         <UserApprovalPanel currentUserEmail={user!.email} />
+      </div>
+
+      <div className="mt-8">
+        <PasswordPolicyControls />
       </div>
     </div>
   );

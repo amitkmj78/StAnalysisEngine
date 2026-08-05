@@ -407,6 +407,14 @@ export function disablePublishSignals() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/publish-signals/disable", "POST");
 }
 
+export function enablePasswordPolicy() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/password-policy/enable", "POST");
+}
+
+export function disablePasswordPolicy() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/password-policy/disable", "POST");
+}
+
 export function publishSignalsNow() {
   return apiSend<{ published: number }>("/api/v1/signals/publish-now", "POST");
 }

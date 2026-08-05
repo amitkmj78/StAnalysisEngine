@@ -6,6 +6,9 @@ VERIFY_PREDICTIONS_ENABLED_KEY = "verify_predictions_enabled"
 # *before* the first real publication happens. Deploying the publication
 # pipeline must not itself start publishing — an explicit admin opt-in does.
 PUBLISH_SIGNALS_ENABLED_KEY = "publish_signals_enabled"
+# Defaults ON — the secure default. Admin can turn it off (e.g. temporarily,
+# to debug a signup issue) without a deploy.
+PASSWORD_POLICY_ENABLED_KEY = "password_policy_enabled"
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

@@ -5,6 +5,7 @@ PyJWT
 slowapi
 asyncpg
 bcrypt
+httpx
 email-validator
 boto3
 paramiko

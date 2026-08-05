@@ -7,7 +7,10 @@ import jwt
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr
 
+from services.password_policy_service import is_breached_password, validate_password_policy
+
 from web.backend.admin import ADMIN_EMAIL
+from web.backend.app_settings import PASSWORD_POLICY_ENABLED_KEY, get_setting_bool
 from web.backend.auth import SESSION_COOKIE_NAME, verify_bearer_token
 from web.backend.db import service_conn
 
@@ -48,7 +51,19 @@ class LoginRequest(BaseModel):
 
 @router.post("/signup")
 async def signup(body: SignupRequest, response: Response):
-    if len(body.password) < 8:
+    if await get_setting_bool(PASSWORD_POLICY_ENABLED_KEY, default=True):
+        policy_error = validate_password_policy(body.password)
+        if policy_error:
+            raise HTTPException(422, policy_error)
+        if await is_breached_password(body.password):
+            raise HTTPException(
+                422,
+                "That password has appeared in known data breaches — pick a different one. "
+                "(Checked via Have I Been Pwned's k-anonymity API; your password itself is never sent.)",
+            )
+    elif len(body.password) < 8:
+        # Policy toggled off by admin — still enforce an absolute floor,
+        # not "any password of any length."
         raise HTTPException(422, "Password must be at least 8 characters.")
 
     password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
