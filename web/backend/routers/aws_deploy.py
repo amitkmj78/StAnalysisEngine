@@ -577,6 +577,27 @@ create table if not exists signal_outcomes (
 create index if not exists signal_outcomes_lookup_idx
   on signal_outcomes(target_date, universe_id, lookback_days, horizon_days);
 
+-- TR-7: every backtest run persists its full parameter set and result,
+-- retrievable forever by id — not user-scoped, no RLS, since a backtest
+-- configuration/result isn't private data (same treatment as
+-- published_signals/signal_outcomes).
+create table if not exists backtest_runs (
+  id bigint generated always as identity primary key,
+  requested_at_utc timestamptz not null default now(),
+  asset_type text not null,
+  universe text not null,
+  lookback_days integer not null,
+  top_n integer not null,
+  years integer not null,
+  slippage_bps real not null,
+  commission_bps real not null,
+  borrow_cost_bps_annual real not null,
+  risk_free_rate_annual real not null,
+  result_json jsonb not null
+);
+create index if not exists backtest_runs_lookup_idx
+  on backtest_runs(asset_type, universe, lookback_days, top_n, years);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -605,6 +626,8 @@ grant select on published_signals to app_user;
 grant select, insert on published_signals to app_service;
 grant select on signal_outcomes to app_user;
 grant select, insert on signal_outcomes to app_service;
+grant select on backtest_runs to app_user;
+grant select, insert on backtest_runs to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """
 
