@@ -144,6 +144,11 @@ export default function TopPerformersPage() {
           every stock in the universe equally over that same stretch. No cherry-picking: it&apos;s the identical
           rule applied consistently, so it can be re-checked honestly at any past date.
         </p>
+        <p className="mt-2 text-xs text-slate-500">
+          Trading costs are included by default, not left out to flatter the number: 5 bps slippage plus
+          commission each time a position turns over. Every return below is net of those costs unless labeled
+          otherwise.
+        </p>
         <button
           onClick={runBacktest}
           disabled={backtestLoading}
@@ -199,18 +204,40 @@ export default function TopPerformersPage() {
               loss.
             </p>
 
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <BacktestTile label="CAGR" hint="annualized growth rate" value={backtest.cagr_pct !== null ? `${backtest.cagr_pct.toFixed(1)}%` : "N/A"} positive={backtest.cagr_pct !== null && backtest.cagr_pct >= 0} />
+              <BacktestTile label="Volatility" hint="annualized" value={backtest.volatility_pct !== null ? `${backtest.volatility_pct.toFixed(1)}%` : "N/A"} />
+              <BacktestTile label="Sharpe" hint="return per unit of risk" value={backtest.sharpe_ratio !== null ? backtest.sharpe_ratio.toFixed(2) : "N/A"} positive={backtest.sharpe_ratio !== null && backtest.sharpe_ratio >= 0} />
+              <BacktestTile label="Sortino" hint="penalizes only downside" value={backtest.sortino_ratio !== null ? backtest.sortino_ratio.toFixed(2) : "N/A"} positive={backtest.sortino_ratio !== null && backtest.sortino_ratio >= 0} />
+              <BacktestTile label="Max Drawdown" hint="worst peak-to-trough" value={backtest.max_drawdown_pct !== null ? `${backtest.max_drawdown_pct.toFixed(1)}%` : "N/A"} positive={backtest.max_drawdown_pct !== null && backtest.max_drawdown_pct >= -0.01} />
+              <BacktestTile label="Avg Turnover" hint="per rebalance round" value={backtest.avg_turnover_pct !== null ? `${backtest.avg_turnover_pct.toFixed(0)}%` : "N/A"} />
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              {backtest.capacity_estimate_usd !== null && (
+                <>
+                  Rough capacity estimate: about{" "}
+                  <strong>${(backtest.capacity_estimate_usd / 1_000_000).toFixed(1)}M</strong> before this
+                  strategy&apos;s own trading would likely start moving the least-liquid pick&apos;s price — a
+                  simple 1%-of-average-daily-volume heuristic, not a real market-impact model. Costs assumed:{" "}
+                  {backtest.slippage_bps} bps slippage, {backtest.commission_bps} bps commission per trade.
+                </>
+              )}
+            </p>
+
             <details className="mt-3 text-xs text-slate-600">
               <summary className="cursor-pointer font-medium text-slate-700">
                 Show all {backtest.periods.length} rounds, one by one
               </summary>
-              <div className="mt-2 max-h-80 overflow-y-auto rounded-md border border-slate-200 bg-white">
+              <div className="mt-2 max-h-80 overflow-y-auto overflow-x-auto rounded-md border border-slate-200 bg-white">
                 <table className="min-w-full text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
                       <th className="px-2 py-1.5">Date</th>
                       <th className="px-2 py-1.5">Our 5 Picks</th>
-                      <th className="px-2 py-1.5 text-right">Picks Return</th>
+                      <th className="px-2 py-1.5 text-right">Picks Return (Net)</th>
+                      <th className="px-2 py-1.5 text-right">Picks Return (Gross)</th>
                       <th className="px-2 py-1.5 text-right">Own-Everything Return</th>
+                      <th className="px-2 py-1.5 text-right">Turnover</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -221,15 +248,21 @@ export default function TopPerformersPage() {
                         <td className="px-2 py-1.5 text-right text-slate-700">
                           {p.strategy_return_pct !== null ? `${p.strategy_return_pct.toFixed(2)}%` : "—"}
                         </td>
+                        <td className="px-2 py-1.5 text-right text-slate-400">
+                          {p.strategy_return_gross_pct !== null ? `${p.strategy_return_gross_pct.toFixed(2)}%` : "—"}
+                        </td>
                         <td className="px-2 py-1.5 text-right text-slate-700">
                           {p.benchmark_return_pct !== null ? `${p.benchmark_return_pct.toFixed(2)}%` : "—"}
                         </td>
+                        <td className="px-2 py-1.5 text-right text-slate-500">{p.turnover_pct.toFixed(0)}%</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </details>
+
+            <p className="mt-2 text-xs text-slate-400">Run #{backtest.run_id} — retrievable later at this exact result.</p>
           </div>
         )}
       </div>

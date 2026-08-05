@@ -527,21 +527,35 @@ export interface MomentumBacktestPeriod {
   date: string;
   picks: string[];
   strategy_return_pct: number | null;
+  strategy_return_gross_pct: number | null;
   benchmark_return_pct: number | null;
+  turnover_pct: number;
 }
 
 export interface MomentumBacktestResponse {
+  run_id: number;
   asset_type: string;
   universe: string;
   lookback_days: number;
   top_n: number;
   years: number;
+  slippage_bps: number;
+  commission_bps: number;
+  borrow_cost_bps_annual: number;
+  risk_free_rate_annual: number;
   num_periods: number;
   hit_rate_pct: number | null;
   strategy_cumulative_return_pct: number | null;
   benchmark_cumulative_return_pct: number | null;
   avg_strategy_period_return_pct: number | null;
   avg_benchmark_period_return_pct: number | null;
+  cagr_pct: number | null;
+  volatility_pct: number | null;
+  sharpe_ratio: number | null;
+  sortino_ratio: number | null;
+  max_drawdown_pct: number | null;
+  avg_turnover_pct: number | null;
+  capacity_estimate_usd: number | null;
   periods: MomentumBacktestPeriod[];
 }
 
