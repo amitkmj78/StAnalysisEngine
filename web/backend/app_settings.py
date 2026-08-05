@@ -22,6 +22,12 @@ PIT_PRICE_CAPTURE_ENABLED_KEY = "pit_price_capture_enabled"
 # writes user-visible content — an admin should opt in deliberately rather
 # than have it start emailing/notifying users the moment this deploys.
 PORTFOLIO_DROP_ALERTS_ENABLED_KEY = "portfolio_drop_alerts_enabled"
+# The drop-detection threshold itself, admin-configurable — separate from
+# the enable/disable flag above so an admin can tune sensitivity without
+# a deploy. Stored as text like every other app_settings value; parsed as
+# a float on read.
+PORTFOLIO_DROP_THRESHOLD_PCT_KEY = "portfolio_drop_threshold_pct"
+PORTFOLIO_DROP_THRESHOLD_DEFAULT = 1.0
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:
@@ -41,4 +47,27 @@ async def set_setting_bool(key: str, value: bool) -> None:
             ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
             """,
             key, "true" if value else "false",
+        )
+
+
+async def get_setting_float(key: str, default: float) -> float:
+    async with service_conn() as conn:
+        value = await conn.fetchval("SELECT value FROM app_settings WHERE key = $1", key)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+async def set_setting_float(key: str, value: float) -> None:
+    async with service_conn() as conn:
+        await conn.execute(
+            """
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES ($1, $2, now())
+            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+            """,
+            key, str(value),
         )

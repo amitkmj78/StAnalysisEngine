@@ -442,6 +442,7 @@ export interface AdminSettings {
   password_policy_enabled: boolean;
   pit_price_capture_enabled: boolean;
   portfolio_drop_alerts_enabled: boolean;
+  portfolio_drop_threshold_pct: number;
 }
 
 export interface PortfolioDropAlert {

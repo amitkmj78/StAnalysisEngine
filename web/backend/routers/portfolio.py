@@ -13,6 +13,11 @@ from services.portfolio_strategy import build_robinhood_strategies, summarize_po
 from services.positions_from_csv import positions_from_activity_csv
 
 from web.backend.admin import require_admin
+from web.backend.app_settings import (
+    PORTFOLIO_DROP_THRESHOLD_DEFAULT,
+    PORTFOLIO_DROP_THRESHOLD_PCT_KEY,
+    get_setting_float,
+)
 from web.backend.auth import verify_bearer_token
 from web.backend.db import user_conn
 from web.backend.portfolio_alerts import scan_portfolios_for_drops
@@ -347,11 +352,18 @@ async def dismiss_drop_alert(alert_id: int, request: Request):
 
 
 @router.post("/drop-alerts/scan-now", dependencies=[Depends(require_admin)])
-async def scan_drop_alerts_now():
+async def scan_drop_alerts_now(threshold_pct: Optional[float] = None):
     """Manual trigger for the same scan the scheduler runs every 15
-    minutes — for verifying the pipeline, not routine use. No enable-gate:
-    unlike publish-now, this doesn't start a public/irreversible record,
-    it just checks current holdings and (if a drop is found) analyzes and
-    notifies — the same thing that would happen on the next tick anyway."""
-    inserted = await scan_portfolios_for_drops()
-    return {"inserted": inserted}
+    minutes — for verifying the pipeline, not routine use. Defaults to the
+    admin-configured threshold (same as the scheduled job); pass
+    threshold_pct to test a different sensitivity for a one-off run
+    without changing the saved setting. No enable-gate: unlike publish-now,
+    this doesn't start a public/irreversible record, it just checks
+    current holdings and (if a drop is found) analyzes and notifies — the
+    same thing that would happen on the next tick anyway."""
+    if threshold_pct is None:
+        threshold_pct = await get_setting_float(
+            PORTFOLIO_DROP_THRESHOLD_PCT_KEY, default=PORTFOLIO_DROP_THRESHOLD_DEFAULT
+        )
+    inserted = await scan_portfolios_for_drops(threshold_pct=threshold_pct)
+    return {"inserted": inserted, "threshold_pct": threshold_pct}

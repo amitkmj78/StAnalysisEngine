@@ -565,6 +565,8 @@ insert into app_settings (key, value) values ('pit_price_capture_enabled', 'true
   on conflict (key) do nothing;
 insert into app_settings (key, value) values ('portfolio_drop_alerts_enabled', 'false')
   on conflict (key) do nothing;
+insert into app_settings (key, value) values ('portfolio_drop_threshold_pct', '1.0')
+  on conflict (key) do nothing;
 
 -- Public track-record ledger (TR-1/TR-2). Not user-scoped, no RLS: this is
 -- deliberately a public record, not private data. Rows are never updated or

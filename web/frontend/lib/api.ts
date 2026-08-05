@@ -461,6 +461,14 @@ export function disablePortfolioDropAlerts() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/portfolio-drop-alerts/disable", "POST");
 }
 
+export function setPortfolioDropThreshold(thresholdPct: number) {
+  return apiSend<{ portfolio_drop_threshold_pct: number }>(
+    "/api/v1/admin/settings/portfolio-drop-alerts/threshold",
+    "POST",
+    { threshold_pct: thresholdPct },
+  );
+}
+
 export function scanPortfolioDropAlertsNow() {
   return apiSend<{ inserted: number }>("/api/v1/portfolio/drop-alerts/scan-now", "POST");
 }

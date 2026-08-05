@@ -1,14 +1,19 @@
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
     PASSWORD_POLICY_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
+    PORTFOLIO_DROP_THRESHOLD_DEFAULT,
+    PORTFOLIO_DROP_THRESHOLD_PCT_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
+    get_setting_float,
     set_setting_bool,
+    set_setting_float,
 )
 
 router = APIRouter(
@@ -26,6 +31,9 @@ async def get_settings():
         "password_policy_enabled": await get_setting_bool(PASSWORD_POLICY_ENABLED_KEY, default=True),
         "pit_price_capture_enabled": await get_setting_bool(PIT_PRICE_CAPTURE_ENABLED_KEY, default=True),
         "portfolio_drop_alerts_enabled": await get_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, default=False),
+        "portfolio_drop_threshold_pct": await get_setting_float(
+            PORTFOLIO_DROP_THRESHOLD_PCT_KEY, default=PORTFOLIO_DROP_THRESHOLD_DEFAULT
+        ),
     }
 
 
@@ -94,3 +102,15 @@ async def enable_portfolio_drop_alerts():
 async def disable_portfolio_drop_alerts():
     await set_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, False)
     return {"portfolio_drop_alerts_enabled": False}
+
+
+class ThresholdUpdate(BaseModel):
+    threshold_pct: float = Field(gt=0, le=50)
+
+
+@router.post("/portfolio-drop-alerts/threshold")
+async def set_portfolio_drop_threshold(body: ThresholdUpdate):
+    """Takes effect on the next scheduler tick (every 15 min) or the next
+    manual Scan Now — no restart needed, read fresh from app_settings each run."""
+    await set_setting_float(PORTFOLIO_DROP_THRESHOLD_PCT_KEY, body.threshold_pct)
+    return {"portfolio_drop_threshold_pct": body.threshold_pct}
