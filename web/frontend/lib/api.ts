@@ -473,6 +473,10 @@ export function scanPortfolioDropAlertsNow() {
   return apiSend<{ inserted: number }>("/api/v1/portfolio/drop-alerts/scan-now", "POST");
 }
 
+export function setDailyQuota(dailyQuota: number) {
+  return apiSend<{ daily_quota: number }>("/api/v1/admin/settings/daily-quota", "POST", { daily_quota: dailyQuota });
+}
+
 export function getPublishedSignals(params?: { targetDate?: string; universeId?: string; lookbackDays?: number }) {
   const query: Record<string, string> = {};
   if (params?.targetDate) query.target_date = params.targetDate;

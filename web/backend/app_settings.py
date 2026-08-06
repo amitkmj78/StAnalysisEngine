@@ -28,6 +28,12 @@ PORTFOLIO_DROP_ALERTS_ENABLED_KEY = "portfolio_drop_alerts_enabled"
 # a float on read.
 PORTFOLIO_DROP_THRESHOLD_PCT_KEY = "portfolio_drop_threshold_pct"
 PORTFOLIO_DROP_THRESHOLD_DEFAULT = 1.0
+# Per-user daily request cap enforced by enforce_daily_quota (web/backend/
+# rate_limit.py), shared across every quota-gated endpoint. Admin-tunable
+# without a deploy — e.g. to raise it temporarily for a user hitting real
+# usage, or lower it if something is hammering the API.
+DAILY_QUOTA_KEY = "daily_quota"
+DAILY_QUOTA_DEFAULT = 600
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:
@@ -62,6 +68,29 @@ async def get_setting_float(key: str, default: float) -> float:
 
 
 async def set_setting_float(key: str, value: float) -> None:
+    async with service_conn() as conn:
+        await conn.execute(
+            """
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES ($1, $2, now())
+            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+            """,
+            key, str(value),
+        )
+
+
+async def get_setting_int(key: str, default: int) -> int:
+    async with service_conn() as conn:
+        value = await conn.fetchval("SELECT value FROM app_settings WHERE key = $1", key)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+async def set_setting_int(key: str, value: int) -> None:
     async with service_conn() as conn:
         await conn.execute(
             """

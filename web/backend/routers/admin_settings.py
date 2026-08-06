@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field
 
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
+    DAILY_QUOTA_DEFAULT,
+    DAILY_QUOTA_KEY,
     PASSWORD_POLICY_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
@@ -12,8 +14,10 @@ from web.backend.app_settings import (
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
     get_setting_float,
+    get_setting_int,
     set_setting_bool,
     set_setting_float,
+    set_setting_int,
 )
 
 router = APIRouter(
@@ -34,6 +38,7 @@ async def get_settings():
         "portfolio_drop_threshold_pct": await get_setting_float(
             PORTFOLIO_DROP_THRESHOLD_PCT_KEY, default=PORTFOLIO_DROP_THRESHOLD_DEFAULT
         ),
+        "daily_quota": await get_setting_int(DAILY_QUOTA_KEY, default=DAILY_QUOTA_DEFAULT),
     }
 
 
@@ -114,3 +119,15 @@ async def set_portfolio_drop_threshold(body: ThresholdUpdate):
     manual Scan Now — no restart needed, read fresh from app_settings each run."""
     await set_setting_float(PORTFOLIO_DROP_THRESHOLD_PCT_KEY, body.threshold_pct)
     return {"portfolio_drop_threshold_pct": body.threshold_pct}
+
+
+class DailyQuotaUpdate(BaseModel):
+    daily_quota: int = Field(gt=0, le=100000)
+
+
+@router.post("/daily-quota")
+async def set_daily_quota(body: DailyQuotaUpdate):
+    """Applies to the very next quota-gated request — enforce_daily_quota
+    reads this fresh on every call, no restart needed."""
+    await set_setting_int(DAILY_QUOTA_KEY, body.daily_quota)
+    return {"daily_quota": body.daily_quota}

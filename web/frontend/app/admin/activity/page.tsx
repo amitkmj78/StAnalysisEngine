@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import ActivityLog from "@/components/admin/ActivityLog";
+import DailyQuotaControls from "@/components/admin/DailyQuotaControls";
 import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
 
@@ -18,6 +19,10 @@ export default async function AdminActivityPage() {
       <p className="mt-1 text-sm text-slate-500">
         Read-only log of API activity across all users, most recent first.
       </p>
+
+      <div className="mt-6">
+        <DailyQuotaControls />
+      </div>
 
       <div className="mt-6">
         <ActivityLog />

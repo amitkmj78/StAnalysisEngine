@@ -443,6 +443,7 @@ export interface AdminSettings {
   pit_price_capture_enabled: boolean;
   portfolio_drop_alerts_enabled: boolean;
   portfolio_drop_threshold_pct: number;
+  daily_quota: number;
 }
 
 export interface PortfolioDropAlert {

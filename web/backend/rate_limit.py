@@ -4,9 +4,8 @@ from fastapi import HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from web.backend.app_settings import DAILY_QUOTA_DEFAULT, DAILY_QUOTA_KEY, get_setting_int
 from web.backend.db import service_conn
-
-DAILY_QUOTA = 600
 
 
 def _rate_limit_key(request: Request) -> str:
@@ -32,6 +31,7 @@ async def enforce_daily_quota(request: Request, endpoint: str) -> None:
     """
     user = request.state.user
     since = datetime.now(timezone.utc) - timedelta(hours=24)
+    daily_quota = await get_setting_int(DAILY_QUOTA_KEY, default=DAILY_QUOTA_DEFAULT)
 
     async with service_conn() as conn:
         count = await conn.fetchval(
@@ -39,7 +39,7 @@ async def enforce_daily_quota(request: Request, endpoint: str) -> None:
             user["id"],
             since,
         )
-        if count >= DAILY_QUOTA:
+        if count >= daily_quota:
             raise HTTPException(429, "Daily request limit reached")
 
         await conn.execute(
