@@ -109,7 +109,7 @@ export default function IndexFundPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Best Index Fund Finder</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">Fund Screener</h1>
       <p className="mt-1 text-sm text-slate-500">Compare major index ETFs and rank by the goal that matters most to you.</p>
 
       <form onSubmit={runSearch} className="mt-6 flex flex-wrap items-end gap-3">

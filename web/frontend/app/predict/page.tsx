@@ -193,7 +193,7 @@ export default function PredictPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">AI Price Prediction</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">AI Price Forecast</h1>
       <p className="mt-1 text-sm text-slate-500">
         A backtested quant forecast for one ticker, shown next to how often it has actually beaten doing
         nothing.

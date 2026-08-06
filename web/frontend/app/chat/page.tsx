@@ -44,7 +44,7 @@ export default function ChatPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Meta-Agent Chat</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">Assistant</h1>
       <p className="mt-1 text-sm text-slate-500">
         Ask a free-form question about a ticker. The agent pulls live data and tools to answer — each answer is a
         single response, not a running conversation.

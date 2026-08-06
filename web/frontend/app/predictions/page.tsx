@@ -58,7 +58,7 @@ export default function PredictionsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">My Saved Predictions</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">Prediction History</h1>
       <p className="mt-1 text-sm text-slate-500">
         Every prediction you&apos;ve saved, across every ticker, in one place — auto-verified in the background as
         target dates arrive.

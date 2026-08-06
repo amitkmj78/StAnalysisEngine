@@ -123,7 +123,7 @@ export default function StockFinderPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Best Stock Finder</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">Stock Screener</h1>
       <p className="mt-1 text-sm text-slate-500">
         Rank a stock universe by goal, or score one ticker directly.
       </p>

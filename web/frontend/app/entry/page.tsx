@@ -79,7 +79,7 @@ export default function EntryPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Best To Enter Now</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">Entry Signals</h1>
       <p className="mt-1 text-sm text-slate-500">
         Scan for the strongest current entry setups, or check one ticker for a buy-zone view.
       </p>
