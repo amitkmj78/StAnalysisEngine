@@ -4,8 +4,16 @@ import { useEffect, useState } from "react";
 
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import PlanChart from "@/components/strategies/PlanChart";
-import { ApiError, getStrategiesOptions, getStrategiesSummary } from "@/lib/api";
-import type { StrategiesSummaryResponse, StrategyPickRow } from "@/lib/types";
+import {
+  ApiError,
+  deleteStrategyPlan,
+  getPortfolioSummary,
+  getStrategiesOptions,
+  getStrategiesSummary,
+  getStrategyPlans,
+  saveStrategyPlan,
+} from "@/lib/api";
+import type { SavedStrategyPlan, StrategiesSummaryResponse, StrategyPickRow } from "@/lib/types";
 
 const KPI_INFO: Record<string, ColumnInfo> = {
   historic_return: {
@@ -67,6 +75,25 @@ export default function StrategiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeKpiInfo, setActiveKpiInfo] = useState<ColumnInfo | null>(null);
 
+  const [startingCapitalTouched, setStartingCapitalTouched] = useState(false);
+
+  const [plans, setPlans] = useState<SavedStrategyPlan[] | null>(null);
+  const [plansError, setPlansError] = useState<string | null>(null);
+  const [planName, setPlanName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  async function loadPlans() {
+    try {
+      const res = await getStrategyPlans();
+      setPlans(res.plans);
+    } catch (err) {
+      setPlansError(err instanceof ApiError ? err.message : "Failed to load saved goals.");
+    }
+  }
+
   useEffect(() => {
     getStrategiesOptions()
       .then((res) => {
@@ -78,7 +105,52 @@ export default function StrategiesPage() {
         setYears(res.defaults.years);
       })
       .catch(() => {});
+
+    getPortfolioSummary()
+      .then((res) => {
+        if (!startingCapitalTouched && res.summary.total_value > 0) {
+          setStartingCapital(Math.round(res.summary.total_value));
+        }
+      })
+      .catch(() => {});
+
+    loadPlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleSavePlan() {
+    setSaving(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      await saveStrategyPlan({
+        name: planName.trim() || undefined,
+        target_amount: targetAmount,
+        years,
+        starting_capital: startingCapital,
+        annual_return_pct: customReturn,
+      });
+      setPlanName("");
+      setSaveMessage("Goal saved — see it below under My Goals.");
+      await loadPlans();
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : "Could not save this goal.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeletePlan(id: number) {
+    setDeletingId(id);
+    try {
+      await deleteStrategyPlan(id);
+      setPlans((prev) => (prev ?? []).filter((p) => p.id !== id));
+    } catch (err) {
+      setPlansError(err instanceof ApiError ? err.message : "Could not delete this goal.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   async function runPlan(e: React.FormEvent) {
     e.preventDefault();
@@ -113,6 +185,71 @@ export default function StrategiesPage() {
         Build a target-based investing strategy and see the best fund and stock candidates that can help build it.
       </p>
 
+      {plansError && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{plansError}</p>}
+
+      {plans !== null && plans.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold text-slate-900">My Goals</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Each goal locked in a required monthly contribution when saved. Progress compares what you&apos;d have
+            if you&apos;d actually contributed that amount every month since then against your real portfolio value
+            today — it assumes the contribution was made, not a verified ledger of it.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {plans.map((plan) => (
+              <div key={plan.id} className="rounded-lg border border-slate-200 bg-white p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-slate-900">
+                      {plan.name || `$${plan.target_amount.toLocaleString()} in ${plan.years}y`}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      ${plan.monthly_contribution.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo at{" "}
+                      {plan.annual_return_pct.toFixed(1)}% · saved {new Date(plan.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      plan.progress.on_track ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {plan.progress.on_track ? "On track" : "Behind pace"}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-slate-500">Expected by now</p>
+                    <p className="font-medium text-slate-800">
+                      ${plan.progress.expected_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Your portfolio now</p>
+                    <p className="font-medium text-slate-800">
+                      ${plan.progress.actual_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                </div>
+                <p className={`mt-2 text-xs font-medium ${plan.progress.on_track ? "text-emerald-600" : "text-red-600"}`}>
+                  {plan.progress.diff >= 0 ? "+" : ""}
+                  ${plan.progress.diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {plan.progress.diff_pct !== null && ` (${plan.progress.diff_pct >= 0 ? "+" : ""}${plan.progress.diff_pct.toFixed(1)}%)`}
+                  {" "}
+                  vs. plan · {plan.progress.months_elapsed} mo in
+                </p>
+                <button
+                  onClick={() => handleDeletePlan(plan.id)}
+                  disabled={deletingId === plan.id}
+                  className="mt-3 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  {deletingId === plan.id ? "Removing…" : "Remove"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <form onSubmit={runPlan} className="mt-6 flex flex-wrap items-end gap-3">
         <Field label="Target amount">
           <input type="number" min={50000} max={10000000} step={50000} value={targetAmount} onChange={(e) => setTargetAmount(Number(e.target.value))} className="input w-32" />
@@ -121,7 +258,18 @@ export default function StrategiesPage() {
           <input type="number" min={1} max={20} value={years} onChange={(e) => setYears(Number(e.target.value))} className="input w-20" />
         </Field>
         <Field label="Starting capital">
-          <input type="number" min={0} max={500000} step={1000} value={startingCapital} onChange={(e) => setStartingCapital(Number(e.target.value))} className="input w-28" />
+          <input
+            type="number"
+            min={0}
+            max={10000000}
+            step={1000}
+            value={startingCapital}
+            onChange={(e) => {
+              setStartingCapital(Number(e.target.value));
+              setStartingCapitalTouched(true);
+            }}
+            className="input w-28"
+          />
         </Field>
         <Field label="Custom return %">
           <input type="number" min={4} max={20} value={customReturn} onChange={(e) => setCustomReturn(Number(e.target.value))} className="input w-20" />
@@ -165,6 +313,35 @@ export default function StrategiesPage() {
             <MetricTile label="Target" value={`$${targetAmount.toLocaleString()}`} />
             <MetricTile label="Time Horizon" value={`${years} years`} />
             <MetricTile label={`Needed at ${customReturn}%`} value={`$${data.custom_monthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo`} />
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm font-medium text-slate-700">Save this goal to track your progress over time</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Saves the {customReturn}% case above — target ${targetAmount.toLocaleString()} in {years} years,
+              ${data.custom_monthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo — and starts
+              comparing it against your real portfolio value every time you visit.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                placeholder="Optional name, e.g. Retirement"
+                value={planName}
+                onChange={(e) => setPlanName(e.target.value)}
+                className="input w-56"
+                maxLength={100}
+              />
+              <button
+                type="button"
+                onClick={handleSavePlan}
+                disabled={saving}
+                className="btn-primary"
+              >
+                {saving ? "Saving…" : "Save This Goal"}
+              </button>
+            </div>
+            {saveMessage && <p className="mt-2 text-xs text-emerald-700">{saveMessage}</p>}
+            {saveError && <p className="mt-2 text-xs text-red-600">{saveError}</p>}
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">

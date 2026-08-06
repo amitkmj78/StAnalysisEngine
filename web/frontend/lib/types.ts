@@ -274,6 +274,27 @@ export interface StrategiesSummaryResponse {
   picks: StrategyPickRow[];
 }
 
+export interface StrategyPlanProgress {
+  months_elapsed: number;
+  expected_value: number;
+  actual_value: number;
+  diff: number;
+  diff_pct: number | null;
+  on_track: boolean;
+}
+
+export interface SavedStrategyPlan {
+  id: number;
+  name: string | null;
+  target_amount: number;
+  years: number;
+  starting_capital: number;
+  annual_return_pct: number;
+  monthly_contribution: number;
+  created_at: string;
+  progress: StrategyPlanProgress;
+}
+
 // Trade Journal
 export interface Trade {
   trade_id: string;

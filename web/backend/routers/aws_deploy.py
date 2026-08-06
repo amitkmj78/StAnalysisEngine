@@ -494,6 +494,30 @@ create policy portfolio_drop_alerts_isolation on portfolio_drop_alerts
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- Saved goals from the Strategies calculator. monthly_contribution is the
+-- server-computed required-monthly at save time (locked in, not
+-- recomputed later) — progress tracking compounds this same fixed
+-- contribution forward from created_at and compares it against the
+-- user's live portfolio value, so "ahead/behind pace" means "vs. what
+-- you'd have if you'd contributed this amount every month since saving."
+create table if not exists strategy_plans (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  name text,
+  target_amount real not null,
+  years integer not null,
+  starting_capital real not null,
+  annual_return_pct real not null,
+  monthly_contribution real not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists strategy_plans_user_idx on strategy_plans(user_id, created_at desc);
+alter table strategy_plans enable row level security;
+drop policy if exists strategy_plans_isolation on strategy_plans;
+create policy strategy_plans_isolation on strategy_plans
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 create table if not exists request_log (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,
@@ -704,7 +728,7 @@ $$;
 
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
-grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts to app_user;
+grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans to app_user;
 grant select, update on portfolio_drop_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;

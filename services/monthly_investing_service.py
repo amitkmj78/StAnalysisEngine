@@ -108,12 +108,22 @@ def simulate_monthly_plan(
     return result, summary
 
 
-def project_future_value(monthly_amount: float, years: int, annual_return_pct: float | None) -> float | None:
+def project_future_value_periods(monthly_amount: float, periods: int, annual_return_pct: float | None) -> float | None:
+    """
+    Future value of `periods` monthly contributions, contribution-then-grow
+    each period (annuity-due). Generalizes project_future_value to any
+    period count, not just a full years*12 horizon — reused by strategy
+    plan progress tracking to project value at whatever point partway
+    through the horizon "now" happens to be.
+    """
     if annual_return_pct is None:
         return None
     monthly_rate = annual_return_pct / 100 / 12
-    periods = years * 12
     future_value = 0.0
-    for _ in range(periods):
+    for _ in range(max(0, periods)):
         future_value = (future_value + monthly_amount) * (1 + monthly_rate)
     return future_value
+
+
+def project_future_value(monthly_amount: float, years: int, annual_return_pct: float | None) -> float | None:
+    return project_future_value_periods(monthly_amount, years * 12, annual_return_pct)

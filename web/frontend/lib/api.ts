@@ -33,6 +33,7 @@ import type {
   PredictionSummary,
   PublishedSignalsResponse,
   SavedPrediction,
+  SavedStrategyPlan,
   SignalOutcomesResponse,
   StockRankResponse,
   StockScoreResponse,
@@ -211,6 +212,24 @@ export function getStrategiesOptions() {
 
 export function getStrategiesSummary(params: Record<string, string>) {
   return apiFetch<StrategiesSummaryResponse>("/api/v1/strategies/summary", params);
+}
+
+export function saveStrategyPlan(body: {
+  name?: string;
+  target_amount: number;
+  years: number;
+  starting_capital: number;
+  annual_return_pct: number;
+}) {
+  return apiSend<SavedStrategyPlan>("/api/v1/strategies/plans", "POST", body);
+}
+
+export function getStrategyPlans() {
+  return apiFetch<{ plans: SavedStrategyPlan[] }>("/api/v1/strategies/plans");
+}
+
+export function deleteStrategyPlan(planId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/strategies/plans/${planId}`, "DELETE");
 }
 
 async function apiSend<T>(

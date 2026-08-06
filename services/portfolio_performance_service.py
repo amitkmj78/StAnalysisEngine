@@ -7,6 +7,24 @@ from .fund_comparison_service import price_near_date
 DEFAULT_LOOKBACK_DAYS = 30
 
 
+def compute_total_portfolio_value(positions: list[dict]) -> float:
+    """
+    Just today's live total — no historical lookback fetch, unlike
+    compute_portfolio_performance below. Used wherever only the current
+    number matters (e.g. strategy plan progress tracking) so that call
+    site isn't paying for a price-30-days-ago lookup it doesn't need.
+    """
+    total = 0.0
+    for pos in positions:
+        shares = pos.get("shares") or 0
+        if shares <= 0:
+            continue
+        price_now = get_latest_price(pos["ticker"])
+        if price_now is not None:
+            total += shares * price_now
+    return total
+
+
 def compute_portfolio_performance(positions: list[dict], lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> dict:
     """
     For each position (ticker + shares + avg_cost), compares today's live
