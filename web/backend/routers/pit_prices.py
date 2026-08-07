@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query
 
 from services.pit_fundamentals_service import DEFAULT_UNIVERSE as FUNDAMENTALS_DEFAULT_UNIVERSE
@@ -9,6 +11,7 @@ from web.backend.pit_prices import (
     capture_and_persist_pit_prices,
     capture_and_persist_universe_membership,
 )
+from web.backend.pit_signals import reconcile_published_vs_pit
 
 router = APIRouter(
     prefix="/api/v1/pit-prices",
@@ -85,3 +88,24 @@ async def capture_now(universe_id: str = Query(DEFAULT_UNIVERSE)):
         "universe_membership_inserted": membership_inserted,
         "fundamentals_inserted": fundamentals_inserted,
     }
+
+
+@router.get("/reconcile")
+async def reconcile(
+    target_date: date = Query(...),
+    universe_id: str = Query(DEFAULT_UNIVERSE),
+    lookback_days: int = Query(30),
+    top_n: int = Query(25),
+):
+    """
+    TR-6's acceptance test, on demand: reconstructs target_date's momentum
+    ranking purely from PIT data known as of that date, and reports
+    whether it matches what was actually published. `byte_identical` is
+    only true once the PIT store has enough trailing history for every
+    published ticker — before then, `missing_from_pit_history` says
+    exactly which tickers and why, rather than a false pass or a bare
+    failure.
+    """
+    return await reconcile_published_vs_pit(
+        target_date=target_date, universe_id=universe_id, lookback_days=lookback_days, top_n=top_n
+    )
