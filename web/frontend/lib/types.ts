@@ -510,6 +510,20 @@ export interface PitPriceStatus {
   fundamentals: PitFundamentalsStats;
 }
 
+export interface PitReconciliationReport {
+  target_date: string;
+  universe_id: string;
+  lookback_days: number;
+  pit_trading_days_available: number;
+  pit_trading_days_required: number;
+  published_count: number;
+  reconstructed_count: number;
+  matches: number;
+  mismatches: { ticker: string; published_rank: number; reconstructed_rank: number }[];
+  missing_from_pit_history: { ticker: string; published_rank: number }[];
+  byte_identical: boolean;
+}
+
 export interface PublishedSignalRow {
   id: number;
   published_at_utc: string;

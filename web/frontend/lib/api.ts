@@ -20,6 +20,7 @@ import type {
   MomentumOptions,
   MonthlyPlanResponse,
   PitPriceStatus,
+  PitReconciliationReport,
   PortfolioDropAlert,
   PortfolioPerformance,
   PortfolioPosition,
@@ -466,6 +467,15 @@ export function capturePitPricesNow() {
     universe_membership_inserted: number;
     fundamentals_inserted: number;
   }>("/api/v1/pit-prices/capture-now", "POST");
+}
+
+export function getPitReconciliation(targetDate: string, universeId = "All", lookbackDays = 30, topN = 25) {
+  return apiFetch<PitReconciliationReport>("/api/v1/pit-prices/reconcile", {
+    target_date: targetDate,
+    universe_id: universeId,
+    lookback_days: String(lookbackDays),
+    top_n: String(topN),
+  });
 }
 
 export function publishSignalsNow() {

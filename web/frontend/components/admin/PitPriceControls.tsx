@@ -9,8 +9,13 @@ import {
   enablePitPriceCapture,
   getAdminSettings,
   getPitPriceStatus,
+  getPitReconciliation,
 } from "@/lib/api";
-import type { PitCaptureStats, PitPriceStatus } from "@/lib/types";
+import type { PitCaptureStats, PitPriceStatus, PitReconciliationReport } from "@/lib/types";
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function CaptureStatsGrid({
   title,
@@ -57,6 +62,25 @@ export default function PitPriceControls() {
   const [capturing, setCapturing] = useState(false);
   const [captureResult, setCaptureResult] = useState<string | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
+
+  const [reconcileDate, setReconcileDate] = useState(todayIso());
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileReport, setReconcileReport] = useState<PitReconciliationReport | null>(null);
+  const [reconcileError, setReconcileError] = useState<string | null>(null);
+
+  async function handleReconcile() {
+    setReconciling(true);
+    setReconcileError(null);
+    setReconcileReport(null);
+    try {
+      const report = await getPitReconciliation(reconcileDate);
+      setReconcileReport(report);
+    } catch (err) {
+      setReconcileError(err instanceof ApiError ? err.message : "Failed to run reconciliation.");
+    } finally {
+      setReconciling(false);
+    }
+  }
 
   async function load() {
     setError(null);
@@ -154,6 +178,86 @@ export default function PitPriceControls() {
           />
         </div>
       )}
+
+      <div className="mt-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Lookahead-safety reconciliation (Phase 4)
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          Reconstructs a date&apos;s ranking purely from PIT data known as of that date, and checks it
+          against what was actually published — TR-6&apos;s acceptance test. Only produces a full match
+          once the PIT store has 31+ trading days of history for a 30-day lookback; before that it
+          honestly reports which tickers aren&apos;t reconstructible yet, rather than a false pass.
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={reconcileDate}
+            onChange={(e) => setReconcileDate(e.target.value)}
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          />
+          <button
+            onClick={handleReconcile}
+            disabled={reconciling}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          >
+            {reconciling ? "Checking…" : "Check Reconciliation"}
+          </button>
+        </div>
+
+        {reconcileError && (
+          <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{reconcileError}</p>
+        )}
+
+        {reconcileReport && (
+          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-slate-800">{reconcileReport.target_date}</span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  reconcileReport.byte_identical
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-amber-50 text-amber-700"
+                }`}
+              >
+                {reconcileReport.byte_identical ? "Byte-identical" : "Not yet reconstructible"}
+              </span>
+            </div>
+            <dl className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <div>
+                <dt className="text-slate-500">PIT history</dt>
+                <dd className="font-medium text-slate-800">
+                  {reconcileReport.pit_trading_days_available}/{reconcileReport.pit_trading_days_required} days
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Published</dt>
+                <dd className="font-medium text-slate-800">{reconcileReport.published_count}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Matched</dt>
+                <dd className="font-medium text-slate-800">{reconcileReport.matches}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Mismatched</dt>
+                <dd className="font-medium text-slate-800">{reconcileReport.mismatches.length}</dd>
+              </div>
+            </dl>
+            {reconcileReport.missing_from_pit_history.length > 0 && (
+              <p className="mt-2 text-xs text-slate-500">
+                {reconcileReport.missing_from_pit_history.length} ticker
+                {reconcileReport.missing_from_pit_history.length === 1 ? "" : "s"} not yet reconstructible
+                (not enough trailing PIT history): {reconcileReport.missing_from_pit_history.map((m) => m.ticker).join(", ")}
+              </p>
+            )}
+            {reconcileReport.mismatches.length > 0 && (
+              <p className="mt-2 text-xs text-red-600">
+                Rank mismatches: {reconcileReport.mismatches.map((m) => `${m.ticker} (published #${m.published_rank}, reconstructed #${m.reconstructed_rank})`).join("; ")}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
       {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
