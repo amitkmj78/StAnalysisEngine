@@ -23,6 +23,7 @@ import type {
   PitPriceStatus,
   PitReconciliationReport,
   PortfolioDropAlert,
+  PortfolioInsightsResponse,
   PortfolioPerformance,
   PortfolioPosition,
   PortfolioStrategyRow,
@@ -362,6 +363,10 @@ export function getPortfolioSummary() {
 
 export function getPortfolioPerformance(lookbackDays = 30) {
   return apiFetch<PortfolioPerformance>("/api/v1/portfolio/performance", { lookback_days: String(lookbackDays) });
+}
+
+export function getPortfolioInsights() {
+  return apiFetch<PortfolioInsightsResponse>("/api/v1/portfolio/insights");
 }
 
 export function getPortfolioDropAlerts() {

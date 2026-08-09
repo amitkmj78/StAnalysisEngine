@@ -10,6 +10,7 @@ import yfinance as yf
 from .data_service import get_latest_price
 from .pit_signal_service import merge_pit_and_live_scores, score_tickers_from_pit
 from .prediction_service import generate_trading_signal, predict_future_prices
+from .ranking_utils import rank_tickers_against_universe
 from .stock_finder_service import STOCK_UNIVERSES, get_stock_finder_table
 
 logger = logging.getLogger(__name__)
@@ -109,6 +110,27 @@ def build_daily_signal_set_hybrid(
 
     pit_scored = score_tickers_from_pit(pit_price_rows, lookback_days)
     return merge_pit_and_live_scores(pit_scored, live_scored, top_n)
+
+
+def rank_within_universe(
+    tickers: list[str],
+    universe_id: str = DEFAULT_UNIVERSE,
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+) -> dict[str, dict]:
+    """
+    Each of the given tickers' rank (1 = best trailing return) within the
+    full universe — not capped to a top_n like build_daily_signal_set,
+    since a held portfolio position might rank anywhere, not just in the
+    top 25. rank_tickers_against_universe does the actual ranking (pure,
+    separately tested); this just supplies the live universe table.
+    """
+    col = f"Return {lookback_days}D %"
+    df = get_stock_finder_table(universe_id)
+    universe_rows = []
+    if not df.empty and col in df.columns:
+        for _, row in df.dropna(subset=[col]).iterrows():
+            universe_rows.append({"ticker": str(row["Ticker"]), "trailing_return_pct": round(float(row[col]), 4)})
+    return rank_tickers_against_universe(universe_rows, tickers)
 
 
 def compute_predict_algo_comparison(

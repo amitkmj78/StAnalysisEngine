@@ -11,6 +11,15 @@ from services.manual_positions import build_manual_positions
 from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
 from services.positions_from_csv import positions_from_activity_csv
+from services.ranking_utils import compute_position_concentration
+from services.signal_publication_service import (
+    DEFAULT_LOOKBACK_DAYS,
+    DEFAULT_PREDICT_DAYS_AHEAD,
+    DEFAULT_PREDICT_PERIOD,
+    DEFAULT_UNIVERSE,
+    compute_predict_algo_comparison,
+    rank_within_universe,
+)
 
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
@@ -24,6 +33,10 @@ from web.backend.portfolio_alerts import scan_portfolios_for_drops
 from web.backend.rate_limit import enforce_daily_quota, limiter
 
 router = APIRouter(prefix="/api/v1/portfolio", tags=["portfolio"], dependencies=[Depends(verify_bearer_token)])
+
+# A position at or above this share of total portfolio value gets flagged
+# as concentrated — see portfolio_insights below.
+CONCENTRATION_THRESHOLD_PCT = 25.0
 
 
 def _nan_to_none(value):
@@ -291,6 +304,75 @@ async def portfolio_summary(request: Request):
         }
     )
     return {"summary": summarize_portfolio(df)}
+
+
+@router.get("/insights")
+@limiter.limit("10/minute")
+async def portfolio_insights(request: Request):
+    """
+    Per-holding live BUY/SELL/HOLD signal + expected return (same engine
+    /predict uses), momentum rank within the full universe (same rule as
+    /top-performers and the published track record), and a concentration
+    check — so the page can answer "should I be worried about anything I
+    hold," not just what it's worth. All computed live, nothing persisted:
+    reusing the exact functions already called from /predict and
+    /top-performers rather than a new signal path.
+    """
+    await enforce_daily_quota(request, "portfolio/insights")
+    user_id = request.state.user["id"]
+
+    async with user_conn(user_id) as conn:
+        records = await conn.fetch(
+            "SELECT ticker, shares, current_price FROM portfolio_strategies WHERE user_id = $1::uuid",
+            user_id,
+        )
+    if not records:
+        return {"positions": []}
+
+    tickers = [r["ticker"] for r in records]
+
+    concentration_positions = [
+        {"ticker": r["ticker"], "market_value": (r["shares"] or 0) * (r["current_price"] or 0)}
+        for r in records
+    ]
+    concentration_by_ticker = {
+        c["ticker"]: c for c in compute_position_concentration(concentration_positions, CONCENTRATION_THRESHOLD_PCT)
+    }
+
+    comparison = await run_in_threadpool(
+        compute_predict_algo_comparison, tickers, DEFAULT_PREDICT_PERIOD, DEFAULT_PREDICT_DAYS_AHEAD
+    )
+    signal_by_ticker = {c["ticker"]: c for c in comparison}
+
+    rank_by_ticker = await run_in_threadpool(rank_within_universe, tickers, DEFAULT_UNIVERSE, DEFAULT_LOOKBACK_DAYS)
+
+    positions = []
+    for r in records:
+        t = r["ticker"]
+        sig = signal_by_ticker.get(t, {})
+        rank = rank_by_ticker.get(t, {})
+        conc = concentration_by_ticker.get(t, {})
+        positions.append(
+            {
+                "ticker": t,
+                "signal": sig.get("predict_signal"),
+                "expected_return_pct": sig.get("predict_expected_return_pct"),
+                "target_price": sig.get("predict_target_price"),
+                "rank": rank.get("rank"),
+                "universe_size": rank.get("universe_size"),
+                "trailing_return_pct": rank.get("trailing_return_pct"),
+                "weight_pct": conc.get("weight_pct"),
+                "concentrated": conc.get("concentrated", False),
+            }
+        )
+
+    return {
+        "positions": positions,
+        "concentration_threshold_pct": CONCENTRATION_THRESHOLD_PCT,
+        "predict_period": DEFAULT_PREDICT_PERIOD,
+        "predict_days_ahead": DEFAULT_PREDICT_DAYS_AHEAD,
+        "lookback_days": DEFAULT_LOOKBACK_DAYS,
+    }
 
 
 @router.get("/performance")

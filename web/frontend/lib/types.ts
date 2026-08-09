@@ -371,6 +371,26 @@ export interface PortfolioSummary {
   total_pnl_pct: number;
 }
 
+export interface PortfolioInsight {
+  ticker: string;
+  signal: "BUY" | "SELL" | "HOLD" | null;
+  expected_return_pct: number | null;
+  target_price: number | null;
+  rank: number | null;
+  universe_size: number | null;
+  trailing_return_pct: number | null;
+  weight_pct: number | null;
+  concentrated: boolean;
+}
+
+export interface PortfolioInsightsResponse {
+  positions: PortfolioInsight[];
+  concentration_threshold_pct?: number;
+  predict_period?: string;
+  predict_days_ahead?: number;
+  lookback_days?: number;
+}
+
 export interface PortfolioPerformanceRow {
   ticker: string;
   shares: number;

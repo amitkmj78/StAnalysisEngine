@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   ApiError,
   editPortfolioPosition,
+  getPortfolioInsights,
   getPortfolioPerformance,
   getPortfolioStrategies,
   getPortfolioSummary,
@@ -12,7 +13,13 @@ import {
   refreshPortfolio,
   submitManualPositions,
 } from "@/lib/api";
-import type { ManualPositionInput, PortfolioPerformance, PortfolioStrategyRow, PortfolioSummary } from "@/lib/types";
+import type {
+  ManualPositionInput,
+  PortfolioInsight,
+  PortfolioPerformance,
+  PortfolioStrategyRow,
+  PortfolioSummary,
+} from "@/lib/types";
 import PlanText from "@/components/PlanText";
 import PortfolioDropAlerts from "@/components/PortfolioDropAlerts";
 import TickerSearchInput from "@/components/TickerSearchInput";
@@ -37,6 +44,9 @@ export default function PortfolioPage() {
   const [performance, setPerformance] = useState<PortfolioPerformance | null>(null);
   const [performanceError, setPerformanceError] = useState<string | null>(null);
   const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [insights, setInsights] = useState<PortfolioInsight[]>([]);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -67,6 +77,19 @@ export default function PortfolioPage() {
     }
   }
 
+  async function refreshInsights() {
+    setInsightsLoading(true);
+    setInsightsError(null);
+    try {
+      const res = await getPortfolioInsights();
+      setInsights(res.positions);
+    } catch (err) {
+      setInsightsError(err instanceof ApiError ? err.message : "Could not load signal/rank data for your holdings.");
+    } finally {
+      setInsightsLoading(false);
+    }
+  }
+
   async function refresh() {
     setLoading(true);
     setError(null);
@@ -81,6 +104,7 @@ export default function PortfolioPage() {
     }
 
     await refreshPerformance(true);
+    await refreshInsights();
   }
 
   useEffect(() => {
@@ -562,6 +586,7 @@ export default function PortfolioPage() {
             const pnlPositive = pnl !== null && pnl >= 0;
             const isEditing = editingTicker === s.ticker;
             const extendedHours = performance?.rows.find((r) => r.ticker === s.ticker)?.extended_hours ?? null;
+            const insight = insights.find((i) => i.ticker === s.ticker) ?? null;
             return (
               <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -641,6 +666,45 @@ export default function PortfolioPage() {
                   </p>
                 )}
 
+                {insightsLoading && !insight && (
+                  <p className="mt-2 text-xs text-slate-400">Checking live signal &amp; rank…</p>
+                )}
+                {insight && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                    {insight.signal && (
+                      <span
+                        title={
+                          insight.expected_return_pct !== null
+                            ? `Expected ${insight.expected_return_pct >= 0 ? "+" : ""}${insight.expected_return_pct.toFixed(2)}% — same model as /predict`
+                            : "Same model as /predict"
+                        }
+                        className={`rounded-full px-2 py-0.5 font-semibold ${
+                          insight.signal === "BUY"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : insight.signal === "SELL"
+                            ? "bg-red-50 text-red-700"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {insight.signal}
+                      </span>
+                    )}
+                    {insight.rank !== null && insight.universe_size !== null && (
+                      <span className="text-slate-500">
+                        Momentum rank #{insight.rank} of {insight.universe_size}
+                      </span>
+                    )}
+                    {insight.concentrated && insight.weight_pct !== null && (
+                      <span
+                        title="A single position this large drives most of your portfolio's swings — consider whether that's intentional."
+                        className="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700"
+                      >
+                        {insight.weight_pct.toFixed(0)}% of portfolio — concentrated
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
                     <PlanText text={s.short_term_plan} />
@@ -653,6 +717,10 @@ export default function PortfolioPage() {
             );
           })}
         </div>
+      )}
+
+      {insightsError && (
+        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{insightsError}</p>
       )}
     </div>
   );
