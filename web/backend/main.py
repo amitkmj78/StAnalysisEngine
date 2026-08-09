@@ -24,6 +24,7 @@ from web.backend.routers import (
     auth,
     aws_deploy,
     chat,
+    db_backup,
     entry_strategy,
     index_fund,
     momentum,
@@ -83,6 +84,7 @@ app.include_router(admin_settings.router)
 app.include_router(admin_sql.router)
 app.include_router(signals.router)
 app.include_router(pit_prices.router)
+app.include_router(db_backup.router)
 
 
 @app.get("/health")

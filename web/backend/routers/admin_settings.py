@@ -5,6 +5,7 @@ from web.backend.admin import require_admin
 from web.backend.app_settings import (
     DAILY_QUOTA_DEFAULT,
     DAILY_QUOTA_KEY,
+    DB_BACKUP_ENABLED_KEY,
     PASSWORD_POLICY_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
@@ -39,6 +40,7 @@ async def get_settings():
             PORTFOLIO_DROP_THRESHOLD_PCT_KEY, default=PORTFOLIO_DROP_THRESHOLD_DEFAULT
         ),
         "daily_quota": await get_setting_int(DAILY_QUOTA_KEY, default=DAILY_QUOTA_DEFAULT),
+        "db_backup_enabled": await get_setting_bool(DB_BACKUP_ENABLED_KEY, default=True),
     }
 
 
@@ -131,3 +133,15 @@ async def set_daily_quota(body: DailyQuotaUpdate):
     reads this fresh on every call, no restart needed."""
     await set_setting_int(DAILY_QUOTA_KEY, body.daily_quota)
     return {"daily_quota": body.daily_quota}
+
+
+@router.post("/db-backup/enable")
+async def enable_db_backup():
+    await set_setting_bool(DB_BACKUP_ENABLED_KEY, True)
+    return {"db_backup_enabled": True}
+
+
+@router.post("/db-backup/disable")
+async def disable_db_backup():
+    await set_setting_bool(DB_BACKUP_ENABLED_KEY, False)
+    return {"db_backup_enabled": False}

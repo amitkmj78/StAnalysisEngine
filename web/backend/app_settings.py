@@ -34,6 +34,10 @@ PORTFOLIO_DROP_THRESHOLD_DEFAULT = 1.0
 # usage, or lower it if something is hammering the API.
 DAILY_QUOTA_KEY = "daily_quota"
 DAILY_QUOTA_DEFAULT = 600
+# NFR-03: defaults ON, like PIT capture — internal safety mechanism, no
+# legal/compliance gate. Admin can pause it (e.g. if pg_dump load ever
+# becomes a problem) without losing backups already taken.
+DB_BACKUP_ENABLED_KEY = "db_backup_enabled"
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

@@ -593,6 +593,8 @@ insert into app_settings (key, value) values ('portfolio_drop_threshold_pct', '1
   on conflict (key) do nothing;
 insert into app_settings (key, value) values ('daily_quota', '600')
   on conflict (key) do nothing;
+insert into app_settings (key, value) values ('db_backup_enabled', 'true')
+  on conflict (key) do nothing;
 
 -- Public track-record ledger (TR-1/TR-2). Not user-scoped, no RLS: this is
 -- deliberately a public record, not private data. Rows are never updated or
@@ -660,6 +662,27 @@ create table if not exists backtest_runs (
 alter table backtest_runs add column if not exists horizon_days integer not null default 30;
 create index if not exists backtest_runs_lookup_idx
   on backtest_runs(asset_type, universe, lookback_days, top_n, years, horizon_days);
+
+-- NFR-03: one row per backup attempt for the published-record + PIT-store
+-- tables. structural_check_passed comes free with every backup (parses
+-- the dump's own table of contents, no DB needed); restore_test_passed
+-- is only set once an actual restore-into-a-throwaway-database test has
+-- run against that specific backup (manually or on the quarterly
+-- schedule) — the real "restore-tested" guarantee, not just a file
+-- integrity check.
+create table if not exists backup_runs (
+  id bigint generated always as identity primary key,
+  started_at_utc timestamptz not null default now(),
+  s3_key text,
+  size_bytes bigint,
+  tables_verified text[],
+  structural_check_passed boolean not null default false,
+  restore_test_run boolean not null default false,
+  restore_test_passed boolean,
+  restore_test_row_counts jsonb,
+  error text
+);
+create index if not exists backup_runs_started_idx on backup_runs(started_at_utc desc);
 
 -- TR-3 Phase 1: append-only point-in-time price store. A row's mere
 -- presence proves this exact close was on record at captured_at_utc — the
@@ -748,6 +771,8 @@ grant select on signal_outcomes to app_user;
 grant select, insert on signal_outcomes to app_service;
 grant select on backtest_runs to app_user;
 grant select, insert on backtest_runs to app_service;
+grant select on backup_runs to app_user;
+grant select, insert, update on backup_runs to app_service;
 grant select on pit_prices to app_user;
 grant select, insert on pit_prices to app_service;
 grant select on pit_universe_membership to app_user;

@@ -465,6 +465,25 @@ export interface AdminSettings {
   portfolio_drop_alerts_enabled: boolean;
   portfolio_drop_threshold_pct: number;
   daily_quota: number;
+  db_backup_enabled: boolean;
+}
+
+export interface BackupRun {
+  id: number;
+  started_at_utc: string;
+  s3_key: string | null;
+  size_bytes: number | null;
+  tables_verified: string[] | null;
+  structural_check_passed: boolean;
+  restore_test_run: boolean;
+  restore_test_passed: boolean | null;
+  restore_test_row_counts: Record<string, { restored: number; live: number; match: boolean }> | null;
+  error: string | null;
+}
+
+export interface BackupStatus {
+  recent_runs: BackupRun[];
+  backup_tables: string[];
 }
 
 export interface PortfolioDropAlert {

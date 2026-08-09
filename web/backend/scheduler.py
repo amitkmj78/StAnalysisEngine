@@ -10,6 +10,7 @@ from services.email_service import APP_URL, send_admin_alert_email
 from services.prediction_verification_service import verify_prediction
 from web.backend.admin import ADMIN_EMAIL
 from web.backend.app_settings import (
+    DB_BACKUP_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
     PORTFOLIO_DROP_THRESHOLD_DEFAULT,
@@ -20,6 +21,7 @@ from web.backend.app_settings import (
     get_setting_float,
 )
 from web.backend.db import service_conn
+from web.backend.db_backup import run_backup, run_restore_test
 from web.backend.pit_prices import (
     capture_and_persist_fundamentals,
     capture_and_persist_pit_prices,
@@ -61,6 +63,17 @@ NFR01_CHECK_MINUTE_ET = 0
 # (i.e. by 6:00pm ET) — a genuinely missed day, not just a delay.
 NFR02_CHECK_HOUR_ET = 18
 NFR02_CHECK_MINUTE_ET = 0
+# NFR-03: daily backup at a quiet hour, well after every other job for
+# the day has run.
+BACKUP_HOUR_ET = 3
+BACKUP_MINUTE_ET = 0
+# NFR-03: "restore-tested quarterly" as a fully automated job, not a
+# human task someone has to remember — runs against the previous night's
+# backup, an hour after it completes.
+RESTORE_TEST_MONTHS = "1,4,7,10"
+RESTORE_TEST_DAY = 1
+RESTORE_TEST_HOUR_ET = 4
+RESTORE_TEST_MINUTE_ET = 0
 
 _scheduler: AsyncIOScheduler | None = None
 
@@ -248,6 +261,50 @@ async def _check_publication_nfr02_job() -> None:
     await check_publication_alert("missing (NFR-02, 2-hour check)", "2 hours")
 
 
+async def _db_backup_job() -> None:
+    """NFR-03: dump the published-record + PIT-store tables, upload to S3,
+    and run the free structural-integrity check — every night, not just
+    quarterly. If it fails, alert the same way a missed publication does,
+    since a silently-broken backup is just as much a risk as no backup."""
+    if not await get_setting_bool(DB_BACKUP_ENABLED_KEY, default=True):
+        logger.info("Scheduler: db_backup is disabled, skipping this run")
+        return
+    result = await run_backup()
+    if result.get("error"):
+        logger.warning("Scheduler: NFR-03 backup failed: %s", result["error"])
+        await run_in_threadpool(
+            send_admin_alert_email, ADMIN_EMAIL,
+            "StAnalysisEngine: nightly backup failed",
+            f"The nightly NFR-03 backup failed: {result['error']}\n\nCheck {APP_URL}/admin/scheduler",
+        )
+    else:
+        logger.info(
+            "Scheduler: NFR-03 backup complete — %s, %d bytes, structural check %s",
+            result.get("s3_key"), result.get("size_bytes") or 0,
+            "passed" if result.get("structural_check_passed") else "FAILED",
+        )
+
+
+async def _db_restore_test_job() -> None:
+    """NFR-03's literal "restore-tested quarterly" requirement, fully
+    automated: actually restores the previous night's backup into a
+    throwaway database and compares row counts against the live tables,
+    rather than relying on a human to remember to do this every quarter."""
+    if not await get_setting_bool(DB_BACKUP_ENABLED_KEY, default=True):
+        logger.info("Scheduler: db_backup is disabled, skipping quarterly restore test")
+        return
+    result = await run_restore_test()
+    if not result.get("all_match"):
+        logger.warning("Scheduler: NFR-03 quarterly restore test failed: %s", result)
+        await run_in_threadpool(
+            send_admin_alert_email, ADMIN_EMAIL,
+            "StAnalysisEngine: quarterly restore test failed",
+            f"The quarterly NFR-03 restore test did not pass: {result}\n\nCheck {APP_URL}/admin/scheduler",
+        )
+    else:
+        logger.info("Scheduler: NFR-03 quarterly restore test passed for %s", result.get("s3_key"))
+
+
 def start_scheduler() -> AsyncIOScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -336,17 +393,43 @@ def start_scheduler() -> AsyncIOScheduler:
         max_instances=1,
         misfire_grace_time=1800,
     )
+    _scheduler.add_job(
+        _db_backup_job,
+        CronTrigger(
+            hour=BACKUP_HOUR_ET, minute=BACKUP_MINUTE_ET,
+            timezone="America/New_York",
+        ),
+        id="db_backup",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _db_restore_test_job,
+        CronTrigger(
+            month=RESTORE_TEST_MONTHS, day=RESTORE_TEST_DAY,
+            hour=RESTORE_TEST_HOUR_ET, minute=RESTORE_TEST_MINUTE_ET,
+            timezone="America/New_York",
+        ),
+        id="db_restore_test",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
     _scheduler.start()
     logger.info(
         "Background scheduler started (verify_saved_predictions every %d min, "
         "evaluate_watchlist_alerts every %d min, scan_portfolio_drops every %d min, "
         "capture_pit_data weekdays %02d:%02d ET, publish_daily_signals weekdays %02d:%02d ET, "
         "evaluate_signal_outcomes weekdays %02d:%02d ET, check_publication_nfr01 weekdays %02d:%02d ET, "
-        "check_publication_nfr02 weekdays %02d:%02d ET)",
+        "check_publication_nfr02 weekdays %02d:%02d ET, db_backup daily %02d:%02d ET, "
+        "db_restore_test quarterly (month %s day %d) %02d:%02d ET)",
         VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PORTFOLIO_DROP_INTERVAL_MINUTES,
         PIT_CAPTURE_HOUR_ET, PIT_CAPTURE_MINUTE_ET,
         PUBLISH_HOUR_ET, PUBLISH_MINUTE_ET, EVALUATE_HOUR_ET, EVALUATE_MINUTE_ET,
         NFR01_CHECK_HOUR_ET, NFR01_CHECK_MINUTE_ET, NFR02_CHECK_HOUR_ET, NFR02_CHECK_MINUTE_ET,
+        BACKUP_HOUR_ET, BACKUP_MINUTE_ET, RESTORE_TEST_MONTHS, RESTORE_TEST_DAY,
+        RESTORE_TEST_HOUR_ET, RESTORE_TEST_MINUTE_ET,
     )
     return _scheduler
 

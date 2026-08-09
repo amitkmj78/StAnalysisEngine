@@ -7,6 +7,7 @@ import type {
   AdminSqlTablesResponse,
   AdminUser,
   AlertConditionType,
+  BackupStatus,
   ChatAskResponse,
   ChatProvidersResponse,
   CurrentPriceResponse,
@@ -511,6 +512,35 @@ export function scanPortfolioDropAlertsNow() {
 
 export function setDailyQuota(dailyQuota: number) {
   return apiSend<{ daily_quota: number }>("/api/v1/admin/settings/daily-quota", "POST", { daily_quota: dailyQuota });
+}
+
+export function enableDbBackup() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/db-backup/enable", "POST");
+}
+
+export function disableDbBackup() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/db-backup/disable", "POST");
+}
+
+export function getBackupStatus() {
+  return apiFetch<BackupStatus>("/api/v1/db-backup/status");
+}
+
+export function backupNow() {
+  return apiSend<{ id: number; s3_key: string | null; structural_check_passed: boolean; error: string | null }>(
+    "/api/v1/db-backup/backup-now", "POST",
+  );
+}
+
+export function restoreTestNow(s3Key?: string) {
+  const query = s3Key ? `?s3_key=${encodeURIComponent(s3Key)}` : "";
+  return apiSend<{
+    restore_succeeded: boolean;
+    all_match: boolean;
+    row_counts: Record<string, { restored: number; live: number; match: boolean }>;
+    s3_key?: string;
+    error?: string;
+  }>(`/api/v1/db-backup/restore-test-now${query}`, "POST");
 }
 
 export function getPublishedSignals(params?: { targetDate?: string; universeId?: string; lookbackDays?: number }) {
