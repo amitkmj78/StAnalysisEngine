@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, disablePublishSignals, enablePublishSignals, getAdminSettings, publishSignalsNow } from "@/lib/api";
+import {
+  ApiError,
+  checkPublicationAlertNow,
+  disablePublishSignals,
+  enablePublishSignals,
+  getAdminSettings,
+  publishSignalsNow,
+} from "@/lib/api";
 
 export default function PublishSignalsControls() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -13,6 +20,10 @@ export default function PublishSignalsControls() {
   const [publishing, setPublishing] = useState(false);
   const [publishResult, setPublishResult] = useState<string | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
+
+  const [testingAlert, setTestingAlert] = useState(false);
+  const [alertTestResult, setAlertTestResult] = useState<string | null>(null);
+  const [alertTestError, setAlertTestError] = useState<string | null>(null);
 
   async function load() {
     setError(null);
@@ -61,6 +72,24 @@ export default function PublishSignalsControls() {
       setPublishError(err instanceof ApiError ? err.message : "Failed to publish.");
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function handleTestAlert() {
+    setTestingAlert(true);
+    setAlertTestError(null);
+    setAlertTestResult(null);
+    try {
+      const res = await checkPublicationAlertNow("nfr01", true);
+      setAlertTestResult(
+        res.alert_sent
+          ? "Test alert email sent — check the admin inbox."
+          : `No email sent: ${res.reason}`
+      );
+    } catch (err) {
+      setAlertTestError(err instanceof ApiError ? err.message : "Failed to send test alert.");
+    } finally {
+      setTestingAlert(false);
     }
   }
 
@@ -136,6 +165,25 @@ export default function PublishSignalsControls() {
 
       {publishResult && <p className="mt-3 text-sm text-emerald-700">{publishResult}</p>}
       {publishError && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{publishError}</p>}
+
+      <div className="mt-4 border-t border-amber-200 pt-4">
+        <p className="text-sm font-medium text-slate-700">Failure alerting (NFR-01/02)</p>
+        <p className="mt-1 text-xs text-slate-500">
+          If publication hasn&apos;t completed 60 minutes after market close, an email goes to the admin
+          inbox (a second, escalated one at 2 hours if it&apos;s still missing) — Gate 0 requires ≥95% of
+          trading days published, so a silent miss shouldn&apos;t go unnoticed. This sends a real test
+          email right now regardless of today&apos;s actual publication status, to confirm delivery works.
+        </p>
+        <button
+          onClick={handleTestAlert}
+          disabled={testingAlert}
+          className="mt-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+        >
+          {testingAlert ? "Sending…" : "Send Test Alert"}
+        </button>
+        {alertTestResult && <p className="mt-2 text-sm text-emerald-700">{alertTestResult}</p>}
+        {alertTestError && <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{alertTestError}</p>}
+      </div>
     </div>
   );
 }

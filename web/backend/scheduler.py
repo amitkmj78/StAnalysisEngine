@@ -1,12 +1,14 @@
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from starlette.concurrency import run_in_threadpool
 
 from services.alert_engine_service import evaluate_alert
+from services.email_service import APP_URL, send_admin_alert_email
 from services.prediction_verification_service import verify_prediction
+from web.backend.admin import ADMIN_EMAIL
 from web.backend.app_settings import (
     PIT_PRICE_CAPTURE_ENABLED_KEY,
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
@@ -24,7 +26,11 @@ from web.backend.pit_prices import (
     capture_and_persist_universe_membership,
 )
 from web.backend.portfolio_alerts import scan_portfolios_for_drops
-from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
+from web.backend.signal_publication import (
+    evaluate_due_signal_outcomes,
+    is_publication_recorded,
+    publish_daily_signals,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +53,14 @@ PUBLISH_MINUTE_ET = 10
 # more often since "due" is measured in trading days, not minutes.
 EVALUATE_HOUR_ET = 17
 EVALUATE_MINUTE_ET = 0
+# NFR-01: alert if publication hasn't completed within 60 min of the
+# 4:00pm ET close (i.e. by 5:00pm ET).
+NFR01_CHECK_HOUR_ET = 17
+NFR01_CHECK_MINUTE_ET = 0
+# NFR-02: escalate if publication is still missing 2 hours after close
+# (i.e. by 6:00pm ET) — a genuinely missed day, not just a delay.
+NFR02_CHECK_HOUR_ET = 18
+NFR02_CHECK_MINUTE_ET = 0
 
 _scheduler: AsyncIOScheduler | None = None
 
@@ -186,6 +200,54 @@ async def _evaluate_signal_outcomes_job() -> None:
         logger.info("Scheduler: recorded %d signal outcomes", evaluated)
 
 
+async def check_publication_alert(checkpoint: str, deadline_desc: str, force: bool = False) -> dict:
+    """
+    Shared check behind both the NFR-01 (60-min) and NFR-02 (2-hour)
+    publication deadlines, also reused by the admin manual-test endpoint.
+    Only meaningful while publication is actually supposed to be running
+    (publish_signals_enabled) — if it's deliberately off, there's nothing
+    to alert about, unless force=true bypasses both gates purely to test
+    that the email mechanism itself still works. Returns a dict describing
+    what happened rather than just a bool, so a manual test call can show
+    the admin exactly why an alert did or didn't fire.
+    """
+    if not force and not await get_setting_bool(PUBLISH_SIGNALS_ENABLED_KEY, default=False):
+        return {"alert_sent": False, "reason": "publish_signals_enabled is off — nothing to alert about"}
+
+    today = date.today()
+    if not force and await is_publication_recorded(today):
+        return {"alert_sent": False, "reason": f"publication already recorded for {today.isoformat()}"}
+
+    subject = f"StAnalysisEngine: publication {checkpoint} — {today.isoformat()}"
+    body = (
+        f"No published signal set has been recorded for {today.isoformat()} as of {deadline_desc} "
+        f"after market close.\n\n"
+        f"Gate 0 requires ≥ 95% of trading days published, no gaps > 3 days — a silent miss "
+        f"here can quietly cost that criterion.\n\n"
+        f"Check the scheduler and publish manually if needed: {APP_URL}/admin/scheduler"
+    )
+    sent = await run_in_threadpool(send_admin_alert_email, ADMIN_EMAIL, subject, body)
+    logger.warning(
+        "Scheduler: publication %s alert for %s — email %s",
+        checkpoint, today.isoformat(), "sent" if sent else "FAILED TO SEND",
+    )
+    return {"alert_sent": sent, "reason": "publication missing" if sent else "email send failed"}
+
+
+async def _check_publication_nfr01_job() -> None:
+    """NFR-01: alert if today's publication hasn't happened within 60
+    minutes of market close (by 5:00pm ET)."""
+    await check_publication_alert("delayed (NFR-01, 60-min check)", "60 minutes")
+
+
+async def _check_publication_nfr02_job() -> None:
+    """NFR-02: escalate if today's publication is still missing 2 hours
+    after market close (by 6:00pm ET) — a genuinely missed day, not just
+    a delay. Deliberately still fires even if the NFR-01 check already
+    alerted earlier — a second, distinct-severity notice, not a duplicate."""
+    await check_publication_alert("missing (NFR-02, 2-hour check)", "2 hours")
+
+
 def start_scheduler() -> AsyncIOScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -252,15 +314,39 @@ def start_scheduler() -> AsyncIOScheduler:
         max_instances=1,
         misfire_grace_time=3600,
     )
+    _scheduler.add_job(
+        _check_publication_nfr01_job,
+        CronTrigger(
+            hour=NFR01_CHECK_HOUR_ET, minute=NFR01_CHECK_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="check_publication_nfr01",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=1800,
+    )
+    _scheduler.add_job(
+        _check_publication_nfr02_job,
+        CronTrigger(
+            hour=NFR02_CHECK_HOUR_ET, minute=NFR02_CHECK_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="check_publication_nfr02",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=1800,
+    )
     _scheduler.start()
     logger.info(
         "Background scheduler started (verify_saved_predictions every %d min, "
         "evaluate_watchlist_alerts every %d min, scan_portfolio_drops every %d min, "
         "capture_pit_data weekdays %02d:%02d ET, publish_daily_signals weekdays %02d:%02d ET, "
-        "evaluate_signal_outcomes weekdays %02d:%02d ET)",
+        "evaluate_signal_outcomes weekdays %02d:%02d ET, check_publication_nfr01 weekdays %02d:%02d ET, "
+        "check_publication_nfr02 weekdays %02d:%02d ET)",
         VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PORTFOLIO_DROP_INTERVAL_MINUTES,
         PIT_CAPTURE_HOUR_ET, PIT_CAPTURE_MINUTE_ET,
         PUBLISH_HOUR_ET, PUBLISH_MINUTE_ET, EVALUATE_HOUR_ET, EVALUATE_MINUTE_ET,
+        NFR01_CHECK_HOUR_ET, NFR01_CHECK_MINUTE_ET, NFR02_CHECK_HOUR_ET, NFR02_CHECK_MINUTE_ET,
     )
     return _scheduler
 

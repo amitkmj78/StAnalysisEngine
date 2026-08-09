@@ -482,6 +482,13 @@ export function publishSignalsNow() {
   return apiSend<{ published: number }>("/api/v1/signals/publish-now", "POST");
 }
 
+export function checkPublicationAlertNow(checkpoint: "nfr01" | "nfr02", force: boolean) {
+  return apiSend<{ alert_sent: boolean; reason: string }>(
+    `/api/v1/signals/check-publication-alert?checkpoint=${checkpoint}&force=${force}`,
+    "POST",
+  );
+}
+
 export function enablePortfolioDropAlerts() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/portfolio-drop-alerts/enable", "POST");
 }

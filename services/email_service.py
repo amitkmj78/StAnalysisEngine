@@ -116,36 +116,31 @@ def _render_welcome_email(app_url: str) -> tuple[str, str]:
     return text, html
 
 
-def send_welcome_email(to_email: str) -> bool:
+def _send_email(to_email: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
     """
-    Best-effort: a delivery failure must never block the admin's approval
-    action itself, so this always returns a bool rather than raising —
-    callers log a failed send but don't fail the request over it. Skips
+    Shared SMTP mechanics for every outbound email this app sends. Skips
     sending (and returns False) if GMAIL_SENDER_EMAIL / GMAIL_APP_PASSWORD
     aren't configured, e.g. in local dev where nobody wants test emails
     going out. GMAIL_APP_PASSWORD must be a Gmail App Password, not the
-    account's real password.
-
-    Sends multipart/alternative (plain text + HTML) — the HTML part is
-    what most clients render, the plain text part is a fallback for
-    clients/screen readers that don't render HTML.
+    account's real password. Best-effort: never raises — a delivery
+    failure must never block whatever triggered the send (an admin
+    action, a scheduled job), so callers get a bool and log accordingly.
     """
     sender = os.environ.get("GMAIL_SENDER_EMAIL")
     app_password = os.environ.get("GMAIL_APP_PASSWORD")
     if not sender or not app_password:
-        logger.warning(
-            "Welcome email skipped for %s: GMAIL_SENDER_EMAIL/GMAIL_APP_PASSWORD not configured", to_email
-        )
+        logger.warning("Email skipped for %s (%s): GMAIL_SENDER_EMAIL/GMAIL_APP_PASSWORD not configured", to_email, subject)
         return False
 
-    text_body, html_body = _render_welcome_email(APP_URL)
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = WELCOME_SUBJECT
+    if html_body:
+        msg = MIMEMultipart("alternative")
+        msg.attach(MIMEText(text_body, "plain"))
+        msg.attach(MIMEText(html_body, "html"))
+    else:
+        msg = MIMEText(text_body, "plain")
+    msg["Subject"] = subject
     msg["From"] = sender
     msg["To"] = to_email
-    msg.attach(MIMEText(text_body, "plain"))
-    msg.attach(MIMEText(html_body, "html"))
 
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
@@ -154,5 +149,27 @@ def send_welcome_email(to_email: str) -> bool:
             server.sendmail(sender, [to_email], msg.as_string())
         return True
     except Exception as e:
-        logger.warning("Welcome email failed to send to %s: %s", to_email, e)
+        logger.warning("Email failed to send to %s (%s): %s", to_email, subject, e)
         return False
+
+
+def send_welcome_email(to_email: str) -> bool:
+    """
+    Sends multipart/alternative (plain text + HTML) — the HTML part is
+    what most clients render, the plain text part is a fallback for
+    clients/screen readers that don't render HTML. See _send_email for
+    the fail-open behavior when mail isn't configured.
+    """
+    text_body, html_body = _render_welcome_email(APP_URL)
+    return _send_email(to_email, WELCOME_SUBJECT, text_body, html_body)
+
+
+def send_admin_alert_email(to_email: str, subject: str, body_text: str) -> bool:
+    """
+    NFR-01/02: a plain-text operational alert (publication delayed/missing,
+    etc.) — no branded HTML needed for an internal ops email to the admin.
+    Same fail-open behavior as every other email here: a broken mail
+    config must never block or crash the job that's trying to report a
+    *different* problem.
+    """
+    return _send_email(to_email, subject, body_text)

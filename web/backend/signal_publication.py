@@ -17,6 +17,25 @@ from web.backend.db import service_conn
 logger = logging.getLogger(__name__)
 
 
+async def is_publication_recorded(
+    target_date: date,
+    universe_id: str = DEFAULT_UNIVERSE,
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+) -> bool:
+    """NFR-01/02: the same existence check publish_daily_signals uses to
+    stay idempotent, extracted so the alert jobs can ask "did today's
+    publication actually happen?" without duplicating the query."""
+    async with service_conn() as conn:
+        count = await conn.fetchval(
+            """
+            SELECT count(*) FROM published_signals
+            WHERE target_date = $1 AND universe_id = $2 AND lookback_days = $3 AND reason_code IS NULL
+            """,
+            target_date, universe_id, lookback_days,
+        )
+    return bool(count)
+
+
 async def publish_daily_signals(
     universe_id: str = DEFAULT_UNIVERSE,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,

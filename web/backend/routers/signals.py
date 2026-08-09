@@ -16,6 +16,7 @@ from web.backend.admin import require_admin
 from web.backend.app_settings import PUBLISH_SIGNALS_ENABLED_KEY, get_setting_bool
 from web.backend.db import service_conn
 from web.backend.rate_limit import limiter
+from web.backend.scheduler import check_publication_alert
 from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
 
 router = APIRouter(prefix="/api/v1/signals", tags=["signals"])
@@ -226,3 +227,22 @@ async def evaluate_now(
         universe_id=universe_id, lookback_days=lookback_days, horizon_days=horizon_days
     )
     return {"evaluated": evaluated}
+
+
+@router.post("/check-publication-alert", dependencies=[Depends(require_admin)])
+async def check_publication_alert_now(
+    checkpoint: str = Query("nfr01", description="'nfr01' (60-min) or 'nfr02' (2-hour)"),
+    force: bool = Query(False, description="Send a real test email even if publication already succeeded today."),
+):
+    """NFR-01/02: manual trigger for the same alert check the scheduler
+    runs at 5pm/6pm ET — for verifying the email actually arrives, not
+    routine use. With force=true, bypasses both the enabled-check and the
+    already-published-check purely to confirm mail delivery works."""
+    if checkpoint == "nfr01":
+        label, deadline = "delayed (NFR-01, 60-min check)", "60 minutes"
+    elif checkpoint == "nfr02":
+        label, deadline = "missing (NFR-02, 2-hour check)", "2 hours"
+    else:
+        raise HTTPException(422, "checkpoint must be 'nfr01' or 'nfr02'")
+
+    return await check_publication_alert(label, deadline, force=force)
