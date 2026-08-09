@@ -8,11 +8,12 @@ from services.signal_publication_service import (
     DEFAULT_LOOKBACK_DAYS,
     DEFAULT_TOP_N,
     DEFAULT_UNIVERSE,
-    build_daily_signal_set,
+    build_daily_signal_set_hybrid,
     evaluate_signal_outcomes_for_date,
     get_model_version_hash,
 )
 from web.backend.db import service_conn
+from web.backend.pit_signals import fetch_pit_prices_as_of
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,10 @@ async def publish_daily_signals(
             )
             return 0
 
-        rows = await run_in_threadpool(build_daily_signal_set, universe_id, lookback_days, top_n)
+        pit_price_rows = await fetch_pit_prices_as_of(target_date, universe_id, lookback_days)
+        rows = await run_in_threadpool(
+            build_daily_signal_set_hybrid, pit_price_rows, universe_id, lookback_days, top_n
+        )
         if not rows:
             logger.warning(
                 "No signal rows computed for %s/%s/%dd — nothing published",
@@ -83,16 +87,17 @@ async def publish_daily_signals(
                 """
                 INSERT INTO published_signals (
                     model_version_hash, as_of_data_timestamp, target_date, universe_id,
-                    lookback_days, rank, ticker, trailing_return_pct
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    lookback_days, rank, ticker, trailing_return_pct, data_source
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 """,
                 model_hash, as_of, target_date, universe_id, lookback_days,
-                row["rank"], row["ticker"], row["trailing_return_pct"],
+                row["rank"], row["ticker"], row["trailing_return_pct"], row["data_source"],
             )
 
+    pit_sourced = sum(1 for r in rows if r["data_source"] == "pit")
     logger.info(
-        "Published %d signals for %s/%s/%dd (model %s)",
-        len(rows), target_date, universe_id, lookback_days, model_hash[:12],
+        "Published %d signals for %s/%s/%dd (model %s) — %d/%d from PIT store",
+        len(rows), target_date, universe_id, lookback_days, model_hash[:12], pit_sourced, len(rows),
     )
     return len(rows)
 

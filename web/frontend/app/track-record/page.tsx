@@ -78,6 +78,7 @@ export default function TrackRecordPage() {
                     <th className="px-3 py-2">Rank</th>
                     <th className="px-3 py-2">Ticker</th>
                     <th className="px-3 py-2 text-right">{data.lookback_days}-Day Trailing Return</th>
+                    <th className="px-3 py-2 text-center">Data Source</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -93,6 +94,22 @@ export default function TrackRecordPage() {
                         {s.trailing_return_pct >= 0 ? "+" : ""}
                         {s.trailing_return_pct.toFixed(2)}%
                       </td>
+                      <td className="px-3 py-2 text-center">
+                        <span
+                          title={
+                            s.data_source === "pit"
+                              ? "Computed from the point-in-time store — independently reconstructible from recorded history."
+                              : "PIT store didn't have enough history for this ticker yet — computed from a live price fetch at publication time."
+                          }
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            s.data_source === "pit"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          {s.data_source === "pit" ? "PIT" : "live"}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -102,6 +119,13 @@ export default function TrackRecordPage() {
                 <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">
                   {data.signals[0]?.model_version_hash.slice(0, 12)}
                 </code>
+                {" · "}
+                {data.signals.filter((s) => s.data_source === "pit").length}/{data.signals.length} picks sourced
+                from the point-in-time store
+                {data.signals.every((s) => s.data_source === "pit")
+                  ? " (fully reconstructible)"
+                  : " — the rest fell back to a live price fetch because the PIT store didn't have enough history for that ticker yet"}
+                .
               </p>
             </div>
           )}

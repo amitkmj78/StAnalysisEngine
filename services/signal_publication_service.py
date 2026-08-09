@@ -8,6 +8,7 @@ import pandas as pd
 import yfinance as yf
 
 from .data_service import get_latest_price
+from .pit_signal_service import merge_pit_and_live_scores, score_tickers_from_pit
 from .prediction_service import generate_trading_signal, predict_future_prices
 from .stock_finder_service import STOCK_UNIVERSES, get_stock_finder_table
 
@@ -75,6 +76,39 @@ def build_daily_signal_set(
         }
         for i, (_, row) in enumerate(ranked.iterrows())
     ]
+
+
+def build_daily_signal_set_hybrid(
+    pit_price_rows: list[dict],
+    universe_id: str = DEFAULT_UNIVERSE,
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+    top_n: int = DEFAULT_TOP_N,
+) -> list[dict]:
+    """
+    TR-2: the same ranking rule as build_daily_signal_set, but sources each
+    ticker's trailing-return figure from the PIT store whenever the PIT
+    store already has lookback_days + 1 days of price history for that
+    ticker, falling back to today's live yfinance fetch only for tickers
+    the PIT store can't cover yet (merge_pit_and_live_scores does the
+    actual merge/rank — kept pure and separately tested).
+
+    This exists so publication never has to stop and wait for the PIT
+    store to accumulate lookback_days + 1 trading days of history before
+    it can run at all — a hard PIT-only cutover today would publish zero
+    rows and stay that way for weeks. Instead, live-fallback usage shrinks
+    on its own as PIT history deepens, until every ticker qualifies and
+    this becomes provably identical to a PIT-only computation — which is
+    exactly what GET /api/v1/pit-prices/reconcile already measures.
+    """
+    col = f"Return {lookback_days}D %"
+    df = get_stock_finder_table(universe_id)
+    live_scored = []
+    if not df.empty and col in df.columns:
+        for _, row in df.dropna(subset=[col]).iterrows():
+            live_scored.append({"ticker": str(row["Ticker"]), "trailing_return_pct": round(float(row[col]), 4)})
+
+    pit_scored = score_tickers_from_pit(pit_price_rows, lookback_days)
+    return merge_pit_and_live_scores(pit_scored, live_scored, top_n)
 
 
 def compute_predict_algo_comparison(

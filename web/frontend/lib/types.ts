@@ -554,6 +554,7 @@ export interface PublishedSignalRow {
   rank: number;
   ticker: string;
   trailing_return_pct: number;
+  data_source: "pit" | "live";
   reason_code: string | null;
   corrects_id: number | null;
 }

@@ -611,9 +611,11 @@ create table if not exists published_signals (
   rank integer not null,
   ticker text not null,
   trailing_return_pct real not null,
+  data_source text not null default 'live',
   reason_code text,
   corrects_id bigint references published_signals(id)
 );
+alter table published_signals add column if not exists data_source text not null default 'live';
 create index if not exists published_signals_lookup_idx
   on published_signals(target_date, universe_id, lookback_days);
 
