@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,6 +12,7 @@ from services.backup_service import (
     BACKUP_TABLES,
     create_backup_dump,
     list_dump_contents,
+    remove_dump,
     run_real_restore_test,
 )
 from web.backend.db import service_conn
@@ -32,6 +33,17 @@ def _s3_client():
     return boto3.client("s3")
 
 
+def _tmp_dump_path(prefix: str) -> Path:
+    # Deliberately a bare /tmp path, not a private tempfile.TemporaryDirectory()
+    # — pg_dump/pg_restore run as the postgres OS user (via sudo), a
+    # different user than this app process, and would be denied write/
+    # traverse access to a 0700 directory owned by the app's own user.
+    # /tmp itself is world-writable (sticky bit), so postgres can create
+    # or read files placed directly there regardless of which OS user
+    # this process runs as.
+    return Path(f"/tmp/{prefix}-{uuid.uuid4().hex[:8]}.dump")
+
+
 async def run_backup() -> dict:
     """
     NFR-03: dumps the published-record + PIT-store tables, uploads to S3,
@@ -42,9 +54,9 @@ async def run_backup() -> dict:
     """
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     s3_key = f"backups/{timestamp}.dump"
+    dump_path = _tmp_dump_path("backup")
 
-    with tempfile.TemporaryDirectory() as tmp:
-        dump_path = Path(tmp) / f"{timestamp}.dump"
+    try:
         try:
             await run_in_threadpool(create_backup_dump, dump_path)
         except Exception as e:
@@ -67,6 +79,8 @@ async def run_backup() -> dict:
                 s3_key=None, size_bytes=size_bytes, tables_verified=tables_verified,
                 error=f"S3 upload failed: {e}",
             )
+    finally:
+        await run_in_threadpool(remove_dump, dump_path)
 
     return await _persist_run(s3_key=s3_key, size_bytes=size_bytes, tables_verified=tables_verified, error=None)
 
@@ -89,16 +103,26 @@ async def run_restore_test(s3_key: str | None = None) -> dict:
             return {"restore_succeeded": False, "error": "No backup available to test.", "row_counts": {}, "all_match": False}
         s3_key = row["s3_key"]
 
-    with tempfile.TemporaryDirectory() as tmp:
-        dump_path = Path(tmp) / "restore_test.dump"
+    dump_path = _tmp_dump_path("restore")
+    try:
         try:
             s3 = _s3_client()
             await run_in_threadpool(s3.download_file, S3_BUCKET, s3_key, str(dump_path))
+            # Downloaded by this app's own OS user — no sudo needed to
+            # loosen permissions, just make sure postgres (a different
+            # OS user, invoked via sudo in run_real_restore_test) can
+            # read it back.
+            await run_in_threadpool(os.chmod, dump_path, 0o644)
         except Exception as e:
             logger.warning("NFR-03 restore test: S3 download failed: %s", e)
             return {"restore_succeeded": False, "error": f"S3 download failed: {e}", "row_counts": {}, "all_match": False}
 
         result = await run_in_threadpool(run_real_restore_test, dump_path)
+    finally:
+        try:
+            dump_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     async with service_conn() as conn:
         await conn.execute(

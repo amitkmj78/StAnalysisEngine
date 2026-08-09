@@ -33,13 +33,37 @@ SCRATCH_DB_NAME = "nfr03_restore_verify"
 
 
 def create_backup_dump(out_path: Path) -> None:
-    """pg_dump the NFR-03 table set, custom format (compressed, restorable
-    via pg_restore), scoped to exactly BACKUP_TABLES."""
+    """
+    pg_dump the NFR-03 table set, custom format (compressed, restorable
+    via pg_restore), scoped to exactly BACKUP_TABLES. Runs as the
+    postgres OS user (via sudo), which needs write access to out_path's
+    directory — callers must pass a path under a world-writable location
+    like /tmp itself (not a private tempfile.TemporaryDirectory(), which
+    defaults to 0700 and would deny postgres write access even though the
+    app process that created it is a different OS user). Chmods the
+    result to 644 afterward so the app process (running as a third,
+    unprivileged user) can read it back for the S3 upload.
+    """
     cmd = ["sudo", "-u", "postgres", "pg_dump", "-d", DB_NAME, "--format=custom", "--no-owner", "--no-privileges"]
     for table in BACKUP_TABLES:
         cmd += ["-t", table]
     cmd += ["-f", str(out_path)]
     subprocess.run(cmd, check=True, capture_output=True, timeout=300, text=True)
+    subprocess.run(
+        ["sudo", "-u", "postgres", "chmod", "644", str(out_path)],
+        check=True, capture_output=True, timeout=30, text=True,
+    )
+
+
+def remove_dump(path: Path) -> None:
+    """postgres owns backup dump files (created via sudo -u postgres); the
+    app's own OS user can't unlink them without sudo even though it can
+    read them (644 permissions), so cleanup goes through the same sudo
+    path as everything else here."""
+    subprocess.run(
+        ["sudo", "-u", "postgres", "rm", "-f", str(path)],
+        check=False, capture_output=True, timeout=30, text=True,
+    )
 
 
 def list_dump_contents(dump_path: Path) -> list[str]:
