@@ -554,6 +554,7 @@ export function getMomentumBacktest(
   lookbackDays: number,
   topN = 5,
   years = 3,
+  horizonDays = 30,
 ) {
   return apiFetch<MomentumBacktestResponse>("/api/v1/momentum/backtest", {
     asset_type: assetType,
@@ -561,6 +562,7 @@ export function getMomentumBacktest(
     lookback_days: String(lookbackDays),
     top_n: String(topN),
     years: String(years),
+    horizon_days: String(horizonDays),
   });
 }
 

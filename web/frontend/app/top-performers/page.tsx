@@ -18,6 +18,7 @@ export default function TopPerformersPage() {
   const [fundCategories, setFundCategories] = useState<string[]>([]);
 
   const [window, setWindow] = useState(30);
+  const [horizonDays, setHorizonDays] = useState(30);
   const [stockUniverse, setStockUniverse] = useState("All");
   const [fundCategory, setFundCategory] = useState("All");
 
@@ -68,7 +69,7 @@ export default function TopPerformersPage() {
     setBacktestLoading(true);
     setBacktestError(null);
     try {
-      setBacktest(await getMomentumBacktest("Stock", stockUniverse, window, 5, 3));
+      setBacktest(await getMomentumBacktest("Stock", stockUniverse, window, 5, 3, horizonDays));
     } catch (err) {
       setBacktestError(err instanceof ApiError ? err.message : "Backtest failed.");
     } finally {
@@ -137,18 +138,39 @@ export default function TopPerformersPage() {
       <div className="mt-6 rounded-lg border border-indigo-200 bg-indigo-50/40 p-5">
         <h2 className="font-semibold text-slate-900">3-Year Test: Does This Ranking Actually Work?</h2>
         <p className="mt-1 text-sm text-slate-600">
-          We rewound the clock 3 years and pretended to invest for real. About once a month, we picked the 5{" "}
-          {stockUniverse} stocks with the best recent run (the same {WINDOW_LABELS[window] ?? `${window}-day`}{" "}
-          ranking you see above), using only what would have been known at that moment — never a peek at what
-          happened next. We held those 5 until the next check-in, then compared the result to simply owning
-          every stock in the universe equally over that same stretch. No cherry-picking: it&apos;s the identical
-          rule applied consistently, so it can be re-checked honestly at any past date.
+          We rewound the clock 3 years and pretended to invest for real. Every {horizonDays} trading days, we
+          picked the 5 {stockUniverse} stocks with the best recent run (the same{" "}
+          {WINDOW_LABELS[window] ?? `${window}-day`} ranking you see above), using only what would have been
+          known at that moment — never a peek at what happened next. We held those 5 until the next check-in,
+          then compared the result to simply owning every stock in the universe equally over that same stretch.
+          No cherry-picking: it&apos;s the identical rule applied consistently, so it can be re-checked
+          honestly at any past date. Simulated day by day, not computed as one bulk average — a real day-by-day
+          walk through the market, holding period by holding period.
         </p>
         <p className="mt-2 text-xs text-slate-500">
           Trading costs are included by default, not left out to flatter the number: 5 bps slippage plus
-          commission each time a position turns over. Every return below is net of those costs unless labeled
-          otherwise.
+          commission each time a position turns over, plus a borrow-cost formula that's structurally $0 here
+          since this strategy only ever holds long positions — there are no borrowed shares to charge for.
+          Every return below is net of those costs unless labeled otherwise.
         </p>
+
+        <div className="mt-3 flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500">Hold period before re-ranking</label>
+          <div className="flex w-fit gap-1 rounded-md border border-indigo-300 bg-white p-1">
+            {windows.map((h) => (
+              <button
+                key={h}
+                onClick={() => setHorizonDays(h)}
+                className={`rounded px-3 py-1.5 text-sm font-medium ${
+                  horizonDays === h ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-indigo-50"
+                }`}
+              >
+                {WINDOW_LABELS[h] ?? `${h} Days`}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <button
           onClick={runBacktest}
           disabled={backtestLoading}
@@ -164,7 +186,7 @@ export default function TopPerformersPage() {
         {backtest && !backtestLoading && (
           <div className="mt-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <BacktestTile label="Times We Checked" hint="how many monthly rounds" value={String(backtest.num_periods)} />
+              <BacktestTile label="Times We Checked" hint={`${backtest.horizon_days}-day rounds`} value={String(backtest.num_periods)} />
               <BacktestTile
                 label="Win Rate"
                 hint="rounds our picks beat the market"

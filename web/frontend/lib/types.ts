@@ -622,9 +622,11 @@ export interface MomentumBacktestResponse {
   lookback_days: number;
   top_n: number;
   years: number;
+  horizon_days: number;
   slippage_bps: number;
   commission_bps: number;
   borrow_cost_bps_annual: number;
+  borrow_cost_drag_pct: number;
   risk_free_rate_annual: number;
   num_periods: number;
   hit_rate_pct: number | null;

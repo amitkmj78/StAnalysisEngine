@@ -650,14 +650,16 @@ create table if not exists backtest_runs (
   lookback_days integer not null,
   top_n integer not null,
   years integer not null,
+  horizon_days integer not null default 30,
   slippage_bps real not null,
   commission_bps real not null,
   borrow_cost_bps_annual real not null,
   risk_free_rate_annual real not null,
   result_json jsonb not null
 );
+alter table backtest_runs add column if not exists horizon_days integer not null default 30;
 create index if not exists backtest_runs_lookup_idx
-  on backtest_runs(asset_type, universe, lookback_days, top_n, years);
+  on backtest_runs(asset_type, universe, lookback_days, top_n, years, horizon_days);
 
 -- TR-3 Phase 1: append-only point-in-time price store. A row's mere
 -- presence proves this exact close was on record at captured_at_utc — the
