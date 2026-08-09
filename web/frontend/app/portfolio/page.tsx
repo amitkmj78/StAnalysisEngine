@@ -436,6 +436,8 @@ export default function PortfolioPage() {
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                       <th className="px-3 py-2">Ticker</th>
+                      <th className="px-3 py-2">Signal</th>
+                      <th className="px-3 py-2">Momentum Rank</th>
                       <th className="px-3 py-2 text-right">Shares</th>
                       <th className="px-3 py-2 text-right">Price Now</th>
                       <th className="px-3 py-2 text-right">Price 30D Ago</th>
@@ -445,9 +447,45 @@ export default function PortfolioPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {performance.rows.map((r) => (
+                    {performance.rows.map((r) => {
+                      const insight = insights.find((i) => i.ticker === r.ticker) ?? null;
+                      return (
                       <tr key={r.ticker} className="border-b border-slate-100 last:border-0">
-                        <td className="px-3 py-2 font-medium text-slate-800">{r.ticker}</td>
+                        <td className="px-3 py-2 font-medium text-slate-800">
+                          {r.ticker}
+                          {insight?.concentrated && (
+                            <span
+                              title="A single position this large drives most of your portfolio's swings."
+                              className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                            >
+                              {insight.weight_pct?.toFixed(0)}%
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {insight?.signal ? (
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                insight.signal === "BUY"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : insight.signal === "SELL"
+                                  ? "bg-red-50 text-red-700"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {insight.signal}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">{insightsLoading ? "…" : "—"}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-slate-600">
+                          {insight?.rank !== null && insight?.rank !== undefined && insight.universe_size
+                            ? `#${insight.rank} of ${insight.universe_size}`
+                            : insightsLoading
+                            ? "…"
+                            : "—"}
+                        </td>
                         <td className="px-3 py-2 text-right text-slate-600">{r.shares}</td>
                         {r.price_unavailable ? (
                           <td colSpan={4} className="px-3 py-2 text-slate-400">
@@ -512,7 +550,8 @@ export default function PortfolioPage() {
                           </>
                         )}
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
