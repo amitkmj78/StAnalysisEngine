@@ -53,6 +53,50 @@ def _record_to_dict(record) -> dict:
     return {k: record[k] for k in record.keys()}
 
 
+async def _merge_with_existing(conn, user_id: str, new_holdings_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Combines freshly-submitted holdings (a manual-entry save, a CSV import,
+    a single-position edit) with whatever the user already has saved,
+    keyed by ticker. A ticker present in the new submission is taken
+    exactly as submitted there (the user just told us the current truth
+    for that position); every other already-saved ticker is preserved
+    as-is rather than being wiped out — this is what makes saving
+    additive instead of "replace the whole portfolio," matching how
+    edit_position already behaved for a single ticker.
+
+    Preserved existing rows carry only Ticker/Shares/Avg_Cost (no
+    Current_Price/Name — those aren't in portfolio_positions to begin
+    with), which is exactly the shape refresh_portfolio already uses:
+    _normalize_holdings_row fetches a live price for them, same as a
+    refresh would.
+    """
+    new_tickers: set[str] = set()
+    if not new_holdings_df.empty and "Ticker" in new_holdings_df.columns:
+        new_tickers = {str(t).strip().upper() for t in new_holdings_df["Ticker"]}
+        # CSV-derived holdings carry "Net_Shares", not "Shares" (see
+        # positions_from_csv.py) — normalize before concatenating with the
+        # preserved rows below, which always use "Shares". Left as two
+        # differently-named columns, _normalize_holdings_row's
+        # `"Shares" in row.index` check would find a Shares column (present
+        # only because pandas unions columns across concat) full of NaN for
+        # every CSV row, silently discarding real quantities from
+        # Net_Shares instead of falling back to it.
+        if "Net_Shares" in new_holdings_df.columns and "Shares" not in new_holdings_df.columns:
+            new_holdings_df = new_holdings_df.rename(columns={"Net_Shares": "Shares"})
+
+    existing = await conn.fetch(
+        "SELECT ticker, shares, avg_cost FROM portfolio_positions WHERE user_id = $1::uuid",
+        user_id,
+    )
+    preserved_rows = [
+        {"Ticker": r["ticker"], "Shares": r["shares"], "Avg_Cost": r["avg_cost"]}
+        for r in existing
+        if r["ticker"] not in new_tickers
+    ]
+
+    return pd.concat([pd.DataFrame(preserved_rows), new_holdings_df], ignore_index=True, sort=False)
+
+
 async def _save_and_respond(conn, user_id: str, holdings_df: pd.DataFrame, risk_profile: str, risk_factor: int, source: str):
     if holdings_df.empty:
         return {"positions": [], "strategies": [], "summary": summarize_portfolio(pd.DataFrame())}
@@ -61,8 +105,12 @@ async def _save_and_respond(conn, user_id: str, holdings_df: pd.DataFrame, risk_
     if strat_df.empty:
         return {"positions": [], "strategies": [], "summary": summarize_portfolio(strat_df)}
 
-    # A save always represents the user's current portfolio snapshot, not an
-    # addition to history — replace what's there instead of accumulating duplicates.
+    # holdings_df going in here is already the full merged set (see
+    # _merge_with_existing) — callers are responsible for combining new
+    # data with what's already saved before reaching this point. This
+    # delete+reinsert is just how that merged snapshot gets written, not a
+    # place that decides what's kept vs. dropped: it must never receive
+    # only a subset of the user's positions, or the rest would be lost.
     await conn.execute("DELETE FROM portfolio_positions WHERE user_id = $1::uuid", user_id)
     await conn.execute("DELETE FROM portfolio_strategies WHERE user_id = $1::uuid", user_id)
 
@@ -163,7 +211,8 @@ async def submit_manual_positions(request: Request, body: ManualPositionsRequest
         total_returns=[p.total_return_pct for p in body.positions],
     )
     async with user_conn(user_id) as conn:
-        return await _save_and_respond(conn, user_id, holdings_df, body.risk_profile, body.risk_factor, "Manual")
+        merged_df = await _merge_with_existing(conn, user_id, holdings_df)
+        return await _save_and_respond(conn, user_id, merged_df, body.risk_profile, body.risk_factor, "Manual")
 
 
 @router.post("/import-csv")
@@ -184,7 +233,8 @@ async def import_csv(
         raise HTTPException(422, f"Could not process CSV: {exc}")
 
     async with user_conn(user_id) as conn:
-        return await _save_and_respond(conn, user_id, holdings_df, risk_profile, risk_factor, "Robinhood")
+        merged_df = await _merge_with_existing(conn, user_id, holdings_df)
+        return await _save_and_respond(conn, user_id, merged_df, risk_profile, risk_factor, "Robinhood")
 
 
 @router.post("/refresh")
@@ -244,30 +294,9 @@ async def edit_position(request: Request, ticker: str, body: PositionEditRequest
     user_id = request.state.user["id"]
 
     async with user_conn(user_id) as conn:
-        records = await conn.fetch(
-            "SELECT ticker, shares, avg_cost, name FROM portfolio_positions WHERE user_id = $1::uuid",
-            user_id,
-        )
-
-        rows = []
-        found = False
-        for r in records:
-            if r["ticker"] == ticker:
-                found = True
-                rows.append(
-                    {"Ticker": ticker, "Name": body.name or ticker, "Shares": body.shares, "Avg_Cost": body.avg_cost}
-                )
-            else:
-                rows.append(
-                    {"Ticker": r["ticker"], "Name": r["name"] or r["ticker"], "Shares": r["shares"], "Avg_Cost": r["avg_cost"]}
-                )
-        if not found:
-            rows.append(
-                {"Ticker": ticker, "Name": body.name or ticker, "Shares": body.shares, "Avg_Cost": body.avg_cost}
-            )
-
-        holdings_df = pd.DataFrame(rows)
-        return await _save_and_respond(conn, user_id, holdings_df, body.risk_profile, body.risk_factor, "Edited")
+        new_row = pd.DataFrame([{"Ticker": ticker, "Shares": body.shares, "Avg_Cost": body.avg_cost}])
+        merged_df = await _merge_with_existing(conn, user_id, new_row)
+        return await _save_and_respond(conn, user_id, merged_df, body.risk_profile, body.risk_factor, "Edited")
 
 
 @router.get("/positions")
