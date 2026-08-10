@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   ApiError,
   editPortfolioPosition,
+  getCurrentPrice,
   getPortfolioInsights,
   getPortfolioPerformance,
   getPortfolioStrategies,
@@ -38,6 +39,7 @@ export default function PortfolioPage() {
 
   const [rows, setRows] = useState<ManualPositionInput[]>([{ ...EMPTY_ROW }]);
   const [file, setFile] = useState<File | null>(null);
+  const [priceFetchingRow, setPriceFetchingRow] = useState<number | null>(null);
 
   const [strategies, setStrategies] = useState<PortfolioStrategyRow[]>([]);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
@@ -131,6 +133,23 @@ export default function PortfolioPage() {
 
   function removeRow(i: number) {
     setRows((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  async function populateCurrentPrice(i: number, ticker: string) {
+    const trimmed = ticker.trim().toUpperCase();
+    if (!trimmed) return;
+    setPriceFetchingRow(i);
+    try {
+      const res = await getCurrentPrice(trimmed);
+      if (res.price !== null) {
+        updateRow(i, { current_price: res.price });
+      }
+    } catch {
+      // Lookup failed (bad ticker, no data) — leave whatever's there so the
+      // user can still type a price in by hand, same as before this existed.
+    } finally {
+      setPriceFetchingRow((cur) => (cur === i ? null : cur));
+    }
   }
 
   async function submitManual(e: React.FormEvent) {
@@ -322,7 +341,12 @@ export default function PortfolioPage() {
           {rows.map((row, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <Field label="Ticker">
-                <input value={row.ticker} onChange={(e) => updateRow(i, { ticker: e.target.value })} className="input w-24 uppercase" />
+                <input
+                  value={row.ticker}
+                  onChange={(e) => updateRow(i, { ticker: e.target.value })}
+                  onBlur={(e) => populateCurrentPrice(i, e.target.value)}
+                  className="input w-24 uppercase"
+                />
               </Field>
               <Field label="Name">
                 <input value={row.name} onChange={(e) => updateRow(i, { name: e.target.value })} className="input w-32" />
@@ -334,7 +358,14 @@ export default function PortfolioPage() {
                 <input type="number" step="0.01" value={row.avg_cost || ""} onChange={(e) => updateRow(i, { avg_cost: Number(e.target.value) })} className="input w-24" />
               </Field>
               <Field label="Current price">
-                <input type="number" step="0.01" value={row.current_price || ""} onChange={(e) => updateRow(i, { current_price: Number(e.target.value) })} className="input w-24" />
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder={priceFetchingRow === i ? "Fetching…" : undefined}
+                  value={row.current_price || ""}
+                  onChange={(e) => updateRow(i, { current_price: Number(e.target.value) })}
+                  className="input w-24"
+                />
               </Field>
               {rows.length > 1 && (
                 <button type="button" onClick={() => removeRow(i)} className="text-xs text-red-600 hover:underline">
