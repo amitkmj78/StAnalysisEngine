@@ -170,7 +170,7 @@ export default function IndexFundPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Score" value={`${winner.Score}/100`} />
+            <MetricTile label="Score" value={`${winner.Score}/100`} onInfoClick={() => setInfoColumn("Score")} />
             <MetricTile label="Price" value={`$${Number(winner.Price).toFixed(2)}`} />
             <MetricTile
               label="Expense Ratio"
@@ -254,10 +254,30 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function MetricTile({
+  label,
+  value,
+  onInfoClick,
+}: {
+  label: string;
+  value: string;
+  onInfoClick?: () => void;
+}) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="flex items-center gap-1 text-xs text-slate-500">
+        {label}
+        {onInfoClick && (
+          <button
+            type="button"
+            onClick={onInfoClick}
+            title={`What is ${label}?`}
+            className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
+          >
+            i
+          </button>
+        )}
+      </p>
       <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );

@@ -2,9 +2,36 @@
 
 import { useEffect, useState } from "react";
 
+import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import MonthlyChart from "@/components/monthly/MonthlyChart";
 import { ApiError, getMonthlyPlanOptions, getMonthlyPlanSummary } from "@/lib/api";
 import type { MonthlyPlanResponse } from "@/lib/types";
+
+// Same ranking engine (and same weights) as /stock-finder and /index-fund —
+// this page's "Score" is that Score, not a separate computation, so the
+// explanation is kept in sync with those pages' own COLUMN_INFO.Score text.
+const SCORE_INFO: Record<"Stock" | "Fund", ColumnInfo> = {
+  Stock: {
+    title: "Score",
+    body: [
+      "A 0–100 blend of several metrics, each normalized against the other tickers in the current universe (the best value in the current list scores highest on that metric, the worst scores lowest) — it's a relative ranking within this run, not an absolute grade. Re-running with a different universe can change a ticker's score even if nothing about the ticker itself changed.",
+      "The metrics and their weights depend on the Goal you picked:",
+      "\"Short Term\": 3-month return (30%), 1-month return (25%), RSI balance (15%), MACD signal strength (15%), volume strength (10%), 6-month volatility (5%, lower is better).",
+      "\"Long Term\": 1-year return (28%), 3-year annualized return (20%), 6-month return (12%), revenue growth (12%), earnings growth (10%), forward P/E (8%, lower is better), 1-year max drawdown (10%, lower is better).",
+    ],
+  },
+  Fund: {
+    title: "Score",
+    body: [
+      "A 0–100 blend of several metrics, each normalized against the other funds in the current category (the best value in the current list scores highest on that metric, the worst scores lowest) — it's a relative ranking within this run, not an absolute grade. Re-running with a different category can change a fund's score even if nothing about the fund itself changed.",
+      "The metrics and their weights depend on the Goal you picked:",
+      "\"Balanced Core\": 1-year return (35%), 3-year annualized return (25%), expense ratio (20%, lower is better), 1-year volatility (10%, lower is better), 3-year max drawdown (10%, lower is better).",
+      "\"Lowest Cost\": expense ratio (65%, lower is better), 3-year annualized return (20%), 1-year volatility (10%, lower is better), fund assets (5%).",
+      "\"Best Growth\": 1-year return (50%), 3-year annualized return (35%), 1-year volatility (10%, lower is better), expense ratio (5%, lower is better).",
+      "\"Most Stable\": 1-year volatility (45%, lower is better), 3-year max drawdown (30%, lower is better), expense ratio (15%, lower is better), 3-year annualized return (10%).",
+    ],
+  },
+};
 
 export default function MonthlyPlanPage() {
   const [fundGoals, setFundGoals] = useState<string[]>([]);
@@ -173,6 +200,8 @@ function PlanResultCard({
   monthlyAmount: number;
   years: number;
 }) {
+  const [activeInfo, setActiveInfo] = useState<ColumnInfo | null>(null);
+
   if (!data) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-5">
@@ -192,6 +221,7 @@ function PlanResultCard({
   }
 
   const { recommendation } = data;
+  const scoreInfo = SCORE_INFO[recommendation.asset_type === "Fund" ? "Fund" : "Stock"];
 
   return (
     <div className="flex flex-col gap-4">
@@ -207,7 +237,7 @@ function PlanResultCard({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <MetricTile label="Score" value={`${recommendation.score.toFixed(1)}/100`} />
+        <MetricTile label="Score" value={`${recommendation.score.toFixed(1)}/100`} onInfoClick={() => setActiveInfo(scoreInfo)} />
         <MetricTile label="Monthly Invest" value={`$${monthlyAmount.toLocaleString()}`} />
         <MetricTile label="Plan Length" value={`${years} years`} />
         <MetricTile
@@ -244,6 +274,8 @@ function PlanResultCard({
       ) : (
         <p className="text-sm text-slate-500">Not enough price history was available to simulate this plan.</p>
       )}
+
+      {activeInfo && <InfoModal info={activeInfo} onClose={() => setActiveInfo(null)} />}
     </div>
   );
 }
@@ -257,10 +289,30 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function MetricTile({
+  label,
+  value,
+  onInfoClick,
+}: {
+  label: string;
+  value: string;
+  onInfoClick?: () => void;
+}) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="flex items-center gap-1 text-xs text-slate-500">
+        {label}
+        {onInfoClick && (
+          <button
+            type="button"
+            onClick={onInfoClick}
+            title={`What is ${label}?`}
+            className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
+          >
+            i
+          </button>
+        )}
+      </p>
       <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );

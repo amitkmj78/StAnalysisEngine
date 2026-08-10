@@ -10,6 +10,20 @@ import type { EntryHistory, EntryPlan, EntryScanRow } from "@/lib/types";
 const SCAN_COLUMNS = ["Ticker", "Signal", "Entry Score", "Current Price", "Entry Low", "Entry High", "Stop Loss", "First Target", "RSI"];
 
 const COLUMN_INFO: Record<string, ColumnInfo> = {
+  "Entry Score": {
+    title: "Entry Score",
+    body: [
+      "A 0–100 score built from this ticker's own technical setup right now — not a percentile rank against other tickers like the Screener's Score, so it can be compared across different scans and doesn't shift just because the universe changed.",
+      "Signal strength — up to 90 points: the Signal label (Wait = 0, Wait for Pullback = 1, Watch for Reversal = 2, Breakout Entry = 3, Buy on Pullback = 4, Buy Now = 5) times 18.",
+      "RSI closeness to 52 — up to 20 points: full 20 at RSI exactly 52 (strong momentum without being overheated), losing a point per unit away, reaching 0 once RSI is 20+ points from 52 in either direction.",
+      "Bullish short-term momentum — +14 flat if present.",
+      "Short-term uptrend — +14 flat if present.",
+      "Long-term uptrend — +10 flat if present.",
+      "Proximity to a level — near 20-day support: +12. Otherwise, near a breakout level: +8. Only one of these ever applies.",
+      "Above-average volume — up to +12: 0 at today's volume equal to its 20-day average, scaling up to the full 12 points once volume is 60%+ above that average.",
+      "These can add up to more than 100 in the best case — the raw total is capped at 100, not rescaled, so hitting the cap just means \"maxed out on setup quality,\" not a mathematical ceiling being approached smoothly.",
+    ],
+  },
   Signal: {
     title: "Signal — what each label means",
     body: [
@@ -149,7 +163,7 @@ export default function EntryPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Entry Score" value={`${winner["Entry Score"]}/100`} />
+            <MetricTile label="Entry Score" value={`${winner["Entry Score"]}/100`} onInfoClick={() => setInfoColumn("Entry Score")} />
             <MetricTile label="Current Price" value={`$${Number(winner["Current Price"]).toFixed(2)}`} />
             <MetricTile label="Entry Low" value={`$${Number(winner["Entry Low"]).toFixed(2)}`} />
             <MetricTile label="Entry High" value={`$${Number(winner["Entry High"]).toFixed(2)}`} />
@@ -196,7 +210,7 @@ export default function EntryPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Entry Score" value={`${singlePlan.entry_score}/100`} />
+            <MetricTile label="Entry Score" value={`${singlePlan.entry_score}/100`} onInfoClick={() => setInfoColumn("Entry Score")} />
             <MetricTile label="Current Price" value={`$${singlePlan.current_price.toFixed(2)}`} />
             <MetricTile label="Entry Zone" value={`$${singlePlan.ideal_entry_low.toFixed(2)} – $${singlePlan.ideal_entry_high.toFixed(2)}`} />
             <MetricTile label="Breakout" value={`$${singlePlan.breakout_entry.toFixed(2)}`} />
@@ -262,10 +276,21 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function MetricTile({
+  label,
+  value,
+  onInfoClick,
+}: {
+  label: string;
+  value: string;
+  onInfoClick?: () => void;
+}) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="flex items-center gap-1 text-xs text-slate-500">
+        {label}
+        {onInfoClick && <InfoIcon title={`What is ${label}?`} onClick={onInfoClick} />}
+      </p>
       <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );
