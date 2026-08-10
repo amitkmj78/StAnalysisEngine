@@ -164,6 +164,88 @@ def send_welcome_email(to_email: str) -> bool:
     return _send_email(to_email, WELCOME_SUBJECT, text_body, html_body)
 
 
+RESET_SUBJECT = "Reset your StAnalysisEngine password"
+
+RESET_TEXT_TEMPLATE = """Hi,
+
+Someone (hopefully you) requested a password reset for this account.
+
+Reset your password: {reset_link}
+
+This link expires in 1 hour and can only be used once. If you didn't request this, no action is
+needed — your password will not be changed.
+
+Thanks,
+StAnalysisEngine
+"""
+
+RESET_HTML_TEMPLATE = """\
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="background-color:#0f172a;padding:24px 32px;">
+                <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;letter-spacing:0.2px;">
+                  StAnalysisEngine
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;color:#0f172a;">
+                  Reset your password
+                </p>
+                <p style="margin:0 0 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#475569;">
+                  Someone (hopefully you) requested a password reset for this account. This link expires
+                  in 1 hour and can only be used once.
+                </p>
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="border-radius:8px;background-color:#0f172a;">
+                      <a href="{reset_link}" style="display:inline-block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">
+                        Reset password
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:24px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.6;color:#94a3b8;">
+                  If you didn't request this, no action is needed — your password will not be changed.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
+                <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;">
+                  StAnalysisEngine · AI-assisted stock analysis
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
+
+
+def send_password_reset_email(to_email: str, reset_link: str) -> bool:
+    """
+    Same fail-open behavior as every other email here: if SMTP isn't
+    configured (local dev) or delivery fails, this returns False rather
+    than raising — the forgot-password endpoint must still return its
+    generic "check your email" response either way, so the response
+    itself never reveals whether the send actually succeeded.
+    """
+    text_body = RESET_TEXT_TEMPLATE.format(reset_link=reset_link)
+    html_body = RESET_HTML_TEMPLATE.format(reset_link=reset_link)
+    return _send_email(to_email, RESET_SUBJECT, text_body, html_body)
+
+
 def send_admin_alert_email(to_email: str, subject: str, body_text: str) -> bool:
     """
     NFR-01/02: a plain-text operational alert (publication delayed/missing,

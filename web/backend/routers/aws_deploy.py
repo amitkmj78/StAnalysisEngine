@@ -423,6 +423,21 @@ create table if not exists users (
   created_at timestamptz not null default now()
 );
 
+-- Forgot-password: only a sha256 hash of the token is ever stored, never
+-- the token itself, so a DB read can't be used to reset an account's
+-- password. No RLS — this table is only ever touched via service_conn
+-- (issuing/consuming a reset token happens before a session exists), not
+-- user-scoped app_user queries.
+create table if not exists password_reset_tokens (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  token_hash text unique not null,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists password_reset_tokens_user_idx on password_reset_tokens(user_id);
+
 create table if not exists trades (
   trade_id text primary key,
   user_id uuid not null references users(id) on delete cascade,
@@ -760,6 +775,7 @@ grant select, update on portfolio_drop_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;
 grant select, insert, update, delete on users to app_service;
+grant select, insert, update, delete on password_reset_tokens to app_service;
 -- Read-only, cross-user: the portfolio drop-alert scan needs to see every
 -- user's holdings, not just one RLS-scoped user's own (service_conn
 -- bypasses RLS but still needs an explicit grant per table).
