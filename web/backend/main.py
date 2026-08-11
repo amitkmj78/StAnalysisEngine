@@ -23,6 +23,7 @@ from web.backend.routers import (
     admin_users,
     auth,
     aws_deploy,
+    baseline,
     chat,
     db_backup,
     entry_strategy,
@@ -65,6 +66,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(baseline.router)
 app.include_router(prediction.router)
 app.include_router(stock_finder.router)
 app.include_router(index_fund.router)

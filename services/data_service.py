@@ -33,6 +33,26 @@ def get_stock_data(ticker: str, period: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+@ttl_cache(maxsize=128, ttl_seconds=3600)
+def get_adjusted_history(ticker: str, period: str = "3y") -> pd.DataFrame:
+    """
+    Split/dividend-adjusted daily OHLC history (FR-02 of the Safe Baseline
+    Price Band spec). Explicitly requests auto_adjust=True rather than
+    relying on yfinance's default, since get_stock_data above doesn't
+    assert it either way and baseline math must never mix adjusted and
+    unadjusted prices. Cached for 1hr, matching get_entry_history's
+    pattern — this is historical (non-live) data.
+    """
+    cleaned = (ticker or "").strip().upper()
+    if not cleaned:
+        return pd.DataFrame()
+    try:
+        return yf.Ticker(cleaned).history(period=period, auto_adjust=True).dropna()
+    except Exception as e:
+        logger.warning("Error fetching adjusted history for %s: %s", ticker, e)
+        return pd.DataFrame()
+
+
 @ttl_cache(maxsize=256, ttl_seconds=2)
 def get_latest_price(ticker: str):
     """

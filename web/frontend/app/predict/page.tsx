@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import SafeBaselineBand from "@/components/SafeBaselineBand";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import BacktestChart from "@/components/prediction/BacktestChart";
 import ForecastChart from "@/components/prediction/ForecastChart";
@@ -281,6 +282,8 @@ export default function PredictPage() {
               </p>
             )}
           </div>
+
+          <SafeBaselineBand ticker={data.ticker} />
 
           {data.signal && (
             <div>

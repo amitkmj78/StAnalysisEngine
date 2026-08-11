@@ -205,6 +205,36 @@ export interface EntryHistory {
   close: number[];
 }
 
+// Safe Baseline Price Band
+export interface BaselineBand {
+  ticker: string;
+  as_of: string;
+  last_price: number;
+  horizon_days: number;
+  confidence: number;
+  method: "empirical" | "sqrt";
+  floor: number;
+  floor_pct: number;
+  accumulation_zone_hi: number;
+  accumulation_zone_hi_pct: number;
+  median_path: number;
+  median_path_pct: number;
+  distribution_zone_lo: number;
+  distribution_zone_lo_pct: number;
+  ceiling: number;
+  ceiling_pct: number;
+  rr_ratio: number | null;
+  skew: number;
+  upside_first_rate: number;
+  samples: number;
+  effective_samples: number;
+  breach_rate: number;
+  breach_rate_full: number;
+  breach_rate_recent: number;
+  expected_breach: number;
+  calibration_warning: boolean;
+}
+
 // Monthly Investing Plan
 export interface MonthlyRecommendation {
   ticker: string;

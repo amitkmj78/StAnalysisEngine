@@ -8,6 +8,7 @@ import type {
   AdminUser,
   AlertConditionType,
   BackupStatus,
+  BaselineBand,
   ChatAskResponse,
   ChatProvidersResponse,
   CurrentPriceResponse,
@@ -176,6 +177,18 @@ export function getEntryScan(assetType: string, universe: string, topN: number) 
 
 export function getEntryPlan(ticker: string) {
   return apiFetch<{ plan: EntryPlan | null; history: EntryHistory | null }>("/api/v1/entry/plan", { ticker });
+}
+
+// Safe Baseline Price Band
+export function getBaselineBand(
+  ticker: string,
+  options?: { horizon?: number; confidence?: number; method?: "empirical" | "sqrt" },
+) {
+  const params: Record<string, string> = {};
+  if (options?.horizon !== undefined) params.horizon = String(options.horizon);
+  if (options?.confidence !== undefined) params.confidence = String(options.confidence);
+  if (options?.method !== undefined) params.method = options.method;
+  return apiFetch<BaselineBand>(`/api/v1/baseline/${encodeURIComponent(ticker)}`, params);
 }
 
 // Monthly Investing Plan
