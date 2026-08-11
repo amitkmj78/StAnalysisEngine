@@ -904,10 +904,10 @@ export default function PortfolioPage() {
 
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
-                    <PlanText text={s.short_term_plan} />
+                    <PlanText text={withLiveRead(s.short_term_plan, shortTermSignalNote(insight))} />
                   </div>
                   <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
-                    <PlanText text={s.long_term_plan} />
+                    <PlanText text={withLiveRead(s.long_term_plan, longTermMomentumNote(insight))} />
                   </div>
                 </div>
               </div>
@@ -924,6 +924,43 @@ export default function PortfolioPage() {
       )}
     </div>
   );
+}
+
+// The stored Short-/Long-Term Plan text (services/portfolio_strategy.py) picks
+// its "Stance"/guidance sentence purely from which P&L bucket a position
+// falls into — any two tickers at the same P&L% and risk profile get the
+// identical sentence, since nothing about the ticker itself (momentum,
+// model signal) feeds into it. These append a ticker-specific paragraph
+// using data the page has already fetched live (portfolio_insights) —
+// no extra request, and the stored plan itself is left untouched.
+function shortTermSignalNote(insight: PortfolioInsight | null): string | null {
+  if (!insight || !insight.signal) return null;
+  const expected =
+    insight.expected_return_pct !== null
+      ? ` (model expects ${insight.expected_return_pct >= 0 ? "+" : ""}${insight.expected_return_pct.toFixed(1)}% over its forecast horizon)`
+      : "";
+  if (insight.signal === "BUY") {
+    return `The model's current signal is **BUY**${expected} — consistent with the case to keep holding here.`;
+  }
+  if (insight.signal === "SELL") {
+    return `The model's current signal is **SELL**${expected} — this cuts against holding; worth watching closely, or locking in gains if you'd rather not fight the signal.`;
+  }
+  return `The model's current signal is **HOLD**${expected} — no strong edge either way right now.`;
+}
+
+function longTermMomentumNote(insight: PortfolioInsight | null): string | null {
+  if (!insight || insight.rank === null || insight.universe_size === null || !insight.universe_size) return null;
+  const pct = insight.rank / insight.universe_size;
+  let read: string;
+  if (pct <= 0.25) read = "near the top of the current ranked universe, suggesting relative strength is still with this name";
+  else if (pct <= 0.5) read = "in the upper half of the current ranked universe";
+  else if (pct <= 0.75) read = "in the lower half of the current ranked universe";
+  else read = "near the bottom of the current ranked universe, worth factoring into how much conviction you have in the long-term thesis";
+  return `Momentum rank: **#${insight.rank} of ${insight.universe_size}** — ${read}.`;
+}
+
+function withLiveRead(planText: string, note: string | null): string {
+  return note ? `${planText}\n\n**Live Read:** ${note}` : planText;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
