@@ -53,7 +53,40 @@ def _record_to_dict(record) -> dict:
     return {k: record[k] for k in record.keys()}
 
 
-async def _merge_with_existing(conn, user_id: str, new_holdings_df: pd.DataFrame) -> pd.DataFrame:
+async def _resolve_portfolio_id(conn, user_id: str, portfolio_id: Optional[int]) -> int:
+    """
+    A caller can name a specific portfolio (and it must actually belong to
+    them — never trust a raw id from the client without checking) or omit
+    one entirely, in which case this resolves to their oldest portfolio,
+    auto-creating "My Portfolio" if they don't have one yet (a brand-new
+    user's very first save). Every endpoint below goes through this rather
+    than trusting portfolio_id directly, so an id for someone else's
+    portfolio 404s instead of silently reading/writing across accounts.
+    """
+    if portfolio_id is not None:
+        row = await conn.fetchrow(
+            "SELECT id FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            portfolio_id, user_id,
+        )
+        if row is None:
+            raise HTTPException(404, "Portfolio not found.")
+        return row["id"]
+
+    row = await conn.fetchrow(
+        "SELECT id FROM portfolios WHERE user_id = $1::uuid ORDER BY created_at ASC LIMIT 1",
+        user_id,
+    )
+    if row is not None:
+        return row["id"]
+
+    created = await conn.fetchrow(
+        "INSERT INTO portfolios (user_id, name) VALUES ($1::uuid, 'My Portfolio') RETURNING id",
+        user_id,
+    )
+    return created["id"]
+
+
+async def _merge_with_existing(conn, user_id: str, portfolio_id: int, new_holdings_df: pd.DataFrame) -> pd.DataFrame:
     """
     Combines freshly-submitted holdings (a manual-entry save, a CSV import,
     a single-position edit) with whatever the user already has saved,
@@ -85,8 +118,8 @@ async def _merge_with_existing(conn, user_id: str, new_holdings_df: pd.DataFrame
             new_holdings_df = new_holdings_df.rename(columns={"Net_Shares": "Shares"})
 
     existing = await conn.fetch(
-        "SELECT ticker, shares, avg_cost FROM portfolio_positions WHERE user_id = $1::uuid",
-        user_id,
+        "SELECT ticker, shares, avg_cost FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+        user_id, portfolio_id,
     )
     preserved_rows = [
         {"Ticker": r["ticker"], "Shares": r["shares"], "Avg_Cost": r["avg_cost"]}
@@ -97,7 +130,7 @@ async def _merge_with_existing(conn, user_id: str, new_holdings_df: pd.DataFrame
     return pd.concat([pd.DataFrame(preserved_rows), new_holdings_df], ignore_index=True, sort=False)
 
 
-async def _save_and_respond(conn, user_id: str, holdings_df: pd.DataFrame, risk_profile: str, risk_factor: int, source: str):
+async def _save_and_respond(conn, user_id: str, portfolio_id: int, holdings_df: pd.DataFrame, risk_profile: str, risk_factor: int, source: str):
     if holdings_df.empty:
         return {"positions": [], "strategies": [], "summary": summarize_portfolio(pd.DataFrame())}
 
@@ -105,25 +138,27 @@ async def _save_and_respond(conn, user_id: str, holdings_df: pd.DataFrame, risk_
     if strat_df.empty:
         return {"positions": [], "strategies": [], "summary": summarize_portfolio(strat_df)}
 
-    # holdings_df going in here is already the full merged set (see
-    # _merge_with_existing) — callers are responsible for combining new
-    # data with what's already saved before reaching this point. This
-    # delete+reinsert is just how that merged snapshot gets written, not a
-    # place that decides what's kept vs. dropped: it must never receive
-    # only a subset of the user's positions, or the rest would be lost.
-    await conn.execute("DELETE FROM portfolio_positions WHERE user_id = $1::uuid", user_id)
-    await conn.execute("DELETE FROM portfolio_strategies WHERE user_id = $1::uuid", user_id)
+    # holdings_df going in here is already the full merged set for THIS
+    # portfolio (see _merge_with_existing) — callers are responsible for
+    # combining new data with what's already saved before reaching this
+    # point. This delete+reinsert is just how that merged snapshot gets
+    # written, not a place that decides what's kept vs. dropped: it must
+    # never receive only a subset of the portfolio's positions, or the
+    # rest would be lost. Scoped by portfolio_id as well as user_id so
+    # saving one portfolio never touches another.
+    await conn.execute("DELETE FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2", user_id, portfolio_id)
+    await conn.execute("DELETE FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2", user_id, portfolio_id)
 
     position_rows = []
     for _, row in strat_df.iterrows():
         record = await conn.fetchrow(
             """
             INSERT INTO portfolio_positions (
-                user_id, ticker, name, shares, avg_cost, current_price, unrealized_pnl_pct, source
-            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)
+                user_id, portfolio_id, ticker, name, shares, avg_cost, current_price, unrealized_pnl_pct, source
+            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
             """,
-            user_id, row["Ticker"], row["Ticker"], _nan_to_none(row["Shares"]), _nan_to_none(row["Avg_Cost"]),
+            user_id, portfolio_id, row["Ticker"], row["Ticker"], _nan_to_none(row["Shares"]), _nan_to_none(row["Avg_Cost"]),
             _nan_to_none(row["Current_Price"]), _nan_to_none(row["Unrealized_PnL_%"]), source,
         )
         position_rows.append(_record_to_dict(record))
@@ -133,12 +168,12 @@ async def _save_and_respond(conn, user_id: str, holdings_df: pd.DataFrame, risk_
         record = await conn.fetchrow(
             """
             INSERT INTO portfolio_strategies (
-                user_id, ticker, shares, avg_cost, current_price, unrealized_pnl_pct,
+                user_id, portfolio_id, ticker, shares, avg_cost, current_price, unrealized_pnl_pct,
                 short_term_plan, long_term_plan, risk_profile, risk_factor
-            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             RETURNING *
             """,
-            user_id, row["Ticker"], _nan_to_none(row["Shares"]), _nan_to_none(row["Avg_Cost"]),
+            user_id, portfolio_id, row["Ticker"], _nan_to_none(row["Shares"]), _nan_to_none(row["Avg_Cost"]),
             _nan_to_none(row["Current_Price"]), _nan_to_none(row["Unrealized_PnL_%"]),
             row["Short_Term_Plan"], row["Long_Term_Plan"], row["Risk_Profile"], int(row["Risk_Factor"]),
         )
@@ -149,9 +184,11 @@ async def _save_and_respond(conn, user_id: str, holdings_df: pd.DataFrame, risk_
     # above — so alerts exist without the user setting them up by hand.
     # Tagged 'portfolio_auto' so re-saving/refreshing only replaces these,
     # never alerts the user created themselves on the Watchlist page.
+    # Scoped by portfolio_id too, so saving portfolio B doesn't wipe out
+    # auto-alerts generated from portfolio A's holdings.
     await conn.execute(
-        "DELETE FROM watchlist_alerts WHERE user_id = $1::uuid AND source = 'portfolio_auto'",
-        user_id,
+        "DELETE FROM watchlist_alerts WHERE user_id = $1::uuid AND portfolio_id = $2 AND source = 'portfolio_auto'",
+        user_id, portfolio_id,
     )
     watchlist_alerts_created = 0
     for _, row in strat_df.iterrows():
@@ -163,10 +200,10 @@ async def _save_and_respond(conn, user_id: str, holdings_df: pd.DataFrame, risk_
                 continue
             await conn.execute(
                 """
-                INSERT INTO watchlist_alerts (user_id, ticker, condition_type, threshold, source)
-                VALUES ($1::uuid, $2, $3, $4, 'portfolio_auto')
+                INSERT INTO watchlist_alerts (user_id, portfolio_id, ticker, condition_type, threshold, source)
+                VALUES ($1::uuid, $2, $3, $4, $5, 'portfolio_auto')
                 """,
-                user_id, row["Ticker"], condition_type, threshold,
+                user_id, portfolio_id, row["Ticker"], condition_type, threshold,
             )
             watchlist_alerts_created += 1
 
@@ -176,6 +213,47 @@ async def _save_and_respond(conn, user_id: str, holdings_df: pd.DataFrame, risk_
         "summary": summarize_portfolio(strat_df),
         "watchlist_alerts_created": watchlist_alerts_created,
     }
+
+
+class CreatePortfolioRequest(BaseModel):
+    name: str
+
+
+@router.get("/list")
+async def list_portfolios(request: Request):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        records = await conn.fetch(
+            """
+            SELECT p.id, p.name, p.created_at, count(pp.id) AS position_count
+            FROM portfolios p
+            LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = p.user_id
+            WHERE p.user_id = $1::uuid
+            GROUP BY p.id, p.name, p.created_at
+            ORDER BY p.created_at ASC
+            """,
+            user_id,
+        )
+    return {"portfolios": [_record_to_dict(r) for r in records]}
+
+
+@router.post("/create")
+@limiter.limit("10/minute")
+async def create_portfolio(request: Request, body: CreatePortfolioRequest):
+    await enforce_daily_quota(request, "portfolio/create")
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "Portfolio name is required.")
+    if len(name) > 100:
+        raise HTTPException(422, "Portfolio name must be 100 characters or fewer.")
+
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        record = await conn.fetchrow(
+            "INSERT INTO portfolios (user_id, name) VALUES ($1::uuid, $2) RETURNING id, name, created_at",
+            user_id, name,
+        )
+    return {**_record_to_dict(record), "position_count": 0}
 
 
 class ManualPositionIn(BaseModel):
@@ -191,6 +269,7 @@ class ManualPositionsRequest(BaseModel):
     positions: List[ManualPositionIn]
     risk_profile: str = "Balanced"
     risk_factor: int = 5
+    portfolio_id: Optional[int] = None
 
 
 @router.post("/manual")
@@ -211,8 +290,9 @@ async def submit_manual_positions(request: Request, body: ManualPositionsRequest
         total_returns=[p.total_return_pct for p in body.positions],
     )
     async with user_conn(user_id) as conn:
-        merged_df = await _merge_with_existing(conn, user_id, holdings_df)
-        return await _save_and_respond(conn, user_id, merged_df, body.risk_profile, body.risk_factor, "Manual")
+        portfolio_id = await _resolve_portfolio_id(conn, user_id, body.portfolio_id)
+        merged_df = await _merge_with_existing(conn, user_id, portfolio_id, holdings_df)
+        return await _save_and_respond(conn, user_id, portfolio_id, merged_df, body.risk_profile, body.risk_factor, "Manual")
 
 
 @router.post("/import-csv")
@@ -222,6 +302,7 @@ async def import_csv(
     file: UploadFile = File(...),
     risk_profile: str = "Balanced",
     risk_factor: int = 5,
+    portfolio_id: Optional[int] = None,
 ):
     await enforce_daily_quota(request, "portfolio/import-csv")
     user_id = request.state.user["id"]
@@ -233,22 +314,24 @@ async def import_csv(
         raise HTTPException(422, f"Could not process CSV: {exc}")
 
     async with user_conn(user_id) as conn:
-        merged_df = await _merge_with_existing(conn, user_id, holdings_df)
-        return await _save_and_respond(conn, user_id, merged_df, risk_profile, risk_factor, "Robinhood")
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        merged_df = await _merge_with_existing(conn, user_id, resolved_portfolio_id, holdings_df)
+        return await _save_and_respond(conn, user_id, resolved_portfolio_id, merged_df, risk_profile, risk_factor, "Robinhood")
 
 
 @router.post("/refresh")
 @limiter.limit("10/minute")
-async def refresh_portfolio(request: Request, risk_profile: str = "Balanced", risk_factor: int = 5):
+async def refresh_portfolio(request: Request, risk_profile: str = "Balanced", risk_factor: int = 5, portfolio_id: Optional[int] = None):
     """Re-fetch current market prices for the user's saved positions and
     recompute strategies from them — no re-entry/re-upload required."""
     await enforce_daily_quota(request, "portfolio/refresh")
     user_id = request.state.user["id"]
 
     async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
         records = await conn.fetch(
-            "SELECT ticker, shares, avg_cost, name FROM portfolio_positions WHERE user_id = $1::uuid",
-            user_id,
+            "SELECT ticker, shares, avg_cost, name FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
         )
         if not records:
             raise HTTPException(404, "No saved portfolio positions to refresh yet.")
@@ -265,7 +348,7 @@ async def refresh_portfolio(request: Request, risk_profile: str = "Balanced", ri
                 "Avg_Cost": [r["avg_cost"] for r in records],
             }
         )
-        return await _save_and_respond(conn, user_id, holdings_df, risk_profile, risk_factor, "Refreshed")
+        return await _save_and_respond(conn, user_id, resolved_portfolio_id, holdings_df, risk_profile, risk_factor, "Refreshed")
 
 
 class PositionEditRequest(BaseModel):
@@ -274,6 +357,7 @@ class PositionEditRequest(BaseModel):
     name: Optional[str] = None
     risk_profile: str = "Balanced"
     risk_factor: int = 5
+    portfolio_id: Optional[int] = None
 
 
 @router.put("/positions/{ticker}")
@@ -294,32 +378,44 @@ async def edit_position(request: Request, ticker: str, body: PositionEditRequest
     user_id = request.state.user["id"]
 
     async with user_conn(user_id) as conn:
+        portfolio_id = await _resolve_portfolio_id(conn, user_id, body.portfolio_id)
         new_row = pd.DataFrame([{"Ticker": ticker, "Shares": body.shares, "Avg_Cost": body.avg_cost}])
-        merged_df = await _merge_with_existing(conn, user_id, new_row)
-        return await _save_and_respond(conn, user_id, merged_df, body.risk_profile, body.risk_factor, "Edited")
+        merged_df = await _merge_with_existing(conn, user_id, portfolio_id, new_row)
+        return await _save_and_respond(conn, user_id, portfolio_id, merged_df, body.risk_profile, body.risk_factor, "Edited")
 
 
 @router.get("/positions")
-async def list_positions(request: Request):
+async def list_positions(request: Request, portfolio_id: Optional[int] = None):
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
-        records = await conn.fetch("SELECT * FROM portfolio_positions ORDER BY created_at DESC")
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT * FROM portfolio_positions WHERE portfolio_id = $1 ORDER BY created_at DESC",
+            resolved_portfolio_id,
+        )
     return {"positions": [_record_to_dict(r) for r in records]}
 
 
 @router.get("/strategies")
-async def list_strategies(request: Request):
+async def list_strategies(request: Request, portfolio_id: Optional[int] = None):
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
-        records = await conn.fetch("SELECT * FROM portfolio_strategies ORDER BY created_at DESC")
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT * FROM portfolio_strategies WHERE portfolio_id = $1 ORDER BY created_at DESC",
+            resolved_portfolio_id,
+        )
     return {"strategies": [_record_to_dict(r) for r in records]}
 
 
 @router.get("/summary")
-async def portfolio_summary(request: Request):
+async def portfolio_summary(request: Request, portfolio_id: Optional[int] = None):
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
-        records = await conn.fetch("SELECT * FROM portfolio_strategies")
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT * FROM portfolio_strategies WHERE portfolio_id = $1", resolved_portfolio_id
+        )
 
     rows = [_record_to_dict(r) for r in records]
     if not rows:
@@ -337,7 +433,7 @@ async def portfolio_summary(request: Request):
 
 @router.get("/insights")
 @limiter.limit("10/minute")
-async def portfolio_insights(request: Request):
+async def portfolio_insights(request: Request, portfolio_id: Optional[int] = None):
     """
     Per-holding live BUY/SELL/HOLD signal + expected return (same engine
     /predict uses), momentum rank within the full universe (same rule as
@@ -351,9 +447,10 @@ async def portfolio_insights(request: Request):
     user_id = request.state.user["id"]
 
     async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
         records = await conn.fetch(
-            "SELECT ticker, shares, current_price FROM portfolio_strategies WHERE user_id = $1::uuid",
-            user_id,
+            "SELECT ticker, shares, current_price FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
         )
     if not records:
         return {"positions": []}
@@ -406,16 +503,17 @@ async def portfolio_insights(request: Request):
 
 @router.get("/performance")
 @limiter.limit("15/minute")
-async def portfolio_performance(request: Request, lookback_days: int = 30):
+async def portfolio_performance(request: Request, lookback_days: int = 30, portfolio_id: Optional[int] = None):
     """Live portfolio value vs. what the same shares were worth `lookback_days`
     ago — always priced fresh against the market, not the last-saved snapshot."""
     await enforce_daily_quota(request, "portfolio/performance")
     user_id = request.state.user["id"]
 
     async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
         records = await conn.fetch(
-            "SELECT ticker, shares, avg_cost FROM portfolio_positions WHERE user_id = $1::uuid",
-            user_id,
+            "SELECT ticker, shares, avg_cost FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
         )
 
     positions = [{"ticker": r["ticker"], "shares": r["shares"], "avg_cost": r["avg_cost"]} for r in records]

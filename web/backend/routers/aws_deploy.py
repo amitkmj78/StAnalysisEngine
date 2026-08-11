@@ -455,6 +455,22 @@ create policy trades_isolation on trades
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- A user can have more than one portfolio (e.g. "Retirement" vs "Trading");
+-- portfolio_positions/portfolio_strategies/watchlist_alerts below each get
+-- a portfolio_id pointing here.
+create table if not exists portfolios (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  name text not null default 'My Portfolio',
+  created_at timestamptz not null default now()
+);
+create index if not exists portfolios_user_idx on portfolios(user_id);
+alter table portfolios enable row level security;
+drop policy if exists portfolios_isolation on portfolios;
+create policy portfolios_isolation on portfolios
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 create table if not exists portfolio_positions (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,
@@ -588,6 +604,43 @@ drop policy if exists watchlist_alerts_isolation on watchlist_alerts;
 create policy watchlist_alerts_isolation on watchlist_alerts for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- Multi-portfolio migration: add portfolio_id to portfolio_positions,
+-- portfolio_strategies, and watchlist_alerts (whose portfolio_auto rows
+-- are recreated per-save and would otherwise get wiped across
+-- portfolios), backfill every existing row into a per-user "My
+-- Portfolio", then lock the two position tables to NOT NULL now that
+-- every row has one. Self-terminating: once a user's rows are
+-- backfilled, `where portfolio_id is null` finds nothing left for them
+-- on the next deploy, so this is safe to leave in place permanently.
+alter table portfolio_positions add column if not exists portfolio_id bigint references portfolios(id) on delete cascade;
+alter table portfolio_strategies add column if not exists portfolio_id bigint references portfolios(id) on delete cascade;
+alter table watchlist_alerts add column if not exists portfolio_id bigint references portfolios(id) on delete cascade;
+
+do $$
+declare
+  r record;
+  new_portfolio_id bigint;
+begin
+  for r in
+    select distinct user_id from portfolio_positions where portfolio_id is null
+    union
+    select distinct user_id from portfolio_strategies where portfolio_id is null
+  loop
+    insert into portfolios (user_id, name) values (r.user_id, 'My Portfolio') returning id into new_portfolio_id;
+    update portfolio_positions set portfolio_id = new_portfolio_id where user_id = r.user_id and portfolio_id is null;
+    update portfolio_strategies set portfolio_id = new_portfolio_id where user_id = r.user_id and portfolio_id is null;
+    update watchlist_alerts set portfolio_id = new_portfolio_id where user_id = r.user_id and portfolio_id is null and source = 'portfolio_auto';
+  end loop;
+end $$;
+
+alter table portfolio_positions alter column portfolio_id set not null;
+alter table portfolio_strategies alter column portfolio_id set not null;
+-- watchlist_alerts.portfolio_id stays nullable — manually-created alerts
+-- (source is not 'portfolio_auto') aren't tied to any portfolio.
+
+create index if not exists portfolio_positions_portfolio_idx on portfolio_positions(portfolio_id);
+create index if not exists portfolio_strategies_portfolio_idx on portfolio_strategies(portfolio_id);
 
 create table if not exists app_settings (
   key text primary key,
@@ -770,7 +823,7 @@ $$;
 
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
-grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans to app_user;
+grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios to app_user;
 grant select, update on portfolio_drop_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;

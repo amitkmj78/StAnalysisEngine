@@ -339,6 +339,17 @@ export interface TradeCreateInput {
 }
 
 // Portfolio
+export interface Portfolio {
+  id: number;
+  name: string;
+  created_at: string;
+  position_count: number;
+}
+
+export interface PortfolioListResponse {
+  portfolios: Portfolio[];
+}
+
 export interface PortfolioPosition {
   id: number;
   ticker: string;

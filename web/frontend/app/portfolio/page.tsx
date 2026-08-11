@@ -23,6 +23,7 @@ import type {
 } from "@/lib/types";
 import PlanText from "@/components/PlanText";
 import PortfolioDropAlerts from "@/components/PortfolioDropAlerts";
+import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 
@@ -33,6 +34,7 @@ type Mode = "manual" | "csv";
 const EMPTY_ROW: ManualPositionInput = { name: "", ticker: "", shares: 0, current_price: 0, avg_cost: 0 };
 
 export default function PortfolioPage() {
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   const [mode, setMode] = useState<Mode>("manual");
   const [riskProfile, setRiskProfile] = useState("Balanced");
   const [riskFactor, setRiskFactor] = useState(5);
@@ -71,7 +73,7 @@ export default function PortfolioPage() {
     if (showLoading) setPerformanceLoading(true);
     setPerformanceError(null);
     try {
-      setPerformance(await getPortfolioPerformance(30));
+      setPerformance(await getPortfolioPerformance(30, selectedPortfolioId ?? undefined));
     } catch (err) {
       setPerformanceError(err instanceof ApiError ? err.message : "Could not load 30-day performance.");
     } finally {
@@ -83,7 +85,7 @@ export default function PortfolioPage() {
     setInsightsLoading(true);
     setInsightsError(null);
     try {
-      const res = await getPortfolioInsights();
+      const res = await getPortfolioInsights(selectedPortfolioId ?? undefined);
       setInsights(res.positions);
     } catch (err) {
       setInsightsError(err instanceof ApiError ? err.message : "Could not load signal/rank data for your holdings.");
@@ -96,7 +98,10 @@ export default function PortfolioPage() {
     setLoading(true);
     setError(null);
     try {
-      const [stratRes, summaryRes] = await Promise.all([getPortfolioStrategies(), getPortfolioSummary()]);
+      const [stratRes, summaryRes] = await Promise.all([
+        getPortfolioStrategies(selectedPortfolioId ?? undefined),
+        getPortfolioSummary(selectedPortfolioId ?? undefined),
+      ]);
       setStrategies(stratRes.strategies);
       setSummary(summaryRes.summary);
     } catch (err) {
@@ -109,9 +114,15 @@ export default function PortfolioPage() {
     await refreshInsights();
   }
 
+  // Waits for PortfolioSwitcher to resolve which portfolio is selected
+  // (on mount, and again any time the user switches or creates one)
+  // before loading anything portfolio-scoped.
   useEffect(() => {
-    refresh();
-  }, []);
+    if (selectedPortfolioId !== null) {
+      refresh();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPortfolioId]);
 
   // Live-ish prices without per-position polling: one batched call for the
   // whole portfolio every 10s (well under /performance's 15/min rate limit
@@ -167,6 +178,7 @@ export default function PortfolioPage() {
         valid.map((r) => ({ ...r, ticker: r.ticker.trim().toUpperCase() })),
         riskProfile,
         riskFactor,
+        selectedPortfolioId ?? undefined,
       );
       setRows([{ ...EMPTY_ROW }]);
       noteWatchlist(res.watchlist_alerts_created);
@@ -191,7 +203,7 @@ export default function PortfolioPage() {
     setError(null);
     setWatchlistNote(null);
     try {
-      const res = await refreshPortfolio(riskProfile, riskFactor);
+      const res = await refreshPortfolio(riskProfile, riskFactor, selectedPortfolioId ?? undefined);
       noteWatchlist(res.watchlist_alerts_created);
       await refresh();
     } catch (err) {
@@ -232,7 +244,7 @@ export default function PortfolioPage() {
     setEditError(null);
     setWatchlistNote(null);
     try {
-      const res = await editPortfolioPosition(ticker, shares, avgCost, riskProfile, riskFactor);
+      const res = await editPortfolioPosition(ticker, shares, avgCost, riskProfile, riskFactor, selectedPortfolioId ?? undefined);
       noteWatchlist(res.watchlist_alerts_created);
       setEditingTicker(null);
       await refresh();
@@ -264,7 +276,7 @@ export default function PortfolioPage() {
     setAddError(null);
     setWatchlistNote(null);
     try {
-      const res = await editPortfolioPosition(ticker, shares, avgCost, riskProfile, riskFactor);
+      const res = await editPortfolioPosition(ticker, shares, avgCost, riskProfile, riskFactor, selectedPortfolioId ?? undefined);
       noteWatchlist(res.watchlist_alerts_created);
       setAddTicker("");
       setAddShares("");
@@ -287,7 +299,7 @@ export default function PortfolioPage() {
     setError(null);
     setWatchlistNote(null);
     try {
-      const res = await importPortfolioCsv(file, riskProfile, riskFactor);
+      const res = await importPortfolioCsv(file, riskProfile, riskFactor, selectedPortfolioId ?? undefined);
       setFile(null);
       noteWatchlist(res.watchlist_alerts_created);
       await refresh();
@@ -305,6 +317,10 @@ export default function PortfolioPage() {
         Import a Robinhood activity CSV or enter positions manually to get short- and long-term plans per holding.
         Each save also sets watchlist alerts by default at the suggested upside target and stop for every position.
       </p>
+
+      <div className="mt-6">
+        <PortfolioSwitcher selectedPortfolioId={selectedPortfolioId} onChange={setSelectedPortfolioId} />
+      </div>
 
       <PortfolioDropAlerts />
 

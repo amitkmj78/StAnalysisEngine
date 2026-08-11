@@ -22,8 +22,10 @@ import type {
   MonthlyPlanResponse,
   PitPriceStatus,
   PitReconciliationReport,
+  Portfolio,
   PortfolioDropAlert,
   PortfolioInsightsResponse,
+  PortfolioListResponse,
   PortfolioPerformance,
   PortfolioPosition,
   PortfolioStrategyRow,
@@ -300,15 +302,25 @@ export function deleteTrade(tradeId: string) {
 }
 
 // Portfolio
+export function getPortfolios() {
+  return apiFetch<PortfolioListResponse>("/api/v1/portfolio/list");
+}
+
+export function createPortfolio(name: string) {
+  return apiSend<Portfolio>("/api/v1/portfolio/create", "POST", { name });
+}
+
 export function submitManualPositions(
   positions: ManualPositionInput[],
   riskProfile: string,
   riskFactor: number,
+  portfolioId?: number,
 ) {
   return apiSend<PortfolioSubmitResponse>("/api/v1/portfolio/manual", "POST", {
     positions,
     risk_profile: riskProfile,
     risk_factor: riskFactor,
+    portfolio_id: portfolioId,
   });
 }
 
@@ -316,6 +328,7 @@ export async function importPortfolioCsv(
   file: File,
   riskProfile: string,
   riskFactor: number,
+  portfolioId?: number,
 ): Promise<PortfolioSubmitResponse> {
   const formData = new FormData();
   formData.append("file", file);
@@ -323,6 +336,7 @@ export async function importPortfolioCsv(
     risk_profile: riskProfile,
     risk_factor: String(riskFactor),
   });
+  if (portfolioId !== undefined) params.set("portfolio_id", String(portfolioId));
   return apiUpload<PortfolioSubmitResponse>(`/api/v1/portfolio/import-csv?${params.toString()}`, formData);
 }
 
@@ -332,41 +346,58 @@ export function editPortfolioPosition(
   avgCost: number,
   riskProfile: string,
   riskFactor: number,
+  portfolioId?: number,
 ) {
   return apiSend<PortfolioSubmitResponse>(`/api/v1/portfolio/positions/${encodeURIComponent(ticker)}`, "PUT", {
     shares,
     avg_cost: avgCost,
     risk_profile: riskProfile,
     risk_factor: riskFactor,
+    portfolio_id: portfolioId,
   });
 }
 
-export function refreshPortfolio(riskProfile: string, riskFactor: number) {
+export function refreshPortfolio(riskProfile: string, riskFactor: number, portfolioId?: number) {
   const params = new URLSearchParams({
     risk_profile: riskProfile,
     risk_factor: String(riskFactor),
   });
+  if (portfolioId !== undefined) params.set("portfolio_id", String(portfolioId));
   return apiSend<PortfolioSubmitResponse>(`/api/v1/portfolio/refresh?${params.toString()}`, "POST");
 }
 
-export function getPortfolioPositions() {
-  return apiFetch<{ positions: PortfolioPosition[] }>("/api/v1/portfolio/positions");
+export function getPortfolioPositions(portfolioId?: number) {
+  return apiFetch<{ positions: PortfolioPosition[] }>(
+    "/api/v1/portfolio/positions",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
 }
 
-export function getPortfolioStrategies() {
-  return apiFetch<{ strategies: PortfolioStrategyRow[] }>("/api/v1/portfolio/strategies");
+export function getPortfolioStrategies(portfolioId?: number) {
+  return apiFetch<{ strategies: PortfolioStrategyRow[] }>(
+    "/api/v1/portfolio/strategies",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
 }
 
-export function getPortfolioSummary() {
-  return apiFetch<{ summary: PortfolioSummary }>("/api/v1/portfolio/summary");
+export function getPortfolioSummary(portfolioId?: number) {
+  return apiFetch<{ summary: PortfolioSummary }>(
+    "/api/v1/portfolio/summary",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
 }
 
-export function getPortfolioPerformance(lookbackDays = 30) {
-  return apiFetch<PortfolioPerformance>("/api/v1/portfolio/performance", { lookback_days: String(lookbackDays) });
+export function getPortfolioPerformance(lookbackDays = 30, portfolioId?: number) {
+  const params: Record<string, string> = { lookback_days: String(lookbackDays) };
+  if (portfolioId !== undefined) params.portfolio_id = String(portfolioId);
+  return apiFetch<PortfolioPerformance>("/api/v1/portfolio/performance", params);
 }
 
-export function getPortfolioInsights() {
-  return apiFetch<PortfolioInsightsResponse>("/api/v1/portfolio/insights");
+export function getPortfolioInsights(portfolioId?: number) {
+  return apiFetch<PortfolioInsightsResponse>(
+    "/api/v1/portfolio/insights",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
 }
 
 export function getPortfolioDropAlerts() {
