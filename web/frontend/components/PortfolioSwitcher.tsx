@@ -10,9 +10,18 @@ const STORAGE_KEY = "stanalysisengine.selectedPortfolioId";
 export default function PortfolioSwitcher({
   selectedPortfolioId,
   onChange,
+  onPortfoliosChange,
+  reloadSignal,
 }: {
   selectedPortfolioId: number | null;
   onChange: (portfolioId: number) => void;
+  /** Fires whenever the portfolio list (re)loads — lets the parent page
+   * mirror the list (e.g. to populate a "move to" destination picker)
+   * without owning the fetch itself. */
+  onPortfoliosChange?: (portfolios: Portfolio[]) => void;
+  /** Bump this (e.g. after a move/delete changes position counts) to make
+   * the switcher re-fetch without resetting the current selection. */
+  reloadSignal?: number;
 }) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +38,7 @@ export default function PortfolioSwitcher({
     try {
       const res = await getPortfolios();
       setPortfolios(res.portfolios);
+      onPortfoliosChange?.(res.portfolios);
       if (res.portfolios.length === 0) return;
 
       const stored = preferId ?? Number(localStorage.getItem(STORAGE_KEY));
@@ -45,6 +55,13 @@ export default function PortfolioSwitcher({
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (reloadSignal !== undefined) {
+      load(selectedPortfolioId ?? undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadSignal]);
 
   function handleSelect(id: number) {
     localStorage.setItem(STORAGE_KEY, String(id));

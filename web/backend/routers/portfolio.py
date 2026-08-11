@@ -384,6 +384,98 @@ async def edit_position(request: Request, ticker: str, body: PositionEditRequest
         return await _save_and_respond(conn, user_id, portfolio_id, merged_df, body.risk_profile, body.risk_factor, "Edited")
 
 
+async def _delete_position_rows(conn, user_id: str, portfolio_id: int, ticker: str) -> bool:
+    """
+    Removes one ticker from one portfolio — position, strategy, and any
+    portfolio_auto watchlist alerts for it. A position's short/long-term
+    plan is computed purely from its own numbers (see
+    services/portfolio_strategy.py), never from the rest of the
+    portfolio, so deleting one ticker never requires recomputing anyone
+    else's — a plain scoped delete is correct here, no _save_and_respond
+    round trip needed. Returns whether a position actually existed to delete.
+    """
+    deleted = await conn.fetchrow(
+        "DELETE FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2 AND ticker = $3 RETURNING id",
+        user_id, portfolio_id, ticker,
+    )
+    if deleted is None:
+        return False
+    await conn.execute(
+        "DELETE FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2 AND ticker = $3",
+        user_id, portfolio_id, ticker,
+    )
+    await conn.execute(
+        "DELETE FROM watchlist_alerts WHERE user_id = $1::uuid AND portfolio_id = $2 AND ticker = $3 AND source = 'portfolio_auto'",
+        user_id, portfolio_id, ticker,
+    )
+    return True
+
+
+@router.delete("/positions/{ticker}")
+@limiter.limit("20/minute")
+async def delete_position(request: Request, ticker: str, portfolio_id: Optional[int] = None):
+    """Removes one position entirely — not an edit, an irreversible delete
+    (the position itself; the portfolio it lived in is untouched)."""
+    await enforce_daily_quota(request, "portfolio/delete-position")
+    ticker = ticker.strip().upper()
+    user_id = request.state.user["id"]
+
+    async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        found = await _delete_position_rows(conn, user_id, resolved_portfolio_id, ticker)
+
+    if not found:
+        raise HTTPException(404, "Position not found.")
+    return {"ok": True}
+
+
+class MovePositionRequest(BaseModel):
+    to_portfolio_id: int
+    from_portfolio_id: Optional[int] = None
+    risk_profile: str = "Balanced"
+    risk_factor: int = 5
+
+
+@router.post("/positions/{ticker}/move")
+@limiter.limit("20/minute")
+async def move_position(request: Request, ticker: str, body: MovePositionRequest):
+    """Moves one position from one portfolio to another — removed from the
+    source, merged into the destination (the destination's own existing
+    data for this ticker, if any, is preserved/updated exactly the way a
+    normal edit_position upsert would, via the same merge path)."""
+    await enforce_daily_quota(request, "portfolio/move-position")
+    ticker = ticker.strip().upper()
+    user_id = request.state.user["id"]
+
+    async with user_conn(user_id) as conn:
+        from_id = await _resolve_portfolio_id(conn, user_id, body.from_portfolio_id)
+        to_id = await _resolve_portfolio_id(conn, user_id, body.to_portfolio_id)
+        if from_id == to_id:
+            raise HTTPException(422, "Source and destination portfolios must be different.")
+
+        source_row = await conn.fetchrow(
+            "SELECT shares, avg_cost, current_price FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2 AND ticker = $3",
+            user_id, from_id, ticker,
+        )
+        if source_row is None:
+            raise HTTPException(404, "Position not found in the source portfolio.")
+
+        await _delete_position_rows(conn, user_id, from_id, ticker)
+
+        new_row = pd.DataFrame(
+            [
+                {
+                    "Ticker": ticker,
+                    "Shares": source_row["shares"],
+                    "Avg_Cost": source_row["avg_cost"],
+                    "Current_Price": source_row["current_price"],
+                }
+            ]
+        )
+        merged_df = await _merge_with_existing(conn, user_id, to_id, new_row)
+        return await _save_and_respond(conn, user_id, to_id, merged_df, body.risk_profile, body.risk_factor, "Moved")
+
+
 @router.get("/positions")
 async def list_positions(request: Request, portfolio_id: Optional[int] = None):
     user_id = request.state.user["id"]

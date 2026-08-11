@@ -357,6 +357,26 @@ export function editPortfolioPosition(
   });
 }
 
+export function deletePortfolioPosition(ticker: string, portfolioId?: number) {
+  const params = portfolioId !== undefined ? `?portfolio_id=${portfolioId}` : "";
+  return apiSend<{ ok: boolean }>(`/api/v1/portfolio/positions/${encodeURIComponent(ticker)}${params}`, "DELETE");
+}
+
+export function movePortfolioPosition(
+  ticker: string,
+  toPortfolioId: number,
+  riskProfile: string,
+  riskFactor: number,
+  fromPortfolioId?: number,
+) {
+  return apiSend<PortfolioSubmitResponse>(`/api/v1/portfolio/positions/${encodeURIComponent(ticker)}/move`, "POST", {
+    to_portfolio_id: toPortfolioId,
+    from_portfolio_id: fromPortfolioId,
+    risk_profile: riskProfile,
+    risk_factor: riskFactor,
+  });
+}
+
 export function refreshPortfolio(riskProfile: string, riskFactor: number, portfolioId?: number) {
   const params = new URLSearchParams({
     risk_profile: riskProfile,

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import {
   ApiError,
+  deletePortfolioPosition,
   editPortfolioPosition,
   getCurrentPrice,
   getPortfolioInsights,
@@ -11,11 +12,13 @@ import {
   getPortfolioStrategies,
   getPortfolioSummary,
   importPortfolioCsv,
+  movePortfolioPosition,
   refreshPortfolio,
   submitManualPositions,
 } from "@/lib/api";
 import type {
   ManualPositionInput,
+  Portfolio,
   PortfolioInsight,
   PortfolioPerformance,
   PortfolioStrategyRow,
@@ -35,6 +38,8 @@ const EMPTY_ROW: ManualPositionInput = { name: "", ticker: "", shares: 0, curren
 
 export default function PortfolioPage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
+  const [allPortfolios, setAllPortfolios] = useState<Portfolio[]>([]);
+  const [portfolioReloadSignal, setPortfolioReloadSignal] = useState(0);
   const [mode, setMode] = useState<Mode>("manual");
   const [riskProfile, setRiskProfile] = useState("Balanced");
   const [riskFactor, setRiskFactor] = useState(5);
@@ -68,6 +73,12 @@ export default function PortfolioPage() {
   const [addAvgCost, setAddAvgCost] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+
+  const [deletingTicker, setDeletingTicker] = useState<string | null>(null);
+  const [movingTicker, setMovingTicker] = useState<string | null>(null);
+  const [moveTargetId, setMoveTargetId] = useState("");
+  const [moveSaving, setMoveSaving] = useState(false);
+  const [positionActionError, setPositionActionError] = useState<string | null>(null);
 
   async function refreshPerformance(showLoading: boolean) {
     if (showLoading) setPerformanceLoading(true);
@@ -255,6 +266,52 @@ export default function PortfolioPage() {
     }
   }
 
+  async function handleDeletePosition(ticker: string) {
+    if (!window.confirm(`Delete ${ticker}? This can't be undone.`)) return;
+    setDeletingTicker(ticker);
+    setPositionActionError(null);
+    try {
+      await deletePortfolioPosition(ticker, selectedPortfolioId ?? undefined);
+      setPortfolioReloadSignal((n) => n + 1);
+      await refresh();
+    } catch (err) {
+      setPositionActionError(err instanceof ApiError ? err.message : `Could not delete ${ticker}.`);
+    } finally {
+      setDeletingTicker(null);
+    }
+  }
+
+  function startMove(ticker: string) {
+    setMovingTicker(ticker);
+    setMoveTargetId("");
+    setPositionActionError(null);
+  }
+
+  function cancelMove() {
+    setMovingTicker(null);
+    setPositionActionError(null);
+  }
+
+  async function confirmMove(ticker: string) {
+    const toId = Number(moveTargetId);
+    if (!toId) {
+      setPositionActionError("Choose a destination portfolio.");
+      return;
+    }
+    setMoveSaving(true);
+    setPositionActionError(null);
+    try {
+      await movePortfolioPosition(ticker, toId, riskProfile, riskFactor, selectedPortfolioId ?? undefined);
+      setMovingTicker(null);
+      setPortfolioReloadSignal((n) => n + 1);
+      await refresh();
+    } catch (err) {
+      setPositionActionError(err instanceof ApiError ? err.message : `Could not move ${ticker}.`);
+    } finally {
+      setMoveSaving(false);
+    }
+  }
+
   async function handleAddPosition(e: React.FormEvent) {
     e.preventDefault();
     const ticker = addTicker.trim().toUpperCase();
@@ -319,7 +376,12 @@ export default function PortfolioPage() {
       </p>
 
       <div className="mt-6">
-        <PortfolioSwitcher selectedPortfolioId={selectedPortfolioId} onChange={setSelectedPortfolioId} />
+        <PortfolioSwitcher
+          selectedPortfolioId={selectedPortfolioId}
+          onChange={setSelectedPortfolioId}
+          onPortfoliosChange={setAllPortfolios}
+          reloadSignal={portfolioReloadSignal}
+        />
       </div>
 
       <PortfolioDropAlerts />
@@ -689,16 +751,65 @@ export default function PortfolioPage() {
                     >
                       {pnl === null ? "—" : `${pnlPositive ? "+" : ""}${pnl.toFixed(2)}%`}
                     </span>
-                    {!isEditing && (
-                      <button
-                        onClick={() => startEdit(s)}
-                        className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                      >
-                        Edit
-                      </button>
+                    {!isEditing && movingTicker !== s.ticker && (
+                      <>
+                        <button
+                          onClick={() => startEdit(s)}
+                          className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                        >
+                          Edit
+                        </button>
+                        {allPortfolios.length > 1 && (
+                          <button
+                            onClick={() => startMove(s.ticker)}
+                            className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                          >
+                            Move
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeletePosition(s.ticker)}
+                          disabled={deletingTicker === s.ticker}
+                          className="rounded-md border border-red-200 px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {deletingTicker === s.ticker ? "Deleting…" : "Delete"}
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
+
+                {movingTicker === s.ticker && (
+                  <div className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <Field label="Move to">
+                      <select
+                        value={moveTargetId}
+                        onChange={(e) => setMoveTargetId(e.target.value)}
+                        className="input"
+                      >
+                        <option value="">Choose a portfolio…</option>
+                        {allPortfolios
+                          .filter((p) => p.id !== selectedPortfolioId)
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                    <button onClick={() => confirmMove(s.ticker)} disabled={moveSaving} className="btn-primary">
+                      {moveSaving ? "Moving…" : "Confirm Move"}
+                    </button>
+                    <button
+                      onClick={cancelMove}
+                      disabled={moveSaving}
+                      className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                    >
+                      Cancel
+                    </button>
+                    {positionActionError && <p className="w-full text-xs text-red-600">{positionActionError}</p>}
+                  </div>
+                )}
 
                 {isEditing ? (
                   <div className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -807,6 +918,9 @@ export default function PortfolioPage() {
 
       {insightsError && (
         <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{insightsError}</p>
+      )}
+      {positionActionError && movingTicker === null && (
+        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{positionActionError}</p>
       )}
     </div>
   );
