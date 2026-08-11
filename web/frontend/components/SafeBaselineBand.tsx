@@ -12,9 +12,11 @@ const CONFIDENCES = [0.9, 0.95];
 const METHOD_INFO: ColumnInfo = {
   title: "Safe Baseline Price Band — what this is",
   body: [
-    "Five levels derived purely from this ticker's own historical price paths: for every day in the lookback window, \"if you'd bought here, what's the worst and best this position did over the following N trading days?\" The floor and ceiling are the (1 − confidence) and confidence percentiles of that outcome distribution — calibrated so roughly `confidence` of historical windows stayed inside them.",
-    "This is not a forecast, target, or recommendation. It incorporates no earnings, guidance, corporate actions, or news — only realized historical excursions. \"Median Path\" is simply today's price, unmodified — an anchor, not a prediction.",
-    "The Accumulation and Distribution zones mark a typical (25th/75th percentile) pullback or rally depth, independent of your chosen confidence level — like the box in a box plot.",
+    "A report card on the past, not a prediction of the future. It looks at years of this ticker's real price history and asks: every time someone bought at a given price and held for N trading days, what actually happened — how far did it typically dip, and how far did it typically run?",
+    "Floor and Ceiling: historically, price has rarely moved outside this range within the horizon you picked. Accumulation Zone and Distribution Zone: a \"typical\" dip and a \"typical\" rally — where a normal pullback has bottomed, or a normal run has topped out. Median Path is simply today's price, unmodified — an anchor, not a forecast.",
+    "How people use it: if the price falls into the Accumulation Zone, that's historically a normal-to-deep pullback, not usually a sign something's broken. If it's already above the Distribution Zone, it's already had a historically strong run, with typically less room left before a pause.",
+    "The trust-check numbers below the band tell you how much history this is built on (\"Samples\") and how well-calibrated it's been (\"Breach Rate\" — how often price has actually broken the floor vs. how often the math expected it to).",
+    "The most important caveat: this only looks at price history. It knows nothing about earnings, news, or what's happening with the company right now — treat it as one input, not the whole picture.",
     "Different from Predict's forecast confidence interval (model-based) or Entry Signals' stop/target (an ATR heuristic) — each uses a different method, so don't expect the numbers to match across pages.",
   ],
 };
@@ -124,6 +126,16 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
       {band && !loading && (
         <div className="mt-4 flex flex-col gap-4">
           <BandLadder band={band} />
+
+          <p className="text-sm text-slate-600">
+            A typical pullback for {band.ticker} has bottomed around{" "}
+            <strong className="text-slate-900">${band.accumulation_zone_hi.toFixed(2)}</strong>; a typical rally has
+            topped out around <strong className="text-slate-900">${band.distribution_zone_lo.toFixed(2)}</strong>.
+            Over the last {band.effective_samples} independent {band.horizon_days}-day periods, price has stayed
+            within <strong className="text-slate-900">${band.floor.toFixed(2)}–${band.ceiling.toFixed(2)}</strong>{" "}
+            about {Math.round((1 - band.breach_rate_full) * 100)}% of the time. This reflects price history only —
+            not news, earnings, or anything specific to the company right now.
+          </p>
 
           {confidence >= 0.95 && (
             <p className="text-xs text-slate-500">
