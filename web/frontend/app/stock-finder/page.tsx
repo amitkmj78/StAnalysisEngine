@@ -9,13 +9,14 @@ import {
   ApiError,
   createWatchlistAlert,
   deleteScreen,
+  getPredictionSummary,
   getScreens,
   getStockRanking,
   getStockScore,
   getStockUniverses,
   saveScreen,
 } from "@/lib/api";
-import type { AlertConditionType, SavedScreen, ScreenSnapshotRow, StockRankRow } from "@/lib/types";
+import type { AlertConditionType, SavedScreen, ScreenSnapshotRow, SignalOut, StockRankRow } from "@/lib/types";
 
 const GOALS = ["Short Term", "Long Term"];
 
@@ -28,6 +29,7 @@ const ALL_COLUMNS = [
   "Sector",
   "Price",
   "Score",
+  "Quant Signal",
   "Market Cap ($B)",
   "Forward PE",
   "Revenue Growth %",
@@ -49,7 +51,14 @@ const ALL_COLUMNS = [
   "1Y Max Drawdown %",
 ];
 
-const DEFAULT_COLUMNS = ["Ticker", "Name", "Sector", "Price", "Score", "1M Return %", "3M Return %", "1Y Return %", "RSI"];
+// Data-driven columns come straight from the API row; "Quant Signal" is
+// the one exception — fetched lazily per row on click (see quantSignals
+// state), since it means training a fresh forecast model per ticker
+// (~1s each) — fine on demand, not something to eagerly run across a
+// 500-ticker universe.
+const LAZY_COLUMNS = new Set(["Quant Signal"]);
+
+const DEFAULT_COLUMNS = ["Ticker", "Name", "Sector", "Price", "Score", "Quant Signal", "1M Return %", "3M Return %", "1Y Return %", "RSI"];
 const REQUIRED_COLUMN = "Ticker";
 const COLUMNS_STORAGE_KEY = "stanalysisengine.stockFinderColumns";
 
@@ -89,6 +98,22 @@ function filtersActive(f: FilterState): boolean {
 }
 
 const COLUMN_INFO: Record<string, ColumnInfo> = {
+  Ticker: {
+    title: "Ticker",
+    body: ["The stock's exchange symbol — click Forecast or Watchlist on any row to act on it without retyping."],
+  },
+  Name: {
+    title: "Name",
+    body: ["The company or fund's short name, as reported by the data provider."],
+  },
+  Sector: {
+    title: "Sector",
+    body: ["The GICS sector this ticker is classified under. Use the Sector filter to narrow results to one or more sectors."],
+  },
+  Price: {
+    title: "Price",
+    body: ["The latest available trade price at the time this scan ran (cached up to an hour — see the note above the table)."],
+  },
   Score: {
     title: "Score",
     body: [
@@ -99,6 +124,69 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
       "Filters below narrow which rows are shown, but never change how Score is computed — scores stay comparable across different filter selections since they're calculated before filtering.",
     ],
   },
+  "Quant Signal": {
+    title: "Quant Signal",
+    body: [
+      "The same BUY/HOLD/SELL signal shown on the Predict page — a gradient-boosted model trained on this ticker's own recent price/technical history, forecasting 10 days ahead. BUY means the forecast implies at least +5% expected return; SELL means -5% or worse; HOLD is in between.",
+      "A completely different, independent computation from Score above — Score is a relative rank against this result set's other tickers; Quant Signal is a standalone per-ticker forecast, the same one you'd get analyzing this ticker alone on /predict.",
+      "Loaded on demand per row (click \"Load\") rather than for the whole scan, since it means training a fresh model per ticker — too slow to run automatically across a large universe.",
+    ],
+  },
+  "Market Cap ($B)": {
+    title: "Market Cap ($B)",
+    body: ["Market capitalization in billions of dollars — share price × shares outstanding, as reported by the data provider."],
+  },
+  "Forward PE": {
+    title: "Forward P/E",
+    body: [
+      "Price divided by analysts' consensus estimate of next year's earnings per share — a lower number generally means the stock is cheaper relative to its expected earnings.",
+      "Only used in the \"Long Term\" Score (8%, lower is better). Not meaningful for companies expected to have negative earnings.",
+    ],
+  },
+  "Revenue Growth %": {
+    title: "Revenue Growth %",
+    body: ["Year-over-year revenue growth, as reported by the data provider. Used in the \"Long Term\" Score (12%)."],
+  },
+  "Earnings Growth %": {
+    title: "Earnings Growth %",
+    body: ["Year-over-year earnings growth, as reported by the data provider. Used in the \"Long Term\" Score (10%)."],
+  },
+  "1M Return %": {
+    title: "1-Month Return",
+    body: ["Price change over the trailing ~21 trading days. Used in the \"Short Term\" Score (25%)."],
+  },
+  "3M Return %": {
+    title: "3-Month Return",
+    body: ["Price change over the trailing ~63 trading days. Used in the \"Short Term\" Score (30%, the single largest weight in that goal)."],
+  },
+  "6M Return %": {
+    title: "6-Month Return",
+    body: ["Price change over the trailing ~126 trading days. Used in the \"Long Term\" Score (12%)."],
+  },
+  "1Y Return %": {
+    title: "1-Year Return",
+    body: ["Price change over the trailing ~252 trading days. Used in the \"Long Term\" Score (28%, the single largest weight in that goal)."],
+  },
+  "3Y Annualized %": {
+    title: "3-Year Annualized Return",
+    body: ["Total 3-year return converted to an annualized (per-year) rate. Used in the \"Long Term\" Score (20%)."],
+  },
+  "Return 10D %": {
+    title: "10-Day Return",
+    body: ["Literal trailing 10-trading-day price change. Display-only — not part of either Score, and computed separately from the 1M/3M/6M/1Y columns above to keep this reading distinct from that composite."],
+  },
+  "Return 30D %": {
+    title: "30-Day Return",
+    body: ["Literal trailing 30-trading-day price change. Display-only — not part of either Score."],
+  },
+  "Return 60D %": {
+    title: "60-Day Return",
+    body: ["Literal trailing 60-trading-day price change. Display-only — not part of either Score."],
+  },
+  "Return 90D %": {
+    title: "90-Day Return",
+    body: ["Literal trailing 90-trading-day price change. Display-only — not part of either Score."],
+  },
   RSI: {
     title: "RSI — Relative Strength Index",
     body: [
@@ -108,6 +196,26 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
       "It doesn't just reward high RSI: the ranking score prefers RSI near 55 — strong momentum without being overheated — and penalizes distance from 55 in either direction. A stock at RSI 90 scores worse than one at RSI 55, same as a weak stock sitting at RSI 20.",
       "It's only used for the \"Short Term\" goal (15% of that score). \"Long Term\" ranking doesn't use RSI at all — it weights fundamentals and multi-year returns instead.",
     ],
+  },
+  "RSI Balance": {
+    title: "RSI Balance",
+    body: ["The raw RSI value transformed into the 0–100 score actually used in Score: 100 minus 3× the distance from RSI 55, floored at 0 — see the RSI column's own explanation for why 55 (not 100) is the target."],
+  },
+  "MACD Strength": {
+    title: "MACD Strength",
+    body: ["The gap between the MACD line and its signal line, scaled — positive means the MACD is above its signal line (often read as bullish momentum). Used in the \"Short Term\" Score (15%)."],
+  },
+  "Volume Strength %": {
+    title: "Volume Strength %",
+    body: ["Today's trading volume vs. its own trailing 20-day average, as a percent change — positive means unusually high volume. Used in the \"Short Term\" Score (10%)."],
+  },
+  "6M Volatility %": {
+    title: "6-Month Volatility",
+    body: ["Annualized standard deviation of daily returns over the trailing 6 months — higher means choppier price action. Used in the \"Short Term\" Score (5%, lower is better)."],
+  },
+  "1Y Max Drawdown %": {
+    title: "1-Year Max Drawdown",
+    body: ["The largest peak-to-trough decline over the trailing year. Used in the \"Long Term\" Score (10%, lower is better)."],
   },
 };
 
@@ -144,6 +252,10 @@ export default function StockFinderPage() {
   const [watchlistThreshold, setWatchlistThreshold] = useState("");
   const [watchlistSaving, setWatchlistSaving] = useState(false);
   const [watchlistMessage, setWatchlistMessage] = useState<string | null>(null);
+
+  const [quantSignals, setQuantSignals] = useState<
+    Record<string, { status: "loading" } | { status: "error" } | { status: "ok"; signal: SignalOut }>
+  >({});
 
   useEffect(() => {
     getStockUniverses()
@@ -185,6 +297,7 @@ export default function StockFinderPage() {
     setError(null);
     setHasSearched(true);
     setSortKeys([]);
+    setQuantSignals({});
     try {
       if (forMode === "rank") {
         const res = await getStockRanking(forGoal, forUniverse);
@@ -369,6 +482,20 @@ export default function StockFinderPage() {
       setWatchlistMessage(err instanceof ApiError ? err.message : "Could not add to watchlist.");
     } finally {
       setWatchlistSaving(false);
+    }
+  }
+
+  async function loadQuantSignal(t: string) {
+    setQuantSignals((prev) => ({ ...prev, [t]: { status: "loading" } }));
+    try {
+      const res = await getPredictionSummary(t, "1y", 10);
+      if (res.signal) {
+        setQuantSignals((prev) => ({ ...prev, [t]: { status: "ok", signal: res.signal! } }));
+      } else {
+        setQuantSignals((prev) => ({ ...prev, [t]: { status: "error" } }));
+      }
+    } catch {
+      setQuantSignals((prev) => ({ ...prev, [t]: { status: "error" } }));
     }
   }
 
@@ -679,14 +806,14 @@ export default function StockFinderPage() {
           )}
 
           {results.length > 1 && (
-            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <div className="max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-white">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                     {visibleColumns.map((col) => {
                       const keyIndex = sortKeys.findIndex((k) => k.column === col);
                       return (
-                        <th key={col} className="px-3 py-2">
+                        <th key={col} className="sticky top-0 z-10 bg-slate-50 px-3 py-2">
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
@@ -717,20 +844,57 @@ export default function StockFinderPage() {
                         </th>
                       );
                     })}
-                    <th className="px-3 py-2"></th>
+                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedResults.map((row) => {
                     const t = String(row.Ticker);
+                    const quantSignal = quantSignals[t];
                     return (
                       <Fragment key={t}>
                         <tr className="border-b border-slate-100 last:border-0">
-                          {visibleColumns.map((col) => (
-                            <td key={col} className="px-3 py-2 text-slate-700">
-                              {formatCell(row[col])}
-                            </td>
-                          ))}
+                          {visibleColumns.map((col) =>
+                            LAZY_COLUMNS.has(col) ? (
+                              <td key={col} className="px-3 py-2 text-slate-700">
+                                {!quantSignal ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => loadQuantSignal(t)}
+                                    className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                  >
+                                    Load
+                                  </button>
+                                ) : quantSignal.status === "loading" ? (
+                                  <span className="text-xs text-slate-400">…</span>
+                                ) : quantSignal.status === "error" ? (
+                                  <span className="text-xs text-slate-400">—</span>
+                                ) : (
+                                  <span className="flex items-center gap-1.5">
+                                    <span
+                                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                        quantSignal.signal.signal === "BUY"
+                                          ? "bg-emerald-50 text-emerald-700"
+                                          : quantSignal.signal.signal === "SELL"
+                                          ? "bg-red-50 text-red-700"
+                                          : "bg-slate-100 text-slate-600"
+                                      }`}
+                                    >
+                                      {quantSignal.signal.signal}
+                                    </span>
+                                    <span className="text-xs text-slate-500">
+                                      {quantSignal.signal.expected_return_pct >= 0 ? "+" : ""}
+                                      {quantSignal.signal.expected_return_pct.toFixed(2)}%
+                                    </span>
+                                  </span>
+                                )}
+                              </td>
+                            ) : (
+                              <td key={col} className="px-3 py-2 text-slate-700">
+                                {formatCell(row[col])}
+                              </td>
+                            ),
+                          )}
                           <td className="px-3 py-2 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button
