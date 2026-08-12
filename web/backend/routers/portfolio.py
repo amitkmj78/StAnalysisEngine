@@ -652,6 +652,24 @@ async def dismiss_drop_alert(alert_id: int, request: Request):
     return {"ok": True}
 
 
+@router.post("/drop-alerts/refresh")
+@limiter.limit("5/minute")
+async def refresh_drop_alerts(request: Request):
+    """User-triggered, on-demand check for new drops in the current user's
+    own holdings only — the same analysis the scheduler runs, just without
+    waiting for the next tick (or needing the scheduler enabled at all).
+    Still respects the once-per-ticker-per-day dedup: a ticker already
+    alerted today keeps its existing alert/narrative unchanged — this only
+    surfaces genuinely new drops since the last check."""
+    await enforce_daily_quota(request, "portfolio/drop-alerts/refresh")
+    user_id = request.state.user["id"]
+    threshold_pct = await get_setting_float(
+        PORTFOLIO_DROP_THRESHOLD_PCT_KEY, default=PORTFOLIO_DROP_THRESHOLD_DEFAULT
+    )
+    inserted = await scan_portfolios_for_drops(threshold_pct=threshold_pct, user_id=user_id)
+    return {"inserted": inserted}
+
+
 @router.post("/drop-alerts/scan-now", dependencies=[Depends(require_admin)])
 async def scan_drop_alerts_now(threshold_pct: Optional[float] = None):
     """Manual trigger for the same scan the scheduler runs every 15

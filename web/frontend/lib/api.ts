@@ -520,6 +520,10 @@ export function dismissPortfolioDropAlert(alertId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/portfolio/drop-alerts/${alertId}/dismiss`, "POST");
 }
 
+export function refreshPortfolioDropAlerts() {
+  return apiSend<{ inserted: number }>("/api/v1/portfolio/drop-alerts/refresh", "POST");
+}
+
 // Meta-Agent Chat
 export function getChatProviders() {
   return apiFetch<ChatProvidersResponse>("/api/v1/chat/providers");

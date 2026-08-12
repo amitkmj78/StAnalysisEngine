@@ -10,28 +10,42 @@ from web.backend.llm_cache import cached_init_llms, resolve_llm
 logger = logging.getLogger(__name__)
 
 
-async def scan_portfolios_for_drops(threshold_pct: float = DROP_THRESHOLD_PCT) -> int:
+async def scan_portfolios_for_drops(threshold_pct: float = DROP_THRESHOLD_PCT, user_id: str | None = None) -> int:
     """
-    Scans every user's portfolio for a same-day drop of threshold_pct or
-    more, computing the sentiment + quant-signal recommendation once per
-    distinct ticker per run (not once per user holding it — multiple users
-    can hold the same ticker), and inserts one alert row per affected user.
-    The (user_id, ticker, alert_date) unique constraint means a ticker
-    already alerted today for a user is skipped entirely, including
-    skipping the expensive analysis work for it. Returns the number of new
-    alert rows inserted.
+    Scans every user's portfolio (or just `user_id`'s, for an on-demand
+    per-user refresh) for a same-day drop of threshold_pct or more,
+    computing the sentiment + quant-signal recommendation once per distinct
+    ticker per run (not once per user holding it — multiple users can hold
+    the same ticker), and inserts one alert row per affected user. The
+    (user_id, ticker, alert_date) unique constraint means a ticker already
+    alerted today for a user is skipped entirely, including skipping the
+    expensive analysis work for it — this holds regardless of whether the
+    scheduler or a user-triggered refresh is what's calling this. Returns
+    the number of new alert rows inserted.
     """
     today = date.today()
 
     async with service_conn() as conn:
-        holdings = await conn.fetch(
-            "SELECT DISTINCT user_id, ticker FROM portfolio_positions WHERE ticker IS NOT NULL"
-        )
+        if user_id is not None:
+            holdings = await conn.fetch(
+                "SELECT DISTINCT user_id, ticker FROM portfolio_positions WHERE ticker IS NOT NULL AND user_id = $1::uuid",
+                user_id,
+            )
+        else:
+            holdings = await conn.fetch(
+                "SELECT DISTINCT user_id, ticker FROM portfolio_positions WHERE ticker IS NOT NULL"
+            )
         if not holdings:
             return 0
-        already_alerted = await conn.fetch(
-            "SELECT user_id, ticker FROM portfolio_drop_alerts WHERE alert_date = $1", today
-        )
+        if user_id is not None:
+            already_alerted = await conn.fetch(
+                "SELECT user_id, ticker FROM portfolio_drop_alerts WHERE alert_date = $1 AND user_id = $2::uuid",
+                today, user_id,
+            )
+        else:
+            already_alerted = await conn.fetch(
+                "SELECT user_id, ticker FROM portfolio_drop_alerts WHERE alert_date = $1", today
+            )
 
     already_alerted_keys = {(r["user_id"], r["ticker"]) for r in already_alerted}
     pending = [h for h in holdings if (h["user_id"], h["ticker"]) not in already_alerted_keys]

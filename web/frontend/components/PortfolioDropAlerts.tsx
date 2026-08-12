@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, dismissPortfolioDropAlert, getPortfolioDropAlerts } from "@/lib/api";
+import { ApiError, dismissPortfolioDropAlert, getPortfolioDropAlerts, refreshPortfolioDropAlerts } from "@/lib/api";
 import type { PortfolioDropAlert } from "@/lib/types";
 
 export default function PortfolioDropAlerts() {
   const [alerts, setAlerts] = useState<PortfolioDropAlert[] | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [dismissingId, setDismissingId] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -38,10 +40,49 @@ export default function PortfolioDropAlerts() {
     }
   }
 
-  if (!alerts || alerts.length === 0) return null;
+  async function handleRefresh() {
+    setRefreshing(true);
+    setRefreshMessage(null);
+    try {
+      const res = await refreshPortfolioDropAlerts();
+      await load();
+      setRefreshMessage(
+        res.inserted > 0
+          ? `Found ${res.inserted} new alert${res.inserted === 1 ? "" : "s"}.`
+          : "No new drops since your last check.",
+      );
+    } catch (err) {
+      setRefreshMessage(err instanceof ApiError ? err.message : "Could not check for new drops.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  // Wait for the initial load to resolve before rendering anything, so the
+  // refresh control doesn't flash in before we know whether there's
+  // anything to report.
+  if (alerts === null) return null;
 
   return (
     <div className="mt-6 flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-medium text-slate-500">
+          {alerts.length > 0
+            ? `${alerts.length} portfolio drop alert${alerts.length === 1 ? "" : "s"}`
+            : "No portfolio drop alerts right now"}
+        </span>
+        <div className="flex items-center gap-2">
+          {refreshMessage && <span className="text-xs text-slate-400">{refreshMessage}</span>}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+          >
+            {refreshing ? "Checking…" : "Check for new drops"}
+          </button>
+        </div>
+      </div>
+
       {alerts.map((a) => {
         const expanded = expandedId === a.id;
         return (
