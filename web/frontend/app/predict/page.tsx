@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
@@ -78,7 +79,8 @@ const PERIODS = [
 const FORECAST_HORIZONS = [5, 10, 20, 30, 60];
 
 export default function PredictPage() {
-  const [ticker, setTicker] = useState("AAPL");
+  const searchParams = useSearchParams();
+  const [ticker, setTicker] = useState(searchParams.get("ticker")?.trim().toUpperCase() || "AAPL");
   const [period, setPeriod] = useState("1y");
   const [daysAhead, setDaysAhead] = useState(10);
   const [shownDaysAhead, setShownDaysAhead] = useState(10);
@@ -127,8 +129,16 @@ export default function PredictPage() {
       .catch(() => {});
   }, []);
 
-  async function runPrediction(e: React.FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    const urlTicker = searchParams.get("ticker")?.trim().toUpperCase();
+    if (urlTicker) {
+      runAnalysis(urlTicker, period, daysAhead);
+    }
+    // Only meant to fire once, from the initial URL — not on every period/daysAhead change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function runAnalysis(forTicker: string, forPeriod: string, forDaysAhead: number) {
     setLoading(true);
     setError(null);
     setNarrative(null);
@@ -144,9 +154,9 @@ export default function PredictPage() {
     setCompareInput("");
     setPrimaryBand(null);
     try {
-      const summary = await getPredictionSummary(ticker.trim().toUpperCase(), period, daysAhead);
+      const summary = await getPredictionSummary(forTicker.trim().toUpperCase(), forPeriod, forDaysAhead);
       setData(summary);
-      setShownDaysAhead(daysAhead);
+      setShownDaysAhead(forDaysAhead);
       setPriceRefreshKey((k) => k + 1);
       loadHistory(summary.ticker);
       loadNarrativeHistory(summary.ticker);
@@ -159,6 +169,11 @@ export default function PredictPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function runPrediction(e: React.FormEvent) {
+    e.preventDefault();
+    runAnalysis(ticker, period, daysAhead);
   }
 
   async function loadHistory(forTicker: string) {

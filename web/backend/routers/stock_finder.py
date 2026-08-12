@@ -1,9 +1,14 @@
+import json
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from services.stock_finder_service import STOCK_UNIVERSES, rank_stocks, score_stock_ticker
 
 from web.backend.auth import verify_bearer_token
+from web.backend.db import user_conn
 from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.utils import records_safe
 
@@ -58,3 +63,79 @@ async def score(
     df = await run_in_threadpool(score_stock_ticker, goal, ticker)
     records = records_safe(df)
     return {"result": records[0] if records else None}
+
+
+# --- Saved screens (US-04/05, docs/stock-screener-improvements-spec.md):
+# a named, reloadable goal+universe+filters+columns+sort configuration, plus
+# a top-10 snapshot at save time so a later reload can show what moved.
+
+def _screen_to_dict(record) -> dict:
+    row = {k: record[k] for k in record.keys()}
+    for col in ("filters", "visible_columns", "sort_keys", "snapshot_top10"):
+        if isinstance(row.get(col), str):
+            row[col] = json.loads(row[col])
+    return row
+
+
+class SortKey(BaseModel):
+    column: str
+    direction: str
+
+
+class SaveScreenRequest(BaseModel):
+    name: str
+    goal: str
+    universe: str
+    filters: dict[str, Any] = {}
+    visible_columns: list[str] = []
+    sort_keys: list[SortKey] = []
+    snapshot_top10: list[dict[str, Any]] = []
+
+
+@router.post("/screens/save")
+@limiter.limit("20/minute")
+async def save_screen(request: Request, body: SaveScreenRequest):
+    await enforce_daily_quota(request, "stock-finder/screens/save")
+    user_id = request.state.user["id"]
+
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "name is required")
+    _validate_goal(body.goal)
+    if body.universe not in STOCK_UNIVERSES:
+        raise HTTPException(422, f"universe must be one of {sorted(STOCK_UNIVERSES.keys())}")
+
+    async with user_conn(user_id) as conn:
+        record = await conn.fetchrow(
+            """
+            INSERT INTO saved_screens (
+                user_id, name, goal, universe, filters, visible_columns, sort_keys, snapshot_top10
+            ) VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb)
+            RETURNING *
+            """,
+            user_id, name, body.goal, body.universe,
+            json.dumps(body.filters), json.dumps(body.visible_columns),
+            json.dumps([k.model_dump() for k in body.sort_keys]), json.dumps(body.snapshot_top10),
+        )
+    return {"screen": _screen_to_dict(record)}
+
+
+@router.get("/screens")
+async def list_screens(request: Request):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        records = await conn.fetch("SELECT * FROM saved_screens ORDER BY saved_at DESC")
+    return {"screens": [_screen_to_dict(r) for r in records]}
+
+
+@router.delete("/screens/{screen_id}")
+async def delete_screen(request: Request, screen_id: int):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM saved_screens WHERE id = $1 RETURNING id",
+            screen_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Saved screen not found.")
+    return {"ok": True}

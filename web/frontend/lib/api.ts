@@ -41,6 +41,7 @@ import type {
   SavedBaselineSnapshot,
   SavedNarrative,
   SavedPrediction,
+  SavedScreen,
   SavedStrategyPlan,
   SignalOutcomesResponse,
   StockRankResponse,
@@ -167,6 +168,26 @@ export function getStockRanking(goal: string, universe: string) {
 
 export function getStockScore(goal: string, ticker: string) {
   return apiFetch<StockScoreResponse>("/api/v1/stock-finder/score", { goal, ticker });
+}
+
+export function saveScreen(screen: {
+  name: string;
+  goal: string;
+  universe: string;
+  filters: Record<string, unknown>;
+  visible_columns: string[];
+  sort_keys: { column: string; direction: "asc" | "desc" }[];
+  snapshot_top10: { Ticker: string; Score: number; Price: number }[];
+}) {
+  return apiSend<{ screen: SavedScreen }>("/api/v1/stock-finder/screens/save", "POST", screen);
+}
+
+export function getScreens() {
+  return apiFetch<{ screens: SavedScreen[] }>("/api/v1/stock-finder/screens");
+}
+
+export function deleteScreen(screenId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/stock-finder/screens/${screenId}`, "DELETE");
 }
 
 // Index Fund Finder

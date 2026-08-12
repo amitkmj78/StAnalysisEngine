@@ -632,6 +632,25 @@ create policy saved_baseline_snapshots_isolation on saved_baseline_snapshots for
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+create table if not exists saved_screens (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  name text not null,
+  goal text not null,
+  universe text not null,
+  filters jsonb not null default '{}'::jsonb,
+  visible_columns jsonb not null default '[]'::jsonb,
+  sort_keys jsonb not null default '[]'::jsonb,
+  snapshot_top10 jsonb not null default '[]'::jsonb,
+  saved_at timestamptz not null default now()
+);
+create index if not exists saved_screens_user_idx on saved_screens(user_id, saved_at desc);
+alter table saved_screens enable row level security;
+drop policy if exists saved_screens_isolation on saved_screens;
+create policy saved_screens_isolation on saved_screens for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 create table if not exists watchlist_alerts (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,
@@ -871,7 +890,7 @@ $$;
 
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
-grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots to app_user;
+grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens to app_user;
 grant select, update on portfolio_drop_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;

@@ -136,6 +136,24 @@ export interface UniversesResponse {
   universes: string[];
 }
 
+export interface ScreenSnapshotRow {
+  Ticker: string;
+  Score: number;
+  Price: number;
+}
+
+export interface SavedScreen {
+  id: number;
+  name: string;
+  goal: string;
+  universe: string;
+  filters: Record<string, unknown>;
+  visible_columns: string[];
+  sort_keys: { column: string; direction: "asc" | "desc" }[];
+  snapshot_top10: ScreenSnapshotRow[];
+  saved_at: string;
+}
+
 export interface TickerSearchResult {
   symbol: string;
   name: string;
