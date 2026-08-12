@@ -584,6 +584,54 @@ create policy saved_predictions_isolation on saved_predictions for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+create table if not exists saved_narratives (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  ticker text not null,
+  provider text not null,
+  period text not null,
+  days_ahead integer not null,
+  narrative text not null,
+  sentiment_context text not null,
+  saved_at timestamptz not null default now()
+);
+create index if not exists saved_narratives_user_idx on saved_narratives(user_id, ticker, saved_at desc);
+alter table saved_narratives enable row level security;
+drop policy if exists saved_narratives_isolation on saved_narratives;
+create policy saved_narratives_isolation on saved_narratives for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+create table if not exists saved_baseline_snapshots (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  ticker text not null,
+  horizon_days integer not null,
+  confidence real not null,
+  method text not null,
+  as_of date not null,
+  last_price real not null,
+  floor real not null,
+  floor_pct real not null,
+  accumulation_zone_hi real not null,
+  accumulation_zone_hi_pct real not null,
+  median_path real not null,
+  distribution_zone_lo real not null,
+  distribution_zone_lo_pct real not null,
+  ceiling real not null,
+  ceiling_pct real not null,
+  samples integer not null,
+  effective_samples integer not null,
+  breach_rate_full real not null,
+  saved_at timestamptz not null default now()
+);
+create index if not exists saved_baseline_snapshots_user_idx on saved_baseline_snapshots(user_id, ticker, saved_at desc);
+alter table saved_baseline_snapshots enable row level security;
+drop policy if exists saved_baseline_snapshots_isolation on saved_baseline_snapshots;
+create policy saved_baseline_snapshots_isolation on saved_baseline_snapshots for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 create table if not exists watchlist_alerts (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,
@@ -823,7 +871,7 @@ $$;
 
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
-grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios to app_user;
+grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots to app_user;
 grant select, update on portfolio_drop_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;

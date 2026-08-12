@@ -244,6 +244,71 @@ async def predict_narrative(
     )
 
 
+# --- Save an AI Context narrative now, so it can be compared side-by-side
+# against a freshly regenerated one later. Purely a user-triggered snapshot
+# — narratives are never persisted automatically (see predict_narrative
+# above), since regenerating is meant to be cheap/on-demand.
+
+class SaveNarrativeRequest(BaseModel):
+    ticker: str
+    provider: str
+    period: str = "1y"
+    days_ahead: int = 10
+    narrative: str
+    sentiment_context: str
+
+
+@router.post("/narrative/save")
+@limiter.limit("20/minute")
+async def save_narrative(request: Request, body: SaveNarrativeRequest):
+    await enforce_daily_quota(request, "predict/narrative/save")
+    user_id = request.state.user["id"]
+
+    ticker = body.ticker.strip().upper()
+    if not body.narrative.strip():
+        raise HTTPException(422, "narrative is required")
+
+    async with user_conn(user_id) as conn:
+        record = await conn.fetchrow(
+            """
+            INSERT INTO saved_narratives (
+                user_id, ticker, provider, period, days_ahead, narrative, sentiment_context
+            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+            """,
+            user_id, ticker, body.provider, body.period, body.days_ahead,
+            body.narrative, body.sentiment_context,
+        )
+    return {"narrative": _record_to_dict(record)}
+
+
+@router.get("/narrative/history")
+async def narrative_history(request: Request, ticker: str | None = Query(None)):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        if ticker:
+            records = await conn.fetch(
+                "SELECT * FROM saved_narratives WHERE ticker = $1 ORDER BY saved_at DESC",
+                ticker.strip().upper(),
+            )
+        else:
+            records = await conn.fetch("SELECT * FROM saved_narratives ORDER BY saved_at DESC")
+    return {"narratives": [_record_to_dict(r) for r in records]}
+
+
+@router.delete("/narrative/{narrative_id}")
+async def delete_narrative(request: Request, narrative_id: int):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM saved_narratives WHERE id = $1 RETURNING id",
+            narrative_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Saved narrative not found.")
+    return {"ok": True}
+
+
 @router.get("/activity")
 @limiter.limit("15/minute")
 async def predict_activity(request: Request, ticker: str = Query(..., min_length=1)):

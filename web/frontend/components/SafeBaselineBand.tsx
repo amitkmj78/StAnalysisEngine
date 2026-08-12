@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
-import { ApiError, getBaselineBand } from "@/lib/api";
-import type { BaselineBand } from "@/lib/types";
+import { ApiError, deleteBaselineSnapshot, getBaselineBand, getBaselineHistory, saveBaselineSnapshot } from "@/lib/api";
+import type { BaselineBand, SavedBaselineSnapshot } from "@/lib/types";
 
 const HORIZONS = [10, 30, 60, 90];
 const CONFIDENCES = [0.9, 0.95];
@@ -29,6 +29,13 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
   const [error, setError] = useState<string | null>(null);
   const [insufficientHistory, setInsufficientHistory] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+
+  const [history, setHistory] = useState<SavedBaselineSnapshot[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [compareId, setCompareId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!ticker.trim()) return;
@@ -59,6 +66,53 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
       cancelled = true;
     };
   }, [ticker, horizon, confidence]);
+
+  async function loadHistory() {
+    setHistoryLoading(true);
+    try {
+      const res = await getBaselineHistory(ticker.trim().toUpperCase());
+      setHistory(res.snapshots);
+    } catch {
+      // Non-fatal — history is supplementary.
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!ticker.trim()) return;
+    setCompareId(null);
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticker]);
+
+  async function handleSave() {
+    if (!band) return;
+    setSaving(true);
+    setSaveMessage(null);
+    try {
+      await saveBaselineSnapshot(band);
+      setSaveMessage("Saved — reload this band later (e.g. after price moves) to compare against it.");
+      await loadHistory();
+    } catch (err) {
+      setSaveMessage(err instanceof ApiError ? err.message : "Could not save this snapshot.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    setDeletingId(id);
+    try {
+      await deleteBaselineSnapshot(id);
+      setHistory((prev) => prev.filter((s) => s.id !== id));
+      if (compareId === id) setCompareId(null);
+    } catch {
+      // Non-fatal — leave the row in place if delete failed.
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   if (!ticker.trim()) return null;
 
@@ -164,10 +218,128 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
           )}
 
           <p className="text-xs text-slate-400">As of {band.as_of} &middot; method: {band.method}</p>
+
+          <div className="flex items-center gap-3 border-t border-slate-100 pt-3">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save this snapshot"}
+            </button>
+            {saveMessage && <span className="text-xs text-slate-500">{saveMessage}</span>}
+          </div>
+        </div>
+      )}
+
+      {(historyLoading || history.length > 0) && (
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Saved Snapshots for {ticker.trim().toUpperCase()}
+          </h4>
+          {historyLoading ? (
+            <p className="mt-2 text-sm text-slate-500">Loading saved snapshots…</p>
+          ) : (
+            <div className="mt-2 flex flex-col gap-2">
+              {history.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <span className="text-slate-700">
+                    {new Date(s.saved_at).toLocaleString()} &middot; {s.horizon_days}d @ {Math.round(s.confidence * 100)}%
+                    &middot; floor ${s.floor.toFixed(2)} / ceiling ${s.ceiling.toFixed(2)}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCompareId(compareId === s.id ? null : s.id)}
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      {compareId === s.id ? "Hide Compare" : "Compare"}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(s.id)}
+                      disabled={deletingId === s.id}
+                      className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {deletingId === s.id ? "…" : "Delete"}
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {compareId !== null && (() => {
+            const saved = history.find((s) => s.id === compareId);
+            if (!saved) return null;
+            return <CompareSnapshot saved={saved} current={band} />;
+          })()}
         </div>
       )}
 
       {showInfo && <InfoModal info={METHOD_INFO} onClose={() => setShowInfo(false)} />}
+    </div>
+  );
+}
+
+function CompareSnapshot({ saved, current }: { saved: SavedBaselineSnapshot; current: BaselineBand | null }) {
+  const sameParams = current && saved.horizon_days === current.horizon_days && saved.confidence === current.confidence;
+
+  return (
+    <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-semibold text-slate-500">
+        Saved {new Date(saved.saved_at).toLocaleString()} ({saved.horizon_days}d @ {Math.round(saved.confidence * 100)}%,
+        as of {saved.as_of}) vs. current
+      </p>
+      {!current ? (
+        <p className="mt-2 text-sm text-slate-400">Load a band above to compare.</p>
+      ) : (
+        <>
+          {!sameParams && (
+            <p className="mt-2 text-xs text-amber-700">
+              Saved at a different horizon/confidence than what&apos;s shown above — levels won&apos;t line up
+              apples-to-apples.
+            </p>
+          )}
+          <div className="mt-2 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <th className="px-2 py-1.5">Level</th>
+                  <th className="px-2 py-1.5">Saved</th>
+                  <th className="px-2 py-1.5">Current</th>
+                  <th className="px-2 py-1.5">Change</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { label: "Ceiling", savedVal: saved.ceiling, currentVal: current.ceiling },
+                  { label: "Distribution Zone", savedVal: saved.distribution_zone_lo, currentVal: current.distribution_zone_lo },
+                  { label: "Median Path", savedVal: saved.median_path, currentVal: current.median_path },
+                  { label: "Accumulation Zone", savedVal: saved.accumulation_zone_hi, currentVal: current.accumulation_zone_hi },
+                  { label: "Floor", savedVal: saved.floor, currentVal: current.floor },
+                ].map((row) => {
+                  const delta = row.currentVal - row.savedVal;
+                  const deltaPct = (delta / row.savedVal) * 100;
+                  return (
+                    <tr key={row.label} className="border-b border-slate-100 last:border-0">
+                      <td className="px-2 py-1.5 text-slate-700">{row.label}</td>
+                      <td className="px-2 py-1.5 text-slate-700">${row.savedVal.toFixed(2)}</td>
+                      <td className="px-2 py-1.5 font-medium text-slate-900">${row.currentVal.toFixed(2)}</td>
+                      <td className={`px-2 py-1.5 ${delta > 0 ? "text-emerald-600" : delta < 0 ? "text-red-600" : "text-slate-400"}`}>
+                        {delta > 0 ? "+" : ""}
+                        {delta.toFixed(2)} ({deltaPct > 0 ? "+" : ""}
+                        {deltaPct.toFixed(2)}%)
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

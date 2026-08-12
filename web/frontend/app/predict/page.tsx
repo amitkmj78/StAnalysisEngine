@@ -10,15 +10,24 @@ import BacktestChart from "@/components/prediction/BacktestChart";
 import ForecastChart from "@/components/prediction/ForecastChart";
 import {
   ApiError,
+  deleteNarrative,
   deletePrediction,
   getChatProviders,
+  getNarrativeHistory,
   getPredictionActivity,
   getPredictionHistory,
   getPredictionNarrative,
   getPredictionSummary,
+  saveNarrative,
   savePrediction,
 } from "@/lib/api";
-import type { PredictionActivity, PredictionNarrative, PredictionSummary, SavedPrediction } from "@/lib/types";
+import type {
+  PredictionActivity,
+  PredictionNarrative,
+  PredictionSummary,
+  SavedNarrative,
+  SavedPrediction,
+} from "@/lib/types";
 
 function getMetricInfo(daysAhead: number): Record<string, ColumnInfo> {
   return {
@@ -82,6 +91,13 @@ export default function PredictPage() {
   const [narrativeLoading, setNarrativeLoading] = useState(false);
   const [narrativeError, setNarrativeError] = useState<string | null>(null);
 
+  const [narrativeHistory, setNarrativeHistory] = useState<SavedNarrative[]>([]);
+  const [narrativeHistoryLoading, setNarrativeHistoryLoading] = useState(false);
+  const [savingNarrative, setSavingNarrative] = useState(false);
+  const [saveNarrativeMessage, setSaveNarrativeMessage] = useState<string | null>(null);
+  const [deletingNarrativeId, setDeletingNarrativeId] = useState<number | null>(null);
+  const [compareNarrativeId, setCompareNarrativeId] = useState<number | null>(null);
+
   const [activity, setActivity] = useState<PredictionActivity | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState<string | null>(null);
@@ -108,6 +124,9 @@ export default function PredictPage() {
     setError(null);
     setNarrative(null);
     setNarrativeError(null);
+    setNarrativeHistory([]);
+    setCompareNarrativeId(null);
+    setSaveNarrativeMessage(null);
     setActivity(null);
     setActivityError(null);
     setSaveMessage(null);
@@ -117,6 +136,7 @@ export default function PredictPage() {
       setShownDaysAhead(daysAhead);
       setPriceRefreshKey((k) => k + 1);
       loadHistory(summary.ticker);
+      loadNarrativeHistory(summary.ticker);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
       setData(null);
@@ -189,6 +209,53 @@ export default function PredictPage() {
       setNarrativeError(err instanceof ApiError ? err.message : "Something went wrong.");
     } finally {
       setNarrativeLoading(false);
+    }
+  }
+
+  async function loadNarrativeHistory(forTicker: string) {
+    setNarrativeHistoryLoading(true);
+    try {
+      const res = await getNarrativeHistory(forTicker);
+      setNarrativeHistory(res.narratives);
+    } catch {
+      // Non-fatal — history is supplementary, don't block the main page on it.
+    } finally {
+      setNarrativeHistoryLoading(false);
+    }
+  }
+
+  async function handleSaveNarrative() {
+    if (!data || !narrative) return;
+    setSavingNarrative(true);
+    setSaveNarrativeMessage(null);
+    try {
+      await saveNarrative({
+        ticker: narrative.ticker,
+        provider: narrative.provider,
+        period: data.period,
+        days_ahead: shownDaysAhead,
+        narrative: narrative.narrative,
+        sentiment_context: narrative.sentiment_context,
+      });
+      setSaveNarrativeMessage("Saved — generate a new context later to compare it against this one.");
+      await loadNarrativeHistory(data.ticker);
+    } catch (err) {
+      setSaveNarrativeMessage(err instanceof ApiError ? err.message : "Could not save this context.");
+    } finally {
+      setSavingNarrative(false);
+    }
+  }
+
+  async function handleDeleteNarrative(id: number) {
+    setDeletingNarrativeId(id);
+    try {
+      await deleteNarrative(id);
+      setNarrativeHistory((prev) => prev.filter((n) => n.id !== id));
+      if (compareNarrativeId === id) setCompareNarrativeId(null);
+    } catch {
+      // Non-fatal — leave the row in place if delete failed.
+    } finally {
+      setDeletingNarrativeId(null);
     }
   }
 
@@ -518,6 +585,81 @@ export default function PredictPage() {
                     {narrative.sentiment_context}
                   </p>
                 </details>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleSaveNarrative}
+                    disabled={savingNarrative}
+                    className="rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                  >
+                    {savingNarrative ? "Saving…" : "Save this context"}
+                  </button>
+                  {saveNarrativeMessage && <span className="text-xs text-slate-500">{saveNarrativeMessage}</span>}
+                </div>
+              </div>
+            )}
+
+            {(narrativeHistoryLoading || narrativeHistory.length > 0) && (
+              <div className="mt-4 border-t border-indigo-200 pt-4">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Saved Contexts for {data.ticker}
+                </h4>
+                {narrativeHistoryLoading ? (
+                  <p className="mt-2 text-sm text-slate-500">Loading saved contexts…</p>
+                ) : (
+                  <div className="mt-2 flex flex-col gap-2">
+                    {narrativeHistory.map((n) => (
+                      <div key={n.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm">
+                        <span className="text-slate-700">
+                          {new Date(n.saved_at).toLocaleString()} &middot; {n.provider}
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <button
+                            onClick={() => setCompareNarrativeId(compareNarrativeId === n.id ? null : n.id)}
+                            className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            {compareNarrativeId === n.id ? "Hide Compare" : "Compare"}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteNarrative(n.id)}
+                            disabled={deletingNarrativeId === n.id}
+                            className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            {deletingNarrativeId === n.id ? "…" : "Delete"}
+                          </button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {compareNarrativeId !== null && (() => {
+                  const saved = narrativeHistory.find((n) => n.id === compareNarrativeId);
+                  if (!saved) return null;
+                  return (
+                    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="rounded-md border border-slate-200 bg-white p-3">
+                        <p className="text-xs font-semibold text-slate-500">
+                          Saved {new Date(saved.saved_at).toLocaleString()} &middot; {saved.provider}
+                        </p>
+                        <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap text-slate-800">
+                          {saved.narrative}
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-indigo-200 bg-white p-3">
+                        <p className="text-xs font-semibold text-slate-500">Current</p>
+                        {narrative ? (
+                          <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap text-slate-800">
+                            {narrative.narrative}
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-sm text-slate-400">
+                            Click &quot;Get AI Context&quot; above to generate a new one to compare.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

@@ -38,6 +38,8 @@ import type {
   PredictionNarrative,
   PredictionSummary,
   PublishedSignalsResponse,
+  SavedBaselineSnapshot,
+  SavedNarrative,
   SavedPrediction,
   SavedStrategyPlan,
   SignalOutcomesResponse,
@@ -108,6 +110,28 @@ export function getPredictionNarrative(ticker: string, period: string, provider?
 
 export function getPredictionActivity(ticker: string) {
   return apiFetch<PredictionActivity>("/api/v1/predict/activity", { ticker });
+}
+
+export function saveNarrative(narrative: {
+  ticker: string;
+  provider: string;
+  period: string;
+  days_ahead: number;
+  narrative: string;
+  sentiment_context: string;
+}) {
+  return apiSend<{ narrative: SavedNarrative }>("/api/v1/predict/narrative/save", "POST", narrative);
+}
+
+export function getNarrativeHistory(ticker?: string) {
+  return apiFetch<{ narratives: SavedNarrative[] }>(
+    "/api/v1/predict/narrative/history",
+    ticker ? { ticker } : undefined,
+  );
+}
+
+export function deleteNarrative(narrativeId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/predict/narrative/${narrativeId}`, "DELETE");
 }
 
 export function savePrediction(ticker: string, period: string, daysAhead = 10) {
@@ -189,6 +213,40 @@ export function getBaselineBand(
   if (options?.confidence !== undefined) params.confidence = String(options.confidence);
   if (options?.method !== undefined) params.method = options.method;
   return apiFetch<BaselineBand>(`/api/v1/baseline/${encodeURIComponent(ticker)}`, params);
+}
+
+export function saveBaselineSnapshot(band: BaselineBand) {
+  return apiSend<{ snapshot: SavedBaselineSnapshot }>("/api/v1/baseline/save", "POST", {
+    ticker: band.ticker,
+    horizon_days: band.horizon_days,
+    confidence: band.confidence,
+    method: band.method,
+    as_of: band.as_of,
+    last_price: band.last_price,
+    floor: band.floor,
+    floor_pct: band.floor_pct,
+    accumulation_zone_hi: band.accumulation_zone_hi,
+    accumulation_zone_hi_pct: band.accumulation_zone_hi_pct,
+    median_path: band.median_path,
+    distribution_zone_lo: band.distribution_zone_lo,
+    distribution_zone_lo_pct: band.distribution_zone_lo_pct,
+    ceiling: band.ceiling,
+    ceiling_pct: band.ceiling_pct,
+    samples: band.samples,
+    effective_samples: band.effective_samples,
+    breach_rate_full: band.breach_rate_full,
+  });
+}
+
+export function getBaselineHistory(ticker?: string) {
+  return apiFetch<{ snapshots: SavedBaselineSnapshot[] }>(
+    "/api/v1/baseline/history",
+    ticker ? { ticker } : undefined,
+  );
+}
+
+export function deleteBaselineSnapshot(snapshotId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/baseline/snapshot/${snapshotId}`, "DELETE");
 }
 
 // Monthly Investing Plan

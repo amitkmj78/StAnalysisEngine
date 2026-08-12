@@ -47,6 +47,17 @@ export interface PredictionNarrative {
   sentiment_context: string;
 }
 
+export interface SavedNarrative {
+  id: number;
+  ticker: string;
+  provider: string;
+  period: string;
+  days_ahead: number;
+  narrative: string;
+  sentiment_context: string;
+  saved_at: string;
+}
+
 export interface PredictionActivity {
   ticker: string;
   latest_volume: number | null;
@@ -233,6 +244,29 @@ export interface BaselineBand {
   breach_rate_recent: number;
   expected_breach: number;
   calibration_warning: boolean;
+}
+
+export interface SavedBaselineSnapshot {
+  id: number;
+  ticker: string;
+  horizon_days: number;
+  confidence: number;
+  method: string;
+  as_of: string;
+  last_price: number;
+  floor: number;
+  floor_pct: number;
+  accumulation_zone_hi: number;
+  accumulation_zone_hi_pct: number;
+  median_path: number;
+  distribution_zone_lo: number;
+  distribution_zone_lo_pct: number;
+  ceiling: number;
+  ceiling_pct: number;
+  samples: number;
+  effective_samples: number;
+  breach_rate_full: number;
+  saved_at: string;
 }
 
 // Monthly Investing Plan
