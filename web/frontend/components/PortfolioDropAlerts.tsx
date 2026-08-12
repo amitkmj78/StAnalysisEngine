@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, dismissPortfolioDropAlert, getPortfolioDropAlerts, refreshPortfolioDropAlerts } from "@/lib/api";
+import {
+  ApiError,
+  dismissPortfolioDropAlert,
+  getPortfolioDropAlerts,
+  refreshDropAlert,
+  refreshPortfolioDropAlerts,
+} from "@/lib/api";
 import type { PortfolioDropAlert } from "@/lib/types";
 
 export default function PortfolioDropAlerts() {
@@ -11,6 +17,8 @@ export default function PortfolioDropAlerts() {
   const [dismissingId, setDismissingId] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const [refreshingAlertId, setRefreshingAlertId] = useState<number | null>(null);
+  const [alertErrors, setAlertErrors] = useState<Record<number, string>>({});
 
   async function load() {
     try {
@@ -37,6 +45,26 @@ export default function PortfolioDropAlerts() {
       console.error(err instanceof ApiError ? err.message : err);
     } finally {
       setDismissingId(null);
+    }
+  }
+
+  async function handleRefreshAlert(id: number) {
+    setRefreshingAlertId(id);
+    setAlertErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    try {
+      const res = await refreshDropAlert(id);
+      setAlerts((prev) => (prev ?? []).map((a) => (a.id === id ? res.alert : a)));
+    } catch (err) {
+      setAlertErrors((prev) => ({
+        ...prev,
+        [id]: err instanceof ApiError ? err.message : "Could not refresh this alert.",
+      }));
+    } finally {
+      setRefreshingAlertId(null);
     }
   }
 
@@ -97,14 +125,27 @@ export default function PortfolioDropAlerts() {
                   ${a.prev_close.toFixed(2)} &rarr; ${a.price_at_check.toFixed(2)}
                 </span>
               </div>
-              <button
-                onClick={() => handleDismiss(a.id)}
-                disabled={dismissingId === a.id}
-                className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-              >
-                {dismissingId === a.id ? "Dismissing…" : "Dismiss"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleRefreshAlert(a.id)}
+                  disabled={refreshingAlertId === a.id}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  {refreshingAlertId === a.id ? "Refreshing…" : "Refresh"}
+                </button>
+                <button
+                  onClick={() => handleDismiss(a.id)}
+                  disabled={dismissingId === a.id}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  {dismissingId === a.id ? "Dismissing…" : "Dismiss"}
+                </button>
+              </div>
             </div>
+
+            {alertErrors[a.id] && (
+              <p className="mt-2 text-xs text-red-600">{alertErrors[a.id]}</p>
+            )}
 
             {a.recommended_action && (
               <p className="mt-2 text-sm text-slate-800">{a.recommended_action}</p>
@@ -134,6 +175,12 @@ export default function PortfolioDropAlerts() {
                   </p>
                 )}
               </div>
+            )}
+
+            {a.updated_at && (
+              <p className="mt-2 text-[11px] text-slate-400">
+                Refreshed {new Date(a.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </p>
             )}
           </div>
         );

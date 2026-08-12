@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from services.manual_positions import build_manual_positions
+from services.portfolio_alert_service import build_drop_analysis, get_price_and_prev_close
 from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
 from services.positions_from_csv import positions_from_activity_csv
@@ -29,6 +30,7 @@ from web.backend.app_settings import (
 )
 from web.backend.auth import verify_bearer_token
 from web.backend.db import user_conn
+from web.backend.llm_cache import cached_init_llms, resolve_llm
 from web.backend.portfolio_alerts import scan_portfolios_for_drops
 from web.backend.rate_limit import enforce_daily_quota, limiter
 
@@ -650,6 +652,71 @@ async def dismiss_drop_alert(alert_id: int, request: Request):
     if row is None:
         raise HTTPException(404, "Alert not found.")
     return {"ok": True}
+
+
+@router.post("/drop-alerts/{alert_id}/refresh")
+@limiter.limit("10/minute")
+async def refresh_drop_alert(alert_id: int, request: Request):
+    """Re-checks price and regenerates the sentiment/quant-signal narrative
+    for one already-existing alert, right now. Unlike POST /drop-alerts/
+    refresh (which only looks for brand-new drops elsewhere in the
+    portfolio), this updates an alert already shown today in place —
+    including if the ticker has since recovered above the alert
+    threshold, since the point is showing where things actually stand
+    now, not preserving the original trigger condition."""
+    await enforce_daily_quota(request, "portfolio/drop-alerts/refresh-one")
+    user_id = request.state.user["id"]
+
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "SELECT ticker FROM portfolio_drop_alerts WHERE id = $1 AND user_id = $2::uuid",
+            alert_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Alert not found.")
+    ticker = row["ticker"]
+
+    quote = await run_in_threadpool(get_price_and_prev_close, ticker)
+    if quote is None:
+        raise HTTPException(422, "Could not fetch current price data for this ticker.")
+    pct_change = round((quote["price"] / quote["prev_close"] - 1.0) * 100, 4)
+    drop = {"price": quote["price"], "prev_close": quote["prev_close"], "pct_change": pct_change}
+
+    llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
+    if labels:
+        llm = resolve_llm(labels[0], llm_openai, llm_groq, llm_claude, llm_ollama)
+        analysis = await run_in_threadpool(build_drop_analysis, llm, ticker, drop)
+    else:
+        analysis = {
+            "sentiment_summary": None,
+            "predicted_signal": None,
+            "predicted_expected_return_pct": None,
+            "predicted_target_price": None,
+            "recommended_action": (
+                "No LLM provider is configured on the server — showing the raw price move only, "
+                "no sentiment/signal synthesis was possible."
+            ),
+        }
+
+    async with user_conn(user_id) as conn:
+        record = await conn.fetchrow(
+            """
+            UPDATE portfolio_drop_alerts
+            SET prev_close = $1, price_at_check = $2, pct_change = $3,
+                sentiment_summary = $4, predicted_signal = $5,
+                predicted_expected_return_pct = $6, predicted_target_price = $7,
+                recommended_action = $8, updated_at = now()
+            WHERE id = $9 AND user_id = $10::uuid
+            RETURNING *
+            """,
+            drop["prev_close"], drop["price"], drop["pct_change"],
+            analysis["sentiment_summary"], analysis["predicted_signal"],
+            analysis["predicted_expected_return_pct"], analysis["predicted_target_price"],
+            analysis["recommended_action"], alert_id, user_id,
+        )
+    if record is None:
+        raise HTTPException(404, "Alert not found.")
+    return {"alert": _record_to_dict(record)}
 
 
 @router.post("/drop-alerts/refresh")

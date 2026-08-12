@@ -524,6 +524,10 @@ export function refreshPortfolioDropAlerts() {
   return apiSend<{ inserted: number }>("/api/v1/portfolio/drop-alerts/refresh", "POST");
 }
 
+export function refreshDropAlert(alertId: number) {
+  return apiSend<{ alert: PortfolioDropAlert }>(`/api/v1/portfolio/drop-alerts/${alertId}/refresh`, "POST");
+}
+
 // Meta-Agent Chat
 export function getChatProviders() {
   return apiFetch<ChatProvidersResponse>("/api/v1/chat/providers");

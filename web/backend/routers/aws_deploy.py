@@ -518,6 +518,7 @@ create table if not exists portfolio_drop_alerts (
   seen_at timestamptz,
   unique (user_id, ticker, alert_date)
 );
+alter table portfolio_drop_alerts add column if not exists updated_at timestamptz;
 create index if not exists portfolio_drop_alerts_user_idx on portfolio_drop_alerts(user_id, created_at desc);
 alter table portfolio_drop_alerts enable row level security;
 drop policy if exists portfolio_drop_alerts_isolation on portfolio_drop_alerts;
