@@ -142,6 +142,17 @@ export interface StockRankRow {
   [key: string]: string | number | null;
 }
 
+export interface AnalystRatingSummary {
+  ticker: string;
+  consensus: string;
+  analyst_count: number | null;
+  buy_pct: number | null;
+  target_mean: number | null;
+  target_high: number | null;
+  target_low: number | null;
+  current_price: number | null;
+}
+
 export interface StockRankResponse {
   results: StockRankRow[];
 }

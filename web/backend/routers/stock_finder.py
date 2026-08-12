@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
+from services.analyst_rating_service import get_analyst_rating_summary
 from services.stock_finder_service import STOCK_UNIVERSES, rank_stocks, score_stock_ticker
 
 from web.backend.auth import verify_bearer_token
@@ -63,6 +64,22 @@ async def score(
     df = await run_in_threadpool(score_stock_ticker, goal, ticker)
     records = records_safe(df)
     return {"result": records[0] if records else None}
+
+
+@router.get("/analyst")
+@limiter.limit("20/minute")
+async def analyst(request: Request, ticker: str = Query(..., min_length=1)):
+    """Real, third-party Wall Street analyst consensus + price targets for
+    one ticker — see services/analyst_rating_service.py. Not part of /rank
+    (one yfinance call per ticker — too slow to run for a whole scanned
+    universe), fetched on demand per row instead, same pattern as the
+    screener's Quant Signal column."""
+    await enforce_daily_quota(request, "stock-finder/analyst")
+    ticker = ticker.strip().upper()
+    result = await run_in_threadpool(get_analyst_rating_summary, ticker)
+    if result is None:
+        raise HTTPException(404, f"No analyst coverage found for {ticker}.")
+    return result
 
 
 # --- Saved screens (US-04/05, docs/stock-screener-improvements-spec.md):

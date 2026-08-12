@@ -9,6 +9,7 @@ import {
   ApiError,
   createWatchlistAlert,
   deleteScreen,
+  getAnalystRating,
   getPredictionSummary,
   getScreens,
   getStockRanking,
@@ -16,7 +17,14 @@ import {
   getStockUniverses,
   saveScreen,
 } from "@/lib/api";
-import type { AlertConditionType, SavedScreen, ScreenSnapshotRow, SignalOut, StockRankRow } from "@/lib/types";
+import type {
+  AlertConditionType,
+  AnalystRatingSummary,
+  SavedScreen,
+  ScreenSnapshotRow,
+  SignalOut,
+  StockRankRow,
+} from "@/lib/types";
 
 const GOALS = ["Short Term", "Long Term"];
 
@@ -30,6 +38,7 @@ const ALL_COLUMNS = [
   "Price",
   "Score",
   "Quant Signal",
+  "Analyst Rating",
   "Market Cap ($B)",
   "Forward PE",
   "Revenue Growth %",
@@ -51,14 +60,13 @@ const ALL_COLUMNS = [
   "1Y Max Drawdown %",
 ];
 
-// Data-driven columns come straight from the API row; "Quant Signal" is
-// the one exception — fetched lazily per row on click (see quantSignals
-// state), since it means training a fresh forecast model per ticker
-// (~1s each) — fine on demand, not something to eagerly run across a
-// 500-ticker universe.
-const LAZY_COLUMNS = new Set(["Quant Signal"]);
-
-const DEFAULT_COLUMNS = ["Ticker", "Name", "Sector", "Price", "Score", "Quant Signal", "1M Return %", "3M Return %", "1Y Return %", "RSI"];
+// Data-driven columns come straight from the API row; "Quant Signal" and
+// "Analyst Rating" are the exceptions — both fetched lazily per row on
+// click (see quantSignals/analystRatings state, and their dedicated <td>
+// branches in the table body below) since each is its own yfinance/model
+// call per ticker, not something to eagerly run across a 500-ticker
+// universe.
+const DEFAULT_COLUMNS = ["Ticker", "Name", "Sector", "Price", "Score", "Quant Signal", "Analyst Rating", "1M Return %", "3M Return %", "1Y Return %", "RSI"];
 const REQUIRED_COLUMN = "Ticker";
 const COLUMNS_STORAGE_KEY = "stanalysisengine.stockFinderColumns";
 
@@ -130,6 +138,14 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
       "The same BUY/HOLD/SELL signal shown on the Predict page — a gradient-boosted model trained on this ticker's own recent price/technical history, forecasting 10 days ahead. BUY means the forecast implies at least +5% expected return; SELL means -5% or worse; HOLD is in between.",
       "A completely different, independent computation from Score above — Score is a relative rank against this result set's other tickers; Quant Signal is a standalone per-ticker forecast, the same one you'd get analyzing this ticker alone on /predict.",
       "Loaded on demand per row (click \"Load\") rather than for the whole scan, since it means training a fresh model per ticker — too slow to run automatically across a large universe.",
+    ],
+  },
+  "Analyst Rating": {
+    title: "Analyst Rating",
+    body: [
+      "Real, third-party Wall Street analyst consensus and price targets — straight from the data provider, nothing computed or modeled by this app. Shows the consensus rating (e.g. Buy, Hold, Sell), how many analysts contributed, a buy% derived from Yahoo's 1 (Strong Buy) to 5 (Strong Sell) consensus scale, and the mean/high/low 12-month price targets.",
+      "Not available for every ticker — small caps, ETFs, and funds often have no analyst coverage at all, which shows as \"No coverage\" rather than a guessed value.",
+      "Loaded on demand per row, same as Quant Signal — a separate network call per ticker.",
     ],
   },
   "Market Cap ($B)": {
@@ -256,6 +272,9 @@ export default function StockFinderPage() {
   const [quantSignals, setQuantSignals] = useState<
     Record<string, { status: "loading" } | { status: "error" } | { status: "ok"; signal: SignalOut }>
   >({});
+  const [analystRatings, setAnalystRatings] = useState<
+    Record<string, { status: "loading" } | { status: "error" } | { status: "ok"; rating: AnalystRatingSummary }>
+  >({});
 
   useEffect(() => {
     getStockUniverses()
@@ -298,6 +317,7 @@ export default function StockFinderPage() {
     setHasSearched(true);
     setSortKeys([]);
     setQuantSignals({});
+    setAnalystRatings({});
     try {
       if (forMode === "rank") {
         const res = await getStockRanking(forGoal, forUniverse);
@@ -496,6 +516,16 @@ export default function StockFinderPage() {
       }
     } catch {
       setQuantSignals((prev) => ({ ...prev, [t]: { status: "error" } }));
+    }
+  }
+
+  async function loadAnalystRating(t: string) {
+    setAnalystRatings((prev) => ({ ...prev, [t]: { status: "loading" } }));
+    try {
+      const rating = await getAnalystRating(t);
+      setAnalystRatings((prev) => ({ ...prev, [t]: { status: "ok", rating } }));
+    } catch {
+      setAnalystRatings((prev) => ({ ...prev, [t]: { status: "error" } }));
     }
   }
 
@@ -851,50 +881,99 @@ export default function StockFinderPage() {
                   {sortedResults.map((row) => {
                     const t = String(row.Ticker);
                     const quantSignal = quantSignals[t];
+                    const analystRating = analystRatings[t];
                     return (
                       <Fragment key={t}>
                         <tr className="border-b border-slate-100 last:border-0">
-                          {visibleColumns.map((col) =>
-                            LAZY_COLUMNS.has(col) ? (
-                              <td key={col} className="px-3 py-2 text-slate-700">
-                                {!quantSignal ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => loadQuantSignal(t)}
-                                    className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                                  >
-                                    Load
-                                  </button>
-                                ) : quantSignal.status === "loading" ? (
-                                  <span className="text-xs text-slate-400">…</span>
-                                ) : quantSignal.status === "error" ? (
-                                  <span className="text-xs text-slate-400">—</span>
-                                ) : (
-                                  <span className="flex items-center gap-1.5">
-                                    <span
-                                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                        quantSignal.signal.signal === "BUY"
-                                          ? "bg-emerald-50 text-emerald-700"
-                                          : quantSignal.signal.signal === "SELL"
-                                          ? "bg-red-50 text-red-700"
-                                          : "bg-slate-100 text-slate-600"
-                                      }`}
+                          {visibleColumns.map((col) => {
+                            if (col === "Quant Signal") {
+                              return (
+                                <td key={col} className="px-3 py-2 text-slate-700">
+                                  {!quantSignal ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => loadQuantSignal(t)}
+                                      className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                                     >
-                                      {quantSignal.signal.signal}
+                                      Load
+                                    </button>
+                                  ) : quantSignal.status === "loading" ? (
+                                    <span className="text-xs text-slate-400">…</span>
+                                  ) : quantSignal.status === "error" ? (
+                                    <span className="text-xs text-slate-400">—</span>
+                                  ) : (
+                                    <span className="flex items-center gap-1.5">
+                                      <span
+                                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                          quantSignal.signal.signal === "BUY"
+                                            ? "bg-emerald-50 text-emerald-700"
+                                            : quantSignal.signal.signal === "SELL"
+                                            ? "bg-red-50 text-red-700"
+                                            : "bg-slate-100 text-slate-600"
+                                        }`}
+                                      >
+                                        {quantSignal.signal.signal}
+                                      </span>
+                                      <span className="text-xs text-slate-500">
+                                        {quantSignal.signal.expected_return_pct >= 0 ? "+" : ""}
+                                        {quantSignal.signal.expected_return_pct.toFixed(2)}%
+                                      </span>
                                     </span>
-                                    <span className="text-xs text-slate-500">
-                                      {quantSignal.signal.expected_return_pct >= 0 ? "+" : ""}
-                                      {quantSignal.signal.expected_return_pct.toFixed(2)}%
+                                  )}
+                                </td>
+                              );
+                            }
+                            if (col === "Analyst Rating") {
+                              return (
+                                <td key={col} className="px-3 py-2 text-slate-700">
+                                  {!analystRating ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => loadAnalystRating(t)}
+                                      className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                    >
+                                      Load
+                                    </button>
+                                  ) : analystRating.status === "loading" ? (
+                                    <span className="text-xs text-slate-400">…</span>
+                                  ) : analystRating.status === "error" ? (
+                                    <span className="text-xs text-slate-400">No coverage</span>
+                                  ) : (
+                                    <span className="flex flex-col gap-0.5">
+                                      <span className="flex items-center gap-1.5">
+                                        <span
+                                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                            /buy/i.test(analystRating.rating.consensus)
+                                              ? "bg-emerald-50 text-emerald-700"
+                                              : /sell|underperform/i.test(analystRating.rating.consensus)
+                                              ? "bg-red-50 text-red-700"
+                                              : "bg-slate-100 text-slate-600"
+                                          }`}
+                                        >
+                                          {analystRating.rating.consensus}
+                                        </span>
+                                        {analystRating.rating.analyst_count !== null && (
+                                          <span className="text-xs text-slate-400">
+                                            ({analystRating.rating.analyst_count})
+                                          </span>
+                                        )}
+                                      </span>
+                                      {analystRating.rating.target_mean !== null && (
+                                        <span className="text-xs text-slate-500">
+                                          Target ${analystRating.rating.target_mean.toFixed(2)}
+                                        </span>
+                                      )}
                                     </span>
-                                  </span>
-                                )}
-                              </td>
-                            ) : (
+                                  )}
+                                </td>
+                              );
+                            }
+                            return (
                               <td key={col} className="px-3 py-2 text-slate-700">
                                 {formatCell(row[col])}
                               </td>
-                            ),
-                          )}
+                            );
+                          })}
                           <td className="px-3 py-2 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button

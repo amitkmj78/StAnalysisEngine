@@ -7,6 +7,7 @@ import type {
   AdminSqlTablesResponse,
   AdminUser,
   AlertConditionType,
+  AnalystRatingSummary,
   BackupStatus,
   BaselineBand,
   ChatAskResponse,
@@ -173,6 +174,10 @@ export function getStockRanking(goal: string, universe: string) {
 
 export function getStockScore(goal: string, ticker: string) {
   return apiFetch<StockScoreResponse>("/api/v1/stock-finder/score", { goal, ticker });
+}
+
+export function getAnalystRating(ticker: string) {
+  return apiFetch<AnalystRatingSummary>("/api/v1/stock-finder/analyst", { ticker });
 }
 
 export function saveScreen(screen: {
