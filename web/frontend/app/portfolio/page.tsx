@@ -29,12 +29,68 @@ import PortfolioDropAlerts from "@/components/PortfolioDropAlerts";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
+import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 
 const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
 
 type Mode = "manual" | "csv";
 
 const EMPTY_ROW: ManualPositionInput = { name: "", ticker: "", shares: 0, current_price: 0, avg_cost: 0 };
+
+const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
+  Ticker: {
+    title: "Ticker",
+    body: [
+      "The position's stock/fund symbol. A percentage badge next to it means this position is concentrated — it makes up a large enough share of your portfolio's total value that it's driving most of the swings.",
+    ],
+  },
+  Signal: {
+    title: "Signal",
+    body: [
+      "BUY, SELL, or HOLD for this ticker, from the same composite ranking used on the Stock Screener — a relative read against other tickers in its universe, not a standalone prediction.",
+      "Blank means the signal hasn't loaded yet or isn't available for this ticker.",
+    ],
+  },
+  "Momentum Rank": {
+    title: "Momentum Rank",
+    body: [
+      "Where this ticker ranks by trailing return within its universe (e.g. \"#3 of 24\") — lower is stronger recent momentum relative to its peers.",
+      "Not shown for tickers outside the app's covered universes.",
+    ],
+  },
+  Shares: {
+    title: "Shares",
+    body: ["The quantity you hold, as entered manually or imported from your CSV — not adjusted for any splits since import."],
+  },
+  "Price Now": {
+    title: "Price Now",
+    body: [
+      "The latest trade price. When the market is in pre-market or after-hours, an extra line shows that session's price and percent change separately from the regular-session price above it.",
+    ],
+  },
+  "Price 30D Ago": {
+    title: "Price 30D Ago",
+    body: ["The closing price approximately 30 calendar days back — the reference point for the 30D Diff column."],
+  },
+  "30D Diff": {
+    title: "30D Diff",
+    body: [
+      "Dollar and percent change in this position's value over the last 30 days: (Price Now − Price 30D Ago) × Shares.",
+      "This is about recent price movement, not your original purchase — see Gain vs. Paid for that.",
+    ],
+  },
+  "Avg Cost Paid": {
+    title: "Avg Cost Paid",
+    body: ["Your average cost basis per share, as entered manually or computed from your imported CSV activity."],
+  },
+  "Gain vs. Paid": {
+    title: "Gain vs. Paid",
+    body: [
+      "Dollar and percent gain/loss versus what you actually paid: (Price Now − Avg Cost Paid) × Shares.",
+      "Unlike 30D Diff, this reflects your entire holding period, not just the last 30 days.",
+    ],
+  },
+};
 
 export default function PortfolioPage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
@@ -56,6 +112,7 @@ export default function PortfolioPage() {
   const [insights, setInsights] = useState<PortfolioInsight[]>([]);
   const [insightsError, setInsightsError] = useState<string | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [performanceInfoColumn, setPerformanceInfoColumn] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -540,19 +597,19 @@ export default function PortfolioPage() {
                 />
               </div>
 
-              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <div className="mt-3 max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-white">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                      <th className="px-3 py-2">Ticker</th>
-                      <th className="px-3 py-2">Signal</th>
-                      <th className="px-3 py-2">Momentum Rank</th>
-                      <th className="px-3 py-2 text-right">Shares</th>
-                      <th className="px-3 py-2 text-right">Price Now</th>
-                      <th className="px-3 py-2 text-right">Price 30D Ago</th>
-                      <th className="px-3 py-2 text-right">30D Diff</th>
-                      <th className="px-3 py-2 text-right">Avg Cost Paid</th>
-                      <th className="px-3 py-2 text-right">Gain vs. Paid</th>
+                      <PerformanceTh label="Ticker" onInfoClick={() => setPerformanceInfoColumn("Ticker")} />
+                      <PerformanceTh label="Signal" onInfoClick={() => setPerformanceInfoColumn("Signal")} />
+                      <PerformanceTh label="Momentum Rank" onInfoClick={() => setPerformanceInfoColumn("Momentum Rank")} />
+                      <PerformanceTh label="Shares" align="right" onInfoClick={() => setPerformanceInfoColumn("Shares")} />
+                      <PerformanceTh label="Price Now" align="right" onInfoClick={() => setPerformanceInfoColumn("Price Now")} />
+                      <PerformanceTh label="Price 30D Ago" align="right" onInfoClick={() => setPerformanceInfoColumn("Price 30D Ago")} />
+                      <PerformanceTh label="30D Diff" align="right" onInfoClick={() => setPerformanceInfoColumn("30D Diff")} />
+                      <PerformanceTh label="Avg Cost Paid" align="right" onInfoClick={() => setPerformanceInfoColumn("Avg Cost Paid")} />
+                      <PerformanceTh label="Gain vs. Paid" align="right" onInfoClick={() => setPerformanceInfoColumn("Gain vs. Paid")} />
                     </tr>
                   </thead>
                   <tbody>
@@ -922,6 +979,13 @@ export default function PortfolioPage() {
       {positionActionError && movingTicker === null && (
         <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{positionActionError}</p>
       )}
+
+      {performanceInfoColumn && PERFORMANCE_COLUMN_INFO[performanceInfoColumn] && (
+        <InfoModal
+          info={PERFORMANCE_COLUMN_INFO[performanceInfoColumn]}
+          onClose={() => setPerformanceInfoColumn(null)}
+        />
+      )}
     </div>
   );
 }
@@ -980,5 +1044,38 @@ function MetricTile({ label, value, positive }: { label: string; value: string; 
       <p className="text-xs text-slate-500">{label}</p>
       <p className={`mt-1 text-lg font-semibold ${valueClass}`}>{value}</p>
     </div>
+  );
+}
+
+function PerformanceTh({
+  label,
+  align,
+  onInfoClick,
+}: {
+  label: string;
+  align?: "left" | "right";
+  onInfoClick: () => void;
+}) {
+  return (
+    <th className={`sticky top-0 z-10 bg-slate-50 px-3 py-2 ${align === "right" ? "text-right" : ""}`}>
+      <div className={`flex items-center gap-1 ${align === "right" ? "justify-end" : ""}`}>
+        {align === "right" && <ThInfoButton label={label} onClick={onInfoClick} />}
+        <span>{label}</span>
+        {align !== "right" && <ThInfoButton label={label} onClick={onInfoClick} />}
+      </div>
+    </th>
+  );
+}
+
+function ThInfoButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`What is ${label}?`}
+      className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-300 text-[9px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
+    >
+      i
+    </button>
   );
 }
