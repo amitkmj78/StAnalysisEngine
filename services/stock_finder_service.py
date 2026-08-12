@@ -1,20 +1,72 @@
 from __future__ import annotations
 
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from io import StringIO
 from typing import Dict, List
 
 import numpy as np
 import pandas as pd
+import requests
 import ta
 import yfinance as yf
 
 from services.cache_utils import ttl_cache
 from services.screener_service import INDEX_MAP
 
+logger = logging.getLogger(__name__)
 
+SP500_UNIVERSE_NAME = "US - S&P 500"
+MAX_PARALLEL_FETCHES = 10
+
+# "All" and SP500_UNIVERSE_NAME resolve their ticker lists lazily via
+# _universe_tickers (a live, cached Wikipedia fetch) rather than at import
+# time — a blocked/slow network call must never delay app startup. These
+# keys exist here as empty placeholders purely so /universes listing and
+# the router's `universe in STOCK_UNIVERSES` validation keep working.
 STOCK_UNIVERSES: Dict[str, List[str]] = {
-    "All": sorted({ticker for group in INDEX_MAP.values() for ticker in group}),
+    "All": [],
+    SP500_UNIVERSE_NAME: [],
     **INDEX_MAP,
 }
+
+# Reused as a safety net if the live S&P 500 fetch fails (network issue,
+# Wikipedia page structure change) — degrade to a smaller known-good list
+# rather than error out or silently return zero results.
+_SP500_FALLBACK = INDEX_MAP["US - Mega Cap (SPY sample)"]
+
+
+@ttl_cache(maxsize=4, ttl_seconds=86400)
+def _fetch_sp500_tickers() -> List[str]:
+    """
+    Live S&P 500 constituent list from Wikipedia, cached 24h. This app has
+    no other source of real index membership — every other universe here is
+    a small hardcoded sample. Membership drifts (~20-30 changes/year); this
+    fetch keeps it current without needing a manually-maintained list.
+    """
+    try:
+        resp = requests.get(
+            "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+            headers={"User-Agent": "Mozilla/5.0 (compatible; StAnalysisEngine/1.0)"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        table = pd.read_html(StringIO(resp.text))[0]
+        # yfinance uses a hyphen for share classes (BRK-B), Wikipedia a dot (BRK.B).
+        symbols = table["Symbol"].astype(str).str.strip().str.replace(".", "-", regex=False)
+        tickers = sorted({s for s in symbols if s})
+        return tickers if len(tickers) > 400 else _SP500_FALLBACK
+    except Exception as e:
+        logger.warning("Could not fetch S&P 500 constituent list, using fallback: %s", e)
+        return _SP500_FALLBACK
+
+
+def _universe_tickers(universe_key: str) -> List[str]:
+    if universe_key == SP500_UNIVERSE_NAME:
+        return _fetch_sp500_tickers()
+    if universe_key == "All":
+        return sorted({t for group in INDEX_MAP.values() for t in group} | set(_fetch_sp500_tickers()))
+    return STOCK_UNIVERSES.get(universe_key, [])
 
 
 LOWER_IS_BETTER = {"volatility_6m", "max_drawdown_1y", "forward_pe"}
@@ -226,13 +278,18 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
 
 @ttl_cache(maxsize=64, ttl_seconds=3600)
 def get_stock_finder_table(universe_key: str) -> pd.DataFrame:
-    tickers = STOCK_UNIVERSES.get(universe_key, [])
+    tickers = _universe_tickers(universe_key)
     rows: List[dict] = []
 
-    for ticker in tickers:
-        row = _build_stock_row(ticker)
-        if row is not None:
-            rows.append(row)
+    # Each _build_stock_row is a couple of independent, I/O-bound yfinance
+    # calls — parallelize so a 500-ticker universe (S&P 500) is tractable.
+    # Order doesn't matter here since rank_stocks sorts the result afterward.
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_FETCHES) as executor:
+        futures = [executor.submit(_build_stock_row, ticker) for ticker in tickers]
+        for future in as_completed(futures):
+            row = future.result()
+            if row is not None:
+                rows.append(row)
 
     return pd.DataFrame(rows)
 

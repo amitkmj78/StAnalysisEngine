@@ -28,4 +28,5 @@ nltk
 faiss-cpu 
 tiktoken
 install sentence-transformers
+lxml
 

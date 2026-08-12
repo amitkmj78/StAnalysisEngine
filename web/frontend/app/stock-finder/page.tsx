@@ -438,7 +438,9 @@ export default function StockFinderPage() {
       {loading && (
         <p className="mt-4 text-sm text-slate-500">
           {mode === "rank"
-            ? "Scoring every ticker in the universe — first run for a universe can take a while, cached for an hour after."
+            ? universe === "US - S&P 500" || universe === "All"
+              ? "Scoring roughly 500 tickers — this first run can take several minutes, cached for an hour after."
+              : "Scoring every ticker in the universe — first run for a universe can take a while, cached for an hour after."
             : "Scoring this ticker…"}
         </p>
       )}
