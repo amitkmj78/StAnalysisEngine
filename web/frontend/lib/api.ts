@@ -33,6 +33,7 @@ import type {
   PortfolioSubmitResponse,
   PortfolioSummary,
   PredictAlgoComparisonResponse,
+  PredictionAccuracyLeaderboard,
   PredictionActivity,
   PredictionCompareResponse,
   PredictionNarrative,
@@ -148,6 +149,10 @@ export function getPredictionHistory(ticker?: string) {
     "/api/v1/predict/history",
     ticker ? { ticker } : undefined,
   );
+}
+
+export function getPredictionAccuracyLeaderboard() {
+  return apiFetch<PredictionAccuracyLeaderboard>("/api/v1/predict/accuracy-leaderboard");
 }
 
 export function getStockUniverses() {

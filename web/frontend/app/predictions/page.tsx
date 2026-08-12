@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, comparePredictionsToFund, deletePrediction, getPredictionHistory } from "@/lib/api";
-import type { PredictionCompareResponse, SavedPrediction } from "@/lib/types";
+import {
+  ApiError,
+  comparePredictionsToFund,
+  deletePrediction,
+  getPredictionAccuracyLeaderboard,
+  getPredictionHistory,
+} from "@/lib/api";
+import type { PredictionAccuracyLeaderboard, PredictionCompareResponse, SavedPrediction } from "@/lib/types";
 
 export default function PredictionsPage() {
   const [predictions, setPredictions] = useState<SavedPrediction[] | null>(null);
@@ -14,8 +20,13 @@ export default function PredictionsPage() {
   const [compareLoading, setCompareLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
+  const [leaderboard, setLeaderboard] = useState<PredictionAccuracyLeaderboard | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+
   useEffect(() => {
     load();
+    loadLeaderboard();
   }, []);
 
   async function load() {
@@ -31,12 +42,25 @@ export default function PredictionsPage() {
     }
   }
 
+  async function loadLeaderboard() {
+    setLeaderboardLoading(true);
+    setLeaderboardError(null);
+    try {
+      setLeaderboard(await getPredictionAccuracyLeaderboard());
+    } catch (err) {
+      setLeaderboardError(err instanceof ApiError ? err.message : "Failed to load the accuracy leaderboard.");
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }
+
   async function handleDelete(id: number) {
     setDeletingId(id);
     setError(null);
     try {
       await deletePrediction(id);
       setPredictions((prev) => (prev ? prev.filter((p) => p.id !== id) : prev));
+      loadLeaderboard();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to delete this prediction.");
     } finally {
@@ -63,6 +87,82 @@ export default function PredictionsPage() {
         Every prediction you&apos;ve saved, across every ticker, in one place — auto-verified in the background as
         target dates arrive.
       </p>
+
+      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <h2 className="font-semibold text-slate-900">Accuracy Leaderboard</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Your saved predictions, grouped by ticker and ranked by win rate — a signal counts once its target
+          date has actually passed, not before. Needs at least {leaderboard?.min_verified_for_recommendation ?? 3}{" "}
+          verified predictions on a ticker before it&apos;s suggested below.
+        </p>
+
+        {leaderboardLoading && <p className="mt-3 text-sm text-slate-500">Loading…</p>}
+        {leaderboardError && (
+          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{leaderboardError}</p>
+        )}
+
+        {leaderboard && !leaderboardLoading && (
+          <>
+            {leaderboard.suggested_ticker ? (
+              <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                <p className="text-sm text-emerald-900">
+                  <strong>{leaderboard.suggested_ticker}</strong> has the best track record — {leaderboard.suggested_reason}
+                </p>
+                <a
+                  href={`/predict?ticker=${encodeURIComponent(leaderboard.suggested_ticker)}`}
+                  className="mt-1 inline-block text-xs font-medium text-emerald-700 underline hover:text-emerald-900"
+                >
+                  View forecast for {leaderboard.suggested_ticker}
+                </a>
+              </div>
+            ) : (
+              <p className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                No ticker has enough verified predictions yet for a portfolio suggestion.
+              </p>
+            )}
+
+            {leaderboard.tickers.length > 0 && (
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <th className="px-2 py-1.5">Rank</th>
+                      <th className="px-2 py-1.5">Ticker</th>
+                      <th className="px-2 py-1.5">Verified / Total</th>
+                      <th className="px-2 py-1.5">Win Rate</th>
+                      <th className="px-2 py-1.5">Avg Next-Day Error</th>
+                      <th className="px-2 py-1.5">Avg Target Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaderboard.tickers.map((row) => (
+                      <tr key={row.ticker} className="border-b border-slate-100 last:border-0">
+                        <td className="px-2 py-1.5 text-slate-700">{row.rank ?? "—"}</td>
+                        <td className="px-2 py-1.5 font-medium text-slate-900">
+                          {row.ticker}
+                          {row.ticker === leaderboard.suggested_ticker && " 🏆"}
+                        </td>
+                        <td className="px-2 py-1.5 text-slate-700">
+                          {row.verified_count} / {row.total_predictions}
+                        </td>
+                        <td className="px-2 py-1.5 text-slate-700">
+                          {row.win_rate !== null ? `${(row.win_rate * 100).toFixed(0)}%` : "pending"}
+                        </td>
+                        <td className="px-2 py-1.5 text-slate-700">
+                          {row.avg_next_price_error_pct !== null ? `${row.avg_next_price_error_pct.toFixed(2)}%` : "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-slate-700">
+                          {row.avg_target_price_error_pct !== null ? `${row.avg_target_price_error_pct.toFixed(2)}%` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {loading && <p className="mt-4 text-sm text-slate-500">Loading…</p>}
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

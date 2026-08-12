@@ -115,6 +115,24 @@ export interface PredictionCompareResponse {
   comparisons: PredictionComparisonRow[];
 }
 
+export interface PredictionAccuracyRow {
+  ticker: string;
+  total_predictions: number;
+  verified_count: number;
+  win_rate: number | null;
+  avg_next_price_error_pct: number | null;
+  avg_target_price_error_pct: number | null;
+  eligible_for_recommendation: boolean;
+  rank: number | null;
+}
+
+export interface PredictionAccuracyLeaderboard {
+  tickers: PredictionAccuracyRow[];
+  suggested_ticker: string | null;
+  suggested_reason: string | null;
+  min_verified_for_recommendation: number;
+}
+
 export interface StockRankRow {
   Ticker: string;
   Name: string;

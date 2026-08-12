@@ -7,6 +7,7 @@ from starlette.concurrency import run_in_threadpool
 from services.data_service import TIMEFRAME_MAPPING, get_extended_hours_price, get_latest_price
 from services.fund_comparison_service import get_top_fund, price_near_date
 from services.ownership_activity_service import get_volume_and_ownership_activity
+from services.prediction_accuracy_service import compute_prediction_accuracy
 from services.prediction_narrative_service import build_prediction_narrative
 from services.prediction_service import (
     compute_backtest_metrics,
@@ -378,38 +379,57 @@ async def save_prediction(request: Request, body: SavePredictionRequest):
     return {"prediction": _record_to_dict(record)}
 
 
+async def _load_and_verify_predictions(conn, ticker: str | None = None) -> list[dict]:
+    """Fetches the current user's saved predictions (optionally scoped to
+    one ticker) and auto-verifies each on read: anything whose next-day/
+    target date has passed since it was saved gets checked against a live
+    price lookup right now, no separate scheduler needed. Shared by
+    /history and /accuracy-leaderboard so both see the same up-to-date
+    verdicts."""
+    if ticker:
+        records = await conn.fetch(
+            "SELECT * FROM saved_predictions WHERE ticker = $1 ORDER BY predicted_at DESC",
+            ticker.strip().upper(),
+        )
+    else:
+        records = await conn.fetch("SELECT * FROM saved_predictions ORDER BY predicted_at DESC")
+
+    rows = [_record_to_dict(r) for r in records]
+    for row in rows:
+        updates = await run_in_threadpool(verify_prediction, row)
+        if not updates:
+            continue
+        set_cols = list(updates.keys())
+        set_clause = ", ".join(f"{col} = ${i + 2}" for i, col in enumerate(set_cols))
+        values = [updates[col] for col in set_cols]
+        await conn.execute(
+            f"UPDATE saved_predictions SET {set_clause} WHERE id = $1",
+            row["id"], *values,
+        )
+        row.update(updates)
+
+    return rows
+
+
 @router.get("/history")
 async def prediction_history(request: Request, ticker: str | None = Query(None)):
     user_id = request.state.user["id"]
-
     async with user_conn(user_id) as conn:
-        if ticker:
-            records = await conn.fetch(
-                "SELECT * FROM saved_predictions WHERE ticker = $1 ORDER BY predicted_at DESC",
-                ticker.strip().upper(),
-            )
-        else:
-            records = await conn.fetch("SELECT * FROM saved_predictions ORDER BY predicted_at DESC")
-
-        rows = [_record_to_dict(r) for r in records]
-
-        # Auto-verify on read: anything whose next-day/target date has
-        # passed since it was saved gets checked against a live price
-        # lookup right now, no separate scheduler needed.
-        for row in rows:
-            updates = await run_in_threadpool(verify_prediction, row)
-            if not updates:
-                continue
-            set_cols = list(updates.keys())
-            set_clause = ", ".join(f"{col} = ${i + 2}" for i, col in enumerate(set_cols))
-            values = [updates[col] for col in set_cols]
-            await conn.execute(
-                f"UPDATE saved_predictions SET {set_clause} WHERE id = $1",
-                row["id"], *values,
-            )
-            row.update(updates)
-
+        rows = await _load_and_verify_predictions(conn, ticker)
     return {"predictions": rows}
+
+
+@router.get("/accuracy-leaderboard")
+async def prediction_accuracy_leaderboard(request: Request):
+    """Ranks the current user's saved predictions by ticker win rate, and
+    suggests the best-performing ticker (once it has enough verified
+    predictions to be trustworthy) as a portfolio candidate. See
+    services/prediction_accuracy_service.py for the ranking logic — pure,
+    unit-tested, no I/O of its own."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        rows = await _load_and_verify_predictions(conn)
+    return compute_prediction_accuracy(rows)
 
 
 @router.delete("/{prediction_id}")
