@@ -12,6 +12,7 @@ import {
   ApiError,
   deleteNarrative,
   deletePrediction,
+  getBaselineBand,
   getChatProviders,
   getNarrativeHistory,
   getPredictionActivity,
@@ -22,6 +23,7 @@ import {
   savePrediction,
 } from "@/lib/api";
 import type {
+  BaselineBand,
   PredictionActivity,
   PredictionNarrative,
   PredictionSummary,
@@ -109,6 +111,13 @@ export default function PredictPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [priceRefreshKey, setPriceRefreshKey] = useState(0);
 
+  const [compareInput, setCompareInput] = useState("");
+  const [compareTickers, setCompareTickers] = useState<string[]>([]);
+  const [compareData, setCompareData] = useState<
+    Record<string, { summary: PredictionSummary | null; band: BaselineBand | null; loading: boolean; error: string | null }>
+  >({});
+  const [primaryBand, setPrimaryBand] = useState<BaselineBand | null>(null);
+
   useEffect(() => {
     getChatProviders()
       .then((res) => {
@@ -130,6 +139,10 @@ export default function PredictPage() {
     setActivity(null);
     setActivityError(null);
     setSaveMessage(null);
+    setCompareTickers([]);
+    setCompareData({});
+    setCompareInput("");
+    setPrimaryBand(null);
     try {
       const summary = await getPredictionSummary(ticker.trim().toUpperCase(), period, daysAhead);
       setData(summary);
@@ -137,6 +150,9 @@ export default function PredictPage() {
       setPriceRefreshKey((k) => k + 1);
       loadHistory(summary.ticker);
       loadNarrativeHistory(summary.ticker);
+      getBaselineBand(summary.ticker, { horizon: 30, confidence: 0.9 })
+        .then(setPrimaryBand)
+        .catch(() => setPrimaryBand(null));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
       setData(null);
@@ -259,6 +275,49 @@ export default function PredictPage() {
     }
   }
 
+  async function fetchCompareTicker(t: string) {
+    setCompareData((prev) => ({ ...prev, [t]: { summary: null, band: null, loading: true, error: null } }));
+    const [summaryResult, bandResult] = await Promise.allSettled([
+      getPredictionSummary(t, period, daysAhead),
+      getBaselineBand(t, { horizon: 30, confidence: 0.9 }),
+    ]);
+    setCompareData((prev) => ({
+      ...prev,
+      [t]: {
+        summary: summaryResult.status === "fulfilled" ? summaryResult.value : null,
+        band: bandResult.status === "fulfilled" ? bandResult.value : null,
+        loading: false,
+        error:
+          summaryResult.status === "rejected"
+            ? summaryResult.reason instanceof ApiError
+              ? summaryResult.reason.message
+              : "Could not load this ticker."
+            : null,
+      },
+    }));
+  }
+
+  function addCompareTicker(e: React.FormEvent) {
+    e.preventDefault();
+    const t = compareInput.trim().toUpperCase();
+    if (!t || !data || t === data.ticker || compareTickers.includes(t)) {
+      setCompareInput("");
+      return;
+    }
+    setCompareTickers((prev) => [...prev, t]);
+    setCompareInput("");
+    fetchCompareTicker(t);
+  }
+
+  function removeCompareTicker(t: string) {
+    setCompareTickers((prev) => prev.filter((x) => x !== t));
+    setCompareData((prev) => {
+      const next = { ...prev };
+      delete next[t];
+      return next;
+    });
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="text-2xl font-semibold text-slate-900">AI Price Forecast</h1>
@@ -350,8 +409,6 @@ export default function PredictPage() {
             )}
           </div>
 
-          <SafeBaselineBand ticker={data.ticker} />
-
           {data.signal && (
             <div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -375,6 +432,126 @@ export default function PredictPage() {
               </div>
             </div>
           )}
+
+          <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <h3 className="font-semibold text-slate-900">Compare Tickers</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Add other tickers to see their signal, expected return, and Safe Baseline band next to{" "}
+              {data.ticker}&apos;s — same {period} window and {shownDaysAhead}-day horizon, 30d/90% band.
+            </p>
+            <form onSubmit={addCompareTicker} className="mt-3 flex items-end gap-2">
+              <div className="flex flex-col gap-1">
+                <label htmlFor="compare-ticker" className="text-xs font-medium text-slate-500">
+                  Add ticker
+                </label>
+                <TickerSearchInput
+                  id="compare-ticker"
+                  value={compareInput}
+                  onChange={setCompareInput}
+                  className="w-40 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!compareInput.trim()}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Add
+              </button>
+            </form>
+
+            {compareTickers.length > 0 && (
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <th className="px-2 py-2">Ticker</th>
+                      <th className="px-2 py-2">Last Close</th>
+                      <th className="px-2 py-2">Predicted Next Close</th>
+                      <th className="px-2 py-2">Signal</th>
+                      <th className="px-2 py-2">Expected Return</th>
+                      <th className="px-2 py-2">Target Price</th>
+                      <th className="px-2 py-2">Baseline Floor</th>
+                      <th className="px-2 py-2">Baseline Ceiling</th>
+                      <th className="px-2 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-slate-100 bg-slate-50">
+                      <td className="px-2 py-2 font-medium text-slate-900">{data.ticker}</td>
+                      <td className="px-2 py-2 text-slate-700">
+                        {data.last_close !== null ? `$${data.last_close.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="px-2 py-2 text-slate-700">
+                        {data.next_price !== null ? `$${data.next_price.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="px-2 py-2 text-slate-700">{data.signal?.signal ?? "—"}</td>
+                      <td className="px-2 py-2 text-slate-700">
+                        {data.signal ? `${data.signal.expected_return_pct.toFixed(2)}%` : "—"}
+                      </td>
+                      <td className="px-2 py-2 text-slate-700">
+                        {data.signal ? `$${data.signal.target_price.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="px-2 py-2 text-slate-700">
+                        {primaryBand ? `$${primaryBand.floor.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="px-2 py-2 text-slate-700">
+                        {primaryBand ? `$${primaryBand.ceiling.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="px-2 py-2"></td>
+                    </tr>
+                    {compareTickers.map((t) => {
+                      const row = compareData[t];
+                      return (
+                        <tr key={t} className="border-b border-slate-100 last:border-0">
+                          <td className="px-2 py-2 font-medium text-slate-900">{t}</td>
+                          {row?.loading ? (
+                            <td className="px-2 py-2 text-slate-400" colSpan={7}>
+                              Loading…
+                            </td>
+                          ) : row?.error ? (
+                            <td className="px-2 py-2 text-red-600" colSpan={7}>
+                              {row.error}
+                            </td>
+                          ) : (
+                            <>
+                              <td className="px-2 py-2 text-slate-700">
+                                {row?.summary?.last_close != null ? `$${row.summary.last_close.toFixed(2)}` : "—"}
+                              </td>
+                              <td className="px-2 py-2 text-slate-700">
+                                {row?.summary?.next_price != null ? `$${row.summary.next_price.toFixed(2)}` : "—"}
+                              </td>
+                              <td className="px-2 py-2 text-slate-700">{row?.summary?.signal?.signal ?? "—"}</td>
+                              <td className="px-2 py-2 text-slate-700">
+                                {row?.summary?.signal ? `${row.summary.signal.expected_return_pct.toFixed(2)}%` : "—"}
+                              </td>
+                              <td className="px-2 py-2 text-slate-700">
+                                {row?.summary?.signal ? `$${row.summary.signal.target_price.toFixed(2)}` : "—"}
+                              </td>
+                              <td className="px-2 py-2 text-slate-700">
+                                {row?.band ? `$${row.band.floor.toFixed(2)}` : "—"}
+                              </td>
+                              <td className="px-2 py-2 text-slate-700">
+                                {row?.band ? `$${row.band.ceiling.toFixed(2)}` : "—"}
+                              </td>
+                            </>
+                          )}
+                          <td className="px-2 py-2 text-right">
+                            <button
+                              onClick={() => removeCompareTicker(t)}
+                              className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           <div className="rounded-lg border border-slate-200 bg-white p-5">
             <h3 className="font-semibold text-slate-900">Volume &amp; Ownership Activity</h3>
@@ -725,6 +902,8 @@ export default function PredictPage() {
           ) : (
             <p className="text-sm text-slate-500">Not enough price history for a walk-forward backtest.</p>
           )}
+
+          <SafeBaselineBand ticker={data.ticker} />
 
           <div className="rounded-lg border border-slate-200 bg-white p-5">
             <h3 className="font-semibold text-slate-900">How To Read This Page</h3>
