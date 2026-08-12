@@ -27,6 +27,6 @@ websocket-client
 nltk
 faiss-cpu 
 tiktoken
-install sentence-transformers
+sentence-transformers
 lxml
 
