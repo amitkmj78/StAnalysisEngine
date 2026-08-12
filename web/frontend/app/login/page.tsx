@@ -17,9 +17,6 @@ export default async function LoginPage({
         <a href="/marketing.html" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline hover:text-emerald-800">
           How it works &amp; what&apos;s inside
         </a>
-        <Link href="/track-record" className="text-emerald-700 underline hover:text-emerald-800">
-          Live track record
-        </Link>
       </p>
 
       {params.info && (
