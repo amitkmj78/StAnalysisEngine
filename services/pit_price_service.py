@@ -2,7 +2,7 @@ import logging
 
 import yfinance as yf
 
-from .stock_finder_service import STOCK_UNIVERSES
+from .stock_finder_service import _universe_tickers
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +18,14 @@ def capture_universe_closes(universe_id: str = DEFAULT_UNIVERSE) -> list[dict]:
     NOTHING on (ticker, price_date) is what makes the store point-in-time:
     once a row exists, it proves this exact close was on record at
     captured_at_utc, immune to any later data-vendor revision.
+
+    Uses _universe_tickers (not the raw STOCK_UNIVERSES dict) because
+    "All" and "US - S&P 500" resolve lazily — see stock_finder_service.py.
+    Reading STOCK_UNIVERSES directly here silently returned an empty
+    placeholder list for those two keys after the S&P 500 expansion,
+    which is exactly the bug this comment is here to prevent recurring.
     """
-    tickers = list(STOCK_UNIVERSES.get(universe_id, []))
+    tickers = list(_universe_tickers(universe_id))
     if not tickers:
         return []
 

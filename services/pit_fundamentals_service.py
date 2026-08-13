@@ -2,7 +2,7 @@ import logging
 
 import yfinance as yf
 
-from .stock_finder_service import STOCK_UNIVERSES, _safe_percent
+from .stock_finder_service import _safe_percent, _universe_tickers
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,11 @@ def capture_universe_fundamentals(universe_id: str = DEFAULT_UNIVERSE) -> list[d
     yfinance has no batch equivalent of .info, so this is one request per
     ticker; a single ticker's failure is skipped rather than aborting the
     whole capture. Read-only — doesn't write to the DB, callers persist.
+
+    Uses _universe_tickers (not the raw STOCK_UNIVERSES dict) — see the
+    matching comment in pit_price_service.py for why.
     """
-    tickers = list(STOCK_UNIVERSES.get(universe_id, []))
+    tickers = list(_universe_tickers(universe_id))
     rows = []
     for ticker in tickers:
         try:
