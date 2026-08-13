@@ -29,4 +29,5 @@ faiss-cpu
 tiktoken
 sentence-transformers
 lxml
+stripe
 

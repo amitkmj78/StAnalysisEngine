@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import DbBackupControls from "@/components/admin/DbBackupControls";
+import HorizonSubscriptionControls from "@/components/admin/HorizonSubscriptionControls";
 import PitPriceControls from "@/components/admin/PitPriceControls";
 import PortfolioDropAlertsControls from "@/components/admin/PortfolioDropAlertsControls";
 import PublishSignalsControls from "@/components/admin/PublishSignalsControls";
@@ -26,6 +27,7 @@ export default async function AdminSchedulerPage() {
       <div className="mt-6 flex flex-col gap-4">
         <SchedulerControls />
         <PublishSignalsControls />
+        <HorizonSubscriptionControls />
         <PitPriceControls />
         <PortfolioDropAlertsControls />
         <DbBackupControls />

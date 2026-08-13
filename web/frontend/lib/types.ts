@@ -611,6 +611,8 @@ export interface AdminSettings {
   portfolio_drop_threshold_pct: number;
   daily_quota: number;
   db_backup_enabled: boolean;
+  horizon1_subscriptions_enabled: boolean;
+  free_tier_lag_days: number;
 }
 
 export interface BackupRun {
@@ -722,6 +724,8 @@ export interface PublishedSignalsResponse {
   signals: PublishedSignalRow[];
   record_start_date: string | null;
   days_published: number;
+  tier: "free" | "paid";
+  is_lagged: boolean;
 }
 
 export interface SignalOutcomeRow {
@@ -841,4 +845,53 @@ export interface AdminSqlQueryResponse {
   rows: unknown[][];
   row_count: number;
   truncated: boolean;
+}
+
+// Horizon 1 — Impersonal Research Subscription (built, kept off; see
+// docs/signal-licensing-whitelabel-requirements.md.pdf)
+export interface MySubscription {
+  tier: "free" | "paid";
+  status: "active" | "canceled" | "past_due" | "incomplete" | null;
+  current_period_end: string | null;
+  created_at?: string;
+  canceled_at?: string | null;
+}
+
+export interface CohortRetention {
+  window: "1_month" | "3_month" | "6_month";
+  cohort_size: number;
+  retained: number;
+  retention_rate: number | null;
+}
+
+export interface EnquiryTypeCount {
+  enquiry_type: string;
+  count: number;
+}
+
+export interface DemandReport {
+  ever_paid_subscribers: number;
+  currently_active_subscribers: number;
+  canceled_total: number;
+  monthly_churn_rate: number | null;
+  checkout_started: number;
+  checkout_completed: number;
+  checkout_conversion_rate: number | null;
+  cohort_retention: CohortRetention[];
+  enquiries_by_type: EnquiryTypeCount[];
+}
+
+export interface AuditLogEntry {
+  id: number;
+  actor_user_id: string | null;
+  event_type: string;
+  resource: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface AuditLogResponse {
+  events: AuditLogEntry[];
+  limit: number;
+  offset: number;
 }

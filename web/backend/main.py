@@ -37,6 +37,7 @@ from web.backend.routers import (
     signals,
     stock_finder,
     strategies,
+    subscriptions,
     trade_journal,
     watchlist,
 )
@@ -87,6 +88,7 @@ app.include_router(admin_sql.router)
 app.include_router(signals.router)
 app.include_router(pit_prices.router)
 app.include_router(db_backup.router)
+app.include_router(subscriptions.router)
 
 
 @app.get("/health")

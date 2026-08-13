@@ -49,6 +49,20 @@ DAILY_QUOTA_DEFAULT = 600
 # legal/compliance gate. Admin can pause it (e.g. if pg_dump load ever
 # becomes a problem) without losing backups already taken.
 DB_BACKUP_ENABLED_KEY = "db_backup_enabled"
+# Horizon 1 (docs/signal-licensing-whitelabel-requirements.md.pdf, RS-*):
+# the paid-subscription layer on top of the existing free/public track
+# record. Defaults OFF for the same reason as PUBLISH_SIGNALS_ENABLED_KEY,
+# one level further: Gate 0->1 in that spec requires >=6 months of
+# continuous live publication (nowhere close yet) AND written counsel
+# confirmation that the offering sits within the publisher's exclusion
+# (CMP-03). This code is built and testable but must stay off — flipping
+# it on is a real business/legal decision, not a deploy.
+HORIZON1_SUBSCRIPTIONS_ENABLED_KEY = "horizon1_subscriptions_enabled"
+# RS-2: how many days behind "current" the free tier sees once Horizon 1
+# is live. Admin-tunable without a deploy, same rationale as
+# PORTFOLIO_DROP_THRESHOLD_PCT_KEY.
+FREE_TIER_LAG_DAYS_KEY = "free_tier_lag_days"
+FREE_TIER_LAG_DAYS_DEFAULT = 7
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

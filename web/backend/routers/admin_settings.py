@@ -6,6 +6,9 @@ from web.backend.app_settings import (
     DAILY_QUOTA_DEFAULT,
     DAILY_QUOTA_KEY,
     DB_BACKUP_ENABLED_KEY,
+    FREE_TIER_LAG_DAYS_DEFAULT,
+    FREE_TIER_LAG_DAYS_KEY,
+    HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     PASSWORD_POLICY_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
@@ -49,6 +52,8 @@ async def get_settings():
         ),
         "daily_quota": await get_setting_int(DAILY_QUOTA_KEY, default=DAILY_QUOTA_DEFAULT),
         "db_backup_enabled": await get_setting_bool(DB_BACKUP_ENABLED_KEY, default=True),
+        "horizon1_subscriptions_enabled": await get_setting_bool(HORIZON1_SUBSCRIPTIONS_ENABLED_KEY, default=False),
+        "free_tier_lag_days": await get_setting_int(FREE_TIER_LAG_DAYS_KEY, default=FREE_TIER_LAG_DAYS_DEFAULT),
     }
 
 
@@ -177,3 +182,29 @@ async def enable_db_backup():
 async def disable_db_backup():
     await set_setting_bool(DB_BACKUP_ENABLED_KEY, False)
     return {"db_backup_enabled": False}
+
+
+@router.post("/horizon1-subscriptions/enable")
+async def enable_horizon1_subscriptions():
+    """Do not flip this on without written counsel confirmation (Gate 0->1,
+    CMP-03) and >=6 months of continuous live publication — see
+    HORIZON1_SUBSCRIPTIONS_ENABLED_KEY's comment in app_settings.py. This
+    endpoint doesn't and can't verify either of those; it's a raw switch."""
+    await set_setting_bool(HORIZON1_SUBSCRIPTIONS_ENABLED_KEY, True)
+    return {"horizon1_subscriptions_enabled": True}
+
+
+@router.post("/horizon1-subscriptions/disable")
+async def disable_horizon1_subscriptions():
+    await set_setting_bool(HORIZON1_SUBSCRIPTIONS_ENABLED_KEY, False)
+    return {"horizon1_subscriptions_enabled": False}
+
+
+class FreeTierLagDaysUpdate(BaseModel):
+    free_tier_lag_days: int = Field(ge=0, le=365)
+
+
+@router.post("/free-tier-lag-days")
+async def set_free_tier_lag_days(body: FreeTierLagDaysUpdate):
+    await set_setting_int(FREE_TIER_LAG_DAYS_KEY, body.free_tier_lag_days)
+    return {"free_tier_lag_days": body.free_tier_lag_days}

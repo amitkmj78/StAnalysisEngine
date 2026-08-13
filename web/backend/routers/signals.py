@@ -12,8 +12,17 @@ from services.signal_publication_service import (
     compute_outcome_metrics,
     compute_predict_algo_comparison,
 )
+from services.subscription_access_service import compute_free_tier_target_date, is_active_paid_subscriber
 from web.backend.admin import require_admin
-from web.backend.app_settings import PUBLISH_SIGNALS_ENABLED_KEY, get_setting_bool
+from web.backend.app_settings import (
+    FREE_TIER_LAG_DAYS_DEFAULT,
+    FREE_TIER_LAG_DAYS_KEY,
+    HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
+    PUBLISH_SIGNALS_ENABLED_KEY,
+    get_setting_bool,
+    get_setting_int,
+)
+from web.backend.auth import verify_bearer_token_optional
 from web.backend.db import service_conn
 from web.backend.rate_limit import limiter
 from web.backend.scheduler import check_publication_alert
@@ -33,12 +42,28 @@ async def list_published_signals(
     target_date: date | None = Query(None),
     universe_id: str = Query(DEFAULT_UNIVERSE),
     lookback_days: int = Query(DEFAULT_LOOKBACK_DAYS),
+    user: dict | None = Depends(verify_bearer_token_optional),
 ):
     """
     TR-5 groundwork: the public track record, unauthenticated by design —
     this is the whole point of "published". Defaults to the most recent
     publication for the given universe/lookback when no date is given.
+
+    RS-1/RS-2 (Horizon 1, off by default via HORIZON1_SUBSCRIPTIONS_ENABLED_KEY):
+    when enabled, an anonymous or non-active-paid caller is capped to
+    `latest_date - free_tier_lag_days`; an active paid subscriber sees the
+    true latest date. This is the ONLY subscriber attribute this check is
+    allowed to look at (RS-1's impersonality constraint) — never
+    portfolio, positions, or anything else about who's asking. When the
+    flag is off (today's default), behavior is byte-identical to before
+    Horizon 1 existed.
     """
+    horizon1_enabled = await get_setting_bool(HORIZON1_SUBSCRIPTIONS_ENABLED_KEY, default=False)
+    is_paid = (
+        horizon1_enabled and user is not None and await is_active_paid_subscriber(user["id"])
+    )
+    tier = "paid" if is_paid else "free"
+
     async with service_conn() as conn:
         summary = await conn.fetchrow(
             """
@@ -51,19 +76,29 @@ async def list_published_signals(
             universe_id, lookback_days,
         )
         record_start_date = summary["record_start_date"] if summary else None
+        latest_date = summary["latest_date"] if summary else None
         days_published = summary["days_published"] if summary else 0
 
+        is_lagged = False
+        if horizon1_enabled and not is_paid:
+            lag_days = await get_setting_int(FREE_TIER_LAG_DAYS_KEY, default=FREE_TIER_LAG_DAYS_DEFAULT)
+            target_date, is_lagged = compute_free_tier_target_date(
+                target_date, latest_date, record_start_date, lag_days
+            )
+        elif target_date is None:
+            target_date = latest_date
+
         if target_date is None:
-            target_date = summary["latest_date"] if summary else None
-            if target_date is None:
-                return {
-                    "target_date": None,
-                    "universe_id": universe_id,
-                    "lookback_days": lookback_days,
-                    "signals": [],
-                    "record_start_date": None,
-                    "days_published": 0,
-                }
+            return {
+                "target_date": None,
+                "universe_id": universe_id,
+                "lookback_days": lookback_days,
+                "signals": [],
+                "record_start_date": None,
+                "days_published": 0,
+                "tier": tier,
+                "is_lagged": is_lagged,
+            }
 
         rows = await conn.fetch(
             """
@@ -81,6 +116,8 @@ async def list_published_signals(
         "signals": [_record_to_dict(r) for r in rows],
         "record_start_date": str(record_start_date) if record_start_date else None,
         "days_published": days_published,
+        "tier": tier,
+        "is_lagged": is_lagged,
     }
 
 

@@ -8,11 +8,13 @@ import type {
   AdminUser,
   AlertConditionType,
   AnalystRatingSummary,
+  AuditLogResponse,
   BackupStatus,
   BaselineBand,
   ChatAskResponse,
   ChatProvidersResponse,
   CurrentPriceResponse,
+  DemandReport,
   EntryHistory,
   EntryPlan,
   EntryScanRow,
@@ -22,6 +24,7 @@ import type {
   MomentumBacktestResponse,
   MomentumOptions,
   MonthlyPlanResponse,
+  MySubscription,
   PitPriceStatus,
   PitReconciliationReport,
   Portfolio,
@@ -809,6 +812,60 @@ export function getMomentumBacktest(
 
 export function getAdminSqlTables() {
   return apiFetch<AdminSqlTablesResponse>("/api/v1/admin/sql/tables");
+}
+
+// Horizon 1 — Impersonal Research Subscription (built, kept off)
+
+export function enableHorizon1Subscriptions() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/horizon1-subscriptions/enable", "POST");
+}
+
+export function disableHorizon1Subscriptions() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/horizon1-subscriptions/disable", "POST");
+}
+
+export function setFreeTierLagDays(days: number) {
+  return apiSend<{ free_tier_lag_days: number }>("/api/v1/admin/settings/free-tier-lag-days", "POST", {
+    free_tier_lag_days: days,
+  });
+}
+
+export function getMySubscription() {
+  return apiFetch<MySubscription>("/api/v1/subscriptions/me");
+}
+
+export function startCheckout() {
+  return apiSend<{ url: string }>("/api/v1/subscriptions/checkout", "POST");
+}
+
+export function openBillingPortal() {
+  return apiSend<{ url: string }>("/api/v1/subscriptions/portal", "POST");
+}
+
+export function submitEnquiry(body: { enquiry_type: string; contact_email: string; message: string }) {
+  return apiSend<{ ok: boolean }>("/api/v1/subscriptions/enquiry", "POST", body);
+}
+
+export function getSignalsCsvExportUrl(universeId?: string, lookbackDays?: number): string {
+  const params = new URLSearchParams();
+  if (universeId) params.set("universe_id", universeId);
+  if (lookbackDays) params.set("lookback_days", String(lookbackDays));
+  const query = params.toString();
+  return `${API_BASE}/api/v1/subscriptions/export/csv${query ? `?${query}` : ""}`;
+}
+
+export function getDemandReport() {
+  return apiFetch<DemandReport>("/api/v1/subscriptions/demand-report");
+}
+
+export function getAuditLog(params?: { eventType?: string; actorUserId?: string; since?: string; limit?: number; offset?: number }) {
+  const query: Record<string, string> = {};
+  if (params?.eventType) query.event_type = params.eventType;
+  if (params?.actorUserId) query.actor_user_id = params.actorUserId;
+  if (params?.since) query.since = params.since;
+  if (params?.limit) query.limit = String(params.limit);
+  if (params?.offset) query.offset = String(params.offset);
+  return apiFetch<AuditLogResponse>("/api/v1/subscriptions/audit-log", query);
 }
 
 export function runAdminSqlQuery(sql: string) {

@@ -974,6 +974,63 @@ grant select, insert on pit_quant_signal to app_service;
 grant select on pit_analyst_rating to app_user;
 grant select, insert on pit_analyst_rating to app_service;
 grant select, insert on portfolio_drop_alerts to app_service;
+
+-- Horizon 1 (docs/signal-licensing-whitelabel-requirements.md.pdf, RS-*):
+-- built and migrated so the code is ready, but gated off by
+-- horizon1_subscriptions_enabled (see app_settings.py) until the real
+-- business/legal gate (Gate 0->1) is actually met.
+create table if not exists subscriptions (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  tier text not null default 'free' check (tier in ('free','paid')),
+  status text not null default 'active' check (status in ('active','canceled','past_due','incomplete')),
+  stripe_customer_id text,
+  stripe_subscription_id text unique,
+  current_period_end timestamptz,
+  created_at timestamptz not null default now(),
+  canceled_at timestamptz
+);
+create index if not exists subscriptions_user_idx on subscriptions(user_id);
+alter table subscriptions enable row level security;
+drop policy if exists subscriptions_isolation on subscriptions;
+create policy subscriptions_isolation on subscriptions
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- RS-6 audit log + RS-5 demand instrumentation share one append-only
+-- table: both need (actor, event, resource, timestamp), and splitting
+-- them would just duplicate the same insert-only plumbing
+-- published_signals already establishes as this app's pattern for an
+-- immutable record. No RLS: written only via service_conn from backend
+-- code, read only by admin.
+create table if not exists subscriber_events (
+  id bigint generated always as identity primary key,
+  actor_user_id uuid references users(id) on delete set null,
+  event_type text not null,
+  resource text,
+  metadata jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists subscriber_events_type_idx on subscriber_events(event_type, created_at);
+create index if not exists subscriber_events_actor_idx on subscriber_events(actor_user_id, created_at);
+
+create table if not exists demand_enquiries (
+  id bigint generated always as identity primary key,
+  user_id uuid references users(id) on delete set null,
+  enquiry_type text not null check (enquiry_type in ('licensing','api','institutional','other')),
+  message text,
+  contact_email text not null,
+  created_at timestamptz not null default now()
+);
+
+grant select, insert, update on subscriptions to app_user;
+grant select, insert, update on subscriptions to app_service;
+grant select, insert on subscriber_events to app_service;
+grant select, insert on demand_enquiries to app_service;
+
+insert into app_settings (key, value) values ('horizon1_subscriptions_enabled', 'false') on conflict (key) do nothing;
+insert into app_settings (key, value) values ('free_tier_lag_days', '7') on conflict (key) do nothing;
+
 grant usage, select on all sequences in schema public to app_service;
 """
 

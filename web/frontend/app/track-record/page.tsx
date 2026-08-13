@@ -1,8 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ApiError, getPredictAlgoComparison, getPublishedSignals, getSignalOutcomes } from "@/lib/api";
+import { DisclosureBanner } from "@/components/DisclosureBanner";
+import {
+  ApiError,
+  getPredictAlgoComparison,
+  getPublishedSignals,
+  getSignalOutcomes,
+  getSignalsCsvExportUrl,
+} from "@/lib/api";
 import type { PredictAlgoComparisonResponse, PublishedSignalsResponse, SignalOutcomesResponse } from "@/lib/types";
 
 const COMPARE_HORIZONS = [1, 5, 10, 30];
@@ -53,17 +61,40 @@ export default function TrackRecordPage() {
         content for every reader, describing what the model ranked and why, not a recommendation to buy or
         sell anything.
       </p>
+      <div className="mt-3">
+        <DisclosureBanner />
+      </div>
 
       {loading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
       {error && <p className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {data && !loading && (
         <>
+          {data.is_lagged && (
+            <div className="mt-6 flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <span>
+                Showing delayed data (free tier). <Link href="/subscribe" className="font-medium underline">Subscribe</Link> for
+                current-day rankings.
+              </span>
+            </div>
+          )}
+
           <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <RecordTile label="Record Started" value={data.record_start_date ?? "Not yet started"} />
             <RecordTile label="Days Published" value={String(data.days_published)} />
             <RecordTile label="Latest Publication" value={data.target_date ?? "—"} />
           </div>
+
+          {data.tier === "paid" && (
+            <div className="mt-3">
+              <a
+                href={getSignalsCsvExportUrl(data.universe_id, data.lookback_days)}
+                className="inline-block rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Export CSV
+              </a>
+            </div>
+          )}
 
           {data.signals.length === 0 ? (
             <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-500">

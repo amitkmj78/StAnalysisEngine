@@ -255,3 +255,27 @@ def send_admin_alert_email(to_email: str, subject: str, body_text: str) -> bool:
     *different* problem.
     """
     return _send_email(to_email, subject, body_text)
+
+
+def send_rankings_email(to_email: str, target_date: str, signals: list[dict]) -> bool:
+    """
+    Horizon 1 (RS-3) — the day's current rankings, sent only to active
+    paid subscribers (caller's responsibility to check that; this
+    function just sends whatever list it's given). Plain text: this is
+    impersonal research content, identical for every recipient, not a
+    marketing email — RS-1's impersonality constraint applies here too,
+    so this must never be templated per-recipient beyond the greeting.
+    """
+    subject = f"StAnalysisEngine rankings — {target_date}"
+    lines = [f"Rankings for {target_date}:", ""]
+    for s in signals:
+        lines.append(f"  #{s['rank']}  {s['ticker']}  ({s['trailing_return_pct']:+.2f}%)")
+    lines.append("")
+    lines.append(f"Full history and methodology: {APP_URL}/track-record")
+    lines.append("")
+    lines.append(
+        "This is impersonal research — the same content sent to every subscriber, describing what "
+        "the model ranked and why. It is not individualized advice and not a recommendation to buy "
+        "or sell anything. Past performance does not indicate future results."
+    )
+    return _send_email(to_email, subject, "\n".join(lines))

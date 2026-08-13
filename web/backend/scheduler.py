@@ -6,11 +6,13 @@ from apscheduler.triggers.cron import CronTrigger
 from starlette.concurrency import run_in_threadpool
 
 from services.alert_engine_service import evaluate_alert
-from services.email_service import APP_URL, send_admin_alert_email
+from services.email_service import APP_URL, send_admin_alert_email, send_rankings_email
 from services.prediction_verification_service import verify_prediction
+from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE
 from web.backend.admin import ADMIN_EMAIL
 from web.backend.app_settings import (
     DB_BACKUP_ENABLED_KEY,
+    HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
     PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY,
@@ -74,6 +76,11 @@ EVALUATE_MINUTE_ET = 0
 # 4:00pm ET close (i.e. by 5:00pm ET).
 NFR01_CHECK_HOUR_ET = 17
 NFR01_CHECK_MINUTE_ET = 0
+# Horizon 1 (RS-3): 10 min after publish, giving _publish_daily_signals_job
+# time to actually land today's rows first. Well before the NFR01 60-min
+# delayed-publication check at 17:00.
+RANKINGS_EMAIL_HOUR_ET = 16
+RANKINGS_EMAIL_MINUTE_ET = 20
 # NFR-02: escalate if publication is still missing 2 hours after close
 # (i.e. by 6:00pm ET) — a genuinely missed day, not just a delay.
 NFR02_CHECK_HOUR_ET = 18
@@ -259,6 +266,61 @@ async def _evaluate_signal_outcomes_job() -> None:
         logger.info("Scheduler: recorded %d signal outcomes", evaluated)
 
 
+async def _send_rankings_email_job() -> None:
+    """Horizon 1 (RS-3): emails today's current rankings to every active
+    paid subscriber. Double-gated — off unless BOTH publish_signals and
+    horizon1_subscriptions are enabled, since there's no point (and no
+    subscribers, in practice) if the feature itself is off. A recipient's
+    own email failure is logged and skipped, never allowed to block the
+    rest of the batch (same fail-open posture as every other email in
+    this app)."""
+    if not await get_setting_bool(PUBLISH_SIGNALS_ENABLED_KEY, default=False):
+        return
+    if not await get_setting_bool(HORIZON1_SUBSCRIPTIONS_ENABLED_KEY, default=False):
+        return
+
+    async with service_conn() as conn:
+        latest = await conn.fetchrow(
+            """
+            SELECT target_date FROM published_signals
+            WHERE universe_id = $1 AND lookback_days = $2 AND reason_code IS NULL
+            ORDER BY target_date DESC LIMIT 1
+            """,
+            DEFAULT_UNIVERSE, DEFAULT_LOOKBACK_DAYS,
+        )
+        if latest is None:
+            return
+        target_date = latest["target_date"]
+
+        signal_rows = await conn.fetch(
+            """
+            SELECT rank, ticker, trailing_return_pct FROM published_signals
+            WHERE target_date = $1 AND universe_id = $2 AND lookback_days = $3 AND reason_code IS NULL
+            ORDER BY rank ASC
+            """,
+            target_date, DEFAULT_UNIVERSE, DEFAULT_LOOKBACK_DAYS,
+        )
+        if not signal_rows:
+            return
+        signals = [dict(r) for r in signal_rows]
+
+        subscribers = await conn.fetch(
+            """
+            SELECT DISTINCT u.email
+            FROM subscriptions s
+            JOIN users u ON u.id = s.user_id
+            WHERE s.tier = 'paid' AND s.status = 'active'
+            """
+        )
+
+    sent = 0
+    for row in subscribers:
+        if await run_in_threadpool(send_rankings_email, row["email"], str(target_date), signals):
+            sent += 1
+    if subscribers:
+        logger.info("Scheduler: rankings email sent to %d/%d active paid subscribers", sent, len(subscribers))
+
+
 async def check_publication_alert(checkpoint: str, deadline_desc: str, force: bool = False) -> dict:
     """
     Shared check behind both the NFR-01 (60-min) and NFR-02 (2-hour)
@@ -440,6 +502,17 @@ def start_scheduler() -> AsyncIOScheduler:
         misfire_grace_time=3600,
     )
     _scheduler.add_job(
+        _send_rankings_email_job,
+        CronTrigger(
+            hour=RANKINGS_EMAIL_HOUR_ET, minute=RANKINGS_EMAIL_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="send_rankings_email",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
         _check_publication_nfr01_job,
         CronTrigger(
             hour=NFR01_CHECK_HOUR_ET, minute=NFR01_CHECK_MINUTE_ET,
@@ -490,7 +563,8 @@ def start_scheduler() -> AsyncIOScheduler:
         "evaluate_watchlist_alerts every %d min, scan_portfolio_drops every %d min, "
         "capture_pit_data weekdays %02d:%02d ET, capture_pit_analyst_ratings weekdays %02d:%02d ET, "
         "capture_pit_quant_signals weekdays %02d:%02d ET, publish_daily_signals weekdays %02d:%02d ET, "
-        "evaluate_signal_outcomes weekdays %02d:%02d ET, check_publication_nfr01 weekdays %02d:%02d ET, "
+        "evaluate_signal_outcomes weekdays %02d:%02d ET, send_rankings_email weekdays %02d:%02d ET, "
+        "check_publication_nfr01 weekdays %02d:%02d ET, "
         "check_publication_nfr02 weekdays %02d:%02d ET, db_backup daily %02d:%02d ET, "
         "db_restore_test quarterly (month %s day %d) %02d:%02d ET)",
         VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PORTFOLIO_DROP_INTERVAL_MINUTES,
@@ -498,6 +572,7 @@ def start_scheduler() -> AsyncIOScheduler:
         PIT_ANALYST_RATING_CAPTURE_HOUR_ET, PIT_ANALYST_RATING_CAPTURE_MINUTE_ET,
         PIT_QUANT_SIGNAL_CAPTURE_HOUR_ET, PIT_QUANT_SIGNAL_CAPTURE_MINUTE_ET,
         PUBLISH_HOUR_ET, PUBLISH_MINUTE_ET, EVALUATE_HOUR_ET, EVALUATE_MINUTE_ET,
+        RANKINGS_EMAIL_HOUR_ET, RANKINGS_EMAIL_MINUTE_ET,
         NFR01_CHECK_HOUR_ET, NFR01_CHECK_MINUTE_ET, NFR02_CHECK_HOUR_ET, NFR02_CHECK_MINUTE_ET,
         BACKUP_HOUR_ET, BACKUP_MINUTE_ET, RESTORE_TEST_MONTHS, RESTORE_TEST_DAY,
         RESTORE_TEST_HOUR_ET, RESTORE_TEST_MINUTE_ET,
