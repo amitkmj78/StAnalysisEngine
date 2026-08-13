@@ -636,6 +636,30 @@ export function capturePitPricesNow() {
   }>("/api/v1/pit-prices/capture-now", "POST");
 }
 
+export function enablePitAnalystRatingCapture() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/pit-analyst-rating-capture/enable", "POST");
+}
+
+export function disablePitAnalystRatingCapture() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/pit-analyst-rating-capture/disable", "POST");
+}
+
+export function capturePitAnalystRatingsNow() {
+  return apiSend<{ analyst_rating_inserted: number }>("/api/v1/pit-prices/capture-now-analyst-ratings", "POST");
+}
+
+export function enablePitQuantSignalCapture() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/pit-quant-signal-capture/enable", "POST");
+}
+
+export function disablePitQuantSignalCapture() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/pit-quant-signal-capture/disable", "POST");
+}
+
+export function capturePitQuantSignalsNow() {
+  return apiSend<{ quant_signal_inserted: number }>("/api/v1/pit-prices/capture-now-quant-signals", "POST");
+}
+
 export function getPitReconciliation(targetDate: string, universeId = "All", lookbackDays = 30, topN = 25) {
   return apiFetch<PitReconciliationReport>("/api/v1/pit-prices/reconcile", {
     target_date: targetDate,

@@ -7,7 +7,9 @@ from web.backend.app_settings import (
     DAILY_QUOTA_KEY,
     DB_BACKUP_ENABLED_KEY,
     PASSWORD_POLICY_ENABLED_KEY,
+    PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
+    PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY,
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
     PORTFOLIO_DROP_THRESHOLD_DEFAULT,
     PORTFOLIO_DROP_THRESHOLD_PCT_KEY,
@@ -35,6 +37,12 @@ async def get_settings():
         "publish_signals_enabled": await get_setting_bool(PUBLISH_SIGNALS_ENABLED_KEY, default=False),
         "password_policy_enabled": await get_setting_bool(PASSWORD_POLICY_ENABLED_KEY, default=True),
         "pit_price_capture_enabled": await get_setting_bool(PIT_PRICE_CAPTURE_ENABLED_KEY, default=True),
+        "pit_analyst_rating_capture_enabled": await get_setting_bool(
+            PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY, default=True
+        ),
+        "pit_quant_signal_capture_enabled": await get_setting_bool(
+            PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY, default=True
+        ),
         "portfolio_drop_alerts_enabled": await get_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, default=False),
         "portfolio_drop_threshold_pct": await get_setting_float(
             PORTFOLIO_DROP_THRESHOLD_PCT_KEY, default=PORTFOLIO_DROP_THRESHOLD_DEFAULT
@@ -95,6 +103,30 @@ async def enable_pit_price_capture():
 async def disable_pit_price_capture():
     await set_setting_bool(PIT_PRICE_CAPTURE_ENABLED_KEY, False)
     return {"pit_price_capture_enabled": False}
+
+
+@router.post("/pit-analyst-rating-capture/enable")
+async def enable_pit_analyst_rating_capture():
+    await set_setting_bool(PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY, True)
+    return {"pit_analyst_rating_capture_enabled": True}
+
+
+@router.post("/pit-analyst-rating-capture/disable")
+async def disable_pit_analyst_rating_capture():
+    await set_setting_bool(PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY, False)
+    return {"pit_analyst_rating_capture_enabled": False}
+
+
+@router.post("/pit-quant-signal-capture/enable")
+async def enable_pit_quant_signal_capture():
+    await set_setting_bool(PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY, True)
+    return {"pit_quant_signal_capture_enabled": True}
+
+
+@router.post("/pit-quant-signal-capture/disable")
+async def disable_pit_quant_signal_capture():
+    await set_setting_bool(PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY, False)
+    return {"pit_quant_signal_capture_enabled": False}
 
 
 @router.post("/portfolio-drop-alerts/enable")

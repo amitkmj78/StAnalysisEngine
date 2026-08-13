@@ -604,6 +604,8 @@ export interface AdminSettings {
   publish_signals_enabled: boolean;
   password_policy_enabled: boolean;
   pit_price_capture_enabled: boolean;
+  pit_analyst_rating_capture_enabled: boolean;
+  pit_quant_signal_capture_enabled: boolean;
   portfolio_drop_alerts_enabled: boolean;
   portfolio_drop_threshold_pct: number;
   daily_quota: number;
@@ -665,11 +667,21 @@ export interface PitFundamentalsStats extends PitCaptureStats {
   ticker_count: number;
 }
 
+export interface PitQuantSignalStats extends PitCaptureStats {
+  ticker_count: number;
+}
+
+export interface PitAnalystRatingStats extends PitCaptureStats {
+  ticker_count: number;
+}
+
 export interface PitPriceStatus {
   universe_id: string;
   prices: PitPricesStats;
   universe_membership: PitUniverseMembershipStats;
   fundamentals: PitFundamentalsStats;
+  quant_signal: PitQuantSignalStats;
+  analyst_rating: PitAnalystRatingStats;
 }
 
 export interface PitReconciliationReport {
