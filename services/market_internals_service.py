@@ -176,6 +176,39 @@ def apply_hysteresis(regimes: pd.Series, sessions: int = HYSTERESIS_SESSIONS) ->
     return pd.Series(confirmed, index=regimes.index, name="regime_confirmed")
 
 
+def _newey_west_mean_test(x: np.ndarray, maxlags: int) -> tuple[Optional[float], Optional[float]]:
+    """
+    HAC (Newey-West, Bartlett kernel) corrected t-test for whether the
+    mean of `x` is zero, accounting for serial correlation up to
+    `maxlags` lags.
+
+    Needed because an H-day forward return at horizon H shares H-1 days
+    of overlap with its neighbor's forward-return window — a
+    naive ttest_1samp treats each as an independent draw and badly
+    understates the true standard error of the mean, overstating
+    significance. maxlags = horizon - 1 is the natural, theoretically
+    motivated choice (the exact length of the induced overlap).
+    """
+    n = len(x)
+    if n < 2:
+        return None, None
+    xbar = float(np.mean(x))
+    demeaned = x - xbar
+    gamma0 = float(np.dot(demeaned, demeaned)) / n
+    nw_var = gamma0
+    for k in range(1, min(maxlags, n - 1) + 1):
+        gamma_k = float(np.dot(demeaned[k:], demeaned[:-k])) / n
+        weight = 1.0 - k / (maxlags + 1)
+        nw_var += 2 * weight * gamma_k
+    nw_var = max(nw_var, 0.0)  # guard a negative estimate from a poor kernel fit on a short sample
+    se = np.sqrt(nw_var / n)
+    if se == 0:
+        return None, None
+    t_stat = xbar / se
+    p_value = float(2 * (1 - stats.norm.cdf(abs(t_stat))))
+    return t_stat, p_value
+
+
 def run_forward_return_backtest(
     scores: pd.Series,
     price: pd.Series,
@@ -191,6 +224,13 @@ def run_forward_return_backtest(
     scores and price must share the same index (trading dates). Regime is
     computed from the *unsmoothed* score, matching spec SR-3 ("the raw
     daily value is also persisted... what the backtest consumes").
+
+    Reports BOTH a naive t-test/p-value (`t_stat`, `p_value` — kept for
+    backward compatibility, but overstates significance for h > 1) and an
+    HAC/Newey-West corrected pair (`t_stat_hac`, `p_value_hac`, maxlags =
+    h - 1) that accounts for the overlapping-window autocorrelation
+    inherent to any horizon beyond 1 day. Trust the _hac fields for
+    anything horizon > 1.
     """
     regimes = scores.map(map_regime)
     results: dict[int, dict[str, dict]] = {}
@@ -206,11 +246,13 @@ def run_forward_return_backtest(
                 horizon_results[label] = {
                     "n": 0, "mean_pct": None, "median_pct": None,
                     "hit_rate": None, "t_stat": None, "p_value": None,
+                    "t_stat_hac": None, "p_value_hac": None,
                 }
                 continue
             t_stat, p_value = (
                 stats.ttest_1samp(bucket, 0.0) if len(bucket) > 1 else (None, None)
             )
+            t_stat_hac, p_value_hac = _newey_west_mean_test(bucket.to_numpy(), maxlags=max(h - 1, 0))
             horizon_results[label] = {
                 "n": int(len(bucket)),
                 "mean_pct": round(float(bucket.mean()), 3),
@@ -218,6 +260,8 @@ def run_forward_return_backtest(
                 "hit_rate": round(float((bucket > 0).mean()), 4),
                 "t_stat": round(float(t_stat), 3) if t_stat is not None else None,
                 "p_value": round(float(p_value), 4) if p_value is not None else None,
+                "t_stat_hac": round(t_stat_hac, 3) if t_stat_hac is not None else None,
+                "p_value_hac": round(p_value_hac, 4) if p_value_hac is not None else None,
             }
         results[h] = horizon_results
 

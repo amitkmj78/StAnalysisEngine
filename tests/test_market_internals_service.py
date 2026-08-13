@@ -1,9 +1,11 @@
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 from services.market_internals_service import (
     HYSTERESIS_SESSIONS,
+    _newey_west_mean_test,
     apply_hysteresis,
     compute_composite_score,
     compute_internals_score,
@@ -199,3 +201,62 @@ def test_backtest_handles_empty_regime_bucket_gracefully():
     result = run_forward_return_backtest(scores, price, horizons=(1,))
     assert result[1]["Risk-Off"]["n"] == 0
     assert result[1]["Risk-Off"]["mean_pct"] is None
+
+
+def test_backtest_reports_hac_fields_alongside_naive():
+    n = 300
+    idx = _dates(n)
+    rng = np.random.default_rng(3)
+    scores = pd.Series(rng.uniform(-100, 100, n), index=idx)
+    price = pd.Series(100 * np.exp(np.cumsum(rng.normal(0, 0.01, n))), index=idx)
+
+    result = run_forward_return_backtest(scores, price, horizons=(1, 21))
+    for horizon_result in result.values():
+        for bucket in horizon_result.values():
+            if bucket["n"] > 1:
+                assert bucket["t_stat_hac"] is not None
+                assert bucket["p_value_hac"] is not None
+                assert 0.0 <= bucket["p_value_hac"] <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# _newey_west_mean_test
+# ---------------------------------------------------------------------------
+
+def test_newey_west_matches_naive_scale_with_no_lag_correction():
+    # maxlags=0 reduces to a population-variance t-test — same ballpark as
+    # scipy's sample-variance ttest_1samp for a reasonably large, genuinely
+    # independent sample (they're not bit-identical: NW conventionally
+    # normalizes by n, ttest_1samp by n-1).
+    rng = np.random.default_rng(7)
+    x = rng.normal(0.5, 1.0, 500)
+    t_naive, p_naive = stats.ttest_1samp(x, 0.0)
+    t_hac, p_hac = _newey_west_mean_test(x, maxlags=0)
+    assert t_hac == pytest.approx(t_naive, rel=0.02)
+    assert p_hac == pytest.approx(p_naive, abs=0.02)
+
+
+def test_newey_west_widens_pvalue_under_positive_autocorrelation():
+    # Construct a strongly autocorrelated series (AR(1), rho=0.9) with a
+    # small but nonzero true mean — the exact situation an H-day
+    # overlapping forward-return series creates. The naive test, blind to
+    # the autocorrelation, must be more "confident" (smaller p) than the
+    # HAC-corrected one, which is the whole point of the fix.
+    rng = np.random.default_rng(11)
+    n = 500
+    noise = rng.normal(0, 1.0, n)
+    x = np.zeros(n)
+    x[0] = noise[0]
+    for i in range(1, n):
+        x[i] = 0.9 * x[i - 1] + noise[i]
+    x = x + 0.05  # small true mean shift
+
+    t_naive, p_naive = stats.ttest_1samp(x, 0.0)
+    t_hac, p_hac = _newey_west_mean_test(x, maxlags=20)
+    assert abs(t_hac) < abs(t_naive)
+    assert p_hac > p_naive
+
+
+def test_newey_west_returns_none_for_degenerate_input():
+    assert _newey_west_mean_test(np.array([1.0]), maxlags=5) == (None, None)
+    assert _newey_west_mean_test(np.array([]), maxlags=5) == (None, None)

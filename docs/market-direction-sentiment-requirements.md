@@ -2,7 +2,7 @@
 
 **Feature:** Market Direction Dashboard (`/market`)
 **Product:** Stock/Fund Prediction Platform
-**Version:** Draft v0.1 — **Phase 1 (Internals) attempted and gated, see §9a**
+**Version:** Draft v0.1 — **Phase 1 (Internals) attempted twice and gated both times, see §9a and §9b**
 **Purpose:** Establish a top-down market regime ("which way is the tape leaning?") from news, earnings, and price internals, so that ticker-level buy/sell decisions are taken *with* the market rather than against it.
 
 ---
@@ -210,6 +210,33 @@ At every horizon, forward SPY returns were **higher after more "Cautious"/"Risk-
 **Decision:** per this spec's own gate (§9 intro: *"the feature does not ship until it is proven on this point"*), Phase 1 is **not** wired into any page, endpoint, or scheduled job. The scoring/backtest code is retained (`services/market_internals_service.py`, `services/market_data_service.py`, tested) as a validated-negative research artifact, not deleted, since reworking the signal (or the labels/postures) is a plausible follow-up.
 
 **Not yet investigated** (would need to happen before any retry): whether a differently-signed version validates (e.g. treating a stress reading as a contrarian opportunity signal rather than a defensive one — which would mean rewriting §5.3's postures, not just the math); whether the contrarian pattern is specific to this 2022–2026 sample (dominated by sharp-drawdown-then-V-shaped-recovery episodes per V-7's own caution about limited regime coverage) or holds over a longer/different window; and V-5's weight-sensitivity check, which was never run since V-2 already failed.
+
+---
+
+## 9b. Phase 1 Rework Attempt — Result: Still Gated, Not Shipped
+
+Per §9a's three "not yet investigated" leads, this attempt (1) tested a sign-flipped version of the score (treating internals stress as an opportunity signal rather than a danger signal), (2) extended the sample from 5 to 10 years (2017–2026, adding the 2018 Q4 selloff and the COVID crash to the regime mix, tested as independent first/second halves), and (3) ran V-5 weight-sensitivity on both orientations. It also fixed a real methodology gap surfaced in the process: `run_forward_return_backtest`'s significance test (`stats.ttest_1samp`) treated each day's H-day forward return as an independent draw, when consecutive days' forward-return windows overlap by H−1 days — this inflates apparent significance for any horizon beyond 1 day. `run_forward_return_backtest` now also reports `t_stat_hac`/`p_value_hac`, a Newey-West (Bartlett kernel, maxlags = horizon − 1) corrected pair, alongside the original naive fields (`services/market_internals_service.py`, `_newey_west_mean_test`, tested in `tests/test_market_internals_service.py`).
+
+**Lead 1 result — the sign flip is not a new signal.** Because `REGIME_BANDS` is symmetric around zero, flipping the score's sign before mapping to a regime exactly swaps which days get which label — e.g. original's Risk-Off bucket (n=81, mean +2.17%) becomes flipped's Risk-On bucket, same 81 days, same number. It is a relabeling of §9a's finding, not independent evidence. Framed honestly, testing it means asking "should the bands be renamed and §5.3's postures rewritten (stress = opportunity, not danger)," not "does flipping fix the math."
+
+**Lead 2 result — the pattern is directionally consistent across independent sub-periods, once relabeled.** Testing 2017–2021 and 2021–2026 as independent halves, the same direction holds in both (extreme-stress days precede above-average forward returns in each half on its own) — it is not solely an artifact of the 2022–2026 V-shaped-recovery sample flagged as a limitation in §9a.
+
+**Lead 3 (V-5) result — direction is stable under weight perturbation** (up-weighting or dropping any single sub-signal by 0.5 kept the flipped orientation's monotonicity at 2–3/4 adjacent steps across every variant tested) — not fragile to reasonable reweighting.
+
+**But the HAC-corrected significance test — the actual point of this rework — fails the bucket that matters:**
+
+| Window | Risk-Off/extreme bucket n | p-value (naive) | p-value (HAC-corrected) |
+|---|---|---|---|
+| Full 10y (2017–2026) | 81 | 0.0531 | **0.3525** |
+| First half (2017–2021) | 41 | 0.2682 | **0.6165** |
+| Second half (2021–2026) | 18 | 0.1369 | **0.0584** |
+| Last 5y (§9a's original sample) | 18 | 0.1369 | **0.0584** |
+
+The extreme bucket — the one that would actually be interesting or actionable under either orientation — is not statistically distinguishable from zero in the full sample or in either independent half, once the overlapping-window autocorrelation the naive test ignored is properly corrected for. What looked like borderline-significant (p≈0.05) evidence in the naive test was substantially the naive test overstating confidence on a small, autocorrelated sample. The well-populated middle buckets (Neutral, and Cautious in most windows) remain HAC-significant, but that's just "the market has a positive expected return most of the time" — not something to build a regime-timing product around.
+
+**Decision:** still gated, still not shipped — now on firmer methodological ground rather than a single naive-test result. Phase 1 has now failed its own release gate twice: once as originally specified (contrarian, §9a), and once in its most plausible reworked form (relabeled-contrarian/opportunity framing, properly significance-tested, §9b). The Newey-West correction is kept permanently in `run_forward_return_backtest` regardless of this outcome — it's a real methodology fix that would matter for any future attempt at this or a similar backtest, not specific to this result.
+
+**What would change this:** a sample that includes a genuine multi-year structural bear market (this 2017–2026 window, like the original 5y one, doesn't have one — V-7's caution about limited regime coverage still applies), or a fundamentally different set of internals inputs rather than a relabeling of the same five. Absent either, further Phase 1 iteration on this exact input set is not a good use of time.
 
 ---
 
