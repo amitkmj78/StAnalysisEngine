@@ -23,3 +23,4 @@ langchain-community
 tavily-python
 streamlit
 apscheduler
+stripe
