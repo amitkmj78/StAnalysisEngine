@@ -564,6 +564,20 @@ export function deleteUser(userId: string) {
   return apiSend<{ ok: boolean }>(`/api/v1/admin/users/${userId}`, "DELETE");
 }
 
+export function deactivateUser(userId: string) {
+  return apiSend<{ id: string; email: string; is_active: boolean }>(
+    `/api/v1/admin/users/${userId}/deactivate`,
+    "POST",
+  );
+}
+
+export function reactivateUser(userId: string) {
+  return apiSend<{ id: string; email: string; is_active: boolean }>(
+    `/api/v1/admin/users/${userId}/reactivate`,
+    "POST",
+  );
+}
+
 export function sendWelcomeEmail(userId: string) {
   return apiSend<{ ok: boolean; email: string }>(`/api/v1/admin/users/${userId}/send-welcome-email`, "POST");
 }

@@ -16,13 +16,14 @@ router = APIRouter(
 async def list_users():
     async with service_conn() as conn:
         rows = await conn.fetch(
-            "SELECT id, email, approved, created_at FROM users ORDER BY created_at DESC"
+            "SELECT id, email, approved, is_active, created_at FROM users ORDER BY created_at DESC"
         )
     return [
         {
             "id": str(r["id"]),
             "email": r["email"],
             "approved": r["approved"],
+            "is_active": r["is_active"],
             "created_at": r["created_at"].isoformat(),
         }
         for r in rows
@@ -84,6 +85,38 @@ async def reject_user(user_id: str):
     if row is None:
         raise HTTPException(404, "No pending user with that id.")
     return {"ok": True}
+
+
+@router.post("/{user_id}/deactivate")
+async def deactivate_user(user_id: str):
+    # Reversible suspension, distinct from delete: blocks future logins
+    # (checked in POST /login) but keeps the account and all its
+    # trades/portfolio/saved_predictions intact. An already-open session
+    # keeps working until it next logs in — see the is_active comment on
+    # the users table migration for why.
+    async with service_conn() as conn:
+        row = await conn.fetchrow("SELECT email FROM users WHERE id = $1", user_id)
+        if row is None:
+            raise HTTPException(404, "User not found.")
+        if row["email"].lower() == ADMIN_EMAIL.lower():
+            raise HTTPException(400, "Cannot deactivate the admin account.")
+        row = await conn.fetchrow(
+            "UPDATE users SET is_active = false WHERE id = $1 RETURNING id, email, is_active",
+            user_id,
+        )
+    return {"id": str(row["id"]), "email": row["email"], "is_active": row["is_active"]}
+
+
+@router.post("/{user_id}/reactivate")
+async def reactivate_user(user_id: str):
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            "UPDATE users SET is_active = true WHERE id = $1 RETURNING id, email, is_active",
+            user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "User not found.")
+    return {"id": str(row["id"]), "email": row["email"], "is_active": row["is_active"]}
 
 
 @router.delete("/{user_id}")

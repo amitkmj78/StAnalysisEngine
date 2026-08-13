@@ -122,7 +122,7 @@ async def signup(body: SignupRequest, response: Response):
 async def login(body: LoginRequest, response: Response):
     async with service_conn() as conn:
         row = await conn.fetchrow(
-            "SELECT id, email, password_hash, approved FROM users WHERE email = $1",
+            "SELECT id, email, password_hash, approved, is_active FROM users WHERE email = $1",
             body.email.lower(),
         )
 
@@ -131,6 +131,9 @@ async def login(body: LoginRequest, response: Response):
 
     if not row["approved"]:
         raise HTTPException(403, "Your account is pending admin approval. You'll be able to sign in once it's approved.")
+
+    if not row["is_active"]:
+        raise HTTPException(403, "This account has been deactivated. Contact an admin if you believe this is a mistake.")
 
     token = _issue_token(str(row["id"]), row["email"])
     _set_session_cookie(response, token)

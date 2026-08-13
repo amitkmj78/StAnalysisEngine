@@ -574,6 +574,7 @@ export interface AdminUser {
   id: string;
   email: string;
   approved: boolean;
+  is_active: boolean;
   created_at: string;
 }
 

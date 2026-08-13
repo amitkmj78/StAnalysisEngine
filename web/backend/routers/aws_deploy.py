@@ -422,6 +422,12 @@ create table if not exists users (
   approved boolean not null default false,
   created_at timestamptz not null default now()
 );
+-- Deactivation is a reversible, admin-triggered suspension distinct from
+-- delete: it blocks future logins (checked in /login) but keeps the
+-- account and all its data/relationships intact. Existing sessions are
+-- unaffected until they next log in — see verify_bearer_token, which
+-- (like `approved`) never re-checks the DB per-request.
+alter table users add column if not exists is_active boolean not null default true;
 
 -- Forgot-password: only a sha256 hash of the token is ever stored, never
 -- the token itself, so a DB read can't be used to reset an account's
