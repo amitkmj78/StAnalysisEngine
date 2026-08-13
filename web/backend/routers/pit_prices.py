@@ -2,13 +2,17 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 
+from services.pit_analyst_rating_service import DEFAULT_UNIVERSE as ANALYST_RATING_DEFAULT_UNIVERSE
 from services.pit_fundamentals_service import DEFAULT_UNIVERSE as FUNDAMENTALS_DEFAULT_UNIVERSE
 from services.pit_price_service import DEFAULT_UNIVERSE
+from services.pit_quant_signal_service import DEFAULT_UNIVERSE as QUANT_SIGNAL_DEFAULT_UNIVERSE
 from web.backend.admin import require_admin
 from web.backend.db import service_conn
 from web.backend.pit_prices import (
+    capture_and_persist_analyst_ratings,
     capture_and_persist_fundamentals,
     capture_and_persist_pit_prices,
+    capture_and_persist_quant_signals,
     capture_and_persist_universe_membership,
 )
 from web.backend.pit_signals import reconcile_published_vs_pit
@@ -63,11 +67,35 @@ async def pit_prices_status(universe_id: str = Query(DEFAULT_UNIVERSE)):
             FROM pit_fundamentals
             """
         )
+        quant_signal_row = await conn.fetchrow(
+            """
+            SELECT count(*) AS row_count,
+                   count(DISTINCT ticker) AS ticker_count,
+                   count(DISTINCT as_of_date) AS days_captured,
+                   min(as_of_date) AS earliest_date,
+                   max(as_of_date) AS latest_date,
+                   max(captured_at_utc) AS last_captured_at_utc
+            FROM pit_quant_signal
+            """
+        )
+        analyst_rating_row = await conn.fetchrow(
+            """
+            SELECT count(*) AS row_count,
+                   count(DISTINCT ticker) AS ticker_count,
+                   count(DISTINCT as_of_date) AS days_captured,
+                   min(as_of_date) AS earliest_date,
+                   max(as_of_date) AS latest_date,
+                   max(captured_at_utc) AS last_captured_at_utc
+            FROM pit_analyst_rating
+            """
+        )
     return {
         "universe_id": universe_id,
         "prices": dict(prices_row),
         "universe_membership": dict(membership_row),
         "fundamentals": dict(fundamentals_row),
+        "quant_signal": dict(quant_signal_row),
+        "analyst_rating": dict(analyst_rating_row),
     }
 
 
@@ -88,6 +116,26 @@ async def capture_now(universe_id: str = Query(DEFAULT_UNIVERSE)):
         "universe_membership_inserted": membership_inserted,
         "fundamentals_inserted": fundamentals_inserted,
     }
+
+
+@router.post("/capture-now-analyst-ratings")
+async def capture_now_analyst_ratings(universe_id: str = Query(ANALYST_RATING_DEFAULT_UNIVERSE)):
+    """Manual trigger for the analyst-rating capture only — kept separate
+    from /capture-now since it's gated by its own enable flag and has a
+    different cost profile than the price/membership/fundamentals trio."""
+    inserted = await capture_and_persist_analyst_ratings(universe_id=universe_id)
+    return {"analyst_rating_inserted": inserted}
+
+
+@router.post("/capture-now-quant-signals")
+async def capture_now_quant_signals(universe_id: str = Query(QUANT_SIGNAL_DEFAULT_UNIVERSE)):
+    """Manual trigger for the quant-signal capture only — kept separate
+    and deliberately not bundled into /capture-now: this one trains a
+    model per ticker (~500 tickers for "All"), real CPU load, so an admin
+    should have to ask for it explicitly rather than get it as a side
+    effect of a routine catch-up capture."""
+    inserted = await capture_and_persist_quant_signals(universe_id=universe_id)
+    return {"quant_signal_inserted": inserted}
 
 
 @router.get("/reconcile")

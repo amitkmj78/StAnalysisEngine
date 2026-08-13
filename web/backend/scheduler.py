@@ -11,7 +11,9 @@ from services.prediction_verification_service import verify_prediction
 from web.backend.admin import ADMIN_EMAIL
 from web.backend.app_settings import (
     DB_BACKUP_ENABLED_KEY,
+    PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
+    PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY,
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
     PORTFOLIO_DROP_THRESHOLD_DEFAULT,
     PORTFOLIO_DROP_THRESHOLD_PCT_KEY,
@@ -23,8 +25,10 @@ from web.backend.app_settings import (
 from web.backend.db import service_conn
 from web.backend.db_backup import run_backup, run_restore_test
 from web.backend.pit_prices import (
+    capture_and_persist_analyst_ratings,
     capture_and_persist_fundamentals,
     capture_and_persist_pit_prices,
+    capture_and_persist_quant_signals,
     capture_and_persist_universe_membership,
 )
 from web.backend.portfolio_alerts import scan_portfolios_for_drops
@@ -48,6 +52,17 @@ PORTFOLIO_DROP_INTERVAL_MINUTES = 15
 # capture already on record before 16:10 ET runs.
 PIT_CAPTURE_HOUR_ET = 16
 PIT_CAPTURE_MINUTE_ET = 5
+# Same time as the price/fundamentals capture above — analyst-rating
+# capture is the same cost profile (one network call/ticker), no reason
+# to stagger it separately.
+PIT_ANALYST_RATING_CAPTURE_HOUR_ET = 16
+PIT_ANALYST_RATING_CAPTURE_MINUTE_ET = 7
+# Deliberately later in the evening, not alongside the 16:05/16:07 jobs
+# above — this one trains a model per ticker (~500 tickers), real CPU
+# load, kept separate so it doesn't stack with the network-bound captures
+# right at market close when other scheduled/user activity also peaks.
+PIT_QUANT_SIGNAL_CAPTURE_HOUR_ET = 18
+PIT_QUANT_SIGNAL_CAPTURE_MINUTE_ET = 0
 # TR-1 / NFR-01: publish within 60 minutes of the US market close (4:00pm ET).
 PUBLISH_HOUR_ET = 16
 PUBLISH_MINUTE_ET = 10
@@ -182,6 +197,37 @@ async def _capture_pit_data_job() -> None:
             "Scheduler: PIT capture — %d membership rows, %d price rows, %d fundamentals rows",
             membership_inserted, price_inserted, fundamentals_inserted,
         )
+
+
+async def _capture_pit_analyst_ratings_job() -> None:
+    """Appends today's real, third-party analyst consensus (same data as
+    the Stock Screener's "Analyst Rating" column) to pit_analyst_rating
+    for every ticker in the universe that currently has coverage. Own
+    flag, independent of pit_price_capture_enabled — see
+    PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY's docstring in app_settings.py."""
+    if not await get_setting_bool(PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY, default=True):
+        logger.info("Scheduler: pit_analyst_rating_capture is disabled, skipping this run")
+        return
+
+    inserted = await capture_and_persist_analyst_ratings()
+    if inserted:
+        logger.info("Scheduler: PIT analyst rating capture — %d rows", inserted)
+
+
+async def _capture_pit_quant_signals_job() -> None:
+    """Appends today's Quant Signal (same BUY/HOLD/SELL data as /predict
+    and the Stock Screener's "Quant Signal" column) to pit_quant_signal
+    for every ticker in the universe. CPU-heavy (trains a model per
+    ticker) — scheduled later in the evening, separate from the cheaper
+    network-bound captures above, and independently pausable via
+    PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY."""
+    if not await get_setting_bool(PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY, default=True):
+        logger.info("Scheduler: pit_quant_signal_capture is disabled, skipping this run")
+        return
+
+    inserted = await capture_and_persist_quant_signals()
+    if inserted:
+        logger.info("Scheduler: PIT quant signal capture — %d rows", inserted)
 
 
 async def _publish_daily_signals_job() -> None:
@@ -350,6 +396,28 @@ def start_scheduler() -> AsyncIOScheduler:
         misfire_grace_time=3600,
     )
     _scheduler.add_job(
+        _capture_pit_analyst_ratings_job,
+        CronTrigger(
+            hour=PIT_ANALYST_RATING_CAPTURE_HOUR_ET, minute=PIT_ANALYST_RATING_CAPTURE_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="capture_pit_analyst_ratings",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _capture_pit_quant_signals_job,
+        CronTrigger(
+            hour=PIT_QUANT_SIGNAL_CAPTURE_HOUR_ET, minute=PIT_QUANT_SIGNAL_CAPTURE_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="capture_pit_quant_signals",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
         _publish_daily_signals_job,
         CronTrigger(
             hour=PUBLISH_HOUR_ET, minute=PUBLISH_MINUTE_ET,
@@ -420,12 +488,15 @@ def start_scheduler() -> AsyncIOScheduler:
     logger.info(
         "Background scheduler started (verify_saved_predictions every %d min, "
         "evaluate_watchlist_alerts every %d min, scan_portfolio_drops every %d min, "
-        "capture_pit_data weekdays %02d:%02d ET, publish_daily_signals weekdays %02d:%02d ET, "
+        "capture_pit_data weekdays %02d:%02d ET, capture_pit_analyst_ratings weekdays %02d:%02d ET, "
+        "capture_pit_quant_signals weekdays %02d:%02d ET, publish_daily_signals weekdays %02d:%02d ET, "
         "evaluate_signal_outcomes weekdays %02d:%02d ET, check_publication_nfr01 weekdays %02d:%02d ET, "
         "check_publication_nfr02 weekdays %02d:%02d ET, db_backup daily %02d:%02d ET, "
         "db_restore_test quarterly (month %s day %d) %02d:%02d ET)",
         VERIFY_INTERVAL_MINUTES, ALERT_INTERVAL_MINUTES, PORTFOLIO_DROP_INTERVAL_MINUTES,
         PIT_CAPTURE_HOUR_ET, PIT_CAPTURE_MINUTE_ET,
+        PIT_ANALYST_RATING_CAPTURE_HOUR_ET, PIT_ANALYST_RATING_CAPTURE_MINUTE_ET,
+        PIT_QUANT_SIGNAL_CAPTURE_HOUR_ET, PIT_QUANT_SIGNAL_CAPTURE_MINUTE_ET,
         PUBLISH_HOUR_ET, PUBLISH_MINUTE_ET, EVALUATE_HOUR_ET, EVALUATE_MINUTE_ET,
         NFR01_CHECK_HOUR_ET, NFR01_CHECK_MINUTE_ET, NFR02_CHECK_HOUR_ET, NFR02_CHECK_MINUTE_ET,
         BACKUP_HOUR_ET, BACKUP_MINUTE_ET, RESTORE_TEST_MONTHS, RESTORE_TEST_DAY,

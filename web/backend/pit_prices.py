@@ -3,9 +3,13 @@ from datetime import date
 
 from starlette.concurrency import run_in_threadpool
 
+from services.pit_analyst_rating_service import DEFAULT_UNIVERSE as ANALYST_RATING_DEFAULT_UNIVERSE
+from services.pit_analyst_rating_service import capture_universe_analyst_ratings
 from services.pit_fundamentals_service import DEFAULT_UNIVERSE as FUNDAMENTALS_DEFAULT_UNIVERSE
 from services.pit_fundamentals_service import capture_universe_fundamentals
 from services.pit_price_service import DEFAULT_UNIVERSE, capture_universe_closes
+from services.pit_quant_signal_service import DEFAULT_UNIVERSE as QUANT_SIGNAL_DEFAULT_UNIVERSE
+from services.pit_quant_signal_service import capture_universe_quant_signals
 from services.pit_universe_service import capture_universe_membership
 from web.backend.db import service_conn
 
@@ -111,6 +115,80 @@ async def capture_and_persist_fundamentals(universe_id: str = FUNDAMENTALS_DEFAU
 
     logger.info(
         "PIT fundamentals capture for %s: %d/%d tickers newly inserted (rest already on record for today)",
+        universe_id, inserted, len(rows),
+    )
+    return inserted
+
+
+async def capture_and_persist_quant_signals(universe_id: str = QUANT_SIGNAL_DEFAULT_UNIVERSE) -> int:
+    """
+    Fetches today's Quant Signal (BUY/HOLD/SELL, same as /predict and the
+    Stock Screener) for each ticker in the universe and inserts it into
+    the append-only pit_quant_signal store. Same ON CONFLICT DO NOTHING
+    immutability guarantee as pit_prices. CPU-heavy (trains a model per
+    ticker) — meant to run off-hours, see scheduler.py. Returns the
+    number of rows actually inserted.
+    """
+    rows = await run_in_threadpool(capture_universe_quant_signals, universe_id)
+    if not rows:
+        return 0
+
+    as_of_date = date.today()
+    inserted = 0
+    async with service_conn() as conn:
+        for row in rows:
+            result = await conn.execute(
+                """
+                INSERT INTO pit_quant_signal (
+                    ticker, as_of_date, signal, expected_return_pct, target_price, last_close, source
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (ticker, as_of_date) DO NOTHING
+                """,
+                row["ticker"], as_of_date, row["signal"], row["expected_return_pct"],
+                row["target_price"], row["last_close"], row["source"],
+            )
+            if result == "INSERT 0 1":
+                inserted += 1
+
+    logger.info(
+        "PIT quant signal capture for %s: %d/%d tickers newly inserted (rest already on record for today)",
+        universe_id, inserted, len(rows),
+    )
+    return inserted
+
+
+async def capture_and_persist_analyst_ratings(universe_id: str = ANALYST_RATING_DEFAULT_UNIVERSE) -> int:
+    """
+    Fetches today's real, third-party analyst consensus (same as the
+    Stock Screener's "Analyst Rating" column) for each ticker with
+    coverage in the universe and inserts it into the append-only
+    pit_analyst_rating store. Same ON CONFLICT DO NOTHING immutability
+    guarantee as pit_prices. Returns the number of rows actually inserted.
+    """
+    rows = await run_in_threadpool(capture_universe_analyst_ratings, universe_id)
+    if not rows:
+        return 0
+
+    as_of_date = date.today()
+    inserted = 0
+    async with service_conn() as conn:
+        for row in rows:
+            result = await conn.execute(
+                """
+                INSERT INTO pit_analyst_rating (
+                    ticker, as_of_date, consensus, analyst_count, buy_pct,
+                    target_mean, target_high, target_low, current_price, source
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ON CONFLICT (ticker, as_of_date) DO NOTHING
+                """,
+                row["ticker"], as_of_date, row["consensus"], row["analyst_count"], row["buy_pct"],
+                row["target_mean"], row["target_high"], row["target_low"], row["current_price"], row["source"],
+            )
+            if result == "INSERT 0 1":
+                inserted += 1
+
+    logger.info(
+        "PIT analyst rating capture for %s: %d/%d tickers newly inserted (rest already on record for today)",
         universe_id, inserted, len(rows),
     )
     return inserted

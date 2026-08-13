@@ -723,6 +723,10 @@ insert into app_settings (key, value) values ('password_policy_enabled', 'true')
   on conflict (key) do nothing;
 insert into app_settings (key, value) values ('pit_price_capture_enabled', 'true')
   on conflict (key) do nothing;
+insert into app_settings (key, value) values ('pit_analyst_rating_capture_enabled', 'true')
+  on conflict (key) do nothing;
+insert into app_settings (key, value) values ('pit_quant_signal_capture_enabled', 'true')
+  on conflict (key) do nothing;
 insert into app_settings (key, value) values ('portfolio_drop_alerts_enabled', 'false')
   on conflict (key) do nothing;
 insert into app_settings (key, value) values ('portfolio_drop_threshold_pct', '1.0')
@@ -874,6 +878,47 @@ create table if not exists pit_fundamentals (
 );
 create index if not exists pit_fundamentals_ticker_date_idx on pit_fundamentals(ticker, as_of_date desc);
 
+-- Point-in-time capture of the same Quant Signal shown on /predict and
+-- the Stock Screener — one row per ticker per day, so day-over-day
+-- comparison ("did the model's call on this ticker change?") is possible
+-- without a live single-ticker call. Not part of the TR-3 backtest chain
+-- (services/pit_signal_service.py's PIT ranking is separate and already
+-- exists) — this is a plain historical log, not a scoring input.
+create table if not exists pit_quant_signal (
+  id bigint generated always as identity primary key,
+  ticker text not null,
+  as_of_date date not null,
+  signal text not null,
+  expected_return_pct real not null,
+  target_price real not null,
+  last_close real not null,
+  captured_at_utc timestamptz not null default now(),
+  source text not null default 'internal-model',
+  unique (ticker, as_of_date)
+);
+create index if not exists pit_quant_signal_ticker_date_idx on pit_quant_signal(ticker, as_of_date desc);
+
+-- Point-in-time capture of the same real, third-party analyst consensus
+-- shown on the Stock Screener's "Analyst Rating" column — one row per
+-- ticker per day (only for tickers with coverage that day), enabling
+-- the same day-over-day comparison as pit_quant_signal above.
+create table if not exists pit_analyst_rating (
+  id bigint generated always as identity primary key,
+  ticker text not null,
+  as_of_date date not null,
+  consensus text not null,
+  analyst_count integer,
+  buy_pct real,
+  target_mean real,
+  target_high real,
+  target_low real,
+  current_price real,
+  captured_at_utc timestamptz not null default now(),
+  source text not null default 'yfinance',
+  unique (ticker, as_of_date)
+);
+create index if not exists pit_analyst_rating_ticker_date_idx on pit_analyst_rating(ticker, as_of_date desc);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -918,6 +963,10 @@ grant select on pit_universe_membership to app_user;
 grant select, insert on pit_universe_membership to app_service;
 grant select on pit_fundamentals to app_user;
 grant select, insert on pit_fundamentals to app_service;
+grant select on pit_quant_signal to app_user;
+grant select, insert on pit_quant_signal to app_service;
+grant select on pit_analyst_rating to app_user;
+grant select, insert on pit_analyst_rating to app_service;
 grant select, insert on portfolio_drop_alerts to app_service;
 grant usage, select on all sequences in schema public to app_service;
 """

@@ -2,6 +2,7 @@ import logging
 
 import yfinance as yf
 
+from .rate_limit_utils import fetch_with_backoff
 from .stock_finder_service import _safe_percent, _universe_tickers
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ def capture_universe_fundamentals(universe_id: str = DEFAULT_UNIVERSE) -> list[d
     rows = []
     for ticker in tickers:
         try:
-            info = yf.Ticker(ticker).info or {}
+            info = fetch_with_backoff(lambda t=ticker: yf.Ticker(t).info) or {}
         except Exception as e:
             logger.warning("PIT fundamentals capture: failed for %s: %s", ticker, e)
             continue

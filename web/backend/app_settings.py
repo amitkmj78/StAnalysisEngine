@@ -17,6 +17,17 @@ PASSWORD_POLICY_ENABLED_KEY = "password_policy_enabled"
 # already live in production — renaming would need a settings migration for
 # no functional gain.
 PIT_PRICE_CAPTURE_ENABLED_KEY = "pit_price_capture_enabled"
+# Same rationale as PIT_PRICE_CAPTURE_ENABLED_KEY (internal data capture,
+# no legal gate) — defaults ON. Separate flag since analyst-rating capture
+# is cheap (one network call/ticker) and safe to leave running even if the
+# quant-signal capture below needs pausing.
+PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY = "pit_analyst_rating_capture_enabled"
+# Separate from the flag above because this one is expensive — trains a
+# model per ticker, ~500 tickers, real CPU load on the same box serving
+# live traffic. An admin may want to pause just this one (e.g. during a
+# traffic spike) without also pausing the cheap price/fundamentals/
+# analyst-rating captures. Defaults ON per explicit request to run daily.
+PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY = "pit_quant_signal_capture_enabled"
 # Defaults OFF: unlike the other flags above, this triggers real external
 # cost per drop detected (a Tavily sentiment search plus an LLM call) and
 # writes user-visible content — an admin should opt in deliberately rather
