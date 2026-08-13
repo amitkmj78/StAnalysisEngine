@@ -973,7 +973,10 @@ grant select on pit_quant_signal to app_user;
 grant select, insert on pit_quant_signal to app_service;
 grant select on pit_analyst_rating to app_user;
 grant select, insert on pit_analyst_rating to app_service;
-grant select, insert on portfolio_drop_alerts to app_service;
+-- update needed: scan_portfolios_for_drops refreshes an already-alerted
+-- row in place (see web/backend/portfolio_alerts.py) rather than only
+-- ever inserting new ones.
+grant select, insert, update on portfolio_drop_alerts to app_service;
 
 -- Horizon 1 (docs/signal-licensing-whitelabel-requirements.md.pdf, RS-*):
 -- built and migrated so the code is ready, but gated off by
