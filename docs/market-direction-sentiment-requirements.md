@@ -2,7 +2,7 @@
 
 **Feature:** Market Direction Dashboard (`/market`)
 **Product:** Stock/Fund Prediction Platform
-**Version:** Draft v0.1 — **Phase 1 (Internals) attempted twice and gated both times, see §9a and §9b**
+**Version:** Draft v0.1 — **Phase 1 (Internals) attempted three times and gated every time, see §9a, §9b, §9c**
 **Purpose:** Establish a top-down market regime ("which way is the tape leaning?") from news, earnings, and price internals, so that ticker-level buy/sell decisions are taken *with* the market rather than against it.
 
 ---
@@ -240,7 +240,42 @@ The extreme bucket — the one that would actually be interesting or actionable 
 
 ---
 
-## 10. Data Model (indicative)
+## 9c. Two Follow-Up Attempts — Result: Decisively Not Shipped
+
+Two further ideas were tested: (1) extending the window to the true maximum achievable with the current five inputs — bounded by HYG's 2007-04-11 inception, giving ~19 years instead of 10 and including the 2008 GFC — and (2) feeding the internals z-scored sub-signals into the existing per-ticker GBM (`services/prediction_service.py`) as additional features, rather than a hand-built top-down score, on the same 6-ticker basket (AAPL/MSFT/TSLA/SPY/AMD/JNJ) used to originally justify `RETURN_SHRINKAGE`.
+
+**Extended window (2007-04-11 .. 2026-08-13, n=4,849) — the extreme bucket got *less* interesting, not more:**
+
+| Regime | n | mean 21d | p (HAC) |
+|---|---|---|---|
+| Constructive | 997 | +0.688% | 0.0401 |
+| Neutral | 2,700 | +0.960% | 0.0003 |
+| Cautious | 704 | +1.957% | 0.0008 |
+| Risk-Off (extreme stress) | 178 | +0.938% | 0.5591 |
+
+Over the full 19-year window, the extreme-stress bucket's mean return (+0.938%) is unremarkable — statistically indistinguishable from zero and no higher than Neutral. The "stress predicts a bounce" pattern visible in the 2017–2026 slice does not hold over the longer history.
+
+**Isolating the 2008 GFC specifically (2007-06 .. 2009-06, n=525) — the one genuinely robust finding in this entire investigation, and it's the opposite of a bounce:**
+
+| Regime | n | mean 21d | p (HAC) |
+|---|---|---|---|
+| Constructive | 90 | −0.807% | 0.7211 |
+| Neutral | 118 | −2.736% | 0.2221 |
+| Cautious | 59 | −0.771% | 0.8605 |
+| Risk-Off (extreme stress) | 24 | **−7.91%** | **0.0000** |
+
+During the actual structural bear market, extreme internals stress predicted a further **−7.91%** over the next 21 days — highly significant even after HAC correction, the only bucket in either version of this investigation (§9a, §9b, or here) to survive that correction. This is the decisive answer to §9b's "what would change this": a real crisis is exactly the regime this five-input model cannot distinguish from an ordinary oversold pullback, and in that regime the "buy the fear" framing tested in §9b would have actively compounded losses rather than caught a bottom. Neither the original ("Risk-Off → defensive") nor the reworked ("Risk-Off → opportunity") framing is safe to ship on this evidence — the true relationship is regime-dependent in a way none of the five current inputs can detect on their own.
+
+**Internals as GBM features (walk-forward, `days_back=60`, 5y history) — made the per-ticker model worse, not better:**
+
+| Variant | Beat-naive rate | Avg RMSE vs. naive |
+|---|---|---|
+| Baseline (existing 8 features) | 33.3% (2/6 tickers) | +0.18% |
+| + 5 internals z-score features | 16.7% (1/6 tickers) | +0.64% |
+
+Simply appending the five internals z-scores as extra columns degraded both the beat-naive rate and average RMSE. (Caveat: the `with_internals` variant had fewer usable walk-forward days — 42 vs. 60 — since internals data only started 2022-05-27 within the 5y fetch window; the two variants aren't tested on byte-identical date ranges. The direction of the result is unlikely to flip from fixing that, but it's a known imperfection in this specific comparison, not swept under the rug.)
+
+**Decision:** both follow-ups make the case for shipping *weaker*, not stronger. The longer window doesn't validate the contrarian framing — it actively contradicts it during the one real crisis available to test against. Feeding the same five inputs into the per-ticker model as raw features doesn't help either. Per §9b's own framing, what's left as a plausible path (untested, not started) is either pooling training data across tickers so a shared model has enough rows to learn genuine macro-interactions rather than 6 isolated small samples, or sourcing fundamentally different inputs (options-derived signals, credit spreads beyond HYG/IEF, positioning data) — not further iteration on this exact five-input set in any of the three framings tried so far (top-down composite, sign-flipped, or as ML features).
 
 ```
 market_sentiment_daily
