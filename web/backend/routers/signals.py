@@ -12,6 +12,7 @@ from services.signal_publication_service import (
     compute_outcome_metrics,
     compute_predict_algo_comparison,
 )
+from services.quant_signal_narrative_service import build_quant_signal_narrative
 from services.subscription_access_service import compute_free_tier_target_date, is_active_paid_subscriber
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
@@ -22,9 +23,10 @@ from web.backend.app_settings import (
     get_setting_bool,
     get_setting_int,
 )
-from web.backend.auth import verify_bearer_token_optional
+from web.backend.auth import verify_bearer_token, verify_bearer_token_optional
 from web.backend.db import service_conn
-from web.backend.rate_limit import limiter
+from web.backend.llm_cache import cached_init_llms, resolve_llm
+from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.scheduler import check_publication_alert
 from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
 
@@ -119,6 +121,92 @@ async def list_published_signals(
         "tier": tier,
         "is_lagged": is_lagged,
     }
+
+
+@router.get("/quant-vs-analyst")
+@limiter.limit("30/minute")
+async def quant_vs_analyst(
+    request: Request,
+    as_of_date: date | None = Query(None),
+):
+    """
+    Internal Quant Signal (pit_quant_signal) and real Wall Street
+    Analyst Rating (pit_analyst_rating) side by side, for every ticker
+    captured that day — both are daily point-in-time snapshots of the
+    full S&P 500, already bulk-captured, so this just reads and joins
+    them rather than doing ~500 live per-ticker fetches. Defaults to
+    the most recent date the quant signal was captured; analyst data is
+    left-joined for that same date and may be null for a ticker if that
+    day's analyst-rating capture missed it (yfinance coverage gap), not
+    a code bug — shown as "no analyst data" rather than hidden.
+    """
+    async with service_conn() as conn:
+        if as_of_date is None:
+            as_of_date = await conn.fetchval("SELECT max(as_of_date) FROM pit_quant_signal")
+            if as_of_date is None:
+                return {"as_of_date": None, "ticker_count": 0, "rows": []}
+
+        rows = await conn.fetch(
+            """
+            SELECT
+                q.ticker,
+                q.signal AS quant_signal,
+                q.expected_return_pct AS quant_expected_return_pct,
+                q.target_price AS quant_target_price,
+                q.last_close,
+                a.consensus AS analyst_consensus,
+                a.analyst_count,
+                a.buy_pct AS analyst_buy_pct,
+                a.target_mean AS analyst_target_mean,
+                a.target_high AS analyst_target_high,
+                a.target_low AS analyst_target_low
+            FROM pit_quant_signal q
+            LEFT JOIN pit_analyst_rating a ON a.ticker = q.ticker AND a.as_of_date = q.as_of_date
+            WHERE q.as_of_date = $1
+            ORDER BY q.expected_return_pct DESC
+            """,
+            as_of_date,
+        )
+
+    return {
+        "as_of_date": str(as_of_date),
+        "ticker_count": len(rows),
+        "rows": [_record_to_dict(r) for r in rows],
+    }
+
+
+@router.get("/quant-vs-analyst/narrative", dependencies=[Depends(verify_bearer_token)])
+@limiter.limit("20/minute")
+async def quant_signal_narrative(
+    request: Request,
+    ticker: str = Query(...),
+    signal: str = Query(...),
+    expected_return_pct: float = Query(...),
+    target_price: float = Query(...),
+    last_close: float = Query(...),
+):
+    """
+    On-demand AI explanation of an already-known Quant Signal (the row
+    the caller already has from /quant-vs-analyst) against current
+    technicals — deliberately scoped to the quant/technical picture
+    only, never analyst opinions or news, per explicit product scope.
+    Real per-call LLM cost, so this is auth-required and quota-gated
+    like /predict/narrative, not exposed on the public /quant-vs-analyst
+    endpoint itself.
+    """
+    await enforce_daily_quota(request, "signals/quant-vs-analyst/narrative")
+
+    llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
+    if not labels:
+        raise HTTPException(502, "No LLM provider is configured on the server.")
+    llm = resolve_llm(labels[0], llm_openai, llm_groq, llm_claude, llm_ollama)
+
+    narrative = await run_in_threadpool(
+        build_quant_signal_narrative, llm, ticker, signal, expected_return_pct, target_price, last_close
+    )
+    if narrative is None:
+        raise HTTPException(502, "Failed to generate a narrative for this ticker.")
+    return {"ticker": ticker, "narrative": narrative}
 
 
 @router.get("/published/compare-to-predict-algo")

@@ -687,6 +687,26 @@ export interface PitPriceStatus {
   analyst_rating: PitAnalystRatingStats;
 }
 
+export interface QuantVsAnalystRow {
+  ticker: string;
+  quant_signal: "BUY" | "SELL" | "HOLD" | "UNKNOWN";
+  quant_expected_return_pct: number;
+  quant_target_price: number;
+  last_close: number;
+  analyst_consensus: string | null;
+  analyst_count: number | null;
+  analyst_buy_pct: number | null;
+  analyst_target_mean: number | null;
+  analyst_target_high: number | null;
+  analyst_target_low: number | null;
+}
+
+export interface QuantVsAnalystResponse {
+  as_of_date: string | null;
+  ticker_count: number;
+  rows: QuantVsAnalystRow[];
+}
+
 export interface PitReconciliationReport {
   target_date: string;
   universe_id: string;

@@ -43,6 +43,7 @@ import type {
   PredictionNarrative,
   PredictionSummary,
   PublishedSignalsResponse,
+  QuantVsAnalystResponse,
   SavedBaselineSnapshot,
   SavedNarrative,
   SavedPrediction,
@@ -756,6 +757,29 @@ export function getPublishedSignals(params?: { targetDate?: string; universeId?:
   if (params?.universeId) query.universe_id = params.universeId;
   if (params?.lookbackDays) query.lookback_days = String(params.lookbackDays);
   return apiFetch<PublishedSignalsResponse>("/api/v1/signals/published", query);
+}
+
+export function getQuantVsAnalyst(asOfDate?: string) {
+  return apiFetch<QuantVsAnalystResponse>(
+    "/api/v1/signals/quant-vs-analyst",
+    asOfDate ? { as_of_date: asOfDate } : undefined,
+  );
+}
+
+export function getQuantSignalNarrative(
+  ticker: string,
+  signal: string,
+  expectedReturnPct: number,
+  targetPrice: number,
+  lastClose: number,
+) {
+  return apiFetch<{ ticker: string; narrative: string }>("/api/v1/signals/quant-vs-analyst/narrative", {
+    ticker,
+    signal,
+    expected_return_pct: String(expectedReturnPct),
+    target_price: String(targetPrice),
+    last_close: String(lastClose),
+  });
 }
 
 export function getPredictAlgoComparison(daysAhead = 30) {
