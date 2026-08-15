@@ -13,7 +13,27 @@ router = APIRouter(
     dependencies=[Depends(verify_bearer_token)],
 )
 
-FUND_CATEGORIES = ["All", "US Large Blend", "US Total Market", "US Growth", "US Small Cap", "International", "Bond"]
+FUND_CATEGORIES = [
+    "All",
+    "US Large Blend",
+    "US Total Market",
+    "US Large Growth",
+    "US Large Value",
+    "US Mid Cap",
+    "US Small Cap",
+    "International Developed",
+    "International Total",
+    "Emerging Markets",
+    "Bond — Total Market",
+    "Bond — Short-Term",
+    "Bond — Long-Term/Treasury",
+    "Bond — Corporate",
+    "Bond — High Yield",
+    "Bond — TIPS",
+    "Dividend/Income",
+    "Real Estate",
+    "Sector",
+]
 
 
 def _validate_goal(goal: str) -> None:

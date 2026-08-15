@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -8,6 +9,9 @@ import pandas as pd
 import yfinance as yf
 
 from services.cache_utils import ttl_cache
+from services.rate_limit_utils import fetch_with_backoff
+
+MAX_PARALLEL_FETCHES = 10
 
 
 @dataclass(frozen=True)
@@ -19,20 +23,83 @@ class IndexFundCandidate:
 
 
 INDEX_FUND_UNIVERSE: List[IndexFundCandidate] = [
+    # US Large Blend
     IndexFundCandidate("VOO", "Vanguard S&P 500 ETF", "S&P 500", "US Large Blend"),
     IndexFundCandidate("IVV", "iShares Core S&P 500 ETF", "S&P 500", "US Large Blend"),
     IndexFundCandidate("SPLG", "SPDR Portfolio S&P 500 ETF", "S&P 500", "US Large Blend"),
     IndexFundCandidate("SPY", "SPDR S&P 500 ETF Trust", "S&P 500", "US Large Blend"),
+    # US Total Market
     IndexFundCandidate("VTI", "Vanguard Total Stock Market ETF", "CRSP US Total Market", "US Total Market"),
     IndexFundCandidate("ITOT", "iShares Core S&P Total US Stock Market ETF", "S&P Total US Stock Market", "US Total Market"),
     IndexFundCandidate("SCHB", "Schwab US Broad Market ETF", "Dow Jones US Broad Stock Market", "US Total Market"),
-    IndexFundCandidate("QQQ", "Invesco QQQ Trust", "Nasdaq-100", "US Growth"),
-    IndexFundCandidate("VUG", "Vanguard Growth ETF", "CRSP US Large Cap Growth", "US Growth"),
+    # US Large Growth
+    IndexFundCandidate("QQQ", "Invesco QQQ Trust", "Nasdaq-100", "US Large Growth"),
+    IndexFundCandidate("VUG", "Vanguard Growth ETF", "CRSP US Large Cap Growth", "US Large Growth"),
+    IndexFundCandidate("IWF", "iShares Russell 1000 Growth ETF", "Russell 1000 Growth", "US Large Growth"),
+    IndexFundCandidate("SCHG", "Schwab US Large-Cap Growth ETF", "Dow Jones US Large-Cap Growth", "US Large Growth"),
+    # US Large Value
+    IndexFundCandidate("VTV", "Vanguard Value ETF", "CRSP US Large Cap Value", "US Large Value"),
+    IndexFundCandidate("IWD", "iShares Russell 1000 Value ETF", "Russell 1000 Value", "US Large Value"),
+    IndexFundCandidate("SCHV", "Schwab US Large-Cap Value ETF", "Dow Jones US Large-Cap Value", "US Large Value"),
+    # US Mid Cap
+    IndexFundCandidate("VO", "Vanguard Mid-Cap ETF", "CRSP US Mid Cap", "US Mid Cap"),
+    IndexFundCandidate("IJH", "iShares Core S&P Mid-Cap ETF", "S&P MidCap 400", "US Mid Cap"),
+    IndexFundCandidate("SCHM", "Schwab US Mid-Cap ETF", "Dow Jones US Mid-Cap", "US Mid Cap"),
+    # US Small Cap
     IndexFundCandidate("IWM", "iShares Russell 2000 ETF", "Russell 2000", "US Small Cap"),
-    IndexFundCandidate("VXUS", "Vanguard Total International Stock ETF", "FTSE Global All Cap ex US", "International"),
-    IndexFundCandidate("IXUS", "iShares Core MSCI Total International Stock ETF", "MSCI ACWI ex USA IMI", "International"),
-    IndexFundCandidate("BND", "Vanguard Total Bond Market ETF", "Bloomberg US Aggregate Float Adjusted", "Bond"),
-    IndexFundCandidate("AGG", "iShares Core US Aggregate Bond ETF", "Bloomberg US Aggregate Bond", "Bond"),
+    IndexFundCandidate("VB", "Vanguard Small-Cap ETF", "CRSP US Small Cap", "US Small Cap"),
+    IndexFundCandidate("IJR", "iShares Core S&P Small-Cap ETF", "S&P SmallCap 600", "US Small Cap"),
+    IndexFundCandidate("SCHA", "Schwab US Small-Cap ETF", "Dow Jones US Small-Cap", "US Small Cap"),
+    # International Developed
+    IndexFundCandidate("VEA", "Vanguard FTSE Developed Markets ETF", "FTSE Developed All Cap ex US", "International Developed"),
+    IndexFundCandidate("SCHF", "Schwab International Equity ETF", "FTSE Developed ex US", "International Developed"),
+    IndexFundCandidate("IEFA", "iShares Core MSCI EAFE ETF", "MSCI EAFE IMI", "International Developed"),
+    # International Total
+    IndexFundCandidate("VXUS", "Vanguard Total International Stock ETF", "FTSE Global All Cap ex US", "International Total"),
+    IndexFundCandidate("IXUS", "iShares Core MSCI Total International Stock ETF", "MSCI ACWI ex USA IMI", "International Total"),
+    # Emerging Markets
+    IndexFundCandidate("VWO", "Vanguard FTSE Emerging Markets ETF", "FTSE Emerging Markets All Cap China A Inclusion", "Emerging Markets"),
+    IndexFundCandidate("IEMG", "iShares Core MSCI Emerging Markets ETF", "MSCI Emerging Markets IMI", "Emerging Markets"),
+    IndexFundCandidate("SCHE", "Schwab Emerging Markets Equity ETF", "FTSE Emerging", "Emerging Markets"),
+    # Bond — Total Market
+    IndexFundCandidate("BND", "Vanguard Total Bond Market ETF", "Bloomberg US Aggregate Float Adjusted", "Bond — Total Market"),
+    IndexFundCandidate("AGG", "iShares Core US Aggregate Bond ETF", "Bloomberg US Aggregate Bond", "Bond — Total Market"),
+    # Bond — Short-Term
+    IndexFundCandidate("BSV", "Vanguard Short-Term Bond ETF", "Bloomberg US 1-5yr Government/Credit Float Adjusted", "Bond — Short-Term"),
+    IndexFundCandidate("SCHO", "Schwab Short-Term US Treasury ETF", "Bloomberg US Treasury 1-3 Year", "Bond — Short-Term"),
+    IndexFundCandidate("VGSH", "Vanguard Short-Term Treasury ETF", "Bloomberg US Treasury 1-3 Year", "Bond — Short-Term"),
+    # Bond — Long-Term/Treasury
+    IndexFundCandidate("TLT", "iShares 20+ Year Treasury Bond ETF", "ICE US Treasury 20+ Year", "Bond — Long-Term/Treasury"),
+    IndexFundCandidate("VGLT", "Vanguard Long-Term Treasury ETF", "Bloomberg US Long Treasury", "Bond — Long-Term/Treasury"),
+    IndexFundCandidate("SPTL", "SPDR Portfolio Long Term Treasury ETF", "Bloomberg US Long Treasury", "Bond — Long-Term/Treasury"),
+    # Bond — Corporate
+    IndexFundCandidate("LQD", "iShares iBoxx Investment Grade Corporate Bond ETF", "Markit iBoxx USD Liquid Investment Grade", "Bond — Corporate"),
+    IndexFundCandidate("VCIT", "Vanguard Intermediate-Term Corporate Bond ETF", "Bloomberg US 5-10yr Corporate", "Bond — Corporate"),
+    # Bond — High Yield
+    IndexFundCandidate("HYG", "iShares iBoxx High Yield Corporate Bond ETF", "Markit iBoxx USD Liquid High Yield", "Bond — High Yield"),
+    IndexFundCandidate("JNK", "SPDR Bloomberg High Yield Bond ETF", "Bloomberg Very Liquid High Yield", "Bond — High Yield"),
+    # Bond — TIPS
+    IndexFundCandidate("TIP", "iShares TIPS Bond ETF", "Bloomberg US TIPS", "Bond — TIPS"),
+    IndexFundCandidate("SCHP", "Schwab US TIPS ETF", "Bloomberg US Treasury Inflation Protected Securities", "Bond — TIPS"),
+    # Dividend/Income
+    IndexFundCandidate("VYM", "Vanguard High Dividend Yield ETF", "FTSE High Dividend Yield", "Dividend/Income"),
+    IndexFundCandidate("SCHD", "Schwab US Dividend Equity ETF", "Dow Jones US Dividend 100", "Dividend/Income"),
+    IndexFundCandidate("DVY", "iShares Select Dividend ETF", "Dow Jones US Select Dividend", "Dividend/Income"),
+    IndexFundCandidate("VIG", "Vanguard Dividend Appreciation ETF", "S&P US Dividend Growers", "Dividend/Income"),
+    # Real Estate
+    IndexFundCandidate("VNQ", "Vanguard Real Estate ETF", "MSCI US Investable Market Real Estate 25/50", "Real Estate"),
+    IndexFundCandidate("SCHH", "Schwab US REIT ETF", "Dow Jones US Select REIT", "Real Estate"),
+    # Sector
+    IndexFundCandidate("XLK", "Technology Select Sector SPDR Fund", "Technology Select Sector", "Sector"),
+    IndexFundCandidate("VGT", "Vanguard Information Technology ETF", "MSCI US Investable Market Information Technology 25/50", "Sector"),
+    IndexFundCandidate("XLF", "Financial Select Sector SPDR Fund", "Financial Select Sector", "Sector"),
+    IndexFundCandidate("VFH", "Vanguard Financials ETF", "MSCI US Investable Market Financials 25/50", "Sector"),
+    IndexFundCandidate("XLV", "Health Care Select Sector SPDR Fund", "Health Care Select Sector", "Sector"),
+    IndexFundCandidate("VHT", "Vanguard Health Care ETF", "MSCI US Investable Market Health Care 25/50", "Sector"),
+    IndexFundCandidate("XLE", "Energy Select Sector SPDR Fund", "Energy Select Sector", "Sector"),
+    IndexFundCandidate("VDE", "Vanguard Energy ETF", "MSCI US Investable Market Energy 25/50", "Sector"),
+    IndexFundCandidate("XLY", "Consumer Discretionary Select Sector SPDR Fund", "Consumer Discretionary Select Sector", "Sector"),
+    IndexFundCandidate("XLP", "Consumer Staples Select Sector SPDR Fund", "Consumer Staples Select Sector", "Sector"),
 ]
 
 
@@ -126,9 +193,9 @@ def _lookback_return(prices: pd.Series, trading_days: int) -> Optional[float]:
 def _build_fund_row(ticker_symbol: str, fallback_category: str = "Custom") -> Optional[Dict[str, object]]:
     try:
         ticker = yf.Ticker(ticker_symbol)
-        history_1y = ticker.history(period="1y", auto_adjust=True).dropna()
-        history_3y = ticker.history(period="3y", auto_adjust=True).dropna()
-        info = ticker.info or {}
+        history_1y = fetch_with_backoff(lambda: ticker.history(period="1y", auto_adjust=True)).dropna()
+        history_3y = fetch_with_backoff(lambda: ticker.history(period="3y", auto_adjust=True)).dropna()
+        info = fetch_with_backoff(lambda: ticker.info) or {}
 
         if history_1y.empty:
             return None
@@ -183,16 +250,33 @@ def _build_fund_row(ticker_symbol: str, fallback_category: str = "Custom") -> Op
 
 @ttl_cache(maxsize=8, ttl_seconds=3600)
 def get_index_fund_table() -> pd.DataFrame:
+    """
+    Builds one row per fund in INDEX_FUND_UNIVERSE, fetched in parallel
+    (mirrors services/market_data_service.py's _fetch_closes_parallel
+    pattern) — at ~62 funds x 3 yfinance calls each, doing this
+    sequentially would be slow and risk Yahoo rate limits the same way a
+    large sequential ticker loop already has elsewhere in this app.
+    fetch_with_backoff inside _build_fund_row adds pacing/retry on top.
+    Cached for an hour regardless, so this cost is paid at most once/hour.
+    """
     rows: List[Dict[str, object]] = []
 
-    for fund in INDEX_FUND_UNIVERSE:
-        row = _build_fund_row(fund.ticker, fallback_category=fund.category)
-        if row is not None:
-            row["Fund"] = fund.name
-            row["Benchmark"] = fund.benchmark
-            row["Category"] = fund.category
-            rows.append(row)
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_FETCHES) as executor:
+        futures = {
+            executor.submit(_build_fund_row, fund.ticker, fund.category): fund
+            for fund in INDEX_FUND_UNIVERSE
+        }
+        for future in as_completed(futures):
+            fund = futures[future]
+            row = future.result()
+            if row is not None:
+                row["Fund"] = fund.name
+                row["Benchmark"] = fund.benchmark
+                row["Category"] = fund.category
+                rows.append(row)
 
+    order = {fund.ticker: i for i, fund in enumerate(INDEX_FUND_UNIVERSE)}
+    rows.sort(key=lambda r: order.get(r["Ticker"], len(order)))
     return pd.DataFrame(rows)
 
 
