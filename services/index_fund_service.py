@@ -117,10 +117,17 @@ GOAL_WEIGHTS: Dict[str, Dict[str, float]] = {
         "volatility_1y": 0.10,
         "assets_billions": 0.05,
     },
+    # Deliberately NOT just "Balanced Core with return weighted higher" —
+    # that made the two goals pick nearly identical top funds in practice
+    # (both were return-dominated, and the same few funds led on every
+    # return window). This instead measures recent momentum (30/60/90d)
+    # rather than the 1Y/3Y windows Balanced Core already covers, so the
+    # two goals actually answer different questions.
     "Best Growth": {
-        "return_1y": 0.50,
-        "return_3y_annualized": 0.35,
-        "expense_ratio": 0.05,
+        "return_30d": 0.30,
+        "return_60d": 0.25,
+        "return_90d": 0.20,
+        "return_1y": 0.15,
         "volatility_1y": 0.10,
     },
     "Most Stable": {
@@ -141,6 +148,9 @@ METRIC_LABELS: Dict[str, str] = {
     "volatility_1y": "1-Year Volatility",
     "max_drawdown_3y": "3-Year Max Drawdown",
     "assets_billions": "Fund Assets",
+    "return_30d": "30-Day Return",
+    "return_60d": "60-Day Return",
+    "return_90d": "90-Day Return",
 }
 
 METRIC_UNITS: Dict[str, str] = {
@@ -150,6 +160,9 @@ METRIC_UNITS: Dict[str, str] = {
     "volatility_1y": "%",
     "max_drawdown_3y": "%",
     "assets_billions": "$B",
+    "return_30d": "%",
+    "return_60d": "%",
+    "return_90d": "%",
 }
 
 
@@ -324,6 +337,9 @@ def rank_index_funds(goal: str, category: str) -> pd.DataFrame:
     df["volatility_1y"] = df["1Y Volatility %"]
     df["max_drawdown_3y"] = df["3Y Max Drawdown %"]
     df["assets_billions"] = df["Assets ($B)"]
+    df["return_30d"] = df["Return 30D %"]
+    df["return_60d"] = df["Return 60D %"]
+    df["return_90d"] = df["Return 90D %"]
 
     weights = GOAL_WEIGHTS[goal]
     score = pd.Series([0.0] * len(df), index=df.index)
@@ -346,6 +362,9 @@ def score_fund_ticker(goal: str, ticker_symbol: str) -> pd.DataFrame:
     df["volatility_1y"] = df["1Y Volatility %"]
     df["max_drawdown_3y"] = df["3Y Max Drawdown %"]
     df["assets_billions"] = df["Assets ($B)"]
+    df["return_30d"] = df["Return 30D %"]
+    df["return_60d"] = df["Return 60D %"]
+    df["return_90d"] = df["Return 90D %"]
 
     weights = GOAL_WEIGHTS[goal]
     score = pd.Series([0.0] * len(df), index=df.index)
