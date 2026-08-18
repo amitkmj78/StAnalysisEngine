@@ -60,11 +60,11 @@ def init_llms():
     if groq_key:
         try:
             llm_groq = ChatGroq(
-                model="llama-3.1-8b-instant",
+                model="openai/gpt-oss-20b",
                 temperature=0.2,
                 timeout=30,
             )
-            llm_labels.append("Groq · llama-3.1-8b-instant")
+            llm_labels.append("Groq · gpt-oss-20b")
         except Exception as e:
             print("ERROR: Groq init failed:", e)
             llm_groq = None

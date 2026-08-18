@@ -384,7 +384,7 @@ with tabs[1]:
         st.markdown("---")
 
         from langchain_groq import ChatGroq      # Short-term (7D) AI summary
-        short_term_llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.4)
+        short_term_llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0.4)
 
         def get_short_term_summary(ticker: str, future_df: pd.DataFrame) -> str:
             prompt = f"""
