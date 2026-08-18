@@ -30,4 +30,6 @@ tiktoken
 sentence-transformers
 lxml
 stripe
+beautifulsoup4
+ddgs
 

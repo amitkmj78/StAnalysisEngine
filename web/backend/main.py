@@ -40,6 +40,7 @@ from web.backend.routers import (
     subscriptions,
     trade_journal,
     watchlist,
+    web_search,
 )
 
 
@@ -89,6 +90,7 @@ app.include_router(signals.router)
 app.include_router(pit_prices.router)
 app.include_router(db_backup.router)
 app.include_router(subscriptions.router)
+app.include_router(web_search.router)
 
 
 @app.get("/health")

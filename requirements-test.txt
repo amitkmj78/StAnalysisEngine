@@ -4,3 +4,6 @@ numpy
 scipy
 stripe
 asyncpg
+beautifulsoup4
+ddgs
+httpx

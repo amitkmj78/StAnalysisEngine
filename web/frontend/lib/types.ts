@@ -915,3 +915,17 @@ export interface AuditLogResponse {
   limit: number;
   offset: number;
 }
+
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  content: string;
+  score: number;
+  raw_content: string | null;
+}
+
+export interface WebSearchResponse {
+  query: string;
+  results: WebSearchResult[];
+  response_time_ms: number;
+}

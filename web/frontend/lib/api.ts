@@ -59,6 +59,7 @@ import type {
   TradeCreateInput,
   UniversesResponse,
   WatchlistAlert,
+  WebSearchResponse,
 } from "@/lib/types";
 
 // Absolute in local dev (http://127.0.0.1:8010); empty once deployed behind
@@ -894,4 +895,12 @@ export function getAuditLog(params?: { eventType?: string; actorUserId?: string;
 
 export function runAdminSqlQuery(sql: string) {
   return apiSend<AdminSqlQueryResponse>("/api/v1/admin/sql/query", "POST", { sql });
+}
+
+export function runWebSearch(query: string, maxResults = 5, includeRawContent = false) {
+  return apiSend<WebSearchResponse>("/api/v1/websearch/search", "POST", {
+    query,
+    max_results: maxResults,
+    include_raw_content: includeRawContent,
+  });
 }

@@ -24,3 +24,5 @@ tavily-python
 streamlit
 apscheduler
 stripe
+beautifulsoup4
+ddgs
