@@ -76,7 +76,7 @@ def build_drop_analysis(llm, ticker: str, drop: Dict[str, float]) -> Dict[str, A
     shape as prediction_narrative_service.build_prediction_narrative, just
     anchored on a price-drop event instead of a forecast.
     """
-    sentiment_text = get_sentiment_summary(ticker)
+    sentiment_text = get_sentiment_summary(ticker, llm=llm)
 
     signal = None
     try:

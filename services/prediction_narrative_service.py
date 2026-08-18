@@ -50,7 +50,7 @@ def _build_prompt(ticker: str, context: Dict[str, Any], sentiment_text: str) -> 
 
 
 def build_prediction_narrative(llm, ticker: str, context: Dict[str, Any]) -> Dict[str, str]:
-    sentiment_text = get_sentiment_summary(ticker)
+    sentiment_text = get_sentiment_summary(ticker, llm=llm)
     prompt = _build_prompt(ticker, context, sentiment_text)
     response = llm.invoke(prompt)
     narrative = getattr(response, "content", str(response))
