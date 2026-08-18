@@ -136,8 +136,9 @@ async def disable_pit_quant_signal_capture():
 
 @router.post("/portfolio-drop-alerts/enable")
 async def enable_portfolio_drop_alerts():
-    """Starts real per-drop Tavily + LLM calls and user-visible in-app
-    notifications on the next scheduler tick — not just a preview toggle."""
+    """Starts real per-drop sentiment search + LLM calls and user-visible
+    in-app notifications on the next scheduler tick — not just a preview
+    toggle."""
     await set_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, True)
     return {"portfolio_drop_alerts_enabled": True}
 

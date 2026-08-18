@@ -22,7 +22,6 @@ scikit-learn
 python-dotenv
 langchain
 langchain-community
-tavily-python
 websocket-client
 nltk
 faiss-cpu 

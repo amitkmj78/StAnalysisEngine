@@ -1,3 +1,3 @@
-from .client import SearchResponse, SearchResult, search
+from .client import SearchResponse, SearchResult, format_results, search, search_text
 
-__all__ = ["search", "SearchResult", "SearchResponse"]
+__all__ = ["search", "search_text", "format_results", "SearchResult", "SearchResponse"]

@@ -45,8 +45,8 @@ logger = logging.getLogger(__name__)
 VERIFY_INTERVAL_MINUTES = 15
 ALERT_INTERVAL_MINUTES = 5
 # Same-day portfolio drop scan — heavier than watchlist's 5-min interval
-# since a fresh drop triggers a Tavily search + LLM call, but still needs
-# to catch moves throughout the trading day, not just once at close.
+# since a fresh drop triggers a sentiment search + LLM call, but still
+# needs to catch moves throughout the trading day, not just once at close.
 PORTFOLIO_DROP_INTERVAL_MINUTES = 15
 # TR-3 Phase 1: capture PIT closes shortly after market close, ahead of
 # publication — independent today (nothing consumes this yet), but future

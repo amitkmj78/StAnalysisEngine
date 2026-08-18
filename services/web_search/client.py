@@ -102,3 +102,20 @@ def search(query: str, max_results: int = 5, include_raw_content: bool = False) 
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
     return SearchResponse(query=query, results=results, response_time_ms=elapsed_ms)
+
+
+def format_results(response: SearchResponse) -> str:
+    """Renders a SearchResponse as readable text for an LLM prompt — the
+    same shape callers previously got from stringifying Tavily's result
+    list (e.g. services/sentiment_service.py, Agent/newAgent.py)."""
+    if not response.results:
+        return f"No results found for '{response.query}'."
+    return "\n\n".join(f"- {r.title} ({r.url})\n  {r.content}" for r in response.results)
+
+
+def search_text(query: str, max_results: int = 5) -> str:
+    """Convenience wrapper for callers that just want a text blob to drop
+    into an LLM prompt, not the structured SearchResponse — this is the
+    direct replacement for the old `tavily.run(query)` call pattern used
+    throughout this app before Tavily was removed."""
+    return format_results(search(query, max_results=max_results, include_raw_content=False))

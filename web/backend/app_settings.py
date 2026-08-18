@@ -28,10 +28,11 @@ PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY = "pit_analyst_rating_capture_enabled"
 # traffic spike) without also pausing the cheap price/fundamentals/
 # analyst-rating captures. Defaults ON per explicit request to run daily.
 PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY = "pit_quant_signal_capture_enabled"
-# Defaults OFF: unlike the other flags above, this triggers real external
-# cost per drop detected (a Tavily sentiment search plus an LLM call) and
-# writes user-visible content — an admin should opt in deliberately rather
-# than have it start emailing/notifying users the moment this deploys.
+# Defaults OFF: unlike the other flags above, this triggers a real
+# sentiment search (self-hosted, services.web_search) plus an LLM call per
+# drop detected, and writes user-visible content — an admin should opt in
+# deliberately rather than have it start emailing/notifying users the
+# moment this deploys.
 PORTFOLIO_DROP_ALERTS_ENABLED_KEY = "portfolio_drop_alerts_enabled"
 # The drop-detection threshold itself, admin-configurable — separate from
 # the enable/disable flag above so an admin can tune sensitivity without

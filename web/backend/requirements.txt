@@ -20,7 +20,6 @@ langchain-groq
 langchain-anthropic
 langchain-ollama
 langchain-community
-tavily-python
 streamlit
 apscheduler
 stripe

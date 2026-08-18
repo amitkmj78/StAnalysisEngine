@@ -114,8 +114,8 @@ export default function PortfolioDropAlertsControls() {
             Portfolio page. One alert per user/ticker/day — a ticker already alerted today is skipped.
           </p>
           <p className="mt-2 text-xs text-slate-500">
-            Enabling this starts real per-drop external API and LLM spend (Tavily search + LLM call per
-            newly-dropping ticker) and user-visible notifications — not just a preview.
+            Enabling this starts real per-drop compute and LLM spend (a self-hosted sentiment search plus
+            an LLM call per newly-dropping ticker) and user-visible notifications — not just a preview.
           </p>
         </div>
         {enabled !== null && (

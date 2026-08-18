@@ -1,7 +1,8 @@
 import os
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
+
+from services.web_search import search_text
 
 
 def _get_llm():
@@ -18,28 +19,21 @@ def _get_llm():
 
 def news_summary(ticker: str, llm=None) -> str:
     """
-    Fetch real news using Tavily API, then summarize & analyze with LLM.
-    Returns a detailed professional news intelligence brief.
+    Fetch real news using this app's own self-hosted search
+    (services.web_search — DuckDuckGo + real content extraction, replaces
+    the Tavily-backed version this used to be), then summarize & analyze
+    with LLM. Returns a detailed professional news intelligence brief.
     """
 
-    tavily_key = os.getenv("TAVILY_API_KEY")
-    if not tavily_key:
-        return f"Tavily API key missing. Cannot fetch news for {ticker}."
+    query = (
+        f"Latest breaking news, earnings report results (EPS, revenue, guidance), and other "
+        f"market-moving headlines about {ticker} stock. Summarize factual content only."
+    )
 
     try:
-        # Step 1 — Fetch real news from Tavily
-        tavily = TavilySearchResults(api_key=tavily_key)
-
-        query = (
-            f"Latest breaking news, earnings report results (EPS, revenue, guidance), and other "
-            f"market-moving headlines about {ticker} stock. Summarize factual content only."
-        )
-
-        raw_news = tavily.run(query)
-
+        raw_news = search_text(query)
         if not raw_news:
             return f"No recent news found for {ticker}."
-
     except Exception as e:
         return f"Error fetching news: {e}"
 
