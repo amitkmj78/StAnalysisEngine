@@ -227,12 +227,14 @@ export function getEntryUniverses(assetType: string) {
   return apiFetch<{ universes: string[] }>("/api/v1/entry/universes", { asset_type: assetType });
 }
 
-export function getEntryScan(assetType: string, universe: string, topN: number) {
-  return apiFetch<{ results: EntryScanRow[] }>("/api/v1/entry/scan", {
+export function getEntryScan(assetType: string, universe: string, topN: number, quantSignal?: string) {
+  const params: Record<string, string> = {
     asset_type: assetType,
     universe,
     top_n: String(topN),
-  });
+  };
+  if (quantSignal) params.quant_signal = quantSignal;
+  return apiFetch<{ results: EntryScanRow[] }>("/api/v1/entry/scan", params);
 }
 
 export function getEntryPlan(ticker: string) {

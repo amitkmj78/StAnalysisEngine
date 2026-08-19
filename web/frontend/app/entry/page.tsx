@@ -123,6 +123,7 @@ export default function EntryPage() {
   const [universe, setUniverse] = useState("All");
   const [topN, setTopN] = useState(5);
   const [ticker, setTicker] = useState("AAPL");
+  const [quantSignalFilter, setQuantSignalFilter] = useState("");
   const [sortColumn, setSortColumn] = useState("Entry Score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -151,7 +152,7 @@ export default function EntryPage() {
     setHasSearched(true);
     try {
       if (mode === "scan") {
-        const res = await getEntryScan(assetType, universe, topN);
+        const res = await getEntryScan(assetType, universe, topN, assetType === "Stock" ? quantSignalFilter || undefined : undefined);
         setScanResults(res.results);
         setSinglePlan(null);
       } else {
@@ -238,6 +239,16 @@ export default function EntryPage() {
                 className="input w-20"
               />
             </Field>
+            {assetType === "Stock" && (
+              <Field label="Quant Signal">
+                <select value={quantSignalFilter} onChange={(e) => setQuantSignalFilter(e.target.value)} className="input">
+                  <option value="">Any</option>
+                  <option value="BUY">BUY only</option>
+                  <option value="HOLD">HOLD only</option>
+                  <option value="SELL">SELL only</option>
+                </select>
+              </Field>
+            )}
           </>
         ) : (
           <Field label="Ticker">
