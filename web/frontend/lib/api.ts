@@ -835,8 +835,8 @@ export function getMomentumBacktest(
   });
 }
 
-export function getAdminSqlTables() {
-  return apiFetch<AdminSqlTablesResponse>("/api/v1/admin/sql/tables");
+export function getAdminSqlTables(database: string = "stanalysisengine") {
+  return apiFetch<AdminSqlTablesResponse>("/api/v1/admin/sql/tables", { database });
 }
 
 // Horizon 1 — Impersonal Research Subscription (built, kept off)
@@ -893,8 +893,8 @@ export function getAuditLog(params?: { eventType?: string; actorUserId?: string;
   return apiFetch<AuditLogResponse>("/api/v1/subscriptions/audit-log", query);
 }
 
-export function runAdminSqlQuery(sql: string) {
-  return apiSend<AdminSqlQueryResponse>("/api/v1/admin/sql/query", "POST", { sql });
+export function runAdminSqlQuery(sql: string, database: string = "stanalysisengine") {
+  return apiSend<AdminSqlQueryResponse>("/api/v1/admin/sql/query", "POST", { sql, database });
 }
 
 export function runWebSearch(query: string, maxResults = 5, includeRawContent = false) {

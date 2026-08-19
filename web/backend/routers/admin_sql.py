@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from web.backend.admin import require_admin
-from web.backend.db import service_conn
+from web.backend.db import crawlsearch_conn, crawlsearch_configured, service_conn
 from web.backend.rate_limit import limiter
 
 router = APIRouter(
@@ -16,6 +16,19 @@ router = APIRouter(
 )
 
 MAX_ROWS = 500
+
+# Both databases run on the same shared Postgres server but are entirely
+# separate schemas/products — this console just lets an admin point the
+# same read-only query tool at either one instead of needing a second tool.
+DATABASES = {"stanalysisengine": service_conn, "crawlsearch": crawlsearch_conn}
+
+
+def _conn_factory(database: str):
+    if database not in DATABASES:
+        raise HTTPException(422, f"database must be one of {list(DATABASES)}")
+    if database == "crawlsearch" and not crawlsearch_configured():
+        raise HTTPException(503, "CrawlSearch database is not configured on this server.")
+    return DATABASES[database]
 
 
 def _jsonable(value):
@@ -31,10 +44,11 @@ def _jsonable(value):
 
 
 @router.get("/tables")
-async def list_tables():
+async def list_tables(database: str = "stanalysisengine"):
     """Schema browser — lets the admin see what's there before writing a
     query, rather than needing to already know the table/column names."""
-    async with service_conn() as conn:
+    conn_factory = _conn_factory(database)
+    async with conn_factory() as conn:
         columns = await conn.fetch(
             """
             SELECT table_name, column_name, data_type
@@ -64,6 +78,7 @@ async def list_tables():
 
 class SqlQueryRequest(BaseModel):
     sql: str
+    database: str = "stanalysisengine"
 
 
 @router.post("/query")
@@ -93,9 +108,10 @@ async def run_query(request: Request, body: SqlQueryRequest):
     if ";" in sql:
         raise HTTPException(422, "Only a single statement is allowed (no semicolons).")
 
+    conn_factory = _conn_factory(body.database)
     wrapped = f"SELECT * FROM ({sql}) AS admin_sql_subquery LIMIT {MAX_ROWS + 1}"
 
-    async with service_conn() as conn:
+    async with conn_factory() as conn:
         tx = conn.transaction(readonly=True)
         await tx.start()
         try:
