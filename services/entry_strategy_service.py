@@ -141,15 +141,28 @@ def build_entry_plan(ticker: str) -> dict | None:
     entry_score += _signal_rank(signal) * 18
     if rsi is not None:
         entry_score += max(0.0, 20 - abs(rsi - 52))
-    if bullish_momentum:
+
+    # Each flat bonus below only counts as *extra* evidence beyond what
+    # the signal label already guarantees by its own definition (see the
+    # if/elif chain above) — e.g. "Buy Now" requires trend_up AND
+    # bullish_momentum to be assigned at all, so re-awarding those same
+    # +14/+14 points there would just double-count the same evidence.
+    # Before this guard, every "Buy Now"/"Buy on Pullback"/"Breakout
+    # Entry" stock started from an inflated baseline that nearly always
+    # saturated the 100 cap regardless of how much stronger one setup
+    # genuinely was than another (visible at S&P 500 scale: a third of
+    # scanned stocks tied at exactly 100.0). The guards below match the
+    # signal branches 1:1 so only real additional strength moves the
+    # score within each bucket.
+    if bullish_momentum and signal not in ("Buy Now", "Breakout Entry"):
         entry_score += 14
-    if trend_up:
+    if trend_up and signal not in ("Buy Now", "Wait for Pullback"):
         entry_score += 14
-    if long_term_up:
+    if long_term_up and signal != "Buy on Pullback":
         entry_score += 10
-    if near_support:
+    if near_support and signal != "Buy on Pullback":
         entry_score += 12
-    elif near_breakout:
+    elif near_breakout and signal != "Breakout Entry":
         entry_score += 8
     if avg_volume_20 and latest_volume:
         volume_ratio = latest_volume / avg_volume_20
