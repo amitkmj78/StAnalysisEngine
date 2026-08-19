@@ -9,10 +9,13 @@ import yfinance as yf
 
 from services.cache_utils import ttl_cache
 from services.index_fund_service import INDEX_FUND_UNIVERSE
+from services.prediction_service import generate_trading_signal, predict_future_prices
 from services.screener_service import INDEX_MAP
 from services.stock_finder_service import SP500_UNIVERSE_NAME, fetch_sp500_tickers
 
 MAX_PARALLEL_FETCHES = 10
+QUANT_PREDICT_PERIOD = "1y"
+QUANT_PREDICT_DAYS_AHEAD = 10
 
 # "All" and SP500_UNIVERSE_NAME resolve their ticker lists lazily via
 # _entry_stock_tickers (a live, 24h-cached Wikipedia fetch shared with
@@ -69,7 +72,7 @@ def _signal_rank(signal: str) -> int:
     return order.get(signal, 0)
 
 
-def build_entry_plan(ticker: str) -> dict | None:
+def build_entry_plan(ticker: str, include_quant_signal: bool = False) -> dict | None:
     hist = get_entry_history(ticker, "1y")
     if hist.empty or len(hist) < 80:
         return None
@@ -178,6 +181,29 @@ def build_entry_plan(ticker: str) -> dict | None:
     # once, not that the scale is broken.
     entry_score = round(max(0.0, entry_score), 1)
 
+    # Quant Signal (BUY/HOLD/SELL) — the same forecast-based signal shown
+    # on /predict and the Stock Screener. Opt-in and off by default:
+    # cheap for one ticker (~1s, used by the "check one ticker" path)
+    # but far too slow to compute live for every ticker in a scan.
+    # scan_best_entries instead joins the pre-captured pit_quant_signal
+    # table in bulk at the router level for scan results. Best-effort —
+    # a forecast failure shouldn't block the (already-computed)
+    # technical entry plan.
+    quant_signal = None
+    quant_expected_return_pct = None
+    quant_target_price = None
+    if include_quant_signal:
+        try:
+            future_df = predict_future_prices(ticker, QUANT_PREDICT_PERIOD, QUANT_PREDICT_DAYS_AHEAD, False)
+            if future_df is not None and not future_df.empty:
+                sig = generate_trading_signal(current_price, future_df)
+                if "target_price" in sig:
+                    quant_signal = sig["signal"]
+                    quant_expected_return_pct = sig["expected_return_pct"]
+                    quant_target_price = sig["target_price"]
+        except Exception:
+            pass
+
     return {
         "ticker": ticker.strip().upper(),
         "history": df,
@@ -205,6 +231,9 @@ def build_entry_plan(ticker: str) -> dict | None:
         "trend_up": trend_up,
         "long_term_up": long_term_up,
         "entry_score": entry_score,
+        "quant_signal": quant_signal,
+        "quant_expected_return_pct": quant_expected_return_pct,
+        "quant_target_price": quant_target_price,
     }
 
 

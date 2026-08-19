@@ -7,7 +7,7 @@ import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import { ApiError, getEntryPlan, getEntryScan, getEntryUniverses } from "@/lib/api";
 import type { EntryHistory, EntryPlan, EntryScanRow } from "@/lib/types";
 
-const SCAN_COLUMNS = ["Ticker", "Signal", "Entry Score", "Current Price", "Entry Low", "Entry High", "Stop Loss", "First Target", "RSI"];
+const SCAN_COLUMNS = ["Ticker", "Signal", "Quant Signal", "Entry Score", "Current Price", "Entry Low", "Entry High", "Stop Loss", "First Target", "RSI"];
 
 const COLUMN_INFO: Record<string, ColumnInfo> = {
   "Entry Score": {
@@ -36,6 +36,15 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
       "Ranked strongest to weakest for scan ordering: Buy Now → Buy on Pullback → Breakout Entry → Watch for Reversal → Wait for Pullback → Wait.",
     ],
   },
+  "Quant Signal": {
+    title: "Quant Signal — a second, independent opinion",
+    body: [
+      "BUY / HOLD / SELL from this app's own forecasting model — the same signal shown on the Predict page and the Stock Screener. Completely separate from the \"Signal\" column: that one reads the current technical setup (trend, RSI, support/resistance); this one is a 10-day price forecast.",
+      "When they agree, that's two independent methods pointing the same direction. When they disagree, that's worth a closer look, not a reason to distrust one or the other.",
+      "In a scan, this comes from the most recent daily capture (fast to look up for many tickers at once) rather than being recomputed live, so it can be a few hours old. Checking a single ticker always computes it fresh.",
+      "Shown as \"—\" when no capture exists yet for that ticker (a capture gap) rather than hidden.",
+    ],
+  },
 };
 
 const SORTABLE_NUMERIC_COLUMNS = new Set(["Entry Score", "Current Price", "Entry Low", "Entry High", "Stop Loss", "First Target", "RSI"]);
@@ -61,6 +70,29 @@ function SignalBadge({ signal, className = "" }: { signal: string; className?: s
   return (
     <span
       className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium ${signalBadgeClass(signal)} ${className}`}
+    >
+      {signal}
+    </span>
+  );
+}
+
+// Matches the BUY/SELL/HOLD palette already established on the
+// Quant-vs-Analyst comparison page, for a consistent meaning across
+// the app: emerald = buy, red = sell, slate = hold/unknown.
+function quantSignalBadgeClass(signal: string): string {
+  if (signal === "BUY") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (signal === "SELL") return "border-red-200 bg-red-50 text-red-700";
+  if (signal === "HOLD") return "border-slate-200 bg-slate-100 text-slate-600";
+  return "border-slate-200 bg-slate-100 text-slate-400";
+}
+
+function QuantSignalBadge({ signal, className = "" }: { signal: string | null | undefined; className?: string }) {
+  if (!signal) {
+    return <span className="text-xs text-slate-300">—</span>;
+  }
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium ${quantSignalBadgeClass(signal)} ${className}`}
     >
       {signal}
     </span>
@@ -284,6 +316,8 @@ export default function EntryPage() {
                       <td key={col} className="px-3 py-2 text-slate-700">
                         {col === "Signal" ? (
                           <SignalBadge signal={String(row[col])} />
+                        ) : col === "Quant Signal" ? (
+                          <QuantSignalBadge signal={row[col] as string | null | undefined} />
                         ) : col === "Entry Score" ? (
                           <EntryScoreBar score={Number(row[col])} />
                         ) : (
@@ -304,7 +338,10 @@ export default function EntryPage() {
               <div key={row.Ticker} className="rounded-lg border border-slate-200 bg-white p-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-slate-900">{row.Ticker}</span>
-                  <SignalBadge signal={String(row.Signal)} />
+                  <div className="flex items-center gap-1.5">
+                    <SignalBadge signal={String(row.Signal)} />
+                    <QuantSignalBadge signal={row["Quant Signal"]} />
+                  </div>
                 </div>
                 <div className="mt-2">
                   <EntryScoreBar score={Number(row["Entry Score"])} />
@@ -337,6 +374,9 @@ export default function EntryPage() {
               <div className="flex items-center gap-2">
                 <SignalBadge signal={singlePlan.signal} />
                 <InfoIcon onClick={() => setInfoColumn("Signal")} />
+                <span className="text-slate-300">·</span>
+                <QuantSignalBadge signal={singlePlan.quant_signal} />
+                <InfoIcon title="What is Quant Signal?" onClick={() => setInfoColumn("Quant Signal")} />
               </div>
             </div>
             <p className="mt-2 text-sm text-slate-600">{singlePlan.summary}</p>
@@ -355,7 +395,7 @@ export default function EntryPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-lg border border-slate-200 bg-white p-5">
               <h3 className="font-semibold text-slate-900">Entry Levels</h3>
               <p className="mt-2 text-sm text-slate-600">Buy zone: ${singlePlan.ideal_entry_low.toFixed(2)} – ${singlePlan.ideal_entry_high.toFixed(2)}</p>
@@ -369,6 +409,27 @@ export default function EntryPage() {
               <p className="text-sm text-slate-600">Short-term trend: {singlePlan.trend_up ? "Uptrend" : "Mixed / weak"}</p>
               <p className="text-sm text-slate-600">Long-term trend: {singlePlan.long_term_up ? "Long-term uptrend" : "Not fully supportive"}</p>
               <p className="text-sm text-slate-600">20D support / resistance: ${singlePlan.support_20.toFixed(2)} / ${singlePlan.resistance_20.toFixed(2)}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white p-5">
+              <h3 className="flex items-center gap-1.5 font-semibold text-slate-900">
+                Quant Forecast
+                <InfoIcon title="What is Quant Signal?" onClick={() => setInfoColumn("Quant Signal")} />
+              </h3>
+              {singlePlan.quant_signal ? (
+                <>
+                  <p className="mt-2 text-sm text-slate-600">
+                    10-day signal: <QuantSignalBadge signal={singlePlan.quant_signal} />
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    Expected return: {singlePlan.quant_expected_return_pct !== null ? `${singlePlan.quant_expected_return_pct >= 0 ? "+" : ""}${singlePlan.quant_expected_return_pct.toFixed(2)}%` : "N/A"}
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    Target price: {singlePlan.quant_target_price !== null ? `$${singlePlan.quant_target_price.toFixed(2)}` : "N/A"}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-slate-400">Forecast unavailable for this ticker right now.</p>
+              )}
             </div>
           </div>
         </div>

@@ -227,7 +227,10 @@ export interface EntryScanRow {
   Signal: string;
   "Entry Score": number;
   "Current Price": number;
-  [key: string]: string | number | null;
+  "Quant Signal"?: string | null;
+  "Quant Expected Return %"?: number | null;
+  "Quant Target Price"?: number | null;
+  [key: string]: string | number | null | undefined;
 }
 
 export interface EntryPlan {
@@ -256,6 +259,9 @@ export interface EntryPlan {
   trend_up: boolean;
   long_term_up: boolean;
   entry_score: number;
+  quant_signal: string | null;
+  quant_expected_return_pct: number | null;
+  quant_target_price: number | null;
 }
 
 export interface EntryHistory {

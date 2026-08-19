@@ -9,6 +9,7 @@ from services.entry_strategy_service import (
 )
 
 from web.backend.auth import verify_bearer_token
+from web.backend.db import service_conn
 from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.utils import records_safe
 
@@ -28,6 +29,43 @@ def _universes_for(asset_type: str):
 def _validate_asset_type(asset_type: str) -> None:
     if asset_type not in ASSET_TYPES:
         raise HTTPException(422, f"asset_type must be one of {sorted(ASSET_TYPES)}")
+
+
+async def _attach_quant_signals(results: list[dict]) -> None:
+    """
+    Joins each scan row with the pre-captured Quant Signal (BUY/HOLD/SELL
+    from pit_quant_signal, the same daily point-in-time snapshot the
+    Stock Screener and /quant-vs-analyst use) — one bulk query, not a
+    live per-ticker forecast, since scanning up to 500 tickers already
+    takes ~20s on its own. A ticker missing from that day's capture (not
+    an S&P 500 member, or a capture gap) just gets nulls, mutated in
+    place rather than dropped, matching /quant-vs-analyst's existing
+    "shown as missing, not hidden" precedent for this same join.
+    """
+    tickers = [r["Ticker"] for r in results]
+    if not tickers:
+        return
+
+    async with service_conn() as conn:
+        as_of_date = await conn.fetchval("SELECT max(as_of_date) FROM pit_quant_signal")
+        rows = []
+        if as_of_date is not None:
+            rows = await conn.fetch(
+                """
+                SELECT ticker, signal, expected_return_pct, target_price
+                FROM pit_quant_signal
+                WHERE as_of_date = $1 AND ticker = ANY($2::text[])
+                """,
+                as_of_date,
+                tickers,
+            )
+
+    by_ticker = {r["ticker"]: r for r in rows}
+    for row in results:
+        q = by_ticker.get(row["Ticker"])
+        row["Quant Signal"] = q["signal"] if q else None
+        row["Quant Expected Return %"] = float(q["expected_return_pct"]) if q else None
+        row["Quant Target Price"] = float(q["target_price"]) if q else None
 
 
 @router.get("/universes")
@@ -53,7 +91,10 @@ async def scan(
     df = await run_in_threadpool(scan_best_entries, asset_type, universe)
     if not df.empty:
         df = df.head(top_n)
-    return {"results": records_safe(df)}
+    results = records_safe(df)
+    if asset_type == "Stock" and results:
+        await _attach_quant_signals(results)
+    return {"results": results}
 
 
 @router.get("/plan")
@@ -62,7 +103,7 @@ async def plan(request: Request, ticker: str = Query(..., min_length=1)):
     await enforce_daily_quota(request, "entry/plan")
     ticker = ticker.strip().upper()
 
-    result = await run_in_threadpool(build_entry_plan, ticker)
+    result = await run_in_threadpool(build_entry_plan, ticker, True)
     if result is None:
         return {"plan": None, "history": None}
 
