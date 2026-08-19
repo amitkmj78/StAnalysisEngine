@@ -1,5 +1,6 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from services.web_search import backend
 from services.web_search.client import SearchResponse, SearchResult, _score, search
 from services.web_search.extract import extract_content
 
@@ -132,7 +133,7 @@ def test_score_handles_empty_query_terms():
 # ---------------------------------------------------------------------------
 
 def test_search_returns_empty_response_when_backend_finds_nothing():
-    with patch("services.web_search.client.ddg_search", return_value=[]):
+    with patch("services.web_search.client.discover", return_value=([], False)):
         resp = search("no results for this query")
     assert isinstance(resp, SearchResponse)
     assert resp.results == []
@@ -145,7 +146,7 @@ def test_search_ranks_results_by_score_and_respects_include_raw_content():
         {"title": "apple earnings beat", "href": "https://example.com/b", "body": "apple earnings details"},
     ]
     with (
-        patch("services.web_search.client.ddg_search", return_value=hits),
+        patch("services.web_search.client.discover", return_value=(hits, False)),
         patch("services.web_search.client.extract_content", return_value=None),
     ):
         resp = search("apple earnings", max_results=2, include_raw_content=False)
@@ -162,8 +163,124 @@ def test_search_ranks_results_by_score_and_respects_include_raw_content():
 def test_search_falls_back_to_snippet_when_extraction_fails():
     hits = [{"title": "T", "href": "https://example.com/a", "body": "fallback snippet text"}]
     with (
-        patch("services.web_search.client.ddg_search", return_value=hits),
+        patch("services.web_search.client.discover", return_value=(hits, False)),
         patch("services.web_search.client.extract_content", return_value=None),
     ):
         resp = search("query", max_results=1)
     assert resp.results[0].content == "fallback snippet text"
+
+
+def test_search_uses_hit_body_directly_when_content_already_extracted():
+    hits = [{"title": "T", "href": "https://example.com/a", "body": "full crawlsearch article text"}]
+    with (
+        patch("services.web_search.client.discover", return_value=(hits, True)),
+        patch("services.web_search.client.extract_content") as mock_extract,
+    ):
+        resp = search("query", max_results=1, include_raw_content=True)
+    mock_extract.assert_not_called()
+    assert resp.results[0].content == "full crawlsearch article text"
+    assert resp.results[0].raw_content == "full crawlsearch article text"
+
+
+# ---------------------------------------------------------------------------
+# backend.discover() — CrawlSearch first, then Brave, then DuckDuckGo
+# ---------------------------------------------------------------------------
+
+def test_discover_uses_crawlsearch_first_when_configured():
+    with (
+        patch.object(backend, "CRAWLSEARCH_API_URL", "http://localhost:8100"),
+        patch.object(backend, "BRAVE_SEARCH_API_KEY", "fake-key"),
+        patch.object(backend, "crawlsearch_search", return_value=[{"title": "T", "href": "u", "body": "full text"}]) as mock_cs,
+        patch.object(backend, "brave_search") as mock_brave,
+        patch.object(backend, "ddg_search") as mock_ddg,
+    ):
+        hits, already_extracted = backend.discover("query", 5)
+    mock_cs.assert_called_once_with("query", 5)
+    mock_brave.assert_not_called()
+    mock_ddg.assert_not_called()
+    assert hits == [{"title": "T", "href": "u", "body": "full text"}]
+    assert already_extracted is True
+
+
+def test_discover_falls_through_to_brave_when_crawlsearch_returns_nothing():
+    with (
+        patch.object(backend, "CRAWLSEARCH_API_URL", "http://localhost:8100"),
+        patch.object(backend, "BRAVE_SEARCH_API_KEY", "fake-key"),
+        patch.object(backend, "crawlsearch_search", return_value=[]),
+        patch.object(backend, "brave_search", return_value=[{"title": "T", "href": "u", "body": "b"}]) as mock_brave,
+    ):
+        hits, already_extracted = backend.discover("query", 5)
+    mock_brave.assert_called_once_with("query", 5)
+    assert already_extracted is False
+
+
+def test_discover_uses_brave_when_api_key_configured():
+    with (
+        patch.object(backend, "CRAWLSEARCH_API_URL", None),
+        patch.object(backend, "BRAVE_SEARCH_API_KEY", "fake-key"),
+        patch.object(backend, "brave_search", return_value=[{"title": "T", "href": "u", "body": "b"}]) as mock_brave,
+        patch.object(backend, "ddg_search") as mock_ddg,
+    ):
+        hits, already_extracted = backend.discover("query", 5)
+    mock_brave.assert_called_once_with("query", 5)
+    mock_ddg.assert_not_called()
+    assert hits == [{"title": "T", "href": "u", "body": "b"}]
+    assert already_extracted is False
+
+
+def test_discover_falls_back_to_ddg_when_no_brave_key():
+    with (
+        patch.object(backend, "CRAWLSEARCH_API_URL", None),
+        patch.object(backend, "BRAVE_SEARCH_API_KEY", None),
+        patch.object(backend, "brave_search") as mock_brave,
+        patch.object(backend, "ddg_search", return_value=[]) as mock_ddg,
+    ):
+        backend.discover("query", 5)
+    mock_ddg.assert_called_once_with("query", 5)
+    mock_brave.assert_not_called()
+
+
+def test_crawlsearch_search_maps_response_fields():
+    fake_response = MagicMock()
+    fake_response.raise_for_status.return_value = None
+    fake_response.json.return_value = {
+        "results": [{"title": "Apple News", "url": "https://example.com/a", "content": "Full article text"}]
+    }
+    with (
+        patch.object(backend, "CRAWLSEARCH_API_URL", "http://localhost:8100"),
+        patch("services.web_search.backend.httpx.post", return_value=fake_response),
+    ):
+        hits = backend.crawlsearch_search("apple", 5)
+    assert hits == [{"title": "Apple News", "href": "https://example.com/a", "body": "Full article text"}]
+
+
+def test_crawlsearch_search_returns_empty_list_on_failure():
+    with patch("services.web_search.backend.httpx.post", side_effect=Exception("boom")):
+        hits = backend.crawlsearch_search("apple", 5)
+    assert hits == []
+
+
+def test_brave_search_maps_response_fields():
+    fake_response = MagicMock()
+    fake_response.raise_for_status.return_value = None
+    fake_response.json.return_value = {
+        "web": {"results": [{"title": "Apple News", "url": "https://example.com/a", "description": "Some snippet"}]}
+    }
+    with patch("services.web_search.backend.httpx.get", return_value=fake_response):
+        hits = backend.brave_search("apple", 5)
+    assert hits == [{"title": "Apple News", "href": "https://example.com/a", "body": "Some snippet"}]
+
+
+def test_brave_search_returns_empty_list_on_failure():
+    with patch("services.web_search.backend.httpx.get", side_effect=Exception("boom")):
+        hits = backend.brave_search("apple", 5)
+    assert hits == []
+
+
+def test_brave_search_skips_results_missing_url():
+    fake_response = MagicMock()
+    fake_response.raise_for_status.return_value = None
+    fake_response.json.return_value = {"web": {"results": [{"title": "No URL", "description": "x"}]}}
+    with patch("services.web_search.backend.httpx.get", return_value=fake_response):
+        hits = backend.brave_search("apple", 5)
+    assert hits == []

@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Optional
 
-from .backend import RawSearchHit, ddg_search
+from .backend import RawSearchHit, discover
 from .extract import extract_content
 
 MAX_PARALLEL_FETCHES = 10
@@ -54,8 +54,11 @@ def _score(query: str, title: str, content: str) -> float:
     return round(min(raw, 1.0), 3)
 
 
-def _build_result(hit: RawSearchHit, query: str) -> SearchResult:
-    extracted = extract_content(hit["href"])
+def _build_result(hit: RawSearchHit, query: str, content_already_extracted: bool) -> SearchResult:
+    # CrawlSearch hits already carry full article text captured at crawl
+    # time (backend.py's discover()) — re-fetching the original URL here
+    # would be redundant work and defeat the point of a pre-built index.
+    extracted = hit["body"] if content_already_extracted else extract_content(hit["href"])
     body = extracted or hit["body"]
     return SearchResult(
         title=hit["title"],
@@ -68,16 +71,19 @@ def _build_result(hit: RawSearchHit, query: str) -> SearchResult:
 
 def search(query: str, max_results: int = 5, include_raw_content: bool = False) -> SearchResponse:
     """
-    Finds candidate URLs via DuckDuckGo (backend.py), then fetches and
-    extracts real article content for each one in parallel (extract.py,
-    mirrors services/market_data_service.py's _fetch_closes_parallel
-    pattern) — that extraction step is what actually differentiates this
-    from a raw search-results page.
+    Finds candidate URLs via backend.discover() — CrawlSearch's own
+    curated-domain index when configured, else Brave Search API, else
+    DuckDuckGo scraping — then, for sources that don't already provide
+    full content, fetches and extracts real article content for each
+    result in parallel (extract.py, mirrors
+    services/market_data_service.py's _fetch_closes_parallel pattern).
+    CrawlSearch hits skip this live-fetch step entirely since their
+    content was already extracted at crawl time.
 
-    Content extraction always runs (it's what makes `content` a real
-    article snippet instead of DuckDuckGo's one-line blurb); the full
-    extracted text is only *returned* via `raw_content` when
-    include_raw_content=True, matching Tavily's own request shape.
+    Content extraction always runs for non-CrawlSearch sources (it's
+    what makes `content` a real article snippet instead of a one-line
+    blurb); the full extracted text is only *returned* via `raw_content`
+    when include_raw_content=True, matching Tavily's own request shape.
 
     Results are ranked by this module's own score, not DuckDuckGo's
     original order — parallel fetching doesn't preserve that order
@@ -85,12 +91,14 @@ def search(query: str, max_results: int = 5, include_raw_content: bool = False) 
     of doing the extraction at all.
     """
     start = time.monotonic()
-    hits = ddg_search(query, max_results)
+    hits, content_already_extracted = discover(query, max_results)
 
     results: list[SearchResult] = []
     if hits:
         with ThreadPoolExecutor(max_workers=min(MAX_PARALLEL_FETCHES, len(hits))) as executor:
-            futures = [executor.submit(_build_result, hit, query) for hit in hits]
+            futures = [
+                executor.submit(_build_result, hit, query, content_already_extracted) for hit in hits
+            ]
             for future in as_completed(futures):
                 results.append(future.result())
 
