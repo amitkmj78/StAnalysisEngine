@@ -7,3 +7,8 @@ asyncpg
 beautifulsoup4
 ddgs
 httpx
+langchain-openai
+langchain-groq
+langchain-anthropic
+langchain-ollama
+cachetools
