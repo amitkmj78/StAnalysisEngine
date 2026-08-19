@@ -25,7 +25,7 @@ from web.backend.app_settings import (
 )
 from web.backend.auth import verify_bearer_token, verify_bearer_token_optional
 from web.backend.db import service_conn
-from web.backend.llm_cache import cached_init_llms, resolve_llm
+from web.backend.llm_cache import cached_init_llms, ordered_llms
 from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.scheduler import check_publication_alert
 from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
@@ -199,10 +199,10 @@ async def quant_signal_narrative(
     llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
     if not labels:
         raise HTTPException(502, "No LLM provider is configured on the server.")
-    llm = resolve_llm(labels[0], llm_openai, llm_groq, llm_claude, llm_ollama)
+    llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
 
     narrative = await run_in_threadpool(
-        build_quant_signal_narrative, llm, ticker, signal, expected_return_pct, target_price, last_close
+        build_quant_signal_narrative, llms, ticker, signal, expected_return_pct, target_price, last_close
     )
     if narrative is None:
         raise HTTPException(502, "Failed to generate a narrative for this ticker.")

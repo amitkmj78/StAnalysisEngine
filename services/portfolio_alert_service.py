@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 import yfinance as yf
 
+from .llm_setup import invoke_with_fallback
 from .prediction_service import generate_trading_signal, predict_future_prices
 from .sentiment_service import get_sentiment_summary
 
@@ -68,15 +69,21 @@ def _build_recommendation_prompt(ticker: str, drop: Dict[str, float], sentiment_
     return "\n".join(lines)
 
 
-def build_drop_analysis(llm, ticker: str, drop: Dict[str, float]) -> Dict[str, Any]:
+def build_drop_analysis(llms: list, ticker: str, drop: Dict[str, float]) -> Dict[str, Any]:
     """
     Given an already-detected drop, gathers sentiment/news and the same
     Predict-page quant signal, then asks the LLM to synthesize a short
     recommended-action note — same "sentiment text -> LLM prompt -> writeup"
     shape as prediction_narrative_service.build_prediction_narrative, just
     anchored on a price-drop event instead of a forecast.
+
+    `llms` is an ordered list of available providers (preferred first)
+    — the recommendation call tries each in turn (invoke_with_fallback)
+    so one provider being down (rate limit, exhausted billing, an
+    outage) doesn't produce "Recommendation unavailable" as long as
+    another configured provider is healthy.
     """
-    sentiment_text = get_sentiment_summary(ticker, llm=llm)
+    sentiment_text = get_sentiment_summary(ticker, llms=llms)
 
     signal = None
     try:
@@ -90,10 +97,9 @@ def build_drop_analysis(llm, ticker: str, drop: Dict[str, float]) -> Dict[str, A
 
     prompt = _build_recommendation_prompt(ticker, drop, sentiment_text, signal)
     try:
-        response = llm.invoke(prompt)
-        recommendation = getattr(response, "content", str(response))
+        recommendation, _ = invoke_with_fallback(llms, prompt)
     except Exception as e:
-        logger.warning("Portfolio alert: LLM recommendation failed for %s: %s", ticker, e)
+        logger.warning("Portfolio alert: LLM recommendation failed for %s (all providers): %s", ticker, e)
         recommendation = "Recommendation unavailable — the language model call failed. See news/signal context below."
 
     return {

@@ -20,7 +20,7 @@ from services.prediction_verification_service import verify_prediction
 
 from web.backend.auth import verify_bearer_token
 from web.backend.db import user_conn
-from web.backend.llm_cache import cached_init_llms, resolve_llm
+from web.backend.llm_cache import cached_init_llms, label_for_llm, ordered_llms
 from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.schemas import (
     BacktestOut,
@@ -223,7 +223,7 @@ async def predict_narrative(
     provider = provider or labels[0]
     if provider not in labels:
         raise HTTPException(422, f"provider must be one of {labels}")
-    llm = resolve_llm(provider, llm_openai, llm_groq, llm_claude, llm_ollama)
+    llms = ordered_llms(provider, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
 
     extended_hours = await run_in_threadpool(get_extended_hours_price, ticker)
 
@@ -235,11 +235,22 @@ async def predict_narrative(
         "extended_hours": extended_hours,
         "days_ahead": days_ahead,
     }
-    result = await run_in_threadpool(build_prediction_narrative, llm, ticker, context)
+    result = await run_in_threadpool(build_prediction_narrative, llms, ticker, context)
+
+    # Report whichever provider actually answered — may differ from the
+    # requested one if invoke_with_fallback (inside build_prediction_narrative)
+    # had to fall through past a down/rate-limited/exhausted-billing provider.
+    provider_index = result.get("provider_index")
+    actual_provider = provider
+    if provider_index is not None:
+        actual_provider = (
+            label_for_llm(llms[provider_index], llm_openai, llm_groq, llm_claude, llm_ollama, labels)
+            or provider
+        )
 
     return PredictionNarrativeOut(
         ticker=ticker,
-        provider=provider,
+        provider=actual_provider,
         narrative=result["narrative"],
         sentiment_context=result["sentiment_context"],
     )

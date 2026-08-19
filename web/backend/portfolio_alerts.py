@@ -10,7 +10,7 @@ from services.portfolio_alert_service import (
     get_price_and_prev_close,
 )
 from web.backend.db import service_conn
-from web.backend.llm_cache import cached_init_llms, resolve_llm
+from web.backend.llm_cache import cached_init_llms, ordered_llms
 
 logger = logging.getLogger(__name__)
 
@@ -63,22 +63,21 @@ async def scan_portfolios_for_drops(threshold_pct: float = DROP_THRESHOLD_PCT, u
     pending = [h for h in holdings if (h["user_id"], h["ticker"]) not in already_alerted_by_key]
     to_refresh = [h for h in holdings if (h["user_id"], h["ticker"]) in already_alerted_by_key]
 
-    llm = None
+    llms: list = []
     llm_checked = False
 
-    async def _get_llm():
-        nonlocal llm, llm_checked
+    async def _get_llms():
+        nonlocal llms, llm_checked
         if not llm_checked:
             llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
-            if labels:
-                llm = resolve_llm(labels[0], llm_openai, llm_groq, llm_claude, llm_ollama)
+            llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
             llm_checked = True
-        return llm
+        return llms
 
     async def _analyze(ticker: str, drop: dict) -> dict:
-        current_llm = await _get_llm()
-        if current_llm is not None:
-            analysis = await run_in_threadpool(build_drop_analysis, current_llm, ticker, drop)
+        current_llms = await _get_llms()
+        if current_llms:
+            analysis = await run_in_threadpool(build_drop_analysis, current_llms, ticker, drop)
         else:
             analysis = {
                 "sentiment_summary": None,

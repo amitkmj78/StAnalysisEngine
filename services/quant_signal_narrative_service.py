@@ -9,10 +9,14 @@ one already shown, since the PIT value was captured earlier that day) —
 takes the signal as input and explains it against current technicals.
 """
 
+import logging
 from typing import Optional
 
 from .data_service import get_stock_data
+from .llm_setup import invoke_with_fallback
 from .technical_service import add_indicators
+
+logger = logging.getLogger(__name__)
 
 
 def _current_indicators_text(ticker: str) -> str:
@@ -33,13 +37,21 @@ def _current_indicators_text(ticker: str) -> str:
 
 
 def build_quant_signal_narrative(
-    llm,
+    llms: list,
     ticker: str,
     signal: str,
     expected_return_pct: float,
     target_price: float,
     last_close: float,
 ) -> Optional[str]:
+    """
+    `llms` is an ordered list of available providers (preferred first),
+    tried in turn via invoke_with_fallback so one provider being down
+    doesn't take down this narrative as long as another is healthy.
+    Returns None on total failure (every provider failed), matching the
+    existing contract callers already handle (see web/backend/routers/
+    signals.py's `if narrative is None: raise HTTPException(502, ...)`).
+    """
     indicators_text = _current_indicators_text(ticker)
 
     prompt = (
@@ -54,5 +66,9 @@ def build_quant_signal_narrative(
         "instruct them to buy or sell."
     )
 
-    response = llm.invoke(prompt)
-    return response.content if hasattr(response, "content") else str(response)
+    try:
+        content, _ = invoke_with_fallback(llms, prompt)
+        return content
+    except Exception as e:
+        logger.warning("Quant signal narrative failed for %s (all providers): %s", ticker, e)
+        return None

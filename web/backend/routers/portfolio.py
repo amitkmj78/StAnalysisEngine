@@ -30,7 +30,7 @@ from web.backend.app_settings import (
 )
 from web.backend.auth import verify_bearer_token
 from web.backend.db import user_conn
-from web.backend.llm_cache import cached_init_llms, resolve_llm
+from web.backend.llm_cache import cached_init_llms, ordered_llms
 from web.backend.portfolio_alerts import scan_portfolios_for_drops
 from web.backend.rate_limit import enforce_daily_quota, limiter
 
@@ -683,9 +683,9 @@ async def refresh_drop_alert(alert_id: int, request: Request):
     drop = {"price": quote["price"], "prev_close": quote["prev_close"], "pct_change": pct_change}
 
     llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
-    if labels:
-        llm = resolve_llm(labels[0], llm_openai, llm_groq, llm_claude, llm_ollama)
-        analysis = await run_in_threadpool(build_drop_analysis, llm, ticker, drop)
+    llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
+    if llms:
+        analysis = await run_in_threadpool(build_drop_analysis, llms, ticker, drop)
     else:
         analysis = {
             "sentiment_summary": None,

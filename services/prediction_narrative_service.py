@@ -1,5 +1,6 @@
 from typing import Any, Dict
 
+from .llm_setup import invoke_with_fallback
 from .sentiment_service import get_sentiment_summary
 
 # Kept out of prediction_service.py deliberately — that module's "no LLM,
@@ -49,9 +50,21 @@ def _build_prompt(ticker: str, context: Dict[str, Any], sentiment_text: str) -> 
     return "\n".join(lines)
 
 
-def build_prediction_narrative(llm, ticker: str, context: Dict[str, Any]) -> Dict[str, str]:
-    sentiment_text = get_sentiment_summary(ticker, llm=llm)
+def build_prediction_narrative(llms: list, ticker: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    `llms` is an ordered list of available providers (preferred first) —
+    tried in turn via invoke_with_fallback, so one provider being down
+    (rate limit, exhausted billing, an outage) doesn't take down the
+    narrative as long as another configured provider is healthy.
+    `provider_index` in the return value is the position in `llms` that
+    actually answered, letting the caller report which one that was if
+    it differs from what was originally preferred.
+    """
+    sentiment_text = get_sentiment_summary(ticker, llms=llms)
     prompt = _build_prompt(ticker, context, sentiment_text)
-    response = llm.invoke(prompt)
-    narrative = getattr(response, "content", str(response))
-    return {"narrative": narrative, "sentiment_context": sentiment_text}
+    try:
+        narrative, provider_index = invoke_with_fallback(llms, prompt)
+    except Exception:
+        narrative = "Narrative unavailable — the language model call failed. See the quant signal and news/earnings context above."
+        provider_index = None
+    return {"narrative": narrative, "sentiment_context": sentiment_text, "provider_index": provider_index}

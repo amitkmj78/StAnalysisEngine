@@ -10,23 +10,27 @@ downstream narrative/analysis LLM call ever sees it.
 Deliberately NOT the default behavior of search_text() — this is an
 opt-in for callers that already have an LLM in scope and want the
 tradeoff (see services/sentiment_service.py, the first caller to use
-it). Takes `llm` as a parameter rather than resolving one itself,
-matching this codebase's existing convention (e.g.
-services/portfolio_alert_service.py's build_drop_analysis(llm, ...)) of
-injecting the LLM at the call site rather than each service layer
-re-implementing its own LLM selection.
+it). Takes `llms` (an ordered list, tried in turn via
+services.llm_setup.invoke_with_fallback) as a parameter rather than
+resolving providers itself, matching this codebase's existing
+convention (e.g. services/portfolio_alert_service.py's
+build_drop_analysis(llms, ...)) of injecting the LLMs at the call site
+rather than each service layer re-implementing its own LLM selection.
 """
 
 from typing import Optional
 
+from services.llm_setup import invoke_with_fallback
+
 from .client import SearchResponse, format_results, search
 
 
-def summarize_results(response: SearchResponse, llm, focus: Optional[str] = None) -> str:
+def summarize_results(response: SearchResponse, llms: list, focus: Optional[str] = None) -> str:
     """
-    Falls back to the raw formatted text (never raises) if the LLM call
-    itself fails or there are no results to summarize — a summarization
-    hiccup must not block whatever narrative/analysis is waiting on this.
+    Falls back to the raw formatted text (never raises) if every LLM in
+    `llms` fails, or there are no results to summarize — a
+    summarization hiccup must not block whatever narrative/analysis is
+    waiting on this.
     """
     raw_text = format_results(response)
     if not response.results:
@@ -44,13 +48,13 @@ def summarize_results(response: SearchResponse, llm, focus: Optional[str] = None
         "- 4-8 sentences. No preamble, no closing remarks — just the brief."
     )
     try:
-        result = llm.invoke(prompt)
-        return result.content if hasattr(result, "content") else str(result)
+        content, _ = invoke_with_fallback(llms, prompt)
+        return content
     except Exception:
         return raw_text
 
 
-def search_summary(query: str, llm, max_results: int = 5) -> str:
+def search_summary(query: str, llms: list, max_results: int = 5) -> str:
     """Search + LLM-summarize in one call."""
     response = search(query, max_results=max_results, include_raw_content=False)
-    return summarize_results(response, llm, focus=query)
+    return summarize_results(response, llms, focus=query)

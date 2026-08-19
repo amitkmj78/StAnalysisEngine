@@ -1,11 +1,14 @@
 # services/llm_setup.py
 
+import logging
 import subprocess
 import os
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
 from langchain_anthropic import ChatAnthropic
+
+logger = logging.getLogger(__name__)
 
 
 def get_local_ollama_models():
@@ -119,3 +122,34 @@ def init_llms():
         return None, None, None, None, []
 
     return llm_openai, llm_groq, llm_claude, llm_ollama, llm_labels
+
+
+def invoke_with_fallback(llms: list, prompt: str) -> tuple[str, int]:
+    """
+    Tries each non-None LLM in `llms`, in order, returning (content,
+    index) from the first one that succeeds — `index` is the position
+    in `llms` that actually worked, so a caller reporting "which
+    provider answered" can reflect reality if a fallback occurred
+    rather than the one that was merely preferred.
+
+    A single provider being down (rate limit, exhausted billing, an
+    outage — e.g. OpenAI's `insufficient_quota`) no longer breaks a
+    feature outright as long as another configured provider is
+    healthy. Raises the last exception if every provider fails, so
+    callers keep their existing "no provider available" handling for
+    the genuine worst case.
+    """
+    last_exc: Exception | None = None
+    for i, llm in enumerate(llms):
+        if llm is None:
+            continue
+        try:
+            response = llm.invoke(prompt)
+            content = getattr(response, "content", str(response))
+            return content, i
+        except Exception as e:
+            logger.warning("LLM call failed (provider %d/%d), trying next: %s", i + 1, len(llms), e)
+            last_exc = e
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("No LLM provider available.")

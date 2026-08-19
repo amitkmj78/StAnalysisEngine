@@ -7,7 +7,7 @@ from starlette.concurrency import run_in_threadpool
 from Agent.meta_agent import ask_meta_agent, build_agent
 
 from web.backend.auth import verify_bearer_token
-from web.backend.llm_cache import cached_init_llms, resolve_llm
+from web.backend.llm_cache import cached_init_llms, label_for_llm, ordered_llms
 from web.backend.rate_limit import enforce_daily_quota, limiter
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"], dependencies=[Depends(verify_bearer_token)])
@@ -43,10 +43,26 @@ async def ask(request: Request, body: ChatRequest):
     if provider not in labels:
         raise HTTPException(422, f"provider must be one of {labels}")
 
-    llm = resolve_llm(provider, llm_openai, llm_groq, llm_claude, llm_ollama)
-
-    agent = await run_in_threadpool(build_agent, llm)
+    llms = ordered_llms(provider, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
     ticker = body.ticker.strip().upper()
-    answer = await run_in_threadpool(ask_meta_agent, agent, ticker, body.question)
 
-    return {"ticker": ticker, "provider": provider, "answer": answer}
+    # Each provider needs its own agent (bind_tools is provider-specific,
+    # can't reuse one agent across models) — try the requested provider
+    # first, and if it fails (down, rate-limited, exhausted billing —
+    # ask_meta_agent reports that as a "❌ Meta-agent crashed" string
+    # rather than raising), fall through to the next configured one so a
+    # single provider outage doesn't take down chat entirely.
+    answer = "No LLM provider was available to answer."
+    actual_llm = None
+    for candidate in llms:
+        agent = await run_in_threadpool(build_agent, candidate)
+        answer = await run_in_threadpool(ask_meta_agent, agent, ticker, body.question)
+        if not answer.startswith("❌ Meta-agent crashed:"):
+            actual_llm = candidate
+            break
+
+    actual_provider = provider
+    if actual_llm is not None:
+        actual_provider = label_for_llm(actual_llm, llm_openai, llm_groq, llm_claude, llm_ollama, labels) or provider
+
+    return {"ticker": ticker, "provider": actual_provider, "answer": answer}
