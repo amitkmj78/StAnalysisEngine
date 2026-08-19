@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Search Feeds the LLM — StAnalysisEngine</title>
+<style>
+  :root {
+    --paper: #eef1f4;
+    --paper-raised: #ffffff;
+    --ink: #141c28;
+    --ink-soft: #4a5568;
+    --ink-faint: #7b8798;
+    --line: rgba(20, 28, 40, 0.12);
+    --line-strong: rgba(20, 28, 40, 0.22);
+    --accent: #0e6e5c;
+    --accent-ink: #ffffff;
+    --accent-soft: #e2f0ec;
+    --warm: #b85c1e;
+    --warm-soft: #f5e6da;
+    --radius-sm: 3px;
+    --radius-md: 8px;
+    --serif: "Iowan Old Style", "Sitka Text", Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0d1420;
+    --paper-raised: #131c2b;
+    --ink: #e7e9ec;
+    --ink-soft: #aab3c2;
+    --ink-faint: #6c7a8e;
+    --line: rgba(231, 233, 236, 0.14);
+    --line-strong: rgba(231, 233, 236, 0.26);
+    --accent: #3fd9b9;
+    --accent-ink: #06251f;
+    --accent-soft: #10322b;
+    --warm: #f0975a;
+    --warm-soft: #2e2013;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0d1420;
+      --paper-raised: #131c2b;
+      --ink: #e7e9ec;
+      --ink-soft: #aab3c2;
+      --ink-faint: #6c7a8e;
+      --line: rgba(231, 233, 236, 0.14);
+      --line-strong: rgba(231, 233, 236, 0.26);
+      --accent: #3fd9b9;
+      --accent-ink: #06251f;
+      --accent-soft: #10322b;
+      --warm: #f0975a;
+      --warm-soft: #2e2013;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: var(--accent-soft); color: var(--ink); }
+  a { color: var(--accent); }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+
+  header.hero {
+    padding: 56px 0 40px;
+    border-bottom: 1px solid var(--line);
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 12px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 500;
+    line-height: 1.2;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .lede {
+    font-size: 17px;
+    color: var(--ink-soft);
+    max-width: 640px;
+    margin: 0;
+  }
+
+  section { padding: 44px 0; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: none; }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0 0 8px;
+  }
+  .section-intro {
+    color: var(--ink-soft);
+    max-width: 620px;
+    margin: 0 0 28px;
+    font-size: 15px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--accent-soft);
+    color: var(--ink);
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Pipeline diagram */
+  .pipeline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0;
+    margin-top: 8px;
+  }
+  .stage {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    flex: 1 1 150px;
+    min-width: 150px;
+  }
+  .stage .num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+  }
+  .stage h3 {
+    font-size: 15px;
+    margin: 6px 0 4px;
+    font-weight: 600;
+  }
+  .stage p {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 0;
+    line-height: 1.5;
+  }
+  .arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    color: var(--ink-faint);
+    font-size: 18px;
+    flex: 0 0 auto;
+  }
+  @media (max-width: 720px) {
+    .pipeline { flex-direction: column; }
+    .arrow { transform: rotate(90deg); padding: 4px 0; }
+  }
+
+  /* Fallback chain */
+  .chain {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin: 18px 0 0;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
+  .chip.fallback .dot { background: var(--ink-faint); }
+  .chain-arrow { color: var(--ink-faint); font-family: var(--mono); font-size: 13px; }
+
+  /* Detail cards */
+  .cards { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 8px; }
+  .card {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+  }
+  .card h3 {
+    font-size: 15.5px;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card p { margin: 0; font-size: 14px; color: var(--ink-soft); }
+  .card p + p { margin-top: 8px; }
+  .tag {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+
+  .stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .stat {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    flex: 1 1 140px;
+    min-width: 140px;
+  }
+  .stat .value {
+    font-family: var(--serif);
+    font-size: 24px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .stat .label {
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin-top: 6px;
+  }
+
+  .note {
+    background: var(--warm-soft);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--warm);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin-top: 22px;
+  }
+  .note strong { color: var(--ink); }
+
+  footer {
+    padding: 32px 0 56px;
+    font-size: 13px;
+    color: var(--ink-faint);
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <p class="eyebrow">Architecture — Search &amp; LLM Pipeline</p>
+      <h1>How search feeds the LLM</h1>
+      <p class="lede">
+        Every narrative, sentiment summary, and drop alert this app generates about a stock is grounded in real,
+        current text — not just the model's training data. This is the pipeline that gets that text: where it's
+        found, how it's cleaned, and how it reaches the model.
+      </p>
+    </header>
+
+    <section>
+      <h2>The pipeline, end to end</h2>
+      <p class="section-intro">
+        Four stages turn a plain query like <code>"AAPL earnings guidance"</code> into grounded context an LLM can
+        reason over.
+      </p>
+      <div class="pipeline">
+        <div class="stage">
+          <div class="num">01</div>
+          <h3>Discover</h3>
+          <p>Find candidate pages for the query — our own index first, live search as a fallback.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="stage">
+          <div class="num">02</div>
+          <h3>Extract</h3>
+          <p>Fetch each result and pull clean article text out of the raw page — no nav, ads, or boilerplate.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="stage">
+          <div class="num">03</div>
+          <h3>Rank</h3>
+          <p>Score and order results by relevance to the query, most useful content first.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="stage">
+          <div class="num">04</div>
+          <h3>Summarize</h3>
+          <p>An LLM pass dedupes overlapping facts and drops ad noise before the real analysis call sees it.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Where results come from</h2>
+      <p class="section-intro">
+        Discovery tries three sources in order, falling through only when one has nothing to offer — this keeps
+        results fast and current without ever depending on a single point of failure.
+      </p>
+      <div class="chain">
+        <span class="chip"><span class="dot"></span>CrawlSearch — our own crawler</span>
+        <span class="chain-arrow">no coverage →</span>
+        <span class="chip fallback"><span class="dot"></span>Brave Search API</span>
+        <span class="chain-arrow">unconfigured →</span>
+        <span class="chip fallback"><span class="dot"></span>DuckDuckGo</span>
+      </div>
+      <div class="note">
+        <strong>Why our own crawler comes first:</strong> CrawlSearch's results are pre-extracted at crawl time —
+        querying it costs one internal lookup, not a live fetch of the original site. Live sources (Brave,
+        DuckDuckGo) only run when a topic falls outside CrawlSearch's curated coverage.
+      </div>
+    </section>
+
+    <section>
+      <h2>CrawlSearch — the primary source</h2>
+      <p class="section-intro">
+        A standalone crawler that continuously indexes a curated list of finance and news sites, built and run
+        specifically to feed this pipeline with fresh, on-topic content.
+      </p>
+      <div class="cards">
+        <div class="card">
+          <h3><span class="tag">Crawl</span>Polite by construction</h3>
+          <p>
+            Every domain's <code>robots.txt</code> is fetched and honored before anything else — a site that
+            disallows crawling is skipped, never worked around. Per-domain rate limiting respects the site's own
+            <code>Crawl-delay</code> when it's stricter than our default, and 429/503 responses trigger backoff
+            rather than retries.
+          </p>
+          <p>
+            New pages are found via each domain's sitemap or homepage links; a paginated sitemap <em>index</em>
+            (a pointer to hundreds of sub-sitemaps) is deliberately skipped rather than followed, so the crawl
+            budget goes to real articles, not XML discovery.
+          </p>
+        </div>
+        <div class="card">
+          <h3><span class="tag">Extract</span>Excerpts, not full articles</h3>
+          <p>
+            Each page is parsed for its actual article text — preferring semantic <code>&lt;article&gt;</code>/
+            <code>&lt;main&gt;</code> tags, falling back to a paragraph-density heuristic — and capped at roughly
+            2,000 characters. News writing front-loads the facts, so this is normally the lead paragraphs: enough
+            for LLM context, deliberately short of a full republished copy.
+          </p>
+        </div>
+        <div class="card">
+          <h3><span class="tag">Index</span>Postgres full-text search</h3>
+          <p>
+            Extracted text lands in a Postgres table with a generated <code>tsvector</code> column (title weighted
+            above body) and a GIN index, ranked by Postgres's built-in <code>ts_rank</code>. A search is a local
+            query against already-crawled data — no network round trip, typically under a few hundred
+            milliseconds.
+          </p>
+        </div>
+        <div class="card">
+          <h3><span class="tag">Retain</span>A rolling window, not an archive</h3>
+          <p>
+            Every crawl cycle purges pages older than the retention window and forgets their URLs from the crawl
+            frontier, so they're eligible to be recrawled fresh if still live upstream. This is a cache of recent
+            content for LLM grounding, not a permanent copy of anyone else's reporting.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Where the LLM actually comes in</h2>
+      <p class="section-intro">
+        Search results reach the model in two distinct passes, not one.
+      </p>
+      <div class="cards">
+        <div class="card">
+          <h3>Pass 1 — Summarization (optional, per search)</h3>
+          <p>
+            Raw multi-source results are noisy: near-duplicate headlines across sites, ad copy mixed into extracted
+            text, truncated snippets. When a caller has an LLM in scope, results are run through a summarization
+            prompt first — deduplicate, drop anything promotional, keep concrete facts (numbers, dates, named
+            catalysts), and flag disagreement between sources rather than silently picking one. This step fails
+            open: if the LLM call errors, the raw formatted results are used instead, never a blocked response.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Pass 2 — Analysis (the actual narrative/sentiment call)</h3>
+          <p>
+            The (possibly summarized) search context is handed to the feature that asked for it in the first
+            place — a prediction narrative, a portfolio drop-alert explanation, a sentiment summary for a ticker.
+            That call reasons over real, current text about the stock alongside the quantitative signals it
+            already has, instead of relying on the model's training data alone for anything time-sensitive.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>By the numbers</h2>
+      <div class="stat-row">
+        <div class="stat"><div class="value">2,000</div><div class="label">chars stored per page (excerpt, not full article)</div></div>
+        <div class="stat"><div class="value">45</div><div class="label">day retention window before a page is purged</div></div>
+        <div class="stat"><div class="value">3</div><div class="label">discovery sources, tried in fallback order</div></div>
+        <div class="stat"><div class="value">2</div><div class="label">separate LLM passes — summarize, then analyze</div></div>
+      </div>
+      <div class="note">
+        <strong>Currently internal-use only.</strong> <code>robots.txt</code> compliance and rate limiting reduce
+        crawling risk but don't cover Terms of Service or copyright on their own — those get a real legal review
+        before any commercial use of this pipeline.
+      </div>
+    </section>
+
+    <footer>
+      Try it yourself on the <a href="/web-search">Web Search</a> page — every query there runs this exact
+      pipeline.
+    </footer>
+  </div>
+</body>
+</html>

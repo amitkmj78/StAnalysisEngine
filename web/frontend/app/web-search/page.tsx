@@ -34,9 +34,17 @@ export default function WebSearchPage() {
     <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="text-2xl font-semibold text-slate-900">Web Search</h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
-        Self-hosted search — DuckDuckGo finds candidate pages, then this app fetches and extracts
-        real article content from each one itself (not just a one-line snippet). No third-party
-        search API involved.
+        Self-hosted search — CrawlSearch (our own crawler) is tried first, with Brave and DuckDuckGo
+        as live fallbacks — then this app extracts real article content from each result itself (not
+        just a one-line snippet). No third-party search API required.{" "}
+        <a
+          href="/how-search-feeds-llm.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-emerald-700 underline hover:text-emerald-800"
+        >
+          How this works →
+        </a>
       </p>
 
       <form
