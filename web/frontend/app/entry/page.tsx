@@ -38,6 +38,48 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
   },
 };
 
+const SORTABLE_NUMERIC_COLUMNS = new Set(["Entry Score", "Current Price", "Entry Low", "Entry High", "Stop Loss", "First Target", "RSI"]);
+
+function signalBadgeClass(signal: string): string {
+  switch (signal) {
+    case "Buy Now":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "Buy on Pullback":
+      return "border-emerald-100 bg-emerald-50 text-emerald-600";
+    case "Breakout Entry":
+      return "border-blue-200 bg-blue-50 text-blue-700";
+    case "Watch for Reversal":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "Wait for Pullback":
+      return "border-amber-100 bg-amber-50 text-amber-600";
+    default:
+      return "border-slate-200 bg-slate-100 text-slate-600";
+  }
+}
+
+function SignalBadge({ signal, className = "" }: { signal: string; className?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium ${signalBadgeClass(signal)} ${className}`}
+    >
+      {signal}
+    </span>
+  );
+}
+
+function EntryScoreBar({ score }: { score: number }) {
+  const pct = Math.max(0, Math.min(100, score));
+  const barColor = pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-slate-400";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-xs tabular-nums text-slate-500">{score}</span>
+    </div>
+  );
+}
+
 export default function EntryPage() {
   const [assetType, setAssetType] = useState<"Fund" | "Stock">("Stock");
   const [mode, setMode] = useState<"scan" | "check">("scan");
@@ -45,6 +87,8 @@ export default function EntryPage() {
   const [universe, setUniverse] = useState("All");
   const [topN, setTopN] = useState(5);
   const [ticker, setTicker] = useState("AAPL");
+  const [sortColumn, setSortColumn] = useState("Entry Score");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const [scanResults, setScanResults] = useState<EntryScanRow[]>([]);
   const [singlePlan, setSinglePlan] = useState<EntryPlan | null>(null);
@@ -89,7 +133,31 @@ export default function EntryPage() {
     }
   }
 
+  // The hero always shows the backend's own best-overall pick (Entry
+  // Score + Signal Rank) regardless of how the user has the table
+  // sorted — "top entry" is a distinct concept from "how I want to
+  // browse the list right now".
   const winner = scanResults[0];
+
+  function toggleSort(col: string) {
+    if (sortColumn === col) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortColumn(col);
+      setSortDir(SORTABLE_NUMERIC_COLUMNS.has(col) ? "desc" : "asc");
+    }
+  }
+
+  const sortedResults = [...scanResults].sort((a, b) => {
+    const av = a[sortColumn];
+    const bv = b[sortColumn];
+    if (av === null || av === undefined) return 1;
+    if (bv === null || bv === undefined) return -1;
+    if (typeof av === "number" && typeof bv === "number") {
+      return sortDir === "desc" ? bv - av : av - bv;
+    }
+    return sortDir === "desc" ? String(bv).localeCompare(String(av)) : String(av).localeCompare(String(bv));
+  });
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -154,12 +222,24 @@ export default function EntryPage() {
 
       {mode === "scan" && winner && !loading && (
         <div className="mt-6 flex flex-col gap-6">
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Top Entry Right Now: {winner.Ticker}</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Signal: <strong>{winner.Signal}</strong> <InfoIcon onClick={() => setInfoColumn("Signal")} /> —
-              strongest current {assetType.toLowerCase()} entry setup in {universe}.
-            </p>
+          <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Top entry right now · {universe}
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-900">{winner.Ticker}</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <SignalBadge signal={winner.Signal} className="px-3 py-1 text-sm" />
+                <InfoIcon onClick={() => setInfoColumn("Signal")} />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <span className="text-xs font-medium text-slate-500">Entry Score</span>
+              <EntryScoreBar score={Number(winner["Entry Score"])} />
+              <InfoIcon onClick={() => setInfoColumn("Entry Score")} />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -169,26 +249,42 @@ export default function EntryPage() {
             <MetricTile label="Entry High" value={`$${Number(winner["Entry High"]).toFixed(2)}`} />
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          {/* Table — sm and up. A cramped horizontally-scrolling table is a
+              poor fit for a phone screen, so mobile gets its own card list
+              below instead of just squeezing this one narrower. */}
+          <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                   {SCAN_COLUMNS.map((col) => (
                     <th key={col} className="px-3 py-2">
-                      <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(col)}
+                        className="flex items-center gap-1 hover:text-slate-700"
+                      >
                         {col}
-                        {COLUMN_INFO[col] && <InfoIcon title={`What is ${col}?`} onClick={() => setInfoColumn(col)} />}
-                      </div>
+                        {sortColumn === col && <span className="text-slate-400">{sortDir === "desc" ? "↓" : "↑"}</span>}
+                      </button>
+                      {COLUMN_INFO[col] && (
+                        <InfoIcon title={`What is ${col}?`} onClick={() => setInfoColumn(col)} />
+                      )}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {scanResults.map((row) => (
-                  <tr key={row.Ticker} className="border-b border-slate-100 last:border-0">
+                {sortedResults.map((row) => (
+                  <tr key={row.Ticker} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                     {SCAN_COLUMNS.map((col) => (
                       <td key={col} className="px-3 py-2 text-slate-700">
-                        {formatCell(row[col])}
+                        {col === "Signal" ? (
+                          <SignalBadge signal={String(row[col])} />
+                        ) : col === "Entry Score" ? (
+                          <EntryScoreBar score={Number(row[col])} />
+                        ) : (
+                          formatCell(row[col])
+                        )}
                       </td>
                     ))}
                   </tr>
@@ -196,17 +292,50 @@ export default function EntryPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Card list — below sm, one card per ticker instead of a
+              horizontally-scrolling table. */}
+          <div className="flex flex-col gap-3 sm:hidden">
+            {sortedResults.map((row) => (
+              <div key={row.Ticker} className="rounded-lg border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-900">{row.Ticker}</span>
+                  <SignalBadge signal={String(row.Signal)} />
+                </div>
+                <div className="mt-2">
+                  <EntryScoreBar score={Number(row["Entry Score"])} />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+                  <span>
+                    Price <span className="tabular-nums text-slate-800">${Number(row["Current Price"]).toFixed(2)}</span>
+                  </span>
+                  <span>
+                    RSI <span className="tabular-nums text-slate-800">{formatCell(row.RSI)}</span>
+                  </span>
+                  <span>
+                    Entry <span className="tabular-nums text-slate-800">${Number(row["Entry Low"]).toFixed(2)}–${Number(row["Entry High"]).toFixed(2)}</span>
+                  </span>
+                  <span>
+                    Stop <span className="tabular-nums text-slate-800">${Number(row["Stop Loss"]).toFixed(2)}</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {mode === "check" && singlePlan && !loading && (
         <div className="mt-6 flex flex-col gap-6">
           <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="text-lg font-semibold text-slate-900">{singlePlan.ticker} Entry Snapshot</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Signal: <strong>{singlePlan.signal}</strong> <InfoIcon onClick={() => setInfoColumn("Signal")} />.{" "}
-              {singlePlan.summary}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-slate-900">{singlePlan.ticker} Entry Snapshot</h2>
+              <div className="flex items-center gap-2">
+                <SignalBadge signal={singlePlan.signal} />
+                <InfoIcon onClick={() => setInfoColumn("Signal")} />
+              </div>
+            </div>
+            <p className="mt-2 text-sm text-slate-600">{singlePlan.summary}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

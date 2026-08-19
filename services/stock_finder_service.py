@@ -37,7 +37,7 @@ _SP500_FALLBACK = INDEX_MAP["US - Mega Cap (SPY sample)"]
 
 
 @ttl_cache(maxsize=4, ttl_seconds=86400)
-def _fetch_sp500_tickers() -> List[str]:
+def fetch_sp500_tickers() -> List[str]:
     """
     Live S&P 500 constituent list from Wikipedia, cached 24h. This app has
     no other source of real index membership — every other universe here is
@@ -63,9 +63,9 @@ def _fetch_sp500_tickers() -> List[str]:
 
 def _universe_tickers(universe_key: str) -> List[str]:
     if universe_key == SP500_UNIVERSE_NAME:
-        return _fetch_sp500_tickers()
+        return fetch_sp500_tickers()
     if universe_key == "All":
-        return sorted({t for group in INDEX_MAP.values() for t in group} | set(_fetch_sp500_tickers()))
+        return sorted({t for group in INDEX_MAP.values() for t in group} | set(fetch_sp500_tickers()))
     return STOCK_UNIVERSES.get(universe_key, [])
 
 

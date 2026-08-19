@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import numpy as np
 import pandas as pd
 import ta
@@ -8,12 +10,30 @@ import yfinance as yf
 from services.cache_utils import ttl_cache
 from services.index_fund_service import INDEX_FUND_UNIVERSE
 from services.screener_service import INDEX_MAP
+from services.stock_finder_service import SP500_UNIVERSE_NAME, fetch_sp500_tickers
 
+MAX_PARALLEL_FETCHES = 10
 
-ENTRY_STOCK_UNIVERSES = {
-    "All": sorted({ticker for group in INDEX_MAP.values() for ticker in group}),
+# "All" and SP500_UNIVERSE_NAME resolve their ticker lists lazily via
+# _entry_stock_tickers (a live, 24h-cached Wikipedia fetch shared with
+# stock_finder_service.py) rather than at import time — a blocked/slow
+# network call must never delay app startup. These keys exist here as
+# empty placeholders purely so /universes listing and the router's
+# `universe in ENTRY_STOCK_UNIVERSES` validation keep working.
+ENTRY_STOCK_UNIVERSES: dict[str, list[str]] = {
+    "All": [],
+    SP500_UNIVERSE_NAME: [],
     **INDEX_MAP,
 }
+
+
+def _entry_stock_tickers(universe_key: str) -> list[str]:
+    if universe_key == SP500_UNIVERSE_NAME:
+        return fetch_sp500_tickers()
+    if universe_key == "All":
+        return sorted({t for group in INDEX_MAP.values() for t in group} | set(fetch_sp500_tickers()))
+    return ENTRY_STOCK_UNIVERSES.get(universe_key, [])
+
 
 ENTRY_FUND_UNIVERSES = {
     "All": [fund.ticker for fund in INDEX_FUND_UNIVERSE],
@@ -166,33 +186,44 @@ def build_entry_plan(ticker: str) -> dict | None:
     }
 
 
+def _entry_row(ticker: str) -> dict | None:
+    plan = build_entry_plan(ticker)
+    if not plan:
+        return None
+    return {
+        "Ticker": plan["ticker"],
+        "Signal": plan["signal"],
+        "Entry Score": plan["entry_score"],
+        "Current Price": plan["current_price"],
+        "Entry Low": plan["ideal_entry_low"],
+        "Entry High": plan["ideal_entry_high"],
+        "Breakout Entry": plan["breakout_entry"],
+        "Stop Loss": plan["stop_loss"],
+        "First Target": plan["first_target"],
+        "RSI": plan["rsi"],
+        "Support 20D": plan["support_20"],
+        "Resistance 20D": plan["resistance_20"],
+    }
+
+
 def scan_best_entries(asset_type: str, universe_key: str) -> pd.DataFrame:
     if asset_type == "Fund":
         tickers = ENTRY_FUND_UNIVERSES.get(universe_key, [])
     else:
-        tickers = ENTRY_STOCK_UNIVERSES.get(universe_key, [])
+        tickers = _entry_stock_tickers(universe_key)
 
+    # build_entry_plan is a couple of independent, I/O-bound yfinance
+    # calls per ticker — parallelize so the S&P 500 (up to 500 tickers)
+    # is tractable within the endpoint's request lifetime, same pattern
+    # as stock_finder_service.get_stock_finder_table. Order doesn't
+    # matter here since results are sorted afterward.
     rows: list[dict] = []
-    for ticker in tickers:
-        plan = build_entry_plan(ticker)
-        if not plan:
-            continue
-        rows.append(
-            {
-                "Ticker": plan["ticker"],
-                "Signal": plan["signal"],
-                "Entry Score": plan["entry_score"],
-                "Current Price": plan["current_price"],
-                "Entry Low": plan["ideal_entry_low"],
-                "Entry High": plan["ideal_entry_high"],
-                "Breakout Entry": plan["breakout_entry"],
-                "Stop Loss": plan["stop_loss"],
-                "First Target": plan["first_target"],
-                "RSI": plan["rsi"],
-                "Support 20D": plan["support_20"],
-                "Resistance 20D": plan["resistance_20"],
-            }
-        )
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_FETCHES) as executor:
+        futures = [executor.submit(_entry_row, ticker) for ticker in tickers]
+        for future in as_completed(futures):
+            row = future.result()
+            if row is not None:
+                rows.append(row)
 
     if not rows:
         return pd.DataFrame()
