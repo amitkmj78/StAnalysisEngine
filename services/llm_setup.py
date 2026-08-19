@@ -40,6 +40,33 @@ def init_llms():
     llm_labels = []
 
     # ----------------------------
+    # GROQ
+    # ----------------------------
+    # Listed first deliberately: labels[0] is the default provider
+    # everywhere a caller doesn't explicitly choose one (scheduled jobs,
+    # quant-signal narratives, the initial pick for user-facing
+    # narrative/chat pages). Groq is free and has no billing-exhaustion
+    # failure mode the way OpenAI currently does (account out of
+    # credits) — OpenAI is kept as the second choice, both as an
+    # explicit provider option and as a configured fallback
+    # (services.llm_setup.invoke_with_fallback) for whenever its
+    # credits are restored.
+    groq_key = os.getenv("GROQ_API_KEY")
+    if groq_key:
+        try:
+            llm_groq = ChatGroq(
+                model="openai/gpt-oss-20b",
+                temperature=0.2,
+                timeout=30,
+            )
+            llm_labels.append("Groq · gpt-oss-20b")
+        except Exception as e:
+            print("ERROR: Groq init failed:", e)
+            llm_groq = None
+    else:
+        print("WARNING: GROQ_API_KEY not found. Skipping Groq models.")
+
+    # ----------------------------
     # OPENAI
     # ----------------------------
     openai_key = os.getenv("OPENAI_API_KEY")
@@ -55,24 +82,6 @@ def init_llms():
             print("ERROR: OpenAI init failed:", e)
     else:
         print("WARNING: OPENAI_API_KEY not found. Skipping OpenAI models.")
-
-    # ----------------------------
-    # GROQ
-    # ----------------------------
-    groq_key = os.getenv("GROQ_API_KEY")
-    if groq_key:
-        try:
-            llm_groq = ChatGroq(
-                model="openai/gpt-oss-20b",
-                temperature=0.2,
-                timeout=30,
-            )
-            llm_labels.append("Groq · gpt-oss-20b")
-        except Exception as e:
-            print("ERROR: Groq init failed:", e)
-            llm_groq = None
-    else:
-        print("WARNING: GROQ_API_KEY not found. Skipping Groq models.")
 
     # ----------------------------
     # CLAUDE (ANTHROPIC)
