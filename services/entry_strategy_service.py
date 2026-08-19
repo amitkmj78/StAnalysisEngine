@@ -167,7 +167,15 @@ def build_entry_plan(ticker: str) -> dict | None:
     if avg_volume_20 and latest_volume:
         volume_ratio = latest_volume / avg_volume_20
         entry_score += max(0.0, min(12.0, (volume_ratio - 1.0) * 20))
-    entry_score = round(min(100.0, max(0.0, entry_score)), 1)
+    entry_score = max(0.0, entry_score)
+    # Kept alongside the capped/rounded display score purely as a scan-
+    # level tiebreaker (scan_best_entries) — two stocks can genuinely
+    # differ in underlying strength while both showing "100" once
+    # capped; without this, ties fell back to whatever order the
+    # parallel scan's network calls happened to complete in (looked
+    # arbitrary/alphabetical-ish rather than ranked).
+    raw_entry_score = entry_score
+    entry_score = round(min(100.0, entry_score), 1)
 
     return {
         "ticker": ticker.strip().upper(),
@@ -196,6 +204,7 @@ def build_entry_plan(ticker: str) -> dict | None:
         "trend_up": trend_up,
         "long_term_up": long_term_up,
         "entry_score": entry_score,
+        "raw_entry_score": raw_entry_score,
     }
 
 
@@ -216,6 +225,7 @@ def _entry_row(ticker: str) -> dict | None:
         "RSI": plan["rsi"],
         "Support 20D": plan["support_20"],
         "Resistance 20D": plan["resistance_20"],
+        "_raw_entry_score": plan["raw_entry_score"],
     }
 
 
@@ -243,5 +253,17 @@ def scan_best_entries(asset_type: str, universe_key: str) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     df["Signal Rank"] = df["Signal"].map(_signal_rank).fillna(0)
-    df = df.sort_values(["Entry Score", "Signal Rank"], ascending=[False, False]).reset_index(drop=True)
-    return df.drop(columns=["Signal Rank"])
+    # _raw_entry_score (pre-cap, more decimal precision) breaks ties
+    # between stocks that both display "100" once capped — without it,
+    # ties fell back to whatever order the parallel scan's network calls
+    # happened to complete in, which looked arbitrary (and, since
+    # fetch_sp500_tickers() returns tickers alphabetically and the
+    # earliest-submitted threads tend to finish first, misleadingly
+    # close to alphabetical rather than actually ranked). Ticker is a
+    # final deterministic tiebreak for the vanishingly unlikely case two
+    # stocks also match on raw score.
+    df = df.sort_values(
+        ["Entry Score", "Signal Rank", "_raw_entry_score", "Ticker"],
+        ascending=[False, False, False, True],
+    ).reset_index(drop=True)
+    return df.drop(columns=["Signal Rank", "_raw_entry_score"])
