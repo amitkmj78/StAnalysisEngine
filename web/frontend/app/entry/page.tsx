@@ -13,7 +13,7 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
   "Entry Score": {
     title: "Entry Score",
     body: [
-      "A 0–100 score built from this ticker's own technical setup right now — not a percentile rank against other tickers like the Screener's Score, so it can be compared across different scans and doesn't shift just because the universe changed.",
+      "A score built from this ticker's own technical setup right now — not a percentile rank against other tickers like the Screener's Score, so it can be compared across different scans and doesn't shift just because the universe changed. 100 is a strong, well-rounded setup; a genuinely exceptional one (strong on every factor at once) can score above it — there's no artificial ceiling hiding real differences between setups.",
       "Signal strength — up to 90 points: the Signal label (Wait = 0, Wait for Pullback = 1, Watch for Reversal = 2, Breakout Entry = 3, Buy on Pullback = 4, Buy Now = 5) times 18.",
       "RSI closeness to 52 — up to 20 points: full 20 at RSI exactly 52 (strong momentum without being overheated), losing a point per unit away, reaching 0 once RSI is 20+ points from 52 in either direction.",
       "Bullish short-term momentum — +14 if present, except for \"Buy Now\"/\"Breakout Entry\" where it's already required to earn that label (counted once via signal strength, not twice).",
@@ -21,7 +21,7 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
       "Long-term uptrend — +10 if present, except for \"Buy on Pullback\" where it's already required to earn that label.",
       "Proximity to a level — near 20-day support: +12 (except for \"Buy on Pullback\", already required). Otherwise, near a breakout level: +8 (except for \"Breakout Entry\", already required). Only one of these ever applies.",
       "Above-average volume — up to +12: 0 at today's volume equal to its 20-day average, scaling up to the full 12 points once volume is 60%+ above that average.",
-      "The exceptions above matter: a stock's signal label already implies certain conditions (e.g. \"Buy Now\" requires an uptrend with momentum), so re-awarding those same points on top would double-count the same evidence and cap most stocks in that signal at the same score. The remaining points only come from genuine extra strength beyond what the label already guarantees, capped at 100.",
+      "The exceptions above matter: a stock's signal label already implies certain conditions (e.g. \"Buy Now\" requires an uptrend with momentum), so re-awarding those same points on top would double-count the same evidence. The remaining points only come from genuine extra strength beyond what the label already guarantees — nothing here is capped, so two stocks with the same signal can still show meaningfully different scores.",
     ],
   },
   Signal: {
@@ -68,12 +68,16 @@ function SignalBadge({ signal, className = "" }: { signal: string; className?: s
 }
 
 function EntryScoreBar({ score }: { score: number }) {
-  const pct = Math.max(0, Math.min(100, score));
-  const barColor = pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-slate-400";
+  // Entry Score is uncapped (a genuinely exceptional setup can exceed
+  // 100 — see the Entry Score info panel) — the bar itself still only
+  // has 100%-of-its-width to work with, so fill is clamped for display
+  // while the number next to it always shows the real value.
+  const fillPct = Math.max(0, Math.min(100, score));
+  const barColor = score >= 100 ? "bg-emerald-600" : score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-slate-400";
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
-        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${fillPct}%` }} />
       </div>
       <span className="text-xs tabular-nums text-slate-500">{score}</span>
     </div>
@@ -243,7 +247,7 @@ export default function EntryPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Entry Score" value={`${winner["Entry Score"]}/100`} onInfoClick={() => setInfoColumn("Entry Score")} />
+            <MetricTile label="Entry Score" value={`${winner["Entry Score"]}`} onInfoClick={() => setInfoColumn("Entry Score")} />
             <MetricTile label="Current Price" value={`$${Number(winner["Current Price"]).toFixed(2)}`} />
             <MetricTile label="Entry Low" value={`$${Number(winner["Entry Low"]).toFixed(2)}`} />
             <MetricTile label="Entry High" value={`$${Number(winner["Entry High"]).toFixed(2)}`} />
@@ -339,7 +343,7 @@ export default function EntryPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Entry Score" value={`${singlePlan.entry_score}/100`} onInfoClick={() => setInfoColumn("Entry Score")} />
+            <MetricTile label="Entry Score" value={`${singlePlan.entry_score}`} onInfoClick={() => setInfoColumn("Entry Score")} />
             <MetricTile label="Current Price" value={`$${singlePlan.current_price.toFixed(2)}`} />
             <MetricTile label="Entry Zone" value={`$${singlePlan.ideal_entry_low.toFixed(2)} – $${singlePlan.ideal_entry_high.toFixed(2)}`} />
             <MetricTile label="Breakout" value={`$${singlePlan.breakout_entry.toFixed(2)}`} />
