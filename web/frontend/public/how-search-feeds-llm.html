@@ -414,12 +414,35 @@
     </section>
 
     <section>
+      <h2>Which model actually answers</h2>
+      <p class="section-intro">
+        Every LLM call above — summarization and analysis alike — goes through the same resilience layer, not a
+        single hardcoded provider that takes the whole pipeline down if it has a bad day.
+      </p>
+      <div class="chain">
+        <span class="chip"><span class="dot"></span>Groq — default</span>
+        <span class="chain-arrow">fails →</span>
+        <span class="chip fallback"><span class="dot"></span>OpenAI — second choice</span>
+        <span class="chain-arrow">fails →</span>
+        <span class="chip fallback"><span class="dot"></span>Claude / local, if configured</span>
+      </div>
+      <div class="note">
+        <strong>Why Groq is the default:</strong> free, fast, and has no billing-exhaustion failure mode the way a
+        metered API does. If the active provider fails for any reason — rate limit, an outage, exhausted API
+        credits — the next configured provider is retried automatically, and the response honestly reports
+        whichever one actually answered rather than the one that was merely preferred. A single provider being
+        down no longer means "Recommendation unavailable" as long as another configured provider is healthy.
+      </div>
+    </section>
+
+    <section>
       <h2>By the numbers</h2>
       <div class="stat-row">
         <div class="stat"><div class="value">2,000</div><div class="label">chars stored per page (excerpt, not full article)</div></div>
         <div class="stat"><div class="value">45</div><div class="label">day retention window before a page is purged</div></div>
         <div class="stat"><div class="value">3</div><div class="label">discovery sources, tried in fallback order</div></div>
         <div class="stat"><div class="value">2</div><div class="label">separate LLM passes — summarize, then analyze</div></div>
+        <div class="stat"><div class="value">4</div><div class="label">LLM providers tried in fallback order, if configured</div></div>
       </div>
       <div class="note">
         <strong>Currently internal-use only.</strong> <code>robots.txt</code> compliance and rate limiting reduce
