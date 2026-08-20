@@ -18,6 +18,7 @@ from web.backend.rate_limit import limiter
 from web.backend.scheduler import start_scheduler, stop_scheduler
 from web.backend.routers import (
     admin_activity,
+    admin_integrations,
     admin_settings,
     admin_sql,
     admin_users,
@@ -86,6 +87,7 @@ app.include_router(admin_users.router)
 app.include_router(admin_activity.router)
 app.include_router(admin_settings.router)
 app.include_router(admin_sql.router)
+app.include_router(admin_integrations.router)
 app.include_router(signals.router)
 app.include_router(pit_prices.router)
 app.include_router(db_backup.router)

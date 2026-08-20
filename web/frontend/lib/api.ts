@@ -2,6 +2,8 @@
 
 import type {
   AdminActivityRow,
+  AdminIntegration,
+  AdminIntegrationTestResult,
   AdminSettings,
   AdminSqlQueryResponse,
   AdminSqlTablesResponse,
@@ -897,6 +899,14 @@ export function getAuditLog(params?: { eventType?: string; actorUserId?: string;
 
 export function runAdminSqlQuery(sql: string, database: string = "stanalysisengine") {
   return apiSend<AdminSqlQueryResponse>("/api/v1/admin/sql/query", "POST", { sql, database });
+}
+
+export function getAdminIntegrations() {
+  return apiFetch<{ integrations: AdminIntegration[] }>("/api/v1/admin/integrations");
+}
+
+export function testAdminIntegration(key: string) {
+  return apiSend<AdminIntegrationTestResult>(`/api/v1/admin/integrations/${key}/test`, "POST");
 }
 
 export function runWebSearch(query: string, maxResults = 5, includeRawContent = false) {

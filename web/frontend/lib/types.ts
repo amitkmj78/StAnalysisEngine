@@ -873,6 +873,20 @@ export interface AdminSqlQueryResponse {
   truncated: boolean;
 }
 
+export interface AdminIntegration {
+  key: string;
+  name: string;
+  category: string;
+  configured: boolean;
+  note: string;
+}
+
+export interface AdminIntegrationTestResult {
+  ok: boolean;
+  detail: string;
+  latency_ms: number | null;
+}
+
 // Horizon 1 — Impersonal Research Subscription (built, kept off; see
 // docs/signal-licensing-whitelabel-requirements.md.pdf)
 export interface MySubscription {
