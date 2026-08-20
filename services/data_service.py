@@ -5,6 +5,7 @@ import yfinance as yf
 import pandas as pd
 
 from .cache_utils import ttl_cache
+from .rate_limit_utils import fetch_with_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,7 @@ def get_stock_data(ticker: str, period: str) -> pd.DataFrame:
     if not ticker:
         return pd.DataFrame()
     try:
-        stock = yf.Ticker(ticker)
-        data = stock.history(period=period).dropna()
+        data = fetch_with_backoff(lambda: yf.Ticker(ticker).history(period=period)).dropna()
         return data
     except Exception as e:
         logger.warning("Error fetching data for %s: %s", ticker, e)
@@ -47,7 +47,8 @@ def get_adjusted_history(ticker: str, period: str = "3y") -> pd.DataFrame:
     if not cleaned:
         return pd.DataFrame()
     try:
-        return yf.Ticker(cleaned).history(period=period, auto_adjust=True).dropna()
+        data = fetch_with_backoff(lambda: yf.Ticker(cleaned).history(period=period, auto_adjust=True))
+        return data.dropna()
     except Exception as e:
         logger.warning("Error fetching adjusted history for %s: %s", ticker, e)
         return pd.DataFrame()
@@ -67,7 +68,16 @@ def get_latest_price(ticker: str):
     if not ticker:
         return None
     try:
-        price = yf.Ticker(ticker).fast_info.get("lastPrice")
+        # Short/quick retry, not fetch_with_backoff's 8s default — this is
+        # polled every 1-2s by the UI, so there's no point making one
+        # request block for 8s when the next poll will just try again
+        # naturally. One quick retry after ~1s absorbs the common
+        # transient "Too Many Requests" blip; anything longer than that,
+        # fail fast and fall through to the get_stock_data path below.
+        price = fetch_with_backoff(
+            lambda: yf.Ticker(ticker).fast_info.get("lastPrice"),
+            max_retries=1, base_delay=0.1, retry_delay=1.0,
+        )
         if price is not None:
             return round(float(price), 2)
     except Exception as e:
@@ -106,7 +116,12 @@ def get_extended_hours_price(ticker: str):
     if not ticker:
         return None
     try:
-        info = yf.Ticker(ticker).info
+        # Same short-retry rationale as get_latest_price — polled
+        # frequently, so fail fast rather than blocking on the 8s default.
+        info = fetch_with_backoff(
+            lambda: yf.Ticker(ticker).info,
+            max_retries=1, base_delay=0.1, retry_delay=1.0,
+        )
         state = info.get("marketState") or ""
         # Yahoo isn't just "PRE"/"POST" — it also returns "POSTPOST" (after
         # the post-market session itself has quieted down, still before the
