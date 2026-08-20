@@ -82,19 +82,52 @@ export default function PredictionsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Prediction History</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold text-slate-900">Prediction History</h1>
+        <button
+          onClick={() => {
+            load();
+            loadLeaderboard();
+          }}
+          disabled={loading || leaderboardLoading}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        >
+          {loading || leaderboardLoading ? "Refreshing…" : "Refresh all"}
+        </button>
+      </div>
       <p className="mt-1 text-sm text-slate-500">
-        Every prediction you&apos;ve saved, across every ticker, in one place — auto-verified in the background as
-        target dates arrive.
+        Every prediction you&apos;ve saved, across every ticker, in one place. Predictions are auto-verified
+        against real prices as each one&apos;s target date arrives — this page doesn&apos;t poll continuously,
+        so use Refresh to pull the latest state (e.g. after saving a new prediction elsewhere, or once a target
+        date you&apos;re waiting on should have passed).
       </p>
 
       <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="font-semibold text-slate-900">Accuracy Leaderboard</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Your saved predictions, grouped by ticker and ranked by win rate — a signal counts once its target
-          date has actually passed, not before. Needs at least {leaderboard?.min_verified_for_recommendation ?? 3}{" "}
-          verified predictions on a ticker before it&apos;s suggested below.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold text-slate-900">Accuracy Leaderboard</h2>
+          <button
+            onClick={loadLeaderboard}
+            disabled={leaderboardLoading}
+            className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {leaderboardLoading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+        <details className="mt-1">
+          <summary className="cursor-pointer text-sm text-slate-600 hover:text-slate-800">
+            How this works
+          </summary>
+          <p className="mt-1.5 text-sm text-slate-600">
+            Every prediction you save has a target date (e.g. 10 trading days out). It sits as{" "}
+            <strong>pending</strong> until that date actually arrives — only then does it become{" "}
+            <strong>verified</strong> and count toward a ticker&apos;s win rate. This page doesn&apos;t
+            auto-refresh on its own (verification happens as target dates pass, not continuously) — use{" "}
+            <strong>Refresh</strong> above to pull the latest state, e.g. right after saving a new prediction
+            or when a target date you&apos;ve been waiting on should have just passed. A ticker needs at least{" "}
+            {leaderboard?.min_verified_for_recommendation ?? 3} verified predictions before it&apos;s eligible
+            to be suggested below.
+          </p>
+        </details>
 
         {leaderboardLoading && <p className="mt-3 text-sm text-slate-500">Loading…</p>}
         {leaderboardError && (
@@ -103,6 +136,19 @@ export default function PredictionsPage() {
 
         {leaderboard && !leaderboardLoading && (
           <>
+            {(() => {
+              const totalPredictions = leaderboard.tickers.reduce((sum, r) => sum + r.total_predictions, 0);
+              const totalVerified = leaderboard.tickers.reduce((sum, r) => sum + r.verified_count, 0);
+              return totalPredictions > 0 ? (
+                <p className="mt-3 text-xs text-slate-500">
+                  <span className="font-medium text-slate-700">{totalVerified}</span> verified,{" "}
+                  <span className="font-medium text-slate-700">{totalPredictions - totalVerified}</span> still
+                  pending (target date hasn&apos;t arrived yet), across{" "}
+                  <span className="font-medium text-slate-700">{leaderboard.tickers.length}</span> tickers.
+                </p>
+              ) : null;
+            })()}
+
             {leaderboard.suggested_ticker ? (
               <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5">
                 <p className="text-sm text-emerald-900">
@@ -136,22 +182,29 @@ export default function PredictionsPage() {
                   </thead>
                   <tbody>
                     {leaderboard.tickers.map((row) => (
-                      <tr key={row.ticker} className="border-b border-slate-100 last:border-0">
-                        <td className="px-2 py-1.5 text-slate-700">{row.rank ?? "—"}</td>
-                        <td className="px-2 py-1.5 font-medium text-slate-900">
+                      <tr
+                        key={row.ticker}
+                        className={`border-b border-slate-100 last:border-0 ${row.rank === null ? "text-slate-400" : ""}`}
+                      >
+                        <td className="px-2 py-1.5">{row.rank ?? "—"}</td>
+                        <td className={`px-2 py-1.5 font-medium ${row.rank === null ? "text-slate-500" : "text-slate-900"}`}>
                           {row.ticker}
                           {row.ticker === leaderboard.suggested_ticker && " 🏆"}
                         </td>
-                        <td className="px-2 py-1.5 text-slate-700">
+                        <td className="px-2 py-1.5">
                           {row.verified_count} / {row.total_predictions}
                         </td>
-                        <td className="px-2 py-1.5 text-slate-700">
-                          {row.win_rate !== null ? `${(row.win_rate * 100).toFixed(0)}%` : "pending"}
+                        <td className="px-2 py-1.5">
+                          {row.win_rate !== null ? (
+                            <span className="text-slate-700">{(row.win_rate * 100).toFixed(0)}%</span>
+                          ) : (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-400">pending</span>
+                          )}
                         </td>
-                        <td className="px-2 py-1.5 text-slate-700">
+                        <td className="px-2 py-1.5">
                           {row.avg_next_price_error_pct !== null ? `${row.avg_next_price_error_pct.toFixed(2)}%` : "—"}
                         </td>
-                        <td className="px-2 py-1.5 text-slate-700">
+                        <td className="px-2 py-1.5">
                           {row.avg_target_price_error_pct !== null ? `${row.avg_target_price_error_pct.toFixed(2)}%` : "—"}
                         </td>
                       </tr>
