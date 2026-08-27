@@ -594,6 +594,7 @@ export interface AdminUserPortfolio {
   id: number;
   name: string;
   is_active: boolean;
+  drop_alerts_enabled: boolean;
   created_at: string;
   position_count: number;
 }

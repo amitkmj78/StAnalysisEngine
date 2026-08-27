@@ -634,6 +634,14 @@ export function reactivateAdminUserPortfolio(userId: string, portfolioId: number
   );
 }
 
+export function setAdminUserPortfolioDropAlerts(userId: string, portfolioId: number, enabled: boolean) {
+  return apiSend<{ id: number; name: string; drop_alerts_enabled: boolean }>(
+    `/api/v1/admin/users/${userId}/portfolios/${portfolioId}/drop-alerts`,
+    "POST",
+    { enabled },
+  );
+}
+
 export function deleteAdminUserPortfolio(userId: string, portfolioId: number) {
   return apiSend<{ ok: boolean; user_auto_deactivated: boolean }>(
     `/api/v1/admin/users/${userId}/portfolios/${portfolioId}`,

@@ -15,6 +15,7 @@ import {
   reactivateUser,
   rejectUser,
   sendWelcomeEmail,
+  setAdminUserPortfolioDropAlerts,
 } from "@/lib/api";
 import type { AdminUser, AdminUserPortfolio } from "@/lib/types";
 
@@ -201,6 +202,19 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
     }
   }
 
+  async function handleToggleDropAlerts(userId: string, portfolioId: number, enabled: boolean) {
+    setPortfolioBusyId(portfolioId);
+    setPortfolioMessage(null);
+    try {
+      await setAdminUserPortfolioDropAlerts(userId, portfolioId, enabled);
+      await loadPortfolios(userId);
+    } catch (err) {
+      setPortfolioMessage(err instanceof ApiError ? err.message : "Could not update drop alerts for this portfolio.");
+    } finally {
+      setPortfolioBusyId(null);
+    }
+  }
+
   if (users === null && !error) {
     return <p className="text-sm text-slate-500">Loading users…</p>;
   }
@@ -365,6 +379,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                             <tr className="text-left uppercase tracking-wide text-slate-400">
                               <th className="py-1 pr-3 font-medium">Name</th>
                               <th className="py-1 pr-3 font-medium">Status</th>
+                              <th className="py-1 pr-3 font-medium">Drop Alerts</th>
                               <th className="py-1 pr-3 font-medium">Positions</th>
                               <th className="py-1 pr-3 font-medium">Created</th>
                               <th className="py-1 pr-3"></th>
@@ -383,12 +398,40 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                                     {p.is_active ? "Active" : "Inactive"}
                                   </span>
                                 </td>
+                                <td className="py-1.5 pr-3">
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 font-medium ${
+                                      p.drop_alerts_enabled
+                                        ? "bg-emerald-50 text-emerald-700"
+                                        : "bg-slate-200 text-slate-500"
+                                    }`}
+                                  >
+                                    {p.drop_alerts_enabled ? "On" : "Off"}
+                                  </span>
+                                </td>
                                 <td className="py-1.5 pr-3 text-slate-600">{p.position_count}</td>
                                 <td className="py-1.5 pr-3 text-slate-500">
                                   {new Date(p.created_at).toLocaleDateString()}
                                 </td>
                                 <td className="py-1.5 pr-3 text-right">
                                   <div className="flex justify-end gap-2">
+                                    {p.drop_alerts_enabled ? (
+                                      <button
+                                        onClick={() => handleToggleDropAlerts(u.id, p.id, false)}
+                                        disabled={portfolioBusyId === p.id}
+                                        className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                                      >
+                                        Stop Drop Alerts
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleToggleDropAlerts(u.id, p.id, true)}
+                                        disabled={portfolioBusyId === p.id}
+                                        className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                                      >
+                                        Resume Drop Alerts
+                                      </button>
+                                    )}
                                     {p.is_active ? (
                                       <button
                                         onClick={() => handleDeactivatePortfolio(u.id, p.id, p.name)}

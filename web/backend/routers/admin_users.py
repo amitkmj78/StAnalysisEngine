@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from services.email_service import send_welcome_email
@@ -160,11 +161,12 @@ async def list_user_portfolios(user_id: str):
             raise HTTPException(404, "User not found.")
         rows = await conn.fetch(
             """
-            SELECT p.id, p.name, p.is_active, p.created_at, count(pp.id) AS position_count
+            SELECT p.id, p.name, p.is_active, p.drop_alerts_enabled, p.created_at,
+                   count(pp.id) AS position_count
             FROM portfolios p
             LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = p.user_id
             WHERE p.user_id = $1::uuid
-            GROUP BY p.id, p.name, p.is_active, p.created_at
+            GROUP BY p.id, p.name, p.is_active, p.drop_alerts_enabled, p.created_at
             ORDER BY p.created_at ASC
             """,
             user_id,
@@ -174,6 +176,7 @@ async def list_user_portfolios(user_id: str):
             "id": r["id"],
             "name": r["name"],
             "is_active": r["is_active"],
+            "drop_alerts_enabled": r["drop_alerts_enabled"],
             "created_at": r["created_at"].isoformat(),
             "position_count": r["position_count"],
         }
@@ -233,6 +236,28 @@ async def reactivate_user_portfolio(user_id: str, portfolio_id: int):
     if row is None:
         raise HTTPException(404, "Portfolio not found.")
     return {"id": row["id"], "name": row["name"], "is_active": row["is_active"]}
+
+
+class SetPortfolioDropAlertsRequest(BaseModel):
+    enabled: bool
+
+
+@router.post("/{user_id}/portfolios/{portfolio_id}/drop-alerts")
+async def set_user_portfolio_drop_alerts(user_id: str, portfolio_id: int, body: SetPortfolioDropAlertsRequest):
+    """Admin-side control over the same drop_alerts_enabled flag a user can
+    set for themselves on the Portfolio page (POST
+    /api/v1/portfolio/drop-alerts/portfolio-enabled) — lets an admin stop
+    drop-alert scanning for one specific portfolio without deactivating or
+    deleting it, e.g. to quiet a noisy/misconfigured account on request."""
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            "UPDATE portfolios SET drop_alerts_enabled = $1 WHERE id = $2 AND user_id = $3::uuid "
+            "RETURNING id, name, drop_alerts_enabled",
+            body.enabled, portfolio_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Portfolio not found.")
+    return {"id": row["id"], "name": row["name"], "drop_alerts_enabled": row["drop_alerts_enabled"]}
 
 
 @router.delete("/{user_id}/portfolios/{portfolio_id}")
