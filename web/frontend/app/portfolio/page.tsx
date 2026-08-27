@@ -217,9 +217,23 @@ export default function PortfolioPage() {
   // whole portfolio every 10s (well under /performance's 15/min rate limit
   // regardless of how many positions exist), instead of each position
   // polling independently the way CurrentPriceBadge does elsewhere.
+  //
+  // /performance can take well over 10s under live Yahoo rate-limiting
+  // (observed up to ~50s) — a plain setInterval doesn't wait for the
+  // previous call to resolve, so it would otherwise stack overlapping
+  // in-flight requests every tick during exactly the conditions where
+  // that's most harmful, further loading down the already-throttled
+  // yfinance backend. inFlight skips a tick instead of stacking one.
   useEffect(() => {
     if (summary === null || summary.total_positions === 0) return;
-    const interval = setInterval(() => refreshPerformance(false), 10000);
+    let inFlight = false;
+    const interval = setInterval(() => {
+      if (inFlight) return;
+      inFlight = true;
+      refreshPerformance(false).finally(() => {
+        inFlight = false;
+      });
+    }, 10000);
     return () => clearInterval(interval);
   }, [summary?.total_positions]);
 

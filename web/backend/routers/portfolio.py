@@ -758,7 +758,7 @@ async def portfolio_performance(request: Request, lookback_days: int = 30, portf
     return await run_in_threadpool(compute_portfolio_performance, positions, lookback_days)
 
 
-@router.get("/drop-alerts")
+@router.get("/drop-alerts", dependencies=[Depends(require_admin)])
 async def list_drop_alerts(request: Request):
     """Same-day drop alerts for the current user's holdings — sentiment/news
     context plus the Predict-page quant signal, synthesized into a
@@ -790,7 +790,7 @@ async def list_drop_alerts(request: Request):
     return {"alerts": [_record_to_dict(r) for r in records]}
 
 
-@router.post("/drop-alerts/{alert_id}/dismiss")
+@router.post("/drop-alerts/{alert_id}/dismiss", dependencies=[Depends(require_admin)])
 async def dismiss_drop_alert(alert_id: int, request: Request):
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
@@ -803,7 +803,7 @@ async def dismiss_drop_alert(alert_id: int, request: Request):
     return {"ok": True}
 
 
-@router.post("/drop-alerts/{alert_id}/refresh")
+@router.post("/drop-alerts/{alert_id}/refresh", dependencies=[Depends(require_admin)])
 @limiter.limit("10/minute")
 async def refresh_drop_alert(alert_id: int, request: Request):
     """Re-checks price and regenerates the sentiment/quant-signal narrative
@@ -868,7 +868,7 @@ async def refresh_drop_alert(alert_id: int, request: Request):
     return {"alert": _record_to_dict(record)}
 
 
-@router.post("/drop-alerts/refresh")
+@router.post("/drop-alerts/refresh", dependencies=[Depends(require_admin)])
 @limiter.limit("5/minute")
 async def refresh_drop_alerts(request: Request):
     """User-triggered, on-demand check for new drops in the current user's
@@ -887,7 +887,7 @@ async def refresh_drop_alerts(request: Request):
     return {"inserted": inserted}
 
 
-@router.get("/drop-alerts/threshold")
+@router.get("/drop-alerts/threshold", dependencies=[Depends(require_admin)])
 async def get_drop_alert_threshold(request: Request):
     """The current user's own drop-alert sensitivity, if they've set one —
     falls back to the admin-configured global default (app_settings) when
@@ -912,7 +912,7 @@ class SetDropAlertThresholdRequest(BaseModel):
     threshold_pct: Optional[float] = None  # None resets to the admin default
 
 
-@router.post("/drop-alerts/threshold")
+@router.post("/drop-alerts/threshold", dependencies=[Depends(require_admin)])
 async def set_drop_alert_threshold(request: Request, body: SetDropAlertThresholdRequest):
     """Sets (or, with threshold_pct omitted/null, clears) the current
     user's own drop-alert sensitivity. Cleared means "use the
@@ -928,7 +928,7 @@ async def set_drop_alert_threshold(request: Request, body: SetDropAlertThreshold
     return {"ok": True, "threshold_pct": body.threshold_pct}
 
 
-@router.get("/drop-alerts/portfolio-enabled")
+@router.get("/drop-alerts/portfolio-enabled", dependencies=[Depends(require_admin)])
 async def get_portfolio_drop_alerts_enabled(request: Request, portfolio_id: int):
     """Whether drop alerts are on for one specific portfolio — independent
     per portfolio, unlike the threshold above which is one value for the
@@ -951,7 +951,7 @@ class SetPortfolioDropAlertsEnabledRequest(BaseModel):
     enabled: bool
 
 
-@router.post("/drop-alerts/portfolio-enabled")
+@router.post("/drop-alerts/portfolio-enabled", dependencies=[Depends(require_admin)])
 async def set_portfolio_drop_alerts_enabled(request: Request, body: SetPortfolioDropAlertsEnabledRequest):
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
