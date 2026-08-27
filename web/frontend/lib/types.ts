@@ -504,6 +504,8 @@ export interface PortfolioInsight {
   signal: "BUY" | "SELL" | "HOLD" | null;
   expected_return_pct: number | null;
   target_price: number | null;
+  expected_return_pct_5d: number | null;
+  target_price_5d: number | null;
   rank: number | null;
   universe_size: number | null;
   trailing_return_pct: number | null;

@@ -58,6 +58,19 @@ const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
       "Not shown for tickers outside the app's covered universes.",
     ],
   },
+  "5-Day Forecast": {
+    title: "5-Day Forecast",
+    body: [
+      "The Predict-page model's projected price 5 trading days out, and the implied percent change from today's price — the same underlying forecast as Signal, read at an earlier point on its curve rather than a second prediction.",
+      "A standalone, per-ticker statistical projection — not a guarantee, and not the same thing as Momentum Rank's relative comparison against other tickers.",
+    ],
+  },
+  "10-Day Forecast": {
+    title: "10-Day Forecast",
+    body: [
+      "The Predict-page model's projected price 10 trading days out, and the implied percent change from today's price. Signal (BUY/SELL/HOLD) is derived from this same 10-day figure.",
+    ],
+  },
   Shares: {
     title: "Shares",
     body: ["The quantity you hold, as entered manually or imported from your CSV — not adjusted for any splits since import."],
@@ -604,6 +617,8 @@ export default function PortfolioPage() {
                       <PerformanceTh label="Ticker" onInfoClick={() => setPerformanceInfoColumn("Ticker")} />
                       <PerformanceTh label="Signal" onInfoClick={() => setPerformanceInfoColumn("Signal")} />
                       <PerformanceTh label="Momentum Rank" onInfoClick={() => setPerformanceInfoColumn("Momentum Rank")} />
+                      <PerformanceTh label="5-Day Forecast" align="right" onInfoClick={() => setPerformanceInfoColumn("5-Day Forecast")} />
+                      <PerformanceTh label="10-Day Forecast" align="right" onInfoClick={() => setPerformanceInfoColumn("10-Day Forecast")} />
                       <PerformanceTh label="Shares" align="right" onInfoClick={() => setPerformanceInfoColumn("Shares")} />
                       <PerformanceTh label="Price Now" align="right" onInfoClick={() => setPerformanceInfoColumn("Price Now")} />
                       <PerformanceTh label="Price 30D Ago" align="right" onInfoClick={() => setPerformanceInfoColumn("Price 30D Ago")} />
@@ -651,6 +666,40 @@ export default function PortfolioPage() {
                             : insightsLoading
                             ? "…"
                             : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {insight?.target_price_5d != null && insight?.expected_return_pct_5d != null ? (
+                            <span
+                              className={`font-medium ${
+                                insight.expected_return_pct_5d >= 0 ? "text-emerald-600" : "text-red-600"
+                              }`}
+                            >
+                              ${insight.target_price_5d.toFixed(2)}
+                              <span className="ml-1 text-xs">
+                                ({insight.expected_return_pct_5d >= 0 ? "+" : ""}
+                                {insight.expected_return_pct_5d.toFixed(2)}%)
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">{insightsLoading ? "…" : "—"}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {insight?.target_price != null && insight?.expected_return_pct != null ? (
+                            <span
+                              className={`font-medium ${
+                                insight.expected_return_pct >= 0 ? "text-emerald-600" : "text-red-600"
+                              }`}
+                            >
+                              ${insight.target_price.toFixed(2)}
+                              <span className="ml-1 text-xs">
+                                ({insight.expected_return_pct >= 0 ? "+" : ""}
+                                {insight.expected_return_pct.toFixed(2)}%)
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">{insightsLoading ? "…" : "—"}</span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-right text-slate-600">{r.shares}</td>
                         {r.price_unavailable ? (
