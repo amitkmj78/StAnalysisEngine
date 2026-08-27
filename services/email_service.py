@@ -233,6 +233,106 @@ RESET_HTML_TEMPLATE = """\
 """
 
 
+DROP_ALERT_TEXT_TEMPLATE = """{ticker} is down {pct_change:.1f}% today
+
+Previous close: ${prev_close:.2f}
+Current price:  ${price:.2f}
+
+{recommendation}
+
+View your full portfolio: {app_url}/portfolio
+
+This alert refreshes automatically every 15 minutes while {ticker} stays down — you won't get a
+repeat email for the same drop, only when a new one starts.
+"""
+
+DROP_ALERT_HTML_TEMPLATE = """\
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="background-color:#0f172a;padding:24px 32px;">
+                <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;letter-spacing:0.2px;">
+                  StAnalysisEngine
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;color:#b91c1c;">
+                  {ticker} is down {pct_change:.1f}% today
+                </p>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0;width:100%;">
+                  <tr>
+                    <td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#64748b;padding:4px 0;">Previous close</td>
+                    <td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#0f172a;padding:4px 0;text-align:right;">${prev_close:.2f}</td>
+                  </tr>
+                  <tr>
+                    <td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#64748b;padding:4px 0;">Current price</td>
+                    <td style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#0f172a;padding:4px 0;text-align:right;">${price:.2f}</td>
+                  </tr>
+                </table>
+                <p style="margin:0 0 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#475569;">
+                  {recommendation}
+                </p>
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="border-radius:8px;background-color:#0f172a;">
+                      <a href="{app_url}/portfolio" style="display:inline-block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">
+                        View portfolio
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:24px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.6;color:#94a3b8;">
+                  This refreshes automatically every 15 minutes while {ticker} stays down — you won't get a
+                  repeat email for the same drop, only when a new one starts.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
+                <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;">
+                  StAnalysisEngine · AI-assisted stock analysis
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
+
+
+def send_portfolio_drop_alert_email(
+    to_email: str, ticker: str, pct_change: float, prev_close: float, price: float, recommendation: str
+) -> bool:
+    """
+    Sent once per newly-detected drop (web/backend/portfolio_alerts.py's
+    scan_portfolios_for_drops calls this only on a fresh INSERT, never on
+    a same-day refresh) — the whole point is closing the "the alert sat
+    in-app and I didn't see it in time" gap, not flooding an inbox every
+    15 minutes while a position stays down. Same fail-open behavior as
+    every other email here.
+    """
+    text_body = DROP_ALERT_TEXT_TEMPLATE.format(
+        ticker=ticker, pct_change=pct_change, prev_close=prev_close, price=price,
+        recommendation=recommendation, app_url=APP_URL,
+    )
+    html_body = DROP_ALERT_HTML_TEMPLATE.format(
+        ticker=ticker, pct_change=pct_change, prev_close=prev_close, price=price,
+        recommendation=recommendation, app_url=APP_URL,
+    )
+    subject = f"⚠ {ticker} is down {abs(pct_change):.1f}% today"
+    return _send_email(to_email, subject, text_body, html_body)
+
+
 def send_password_reset_email(to_email: str, reset_link: str) -> bool:
     """
     Same fail-open behavior as every other email here: if SMTP isn't

@@ -3,6 +3,7 @@ from datetime import date
 
 from starlette.concurrency import run_in_threadpool
 
+from services.email_service import send_portfolio_drop_alert_email
 from services.portfolio_alert_service import (
     DROP_THRESHOLD_PCT,
     build_drop_analysis,
@@ -40,12 +41,20 @@ async def scan_portfolios_for_drops(threshold_pct: float = DROP_THRESHOLD_PCT, u
     async with service_conn() as conn:
         if user_id is not None:
             holdings = await conn.fetch(
-                "SELECT DISTINCT user_id, ticker FROM portfolio_positions WHERE ticker IS NOT NULL AND user_id = $1::uuid",
+                """
+                SELECT DISTINCT pp.user_id, pp.ticker, u.email
+                FROM portfolio_positions pp JOIN users u ON u.id = pp.user_id
+                WHERE pp.ticker IS NOT NULL AND pp.user_id = $1::uuid
+                """,
                 user_id,
             )
         else:
             holdings = await conn.fetch(
-                "SELECT DISTINCT user_id, ticker FROM portfolio_positions WHERE ticker IS NOT NULL"
+                """
+                SELECT DISTINCT pp.user_id, pp.ticker, u.email
+                FROM portfolio_positions pp JOIN users u ON u.id = pp.user_id
+                WHERE pp.ticker IS NOT NULL
+                """
             )
         if not holdings:
             return 0
@@ -122,6 +131,16 @@ async def scan_portfolios_for_drops(threshold_pct: float = DROP_THRESHOLD_PCT, u
             )
             if result == "INSERT 0 1":
                 inserted += 1
+                # Only on a genuinely new alert, never on the refresh
+                # loop below — the in-app alert already existed and was
+                # findable before this email infra existed; the actual
+                # gap this closes is "found out too late", which only
+                # applies the moment a drop first crosses the threshold.
+                await run_in_threadpool(
+                    send_portfolio_drop_alert_email,
+                    row["email"], ticker, data["pct_change"], data["prev_close"], data["price"],
+                    data["recommended_action"],
+                )
 
         refresh_analysis: dict[str, dict | None] = {}
         for row in to_refresh:
