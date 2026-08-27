@@ -28,7 +28,6 @@ import type {
 } from "@/lib/types";
 import PlanText from "@/components/PlanText";
 import GoalPlan from "@/components/GoalPlan";
-import PortfolioDropAlerts from "@/components/PortfolioDropAlerts";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
@@ -502,7 +501,6 @@ export default function PortfolioPage() {
         />
       </div>
 
-      <PortfolioDropAlerts portfolioId={selectedPortfolioId} />
       <GoalPlan portfolioId={selectedPortfolioId} />
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
