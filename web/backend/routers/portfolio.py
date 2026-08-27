@@ -530,16 +530,16 @@ async def portfolio_summary(request: Request, portfolio_id: Optional[int] = None
 async def portfolio_insights(request: Request, portfolio_id: Optional[int] = None):
     """
     Per-holding live BUY/SELL/HOLD signal + expected return (same engine
-    /predict uses) at both its native predict_days_ahead horizon (10
-    trading days — expected_return_pct/target_price) and 5 trading days
-    (expected_return_pct_5d/target_price_5d, read from the same forecast
-    the 10-day figures come from, not a second model run), momentum rank
-    within the full universe (same rule as /top-performers and the
-    published track record), and a concentration check — so the page can
-    answer "should I be worried about anything I hold," not just what
-    it's worth. All computed live, nothing persisted: reusing the exact
-    functions already called from /predict and /top-performers rather
-    than a new signal path.
+    /predict uses) at its native predict_days_ahead horizon (10 trading
+    days — expected_return_pct/target_price) plus 1 and 5 trading days
+    (expected_return_pct_1d/target_price_1d, expected_return_pct_5d/
+    target_price_5d — all read from the same forecast the 10-day figures
+    come from, not separate model runs), momentum rank within the full
+    universe (same rule as /top-performers and the published track
+    record), and a concentration check — so the page can answer "should I
+    be worried about anything I hold," not just what it's worth. All
+    computed live, nothing persisted: reusing the exact functions already
+    called from /predict and /top-performers rather than a new signal path.
     """
     await enforce_daily_quota(request, "portfolio/insights")
     user_id = request.state.user["id"]
@@ -564,7 +564,7 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
     }
 
     comparison = await run_in_threadpool(
-        compute_predict_algo_comparison, tickers, DEFAULT_PREDICT_PERIOD, DEFAULT_PREDICT_DAYS_AHEAD, True
+        compute_predict_algo_comparison, tickers, DEFAULT_PREDICT_PERIOD, DEFAULT_PREDICT_DAYS_AHEAD, [1, 5]
     )
     signal_by_ticker = {c["ticker"]: c for c in comparison}
 
@@ -582,6 +582,8 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
                 "signal": sig.get("predict_signal"),
                 "expected_return_pct": sig.get("predict_expected_return_pct"),
                 "target_price": sig.get("predict_target_price"),
+                "expected_return_pct_1d": sig.get("predict_expected_return_pct_1d"),
+                "target_price_1d": sig.get("predict_target_price_1d"),
                 "expected_return_pct_5d": sig.get("predict_expected_return_pct_5d"),
                 "target_price_5d": sig.get("predict_target_price_5d"),
                 "rank": rank.get("rank"),

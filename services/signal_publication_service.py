@@ -137,7 +137,7 @@ def compute_predict_algo_comparison(
     tickers: list[str],
     period: str = DEFAULT_PREDICT_PERIOD,
     days_ahead: int = DEFAULT_PREDICT_DAYS_AHEAD,
-    include_5d_horizon: bool = False,
+    extra_horizons: list[int] | None = None,
 ) -> list[dict]:
     """
     For each ticker, runs the same trained-model algorithm used on /predict
@@ -152,11 +152,12 @@ def compute_predict_algo_comparison(
     original date — there's no point-in-time store yet to prevent that
     honestly. Callers must not offer this for historical dates.
 
-    include_5d_horizon additionally reports the same model's 5-trading-day
-    forecast (day index 4 of the same future_df already computed for the
-    days_ahead-out signal above) — no extra model call, just a different
-    row of a DataFrame that's already being computed. Off by default so
-    existing callers keep their current row shape unchanged.
+    extra_horizons additionally reports the same model's forecast at each
+    given number of trading days out (e.g. [1, 5]), as
+    predict_target_price_{n}d / predict_expected_return_pct_{n}d — read
+    from the same future_df already computed for the days_ahead-out
+    signal above, no extra model call. None (the default) keeps existing
+    callers' row shape unchanged. Each n must be <= days_ahead.
     """
     rows = []
     for ticker in tickers:
@@ -169,9 +170,9 @@ def compute_predict_algo_comparison(
                 "predict_expected_return_pct": None,
                 "predict_target_price": None,
             }
-            if include_5d_horizon:
-                row["predict_target_price_5d"] = None
-                row["predict_expected_return_pct_5d"] = None
+            for n in extra_horizons or []:
+                row[f"predict_target_price_{n}d"] = None
+                row[f"predict_expected_return_pct_{n}d"] = None
             rows.append(row)
             continue
 
@@ -182,14 +183,14 @@ def compute_predict_algo_comparison(
             "predict_expected_return_pct": sig.get("expected_return_pct"),
             "predict_target_price": sig.get("target_price"),
         }
-        if include_5d_horizon:
-            if len(future_df) >= 5:
-                price_5d = float(future_df["Predicted"].iloc[4])
-                row["predict_target_price_5d"] = round(price_5d, 2)
-                row["predict_expected_return_pct_5d"] = round((price_5d - last_close) / last_close * 100.0, 2)
+        for n in extra_horizons or []:
+            if len(future_df) >= n:
+                price_n = float(future_df["Predicted"].iloc[n - 1])
+                row[f"predict_target_price_{n}d"] = round(price_n, 2)
+                row[f"predict_expected_return_pct_{n}d"] = round((price_n - last_close) / last_close * 100.0, 2)
             else:
-                row["predict_target_price_5d"] = None
-                row["predict_expected_return_pct_5d"] = None
+                row[f"predict_target_price_{n}d"] = None
+                row[f"predict_expected_return_pct_{n}d"] = None
         rows.append(row)
     return rows
 
