@@ -696,11 +696,35 @@ export interface GoalPlanResponse {
   current_holdings_annualized_return_pct: number | null;
   contribution_annualized_return_pct: number | null;
   allocation: GoalPlanAllocationRow[];
+  best_stock_comparison: BestStockComparison | null;
   warnings: string[];
   future_value_of_current_holdings: number;
   required_monthly_contribution: number | null;
   projected_value_with_given_contribution?: number;
   gap_vs_target?: number;
+}
+
+export interface BestStockComparison {
+  ticker: string;
+  name: string;
+  annualized_return_pct: number;
+  universe: string;
+  goal: string;
+  future_value_of_current_holdings: number;
+  required_monthly_contribution: number | null;
+  projected_value_with_given_contribution?: number;
+  gap_vs_target?: number;
+}
+
+export interface SavedGoal {
+  id: number;
+  portfolio_id: number;
+  name: string;
+  target_amount: number;
+  target_date: string;
+  monthly_amount: number | null;
+  compare_universe: string | null;
+  created_at: string;
 }
 
 export interface PitCaptureStats {

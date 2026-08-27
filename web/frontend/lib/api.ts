@@ -50,6 +50,7 @@ import type {
   PublishedSignalsResponse,
   QuantVsAnalystResponse,
   SavedBaselineSnapshot,
+  SavedGoal,
   SavedNarrative,
   SavedPrediction,
   SavedScreen,
@@ -543,6 +544,7 @@ export function getGoalPlan(
   targetDate: string,
   monthlyAmount?: number,
   portfolioId?: number,
+  compareUniverse?: string,
 ) {
   const params: Record<string, string> = {
     target_amount: String(targetAmount),
@@ -550,7 +552,37 @@ export function getGoalPlan(
   };
   if (monthlyAmount !== undefined) params.monthly_amount = String(monthlyAmount);
   if (portfolioId !== undefined) params.portfolio_id = String(portfolioId);
+  if (compareUniverse !== undefined) params.compare_universe = compareUniverse;
   return apiFetch<GoalPlanResponse>("/api/v1/portfolio/goal-plan", params);
+}
+
+export function saveGoal(
+  name: string,
+  targetAmount: number,
+  targetDate: string,
+  monthlyAmount?: number,
+  compareUniverse?: string,
+  portfolioId?: number,
+) {
+  return apiSend<{ goal: SavedGoal }>("/api/v1/portfolio/goal-plan/saved", "POST", {
+    name,
+    target_amount: targetAmount,
+    target_date: targetDate,
+    monthly_amount: monthlyAmount ?? null,
+    compare_universe: compareUniverse ?? null,
+    portfolio_id: portfolioId ?? null,
+  });
+}
+
+export function getSavedGoals(portfolioId?: number) {
+  return apiFetch<{ goals: SavedGoal[] }>(
+    "/api/v1/portfolio/goal-plan/saved",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
+}
+
+export function deleteSavedGoal(goalId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/portfolio/goal-plan/saved/${goalId}`, "DELETE");
 }
 
 export function getPortfolioDropAlerts() {

@@ -14,6 +14,7 @@ from services.goal_plan_service import (
     solve_goal_plan,
 )
 from services.manual_positions import build_manual_positions
+from services.monthly_investing_service import get_best_monthly_pick
 from services.portfolio_alert_service import build_drop_analysis, get_price_and_prev_close
 from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
@@ -27,6 +28,7 @@ from services.signal_publication_service import (
     compute_predict_algo_comparison,
     rank_within_universe,
 )
+from services.stock_finder_service import STOCK_UNIVERSES
 
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
@@ -623,6 +625,7 @@ async def goal_plan(
     target_date: date = Query(...),
     monthly_amount: Optional[float] = Query(None, ge=0),
     portfolio_id: Optional[int] = None,
+    compare_universe: Optional[str] = None,
 ):
     """
     Given this portfolio's current holdings, a target dollar amount, and a
@@ -639,6 +642,14 @@ async def goal_plan(
     intentionally different numbers: the signal says where new money
     should tilt *this month*, the trailing return says how fast money
     actually grows over years.
+
+    compare_universe (optional, one of the Stock Screener's universe
+    keys) adds a best_stock_comparison: the same target/current_value run
+    a second time as if today's balance and every future contribution
+    went entirely into that universe's #1-ranked stock right now (same
+    ranking engine as /stock-finder/rank and the Monthly Investing Plan's
+    auto-pick) instead of this portfolio's actual holdings — a "what if I
+    just bought the best stock instead" comparison against the plan above.
     """
     await enforce_daily_quota(request, "portfolio/goal-plan")
     user_id = request.state.user["id"]
@@ -707,6 +718,40 @@ async def goal_plan(
         a["monthly_amount"] = round(required_monthly * a["weight_pct"] / 100.0, 2) if required_monthly else 0.0
 
     missing_return_tickers = [t for t in tickers if annualized_returns.get(t) is None]
+    warnings = (
+        [f"No multi-year price history for: {', '.join(missing_return_tickers)} — excluded from return blending."]
+        if missing_return_tickers
+        else []
+    )
+
+    best_stock_comparison = None
+    if compare_universe is not None:
+        if compare_universe not in STOCK_UNIVERSES:
+            raise HTTPException(422, f"compare_universe must be one of {sorted(STOCK_UNIVERSES.keys())}")
+        # Same Short Term / Long Term split the Stock Screener and Monthly
+        # Investing Plan already use — derived from the goal's own horizon
+        # rather than asked as a separate input.
+        pick_goal = "Short Term" if months <= 12 else "Long Term"
+        recommendation = await run_in_threadpool(get_best_monthly_pick, "Stock", pick_goal, compare_universe)
+        if recommendation is None or recommendation.expected_return_pct is None:
+            warnings.append(f"No ranked pick with enough price history in {compare_universe} for this comparison.")
+        else:
+            best_plan = solve_goal_plan(
+                current_value=current_value,
+                target_amount=target_amount,
+                months=months,
+                current_holdings_annualized_return_pct=recommendation.expected_return_pct,
+                contribution_annualized_return_pct=recommendation.expected_return_pct,
+                monthly_amount=monthly_amount,
+            )
+            best_stock_comparison = {
+                "ticker": recommendation.ticker,
+                "name": recommendation.name,
+                "annualized_return_pct": recommendation.expected_return_pct,
+                "universe": compare_universe,
+                "goal": pick_goal,
+                **best_plan,
+            }
 
     return {
         "portfolio_id": resolved_portfolio_id,
@@ -717,13 +762,72 @@ async def goal_plan(
         "current_holdings_annualized_return_pct": current_blended,
         "contribution_annualized_return_pct": contribution_blended,
         "allocation": allocation,
-        "warnings": (
-            [f"No multi-year price history for: {', '.join(missing_return_tickers)} — excluded from return blending."]
-            if missing_return_tickers
-            else []
-        ),
+        "best_stock_comparison": best_stock_comparison,
+        "warnings": warnings,
         **plan,
     }
+
+
+class SaveGoalRequest(BaseModel):
+    name: str = "Goal"
+    target_amount: float
+    target_date: date
+    monthly_amount: Optional[float] = None
+    compare_universe: Optional[str] = None
+    portfolio_id: Optional[int] = None
+
+
+@router.post("/goal-plan/saved")
+async def save_goal(request: Request, body: SaveGoalRequest):
+    """Saves the inputs to a GET /goal-plan call — not a frozen result.
+    Re-running a saved goal (GET /goal-plan with these same params) always
+    reflects today's prices/signals/trailing returns, same as re-loading
+    the calculator with the same values typed in again."""
+    if body.target_amount <= 0:
+        raise HTTPException(422, "target_amount must be greater than 0.")
+    if body.compare_universe is not None and body.compare_universe not in STOCK_UNIVERSES:
+        raise HTTPException(422, f"compare_universe must be one of {sorted(STOCK_UNIVERSES.keys())}")
+
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, body.portfolio_id)
+        record = await conn.fetchrow(
+            """
+            INSERT INTO saved_portfolio_goals
+                (user_id, portfolio_id, name, target_amount, target_date, monthly_amount, compare_universe)
+            VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+            """,
+            user_id, resolved_portfolio_id, body.name.strip() or "Goal",
+            body.target_amount, body.target_date, body.monthly_amount, body.compare_universe,
+        )
+    return {"goal": _record_to_dict(record)}
+
+
+@router.get("/goal-plan/saved")
+async def list_saved_goals(request: Request, portfolio_id: Optional[int] = None):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT * FROM saved_portfolio_goals WHERE user_id = $1::uuid AND portfolio_id = $2 "
+            "ORDER BY created_at DESC",
+            user_id, resolved_portfolio_id,
+        )
+    return {"goals": [_record_to_dict(r) for r in records]}
+
+
+@router.delete("/goal-plan/saved/{goal_id}")
+async def delete_saved_goal(request: Request, goal_id: int):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM saved_portfolio_goals WHERE id = $1 AND user_id = $2::uuid RETURNING id",
+            goal_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Saved goal not found.")
+    return {"ok": True}
 
 
 @router.get("/performance")

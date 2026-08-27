@@ -678,6 +678,28 @@ create policy saved_screens_isolation on saved_screens for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- A saved GET /portfolio/goal-plan request — same inputs (target_amount,
+-- target_date, optional monthly_amount/compare_universe) re-run live
+-- against current prices/signals each time it's loaded, not a frozen
+-- snapshot of the plan itself.
+create table if not exists saved_portfolio_goals (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  portfolio_id bigint not null references portfolios(id) on delete cascade,
+  name text not null default 'Goal',
+  target_amount real not null,
+  target_date date not null,
+  monthly_amount real,
+  compare_universe text,
+  created_at timestamptz not null default now()
+);
+create index if not exists saved_portfolio_goals_user_idx on saved_portfolio_goals(user_id, created_at desc);
+alter table saved_portfolio_goals enable row level security;
+drop policy if exists saved_portfolio_goals_isolation on saved_portfolio_goals;
+create policy saved_portfolio_goals_isolation on saved_portfolio_goals for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 create table if not exists watchlist_alerts (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,
@@ -962,7 +984,7 @@ $$;
 
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
-grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens to app_user;
+grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens, saved_portfolio_goals to app_user;
 grant select, update on portfolio_drop_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;
