@@ -646,11 +646,29 @@ async def list_drop_alerts(request: Request):
     """Same-day drop alerts for the current user's holdings — sentiment/news
     context plus the Predict-page quant signal, synthesized into a
     recommended-action note. Populated by the scan_portfolio_drops
-    scheduler job (off by default; an admin opts in via /admin/settings)."""
+    scheduler job (off by default; an admin opts in via /admin/settings).
+
+    Only shows an alert while its ticker is still held in at least one
+    active portfolio with drop alerts enabled — same gate scan_portfolios_
+    for_drops uses to decide whether to keep alerting. Without this, an
+    alert created before a position was sold or a portfolio was
+    deactivated/disabled would otherwise keep showing indefinitely, since
+    nothing else in this table ever removes a row (only dismiss sets
+    seen_at, which the frontend already filters client-side)."""
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
         records = await conn.fetch(
-            "SELECT * FROM portfolio_drop_alerts ORDER BY created_at DESC"
+            """
+            SELECT pda.*
+            FROM portfolio_drop_alerts pda
+            WHERE EXISTS (
+                SELECT 1 FROM portfolio_positions pp
+                JOIN portfolios p ON p.id = pp.portfolio_id
+                WHERE pp.user_id = pda.user_id AND pp.ticker = pda.ticker
+                  AND p.is_active AND p.drop_alerts_enabled
+            )
+            ORDER BY pda.created_at DESC
+            """
         )
     return {"alerts": [_record_to_dict(r) for r in records]}
 
