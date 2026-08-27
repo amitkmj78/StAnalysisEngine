@@ -283,7 +283,7 @@ async def demand_report():
                 FROM subscriptions
                 WHERE tier = 'paid' AND created_at <= now() - ($1 || ' months')::interval
                 """,
-                months,
+                str(months),
             )
             cohort_size = row["cohort_size"] or 0
             retained = row["retained"] or 0
