@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -5,6 +6,11 @@ from .data_service import get_extended_hours_price, get_latest_price
 from .fund_comparison_service import price_near_date
 
 DEFAULT_LOOKBACK_DAYS = 30
+# Same pattern/value as stock_finder_service.py and entry_strategy_service.py:
+# each position needs a few independent, I/O-bound yfinance calls, so fan
+# them out across positions rather than serializing behind a slow/rate-limited
+# ticker.
+MAX_PARALLEL_FETCHES = 10
 
 
 def compute_total_portfolio_value(positions: list[dict]) -> float:
@@ -25,6 +31,63 @@ def compute_total_portfolio_value(positions: list[dict]) -> float:
     return total
 
 
+def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
+    ticker = pos["ticker"]
+    shares = pos.get("shares") or 0
+    avg_cost = pos.get("avg_cost")
+    if shares <= 0:
+        return None
+
+    cost_basis = shares * avg_cost if avg_cost else None
+
+    price_now = get_latest_price(ticker)
+    price_then = price_near_date(ticker, when)
+    extended_hours = get_extended_hours_price(ticker)
+
+    if price_now is None:
+        return {
+            "ticker": ticker,
+            "shares": shares,
+            "avg_cost": avg_cost,
+            "cost_basis": cost_basis,
+            "price_now": None,
+            "price_30d_ago": None,
+            "value_now": None,
+            "value_30d_ago": None,
+            "diff": None,
+            "diff_pct": None,
+            "gain_vs_cost": None,
+            "gain_vs_cost_pct": None,
+            "price_unavailable": True,
+            "extended_hours": None,
+        }
+
+    value_now = shares * price_now
+    value_then = shares * price_then if price_then is not None else None
+    diff = value_now - value_then if value_then is not None else None
+    diff_pct = (diff / value_then * 100.0) if value_then not in (None, 0) else None
+
+    gain_vs_cost = value_now - cost_basis if cost_basis is not None else None
+    gain_vs_cost_pct = (gain_vs_cost / cost_basis * 100.0) if cost_basis not in (None, 0) else None
+
+    return {
+        "ticker": ticker,
+        "shares": shares,
+        "avg_cost": avg_cost,
+        "cost_basis": cost_basis,
+        "price_now": price_now,
+        "price_30d_ago": price_then,
+        "value_now": value_now,
+        "value_30d_ago": value_then,
+        "diff": diff,
+        "diff_pct": diff_pct,
+        "gain_vs_cost": gain_vs_cost,
+        "gain_vs_cost_pct": gain_vs_cost_pct,
+        "price_unavailable": False,
+        "extended_hours": extended_hours,
+    }
+
+
 def compute_portfolio_performance(positions: list[dict], lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> dict:
     """
     For each position (ticker + shares + avg_cost), compares today's live
@@ -37,78 +100,24 @@ def compute_portfolio_performance(positions: list[dict], lookback_days: int = DE
     (delisted/mistyped ticker, a fund yfinance doesn't carry, etc.) — the
     row just carries nulls plus `price_unavailable: True` rather than
     silently vanishing from the table.
+
+    Each position's fetches (current price, price `lookback_days` ago,
+    extended-hours price) run in parallel across positions — same pattern
+    as stock_finder_service/entry_strategy_service — so one rate-limited
+    or slow ticker doesn't serialize the whole portfolio's load behind it.
     """
     when = datetime.utcnow() - timedelta(days=lookback_days)
-    rows = []
-    total_now = 0.0
-    total_then = 0.0
-    total_cost_basis = 0.0
 
-    for pos in positions:
-        ticker = pos["ticker"]
-        shares = pos.get("shares") or 0
-        avg_cost = pos.get("avg_cost")
-        if shares <= 0:
-            continue
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_FETCHES) as executor:
+        rows = [
+            row
+            for row in executor.map(lambda pos: _compute_position_row(pos, when), positions)
+            if row is not None
+        ]
 
-        cost_basis = shares * avg_cost if avg_cost else None
-        if cost_basis is not None:
-            total_cost_basis += cost_basis
-
-        price_now = get_latest_price(ticker)
-        price_then = price_near_date(ticker, when)
-        extended_hours = get_extended_hours_price(ticker)
-
-        if price_now is None:
-            rows.append(
-                {
-                    "ticker": ticker,
-                    "shares": shares,
-                    "avg_cost": avg_cost,
-                    "cost_basis": cost_basis,
-                    "price_now": None,
-                    "price_30d_ago": None,
-                    "value_now": None,
-                    "value_30d_ago": None,
-                    "diff": None,
-                    "diff_pct": None,
-                    "gain_vs_cost": None,
-                    "gain_vs_cost_pct": None,
-                    "price_unavailable": True,
-                    "extended_hours": None,
-                }
-            )
-            continue
-
-        value_now = shares * price_now
-        value_then = shares * price_then if price_then is not None else None
-        diff = value_now - value_then if value_then is not None else None
-        diff_pct = (diff / value_then * 100.0) if value_then not in (None, 0) else None
-
-        gain_vs_cost = value_now - cost_basis if cost_basis is not None else None
-        gain_vs_cost_pct = (gain_vs_cost / cost_basis * 100.0) if cost_basis not in (None, 0) else None
-
-        rows.append(
-            {
-                "ticker": ticker,
-                "shares": shares,
-                "avg_cost": avg_cost,
-                "cost_basis": cost_basis,
-                "price_now": price_now,
-                "price_30d_ago": price_then,
-                "value_now": value_now,
-                "value_30d_ago": value_then,
-                "diff": diff,
-                "diff_pct": diff_pct,
-                "gain_vs_cost": gain_vs_cost,
-                "gain_vs_cost_pct": gain_vs_cost_pct,
-                "price_unavailable": False,
-                "extended_hours": extended_hours,
-            }
-        )
-        total_now += value_now
-        if value_then is not None:
-            total_then += value_then
+    total_now = sum(r["value_now"] for r in rows if r["value_now"] is not None)
+    total_then = sum(r["value_30d_ago"] for r in rows if r["value_30d_ago"] is not None)
+    total_cost_basis = sum(r["cost_basis"] for r in rows if r["cost_basis"] is not None)
 
     total_diff = total_now - total_then
     total_diff_pct: Optional[float] = (total_diff / total_then * 100.0) if total_then > 0 else None

@@ -14,9 +14,22 @@ router = APIRouter(
 
 @router.get("")
 async def list_users():
+    """Includes each user's portfolio_count/position_count (across all their
+    portfolios) so an admin deciding whether to deactivate an account can
+    see at a glance whether it's actually in use."""
     async with service_conn() as conn:
         rows = await conn.fetch(
-            "SELECT id, email, approved, is_active, created_at FROM users ORDER BY created_at DESC"
+            """
+            SELECT
+                u.id, u.email, u.approved, u.is_active, u.created_at,
+                count(DISTINCT p.id) AS portfolio_count,
+                count(pp.id) AS position_count
+            FROM users u
+            LEFT JOIN portfolios p ON p.user_id = u.id
+            LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = u.id
+            GROUP BY u.id, u.email, u.approved, u.is_active, u.created_at
+            ORDER BY u.created_at DESC
+            """
         )
     return [
         {
@@ -25,6 +38,8 @@ async def list_users():
             "approved": r["approved"],
             "is_active": r["is_active"],
             "created_at": r["created_at"].isoformat(),
+            "portfolio_count": r["portfolio_count"],
+            "position_count": r["position_count"],
         }
         for r in rows
     ]

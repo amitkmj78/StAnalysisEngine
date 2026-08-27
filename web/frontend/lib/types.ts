@@ -586,6 +586,8 @@ export interface AdminUser {
   approved: boolean;
   is_active: boolean;
   created_at: string;
+  portfolio_count: number;
+  position_count: number;
 }
 
 export interface AdminActivityRow {

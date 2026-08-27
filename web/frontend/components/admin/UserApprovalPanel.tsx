@@ -183,6 +183,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Portfolios</th>
                 <th className="px-3 py-2">Signed Up</th>
                 <th className="px-3 py-2"></th>
               </tr>
@@ -199,6 +200,16 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                     >
                       {u.is_active ? "Active" : "Inactive"}
                     </span>
+                  </td>
+                  <td className="px-3 py-2 text-slate-600">
+                    {u.portfolio_count > 0 ? (
+                      <>
+                        {u.portfolio_count} portfolio{u.portfolio_count === 1 ? "" : "s"}
+                        <span className="text-slate-400"> · {u.position_count} position{u.position_count === 1 ? "" : "s"}</span>
+                      </>
+                    ) : (
+                      <span className="text-slate-400">None</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-slate-500">{new Date(u.created_at).toLocaleString()}</td>
                   <td className="px-3 py-2 text-right">
