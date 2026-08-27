@@ -158,6 +158,13 @@ export default function PredictPage() {
       setData(summary);
       setShownDaysAhead(forDaysAhead);
       setPriceRefreshKey((k) => k + 1);
+      // Auto-save every viewed forecast (not just ones a user remembers
+      // to click Save on) so the accuracy leaderboard reflects real,
+      // unbiased usage rather than a self-selected subset — the backend
+      // dedupes to one row per ticker/period/day, so repeat views of
+      // the same ticker today don't flood the table. Awaited (but its
+      // own errors swallowed) so loadHistory below sees the fresh row.
+      await autoSavePrediction(summary.ticker, forPeriod, forDaysAhead);
       loadHistory(summary.ticker);
       loadNarrativeHistory(summary.ticker);
       getBaselineBand(summary.ticker, { horizon: 30, confidence: 0.9 })
@@ -200,13 +207,32 @@ export default function PredictPage() {
     }
   }
 
+  async function autoSavePrediction(forTicker: string, forPeriod: string, forDaysAhead: number) {
+    try {
+      const res = await savePrediction(forTicker, forPeriod, forDaysAhead);
+      setSaveMessage(
+        res.already_saved_today
+          ? "Already tracking today's forecast for this ticker — checking back after the target date."
+          : "Auto-saved for accuracy tracking — check back after the forecast date to see how it did."
+      );
+    } catch {
+      // Silent — this runs on every page view, not a user-initiated
+      // action, so a failure here shouldn't interrupt viewing the
+      // forecast. The manual Save button below still works as a retry.
+    }
+  }
+
   async function handleSave() {
     if (!data) return;
     setSaving(true);
     setSaveMessage(null);
     try {
-      await savePrediction(data.ticker, data.period, shownDaysAhead);
-      setSaveMessage("Saved — check back after the forecast date to see how it did.");
+      const res = await savePrediction(data.ticker, data.period, shownDaysAhead);
+      setSaveMessage(
+        res.already_saved_today
+          ? "Already tracking today's forecast for this ticker."
+          : "Saved — check back after the forecast date to see how it did."
+      );
       await loadHistory(data.ticker);
     } catch (err) {
       setSaveMessage(err instanceof ApiError ? err.message : "Could not save this prediction.");

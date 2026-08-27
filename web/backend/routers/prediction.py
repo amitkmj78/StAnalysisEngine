@@ -350,8 +350,14 @@ class SavePredictionRequest(BaseModel):
 
 
 @router.post("/save")
-@limiter.limit("10/minute")
+@limiter.limit("30/minute")
 async def save_prediction(request: Request, body: SavePredictionRequest):
+    # Higher limit than before (10 -> 30/minute): this is now called
+    # automatically on every /predict view (see runAnalysis in
+    # predict/page.tsx), not just an explicit user click, to build a
+    # broad, unbiased accuracy dataset instead of only the predictions a
+    # user happened to remember to save — that's the whole point of
+    # auto-saving "so we can find [if the] algo is correct".
     await enforce_daily_quota(request, "predict/save")
     user_id = request.state.user["id"]
 
@@ -360,22 +366,43 @@ async def save_prediction(request: Request, body: SavePredictionRequest):
     if not 1 <= body.days_ahead <= 60:
         raise HTTPException(422, "days_ahead must be between 1 and 60")
 
-    last_close = await run_in_threadpool(get_latest_price, ticker)
-    if last_close is None:
-        raise HTTPException(422, "No price data available for that ticker.")
-
-    next_price = await run_in_threadpool(predict_next_price, ticker, body.period, False)
-    future_df = await run_in_threadpool(predict_future_prices, ticker, body.period, body.days_ahead, False)
-    if future_df is None or future_df.empty:
-        raise HTTPException(422, "Not enough history to forecast this ticker yet.")
-
-    sig = generate_trading_signal(last_close, future_df)
-    signal = sig.get("signal")
-    expected_return_pct = sig.get("expected_return_pct")
-    target_price = sig.get("target_price")
-    target_date = future_df.index[-1].to_pydatetime()
-
     async with user_conn(user_id) as conn:
+        # Dedup: one saved prediction per (ticker, period) per calendar
+        # day. Without this, auto-saving on every page view/reload would
+        # flood saved_predictions with near-identical rows for a ticker
+        # someone just keeps glancing at — inflating total_predictions
+        # and diluting win_rate on the accuracy leaderboard without
+        # adding any real signal. Keeps the *first* prediction of the
+        # day rather than overwriting it on a later view, since the
+        # point is what the model said at a point in time, not the
+        # freshest intraday re-run.
+        existing = await conn.fetchrow(
+            """
+            SELECT * FROM saved_predictions
+            WHERE user_id = $1::uuid AND ticker = $2 AND period = $3
+              AND predicted_at::date = now()::date
+            ORDER BY predicted_at DESC LIMIT 1
+            """,
+            user_id, ticker, body.period,
+        )
+        if existing is not None:
+            return {"prediction": _record_to_dict(existing), "already_saved_today": True}
+
+        last_close = await run_in_threadpool(get_latest_price, ticker)
+        if last_close is None:
+            raise HTTPException(422, "No price data available for that ticker.")
+
+        next_price = await run_in_threadpool(predict_next_price, ticker, body.period, False)
+        future_df = await run_in_threadpool(predict_future_prices, ticker, body.period, body.days_ahead, False)
+        if future_df is None or future_df.empty:
+            raise HTTPException(422, "Not enough history to forecast this ticker yet.")
+
+        sig = generate_trading_signal(last_close, future_df)
+        signal = sig.get("signal")
+        expected_return_pct = sig.get("expected_return_pct")
+        target_price = sig.get("target_price")
+        target_date = future_df.index[-1].to_pydatetime()
+
         record = await conn.fetchrow(
             """
             INSERT INTO saved_predictions (
@@ -387,7 +414,7 @@ async def save_prediction(request: Request, body: SavePredictionRequest):
             user_id, ticker, body.period, last_close, next_price,
             signal, expected_return_pct, target_price, target_date,
         )
-    return {"prediction": _record_to_dict(record)}
+    return {"prediction": _record_to_dict(record), "already_saved_today": False}
 
 
 async def _load_and_verify_predictions(conn, ticker: str | None = None) -> list[dict]:

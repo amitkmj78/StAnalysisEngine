@@ -145,7 +145,7 @@ export function deleteNarrative(narrativeId: number) {
 }
 
 export function savePrediction(ticker: string, period: string, daysAhead = 10) {
-  return apiSend<{ prediction: SavedPrediction }>("/api/v1/predict/save", "POST", {
+  return apiSend<{ prediction: SavedPrediction; already_saved_today: boolean }>("/api/v1/predict/save", "POST", {
     ticker,
     period,
     days_ahead: daysAhead,
