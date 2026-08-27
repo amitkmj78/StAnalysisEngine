@@ -255,7 +255,13 @@ export default function PortfolioPage() {
       });
     }, 10000);
     return () => clearInterval(interval);
-  }, [isAdminUser, summary?.total_positions]);
+    // selectedPortfolioId must be a dependency: refreshPerformance closes
+    // over it, and without it here, switching to a portfolio with the same
+    // total_positions count as the previous one wouldn't change any
+    // dependency React can see — the old interval (and its stale
+    // portfolio_id) would keep running instead of being torn down and
+    // recreated against the newly-selected portfolio.
+  }, [isAdminUser, summary?.total_positions, selectedPortfolioId]);
 
   function updateRow(i: number, patch: Partial<ManualPositionInput>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
