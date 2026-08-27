@@ -162,26 +162,27 @@ async def _evaluate_watchlist_alerts() -> None:
 
 
 async def _scan_portfolio_drops_job() -> None:
-    """Same-day portfolio drop alerts, admin-only: flags any ticker in the
-    admin account's holdings down at least their configured threshold (or
-    the admin-configured default) from yesterday's close, gathers
-    sentiment/news + the Predict-page quant signal, and records an in-app
-    recommended-action alert. Off by default — unlike the other flags,
-    enabling this starts real per-drop external API + LLM spend, so it's
-    an admin's deliberate opt-in, not a safe-by-default background job.
+    """Same-day portfolio drop alerts: for every user's holdings, flags any
+    ticker down at least their configured threshold (or the admin-
+    configured default) from yesterday's close, gathers sentiment/news +
+    the Predict-page quant signal, and records an in-app recommended-
+    action alert plus an email to that holding's owner. Off by default —
+    unlike the other flags, enabling this starts real per-drop external
+    API + LLM spend, so it's an admin's deliberate opt-in, not a
+    safe-by-default background job.
 
-    Scoped to just the admin account, not every user — the drop-alerts
-    feature (this job, plus every /portfolio/drop-alerts endpoint) is
-    admin-only; other users never see or configure it."""
+    Still scans every user, not just the admin: the in-app UI/API for
+    viewing and self-configuring drop alerts is admin-only now (see
+    web/backend/routers/portfolio.py), but the admin can still turn
+    monitoring on or off for any specific user's portfolio from the
+    admin Users screen (POST /admin/users/{id}/portfolios/{id}/
+    drop-alerts) — that only has an effect if the scan still looks at
+    every user's (admin-controlled) drop_alerts_enabled flag rather than
+    only the admin's own."""
     if not await get_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, default=False):
         logger.info("Scheduler: portfolio_drop_alerts is disabled, skipping this run")
         return
-    async with service_conn() as conn:
-        admin_id = await conn.fetchval("SELECT id FROM users WHERE lower(email) = lower($1)", ADMIN_EMAIL)
-    if admin_id is None:
-        logger.warning("Scheduler: admin account not found, skipping portfolio drop scan")
-        return
-    inserted = await scan_portfolios_for_drops(user_id=str(admin_id))
+    inserted = await scan_portfolios_for_drops()
     if inserted:
         logger.info("Scheduler: inserted %d portfolio drop alerts", inserted)
 
