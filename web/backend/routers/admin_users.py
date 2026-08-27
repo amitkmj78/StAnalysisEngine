@@ -106,10 +106,10 @@ async def reject_user(user_id: str):
 @router.post("/{user_id}/deactivate")
 async def deactivate_user(user_id: str):
     # Reversible suspension, distinct from delete: blocks future logins
-    # (checked in POST /login) but keeps the account and all its
-    # trades/portfolio/saved_predictions intact. An already-open session
-    # keeps working until it next logs in — see the is_active comment on
-    # the users table migration for why.
+    # (checked in POST /login) and, by also bumping session_invalidated_at,
+    # kills any already-open session within ~20s (verify_bearer_token's
+    # revocation-check cache TTL) rather than waiting for it to next log
+    # in — keeps the account and all its data/relationships intact.
     async with service_conn() as conn:
         row = await conn.fetchrow("SELECT email FROM users WHERE id = $1", user_id)
         if row is None:
@@ -117,10 +117,29 @@ async def deactivate_user(user_id: str):
         if row["email"].lower() == ADMIN_EMAIL.lower():
             raise HTTPException(400, "Cannot deactivate the admin account.")
         row = await conn.fetchrow(
-            "UPDATE users SET is_active = false WHERE id = $1 RETURNING id, email, is_active",
+            "UPDATE users SET is_active = false, session_invalidated_at = now() WHERE id = $1 "
+            "RETURNING id, email, is_active",
             user_id,
         )
     return {"id": str(row["id"]), "email": row["email"], "is_active": row["is_active"]}
+
+
+@router.post("/{user_id}/force-logout")
+async def force_logout_user(user_id: str):
+    """Kills this user's already-open session(s) within ~20s without
+    deactivating the account — for a stale/rogue tab that needs to stop
+    right now (e.g. still polling with pre-fix code after a deploy), where
+    the user should otherwise keep normal access and can just log back in
+    immediately. Reuses the same session_invalidated_at revocation
+    deactivate_user sets, just without touching is_active."""
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            "UPDATE users SET session_invalidated_at = now() WHERE id = $1 RETURNING id, email",
+            user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "User not found.")
+    return {"id": str(row["id"]), "email": row["email"], "ok": True}
 
 
 @router.post("/{user_id}/reactivate")

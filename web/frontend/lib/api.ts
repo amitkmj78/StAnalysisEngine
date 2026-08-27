@@ -636,6 +636,13 @@ export function reactivateUser(userId: string) {
   );
 }
 
+export function forceLogoutUser(userId: string) {
+  return apiSend<{ id: string; email: string; ok: boolean }>(
+    `/api/v1/admin/users/${userId}/force-logout`,
+    "POST",
+  );
+}
+
 export function getAdminUserPortfolios(userId: string) {
   return apiFetch<AdminUserPortfolio[]>(`/api/v1/admin/users/${userId}/portfolios`);
 }

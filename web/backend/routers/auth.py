@@ -216,5 +216,5 @@ async def logout(response: Response):
 
 @router.get("/me")
 async def me(request: Request):
-    user = verify_bearer_token(request)
+    user = await verify_bearer_token(request)
     return user

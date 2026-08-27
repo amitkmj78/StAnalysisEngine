@@ -423,11 +423,16 @@ create table if not exists users (
   created_at timestamptz not null default now()
 );
 -- Deactivation is a reversible, admin-triggered suspension distinct from
--- delete: it blocks future logins (checked in /login) but keeps the
--- account and all its data/relationships intact. Existing sessions are
--- unaffected until they next log in — see verify_bearer_token, which
--- (like `approved`) never re-checks the DB per-request.
+-- delete: it blocks future logins (checked in /login) and, via
+-- session_invalidated_at below, kills any already-open session too —
+-- keeps the account and all its data/relationships intact.
 alter table users add column if not exists is_active boolean not null default true;
+-- NULL means "no revocation in effect" — a token issued (iat) before this
+-- timestamp is rejected by verify_bearer_token regardless of its own
+-- expiry, so deactivating a user or force-logging them out takes effect
+-- on their already-open tabs within seconds (see the short-TTL cache in
+-- web/backend/auth.py), not just on their next fresh login.
+alter table users add column if not exists session_invalidated_at timestamptz;
 -- NULL means "use the admin-configured global default"
 -- (app_settings.portfolio_drop_threshold_pct) — most users never touch
 -- this, only set once a user opts into a tighter/looser sensitivity

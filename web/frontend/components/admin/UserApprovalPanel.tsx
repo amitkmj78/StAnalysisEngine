@@ -9,6 +9,7 @@ import {
   deactivateUser,
   deleteAdminUserPortfolio,
   deleteUser,
+  forceLogoutUser,
   getAdminUserPortfolios,
   getAdminUsers,
   reactivateAdminUserPortfolio,
@@ -109,6 +110,20 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Reactivate failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleForceLogout(id: string, email: string) {
+    if (!window.confirm(`Force-logout ${email}? Any already-open tab of theirs stops working within ~20s. They can log back in immediately — this doesn't deactivate the account.`)) {
+      return;
+    }
+    setBusyId(id);
+    try {
+      await forceLogoutUser(id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Force-logout failed.");
     } finally {
       setBusyId(null);
     }
@@ -332,6 +347,13 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                       </button>
                       {u.email.toLowerCase() !== currentUserEmail.toLowerCase() && (
                         <>
+                          <button
+                            onClick={() => handleForceLogout(u.id, u.email)}
+                            disabled={busyId === u.id}
+                            className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                          >
+                            Force Logout
+                          </button>
                           {u.is_active ? (
                             <button
                               onClick={() => handleDeactivate(u.id, u.email)}
