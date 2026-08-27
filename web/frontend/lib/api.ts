@@ -561,6 +561,21 @@ export function setDropAlertThreshold(thresholdPct: number | null) {
   );
 }
 
+export function getPortfolioDropAlertsEnabled(portfolioId: number) {
+  return apiFetch<{ portfolio_id: number; drop_alerts_enabled: boolean }>(
+    "/api/v1/portfolio/drop-alerts/portfolio-enabled",
+    { portfolio_id: String(portfolioId) },
+  );
+}
+
+export function setPortfolioDropAlertsEnabled(portfolioId: number, enabled: boolean) {
+  return apiSend<{ portfolio_id: number; drop_alerts_enabled: boolean }>(
+    "/api/v1/portfolio/drop-alerts/portfolio-enabled",
+    "POST",
+    { portfolio_id: portfolioId, enabled },
+  );
+}
+
 // Meta-Agent Chat
 export function getChatProviders() {
   return apiFetch<ChatProvidersResponse>("/api/v1/chat/providers");

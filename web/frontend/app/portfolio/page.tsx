@@ -461,7 +461,7 @@ export default function PortfolioPage() {
         />
       </div>
 
-      <PortfolioDropAlerts />
+      <PortfolioDropAlerts portfolioId={selectedPortfolioId} />
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
         <Field label="Risk profile">

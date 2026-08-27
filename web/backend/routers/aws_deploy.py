@@ -486,6 +486,11 @@ create policy portfolios_isolation on portfolios
 -- from GET /list) without deleting its positions/strategies/alerts, distinct
 -- from the admin DELETE below which removes it and all of that permanently.
 alter table portfolios add column if not exists is_active boolean not null default true;
+-- User-controlled, distinct from is_active above: lets someone silence
+-- drop-alert scanning for just this one portfolio (e.g. a buy-and-forget
+-- retirement account) while keeping it fully visible/active everywhere
+-- else. Checked in portfolio_alerts.scan_portfolios_for_drops.
+alter table portfolios add column if not exists drop_alerts_enabled boolean not null default true;
 
 create table if not exists portfolio_positions (
   id bigint generated always as identity primary key,

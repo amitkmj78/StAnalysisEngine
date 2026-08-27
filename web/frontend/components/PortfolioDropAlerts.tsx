@@ -7,13 +7,15 @@ import {
   dismissPortfolioDropAlert,
   getDropAlertThreshold,
   getPortfolioDropAlerts,
+  getPortfolioDropAlertsEnabled,
   refreshDropAlert,
   refreshPortfolioDropAlerts,
   setDropAlertThreshold,
+  setPortfolioDropAlertsEnabled,
 } from "@/lib/api";
 import type { DropAlertThreshold, PortfolioDropAlert } from "@/lib/types";
 
-export default function PortfolioDropAlerts() {
+export default function PortfolioDropAlerts({ portfolioId }: { portfolioId: number | null }) {
   const [alerts, setAlerts] = useState<PortfolioDropAlert[] | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [dismissingId, setDismissingId] = useState<number | null>(null);
@@ -27,6 +29,10 @@ export default function PortfolioDropAlerts() {
   const [thresholdInput, setThresholdInput] = useState("");
   const [savingThreshold, setSavingThreshold] = useState(false);
   const [thresholdError, setThresholdError] = useState<string | null>(null);
+
+  const [portfolioEnabled, setPortfolioEnabled] = useState<boolean | null>(null);
+  const [savingPortfolioEnabled, setSavingPortfolioEnabled] = useState(false);
+  const [portfolioEnabledError, setPortfolioEnabledError] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -52,6 +58,34 @@ export default function PortfolioDropAlerts() {
     load();
     loadThreshold();
   }, []);
+
+  useEffect(() => {
+    if (portfolioId === null) {
+      setPortfolioEnabled(null);
+      return;
+    }
+    setPortfolioEnabled(null);
+    getPortfolioDropAlertsEnabled(portfolioId)
+      .then((res) => setPortfolioEnabled(res.drop_alerts_enabled))
+      .catch(() => {
+        // Silent, same reasoning as load() above.
+      });
+  }, [portfolioId]);
+
+  async function handleTogglePortfolioEnabled() {
+    if (portfolioId === null || portfolioEnabled === null) return;
+    const next = !portfolioEnabled;
+    setSavingPortfolioEnabled(true);
+    setPortfolioEnabledError(null);
+    try {
+      const res = await setPortfolioDropAlertsEnabled(portfolioId, next);
+      setPortfolioEnabled(res.drop_alerts_enabled);
+    } catch (err) {
+      setPortfolioEnabledError(err instanceof ApiError ? err.message : "Could not update this setting.");
+    } finally {
+      setSavingPortfolioEnabled(false);
+    }
+  }
 
   async function handleSaveThreshold() {
     const parsed = Number(thresholdInput);
@@ -225,6 +259,25 @@ export default function PortfolioDropAlerts() {
               {thresholdError && <span className="text-red-600">{thresholdError}</span>}
             </>
           )}
+        </div>
+      )}
+
+      {portfolioId !== null && portfolioEnabled !== null && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <label className="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={portfolioEnabled}
+              onChange={handleTogglePortfolioEnabled}
+              disabled={savingPortfolioEnabled}
+              className="h-3.5 w-3.5 rounded border-slate-300"
+            />
+            Drop alerts for this portfolio
+          </label>
+          {!portfolioEnabled && (
+            <span className="text-slate-400">Off — this portfolio&apos;s holdings won&apos;t trigger new alerts.</span>
+          )}
+          {portfolioEnabledError && <span className="text-red-600">{portfolioEnabledError}</span>}
         </div>
       )}
 

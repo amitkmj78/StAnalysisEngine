@@ -43,13 +43,21 @@ async def scan_portfolios_for_drops(threshold_pct: float | None = None, user_id:
     """
     today = date.today()
 
+    # Only positions in a portfolio that's both active and has drop alerts
+    # enabled feed the scan — a ticker held only in a portfolio where either
+    # is off is skipped, even if the same ticker would otherwise qualify.
+    # (A ticker held in more than one of a user's portfolios still surfaces
+    # if at least one of them has alerts on, via the DISTINCT dedup below.)
     async with service_conn() as conn:
         if user_id is not None:
             holdings = await conn.fetch(
                 """
                 SELECT DISTINCT pp.user_id, pp.ticker, u.email, u.drop_alert_threshold_pct
-                FROM portfolio_positions pp JOIN users u ON u.id = pp.user_id
+                FROM portfolio_positions pp
+                JOIN users u ON u.id = pp.user_id
+                JOIN portfolios p ON p.id = pp.portfolio_id
                 WHERE pp.ticker IS NOT NULL AND pp.user_id = $1::uuid
+                  AND p.is_active AND p.drop_alerts_enabled
                 """,
                 user_id,
             )
@@ -57,8 +65,10 @@ async def scan_portfolios_for_drops(threshold_pct: float | None = None, user_id:
             holdings = await conn.fetch(
                 """
                 SELECT DISTINCT pp.user_id, pp.ticker, u.email, u.drop_alert_threshold_pct
-                FROM portfolio_positions pp JOIN users u ON u.id = pp.user_id
-                WHERE pp.ticker IS NOT NULL
+                FROM portfolio_positions pp
+                JOIN users u ON u.id = pp.user_id
+                JOIN portfolios p ON p.id = pp.portfolio_id
+                WHERE pp.ticker IS NOT NULL AND p.is_active AND p.drop_alerts_enabled
                 """
             )
         if not holdings:

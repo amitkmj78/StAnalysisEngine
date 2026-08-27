@@ -793,6 +793,42 @@ async def set_drop_alert_threshold(request: Request, body: SetDropAlertThreshold
     return {"ok": True, "threshold_pct": body.threshold_pct}
 
 
+@router.get("/drop-alerts/portfolio-enabled")
+async def get_portfolio_drop_alerts_enabled(request: Request, portfolio_id: int):
+    """Whether drop alerts are on for one specific portfolio — independent
+    per portfolio, unlike the threshold above which is one value for the
+    whole account. A user with several portfolios can silence alerts for
+    one (e.g. a buy-and-forget retirement account) while keeping them on
+    for the rest."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "SELECT drop_alerts_enabled FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            portfolio_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Portfolio not found.")
+    return {"portfolio_id": portfolio_id, "drop_alerts_enabled": row["drop_alerts_enabled"]}
+
+
+class SetPortfolioDropAlertsEnabledRequest(BaseModel):
+    portfolio_id: int
+    enabled: bool
+
+
+@router.post("/drop-alerts/portfolio-enabled")
+async def set_portfolio_drop_alerts_enabled(request: Request, body: SetPortfolioDropAlertsEnabledRequest):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "UPDATE portfolios SET drop_alerts_enabled = $1 WHERE id = $2 AND user_id = $3::uuid RETURNING drop_alerts_enabled",
+            body.enabled, body.portfolio_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Portfolio not found.")
+    return {"portfolio_id": body.portfolio_id, "drop_alerts_enabled": row["drop_alerts_enabled"]}
+
+
 @router.post("/drop-alerts/scan-now", dependencies=[Depends(require_admin)])
 async def scan_drop_alerts_now(threshold_pct: Optional[float] = None):
     """Manual trigger for the same scan the scheduler runs every 15
