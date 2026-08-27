@@ -29,7 +29,7 @@ from web.backend.app_settings import (
     get_setting_float,
 )
 from web.backend.auth import verify_bearer_token
-from web.backend.db import user_conn
+from web.backend.db import service_conn, user_conn
 from web.backend.llm_cache import cached_init_llms, ordered_llms
 from web.backend.portfolio_alerts import scan_portfolios_for_drops
 from web.backend.rate_limit import enforce_daily_quota, limiter
@@ -727,14 +727,56 @@ async def refresh_drop_alerts(request: Request):
     waiting for the next tick (or needing the scheduler enabled at all).
     Still respects the once-per-ticker-per-day dedup: a ticker already
     alerted today keeps its existing alert/narrative unchanged — this only
-    surfaces genuinely new drops since the last check."""
+    surfaces genuinely new drops since the last check.
+
+    Uses this user's own drop_alert_threshold_pct if they've set one,
+    falling back to the admin-configured global default otherwise — same
+    resolution as GET /drop-alerts/threshold."""
     await enforce_daily_quota(request, "portfolio/drop-alerts/refresh")
     user_id = request.state.user["id"]
-    threshold_pct = await get_setting_float(
+    inserted = await scan_portfolios_for_drops(user_id=user_id)
+    return {"inserted": inserted}
+
+
+@router.get("/drop-alerts/threshold")
+async def get_drop_alert_threshold(request: Request):
+    """The current user's own drop-alert sensitivity, if they've set one —
+    falls back to the admin-configured global default (app_settings) when
+    they haven't, same default every user effectively had before this was
+    configurable per-user."""
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        custom = await conn.fetchval(
+            "SELECT drop_alert_threshold_pct FROM users WHERE id = $1::uuid", user_id
+        )
+    default = await get_setting_float(
         PORTFOLIO_DROP_THRESHOLD_PCT_KEY, default=PORTFOLIO_DROP_THRESHOLD_DEFAULT
     )
-    inserted = await scan_portfolios_for_drops(threshold_pct=threshold_pct, user_id=user_id)
-    return {"inserted": inserted}
+    return {
+        "threshold_pct": custom if custom is not None else default,
+        "is_custom": custom is not None,
+        "default_pct": default,
+    }
+
+
+class SetDropAlertThresholdRequest(BaseModel):
+    threshold_pct: Optional[float] = None  # None resets to the admin default
+
+
+@router.post("/drop-alerts/threshold")
+async def set_drop_alert_threshold(request: Request, body: SetDropAlertThresholdRequest):
+    """Sets (or, with threshold_pct omitted/null, clears) the current
+    user's own drop-alert sensitivity. Cleared means "use the
+    admin-configured global default" going forward."""
+    if body.threshold_pct is not None and not (0.1 <= body.threshold_pct <= 50):
+        raise HTTPException(422, "threshold_pct must be between 0.1 and 50.")
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        await conn.execute(
+            "UPDATE users SET drop_alert_threshold_pct = $1 WHERE id = $2::uuid",
+            body.threshold_pct, user_id,
+        )
+    return {"ok": True, "threshold_pct": body.threshold_pct}
 
 
 @router.post("/drop-alerts/scan-now", dependencies=[Depends(require_admin)])

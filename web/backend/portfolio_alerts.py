@@ -4,25 +4,30 @@ from datetime import date
 from starlette.concurrency import run_in_threadpool
 
 from services.email_service import send_portfolio_drop_alert_email
-from services.portfolio_alert_service import (
-    DROP_THRESHOLD_PCT,
-    build_drop_analysis,
-    check_for_drop,
-    get_price_and_prev_close,
-)
+from services.portfolio_alert_service import build_drop_analysis, get_price_and_prev_close
+from web.backend.app_settings import PORTFOLIO_DROP_THRESHOLD_DEFAULT, PORTFOLIO_DROP_THRESHOLD_PCT_KEY, get_setting_float
 from web.backend.db import service_conn
 from web.backend.llm_cache import cached_init_llms, ordered_llms
 
 logger = logging.getLogger(__name__)
 
 
-async def scan_portfolios_for_drops(threshold_pct: float = DROP_THRESHOLD_PCT, user_id: str | None = None) -> int:
+async def scan_portfolios_for_drops(threshold_pct: float | None = None, user_id: str | None = None) -> int:
     """
     Scans every user's portfolio (or just `user_id`'s, for an on-demand
-    per-user refresh) for a same-day drop of threshold_pct or more,
-    computing the sentiment + quant-signal recommendation once per distinct
-    ticker per run (not once per user holding it — multiple users can hold
-    the same ticker), and inserts one alert row per newly-affected user.
+    per-user refresh) for a same-day drop, computing the sentiment +
+    quant-signal recommendation once per distinct ticker per run (not once
+    per user holding it — multiple users can hold the same ticker), and
+    inserts one alert row per newly-affected user.
+
+    threshold_pct controls what counts as a "drop":
+      - None (the default, used by the scheduler and by a user's own
+        on-demand refresh): each user's own drop_alert_threshold_pct is
+        used if they've set one, else the admin-configured global default.
+      - An explicit float (used by the admin's manual scan-now trigger):
+        applied uniformly to every user, overriding their personal setting
+        — for testing a hypothetical sensitivity without changing anyone's
+        saved preference.
 
     A ticker already alerted today for a user is NOT skipped — its alert
     is refreshed in place instead (same price re-check + narrative
@@ -42,7 +47,7 @@ async def scan_portfolios_for_drops(threshold_pct: float = DROP_THRESHOLD_PCT, u
         if user_id is not None:
             holdings = await conn.fetch(
                 """
-                SELECT DISTINCT pp.user_id, pp.ticker, u.email
+                SELECT DISTINCT pp.user_id, pp.ticker, u.email, u.drop_alert_threshold_pct
                 FROM portfolio_positions pp JOIN users u ON u.id = pp.user_id
                 WHERE pp.ticker IS NOT NULL AND pp.user_id = $1::uuid
                 """,
@@ -51,7 +56,7 @@ async def scan_portfolios_for_drops(threshold_pct: float = DROP_THRESHOLD_PCT, u
         else:
             holdings = await conn.fetch(
                 """
-                SELECT DISTINCT pp.user_id, pp.ticker, u.email
+                SELECT DISTINCT pp.user_id, pp.ticker, u.email, u.drop_alert_threshold_pct
                 FROM portfolio_positions pp JOIN users u ON u.id = pp.user_id
                 WHERE pp.ticker IS NOT NULL
                 """
@@ -67,6 +72,19 @@ async def scan_portfolios_for_drops(threshold_pct: float = DROP_THRESHOLD_PCT, u
             already_alerted = await conn.fetch(
                 "SELECT id, user_id, ticker FROM portfolio_drop_alerts WHERE alert_date = $1", today
             )
+
+    global_default_threshold = (
+        threshold_pct
+        if threshold_pct is not None
+        else await get_setting_float(PORTFOLIO_DROP_THRESHOLD_PCT_KEY, default=PORTFOLIO_DROP_THRESHOLD_DEFAULT)
+    )
+
+    def _effective_threshold(row) -> float:
+        if threshold_pct is not None:
+            return threshold_pct
+        if row["drop_alert_threshold_pct"] is not None:
+            return row["drop_alert_threshold_pct"]
+        return global_default_threshold
 
     already_alerted_by_key = {(r["user_id"], r["ticker"]): r["id"] for r in already_alerted}
     pending = [h for h in holdings if (h["user_id"], h["ticker"]) not in already_alerted_by_key]
@@ -102,19 +120,31 @@ async def scan_portfolios_for_drops(threshold_pct: float = DROP_THRESHOLD_PCT, u
 
     inserted = 0
     refreshed = 0
-    ticker_analysis: dict[str, dict | None] = {}
+    ticker_quotes: dict[str, dict | None] = {}
+    ticker_analysis: dict[str, dict] = {}
 
     async with service_conn() as conn:
         for row in pending:
             user_id, ticker = row["user_id"], row["ticker"]
 
+            if ticker not in ticker_quotes:
+                ticker_quotes[ticker] = await run_in_threadpool(get_price_and_prev_close, ticker)
+            quote = ticker_quotes[ticker]
+            if quote is None:
+                continue
+
+            pct_change = round((quote["price"] / quote["prev_close"] - 1.0) * 100, 4)
+            if pct_change > -_effective_threshold(row):
+                # Not a drop by *this* user's own threshold — another user
+                # holding the same ticker with a looser threshold may still
+                # get an alert for it, computed independently below.
+                continue
+
             if ticker not in ticker_analysis:
-                drop = await run_in_threadpool(check_for_drop, ticker, threshold_pct)
-                ticker_analysis[ticker] = await _analyze(ticker, drop) if drop is not None else None
+                drop = {"price": quote["price"], "prev_close": quote["prev_close"], "pct_change": pct_change}
+                ticker_analysis[ticker] = await _analyze(ticker, drop)
 
             data = ticker_analysis[ticker]
-            if data is None:
-                continue
 
             result = await conn.execute(
                 """

@@ -17,12 +17,9 @@ from web.backend.app_settings import (
     PIT_PRICE_CAPTURE_ENABLED_KEY,
     PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY,
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
-    PORTFOLIO_DROP_THRESHOLD_DEFAULT,
-    PORTFOLIO_DROP_THRESHOLD_PCT_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
-    get_setting_float,
 )
 from web.backend.db import service_conn
 from web.backend.db_backup import run_backup, run_restore_test
@@ -166,7 +163,8 @@ async def _evaluate_watchlist_alerts() -> None:
 
 async def _scan_portfolio_drops_job() -> None:
     """Same-day portfolio drop alerts: for every user's holdings, flag any
-    ticker down at least the admin-configured threshold (default 1%) from
+    ticker down at least that user's own configured threshold (or the
+    admin-configured default, for users who haven't set one) from
     yesterday's close, gather sentiment/news + the Predict-page quant
     signal, and record an in-app recommended-action alert. Off by default
     — unlike the other flags, enabling this starts real per-drop external
@@ -175,10 +173,7 @@ async def _scan_portfolio_drops_job() -> None:
     if not await get_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, default=False):
         logger.info("Scheduler: portfolio_drop_alerts is disabled, skipping this run")
         return
-    threshold_pct = await get_setting_float(
-        PORTFOLIO_DROP_THRESHOLD_PCT_KEY, default=PORTFOLIO_DROP_THRESHOLD_DEFAULT
-    )
-    inserted = await scan_portfolios_for_drops(threshold_pct=threshold_pct)
+    inserted = await scan_portfolios_for_drops()
     if inserted:
         logger.info("Scheduler: inserted %d portfolio drop alerts", inserted)
 

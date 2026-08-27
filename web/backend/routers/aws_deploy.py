@@ -428,6 +428,11 @@ create table if not exists users (
 -- unaffected until they next log in — see verify_bearer_token, which
 -- (like `approved`) never re-checks the DB per-request.
 alter table users add column if not exists is_active boolean not null default true;
+-- NULL means "use the admin-configured global default"
+-- (app_settings.portfolio_drop_threshold_pct) — most users never touch
+-- this, only set once a user opts into a tighter/looser sensitivity
+-- than the shared default from the Portfolio page.
+alter table users add column if not exists drop_alert_threshold_pct real;
 
 -- Forgot-password: only a sha256 hash of the token is ever stored, never
 -- the token itself, so a DB read can't be used to reset an account's

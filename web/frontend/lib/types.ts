@@ -656,6 +656,12 @@ export interface PortfolioDropAlert {
   updated_at: string | null;
 }
 
+export interface DropAlertThreshold {
+  threshold_pct: number;
+  is_custom: boolean;
+  default_pct: number;
+}
+
 export interface PitCaptureStats {
   row_count: number;
   days_captured: number;

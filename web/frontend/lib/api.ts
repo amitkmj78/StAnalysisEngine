@@ -17,6 +17,7 @@ import type {
   ChatProvidersResponse,
   CurrentPriceResponse,
   DemandReport,
+  DropAlertThreshold,
   EntryHistory,
   EntryPlan,
   EntryScanRow,
@@ -545,6 +546,18 @@ export function refreshPortfolioDropAlerts() {
 
 export function refreshDropAlert(alertId: number) {
   return apiSend<{ alert: PortfolioDropAlert }>(`/api/v1/portfolio/drop-alerts/${alertId}/refresh`, "POST");
+}
+
+export function getDropAlertThreshold() {
+  return apiFetch<DropAlertThreshold>("/api/v1/portfolio/drop-alerts/threshold");
+}
+
+export function setDropAlertThreshold(thresholdPct: number | null) {
+  return apiSend<{ ok: boolean; threshold_pct: number | null }>(
+    "/api/v1/portfolio/drop-alerts/threshold",
+    "POST",
+    { threshold_pct: thresholdPct },
+  );
 }
 
 // Meta-Agent Chat

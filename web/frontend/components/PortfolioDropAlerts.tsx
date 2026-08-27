@@ -5,11 +5,13 @@ import { useEffect, useState } from "react";
 import {
   ApiError,
   dismissPortfolioDropAlert,
+  getDropAlertThreshold,
   getPortfolioDropAlerts,
   refreshDropAlert,
   refreshPortfolioDropAlerts,
+  setDropAlertThreshold,
 } from "@/lib/api";
-import type { PortfolioDropAlert } from "@/lib/types";
+import type { DropAlertThreshold, PortfolioDropAlert } from "@/lib/types";
 
 export default function PortfolioDropAlerts() {
   const [alerts, setAlerts] = useState<PortfolioDropAlert[] | null>(null);
@@ -19,6 +21,12 @@ export default function PortfolioDropAlerts() {
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [refreshingAlertId, setRefreshingAlertId] = useState<number | null>(null);
   const [alertErrors, setAlertErrors] = useState<Record<number, string>>({});
+
+  const [threshold, setThreshold] = useState<DropAlertThreshold | null>(null);
+  const [editingThreshold, setEditingThreshold] = useState(false);
+  const [thresholdInput, setThresholdInput] = useState("");
+  const [savingThreshold, setSavingThreshold] = useState(false);
+  const [thresholdError, setThresholdError] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -30,9 +38,53 @@ export default function PortfolioDropAlerts() {
     }
   }
 
+  async function loadThreshold() {
+    try {
+      const res = await getDropAlertThreshold();
+      setThreshold(res);
+      setThresholdInput(String(res.threshold_pct));
+    } catch {
+      // Silent, same reasoning as load() above.
+    }
+  }
+
   useEffect(() => {
     load();
+    loadThreshold();
   }, []);
+
+  async function handleSaveThreshold() {
+    const parsed = Number(thresholdInput);
+    if (!Number.isFinite(parsed) || parsed < 0.1 || parsed > 50) {
+      setThresholdError("Enter a value between 0.1 and 50.");
+      return;
+    }
+    setSavingThreshold(true);
+    setThresholdError(null);
+    try {
+      await setDropAlertThreshold(parsed);
+      await loadThreshold();
+      setEditingThreshold(false);
+    } catch (err) {
+      setThresholdError(err instanceof ApiError ? err.message : "Could not save threshold.");
+    } finally {
+      setSavingThreshold(false);
+    }
+  }
+
+  async function handleResetThreshold() {
+    setSavingThreshold(true);
+    setThresholdError(null);
+    try {
+      await setDropAlertThreshold(null);
+      await loadThreshold();
+      setEditingThreshold(false);
+    } catch (err) {
+      setThresholdError(err instanceof ApiError ? err.message : "Could not reset threshold.");
+    } finally {
+      setSavingThreshold(false);
+    }
+  }
 
   async function handleDismiss(id: number) {
     setDismissingId(id);
@@ -110,6 +162,71 @@ export default function PortfolioDropAlerts() {
           </button>
         </div>
       </div>
+
+      {threshold && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          {!editingThreshold ? (
+            <>
+              <span>
+                Alert me when a holding drops{" "}
+                <span className="font-medium text-slate-700">{threshold.threshold_pct}%</span> or more in a day
+                {threshold.is_custom ? "" : ` (default)`}
+              </span>
+              <button
+                onClick={() => {
+                  setEditingThreshold(true);
+                  setThresholdError(null);
+                }}
+                className="font-medium text-slate-500 underline hover:text-slate-700"
+              >
+                Change
+              </button>
+            </>
+          ) : (
+            <>
+              <span>Alert me when a holding drops</span>
+              <input
+                type="number"
+                min={0.1}
+                max={50}
+                step={0.1}
+                value={thresholdInput}
+                onChange={(e) => setThresholdInput(e.target.value)}
+                className="w-16 rounded-md border border-slate-300 px-1.5 py-0.5 text-xs"
+              />
+              <span>% or more in a day</span>
+              <button
+                onClick={handleSaveThreshold}
+                disabled={savingThreshold}
+                className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+              >
+                {savingThreshold ? "Saving…" : "Save"}
+              </button>
+              {threshold.is_custom && (
+                <button
+                  onClick={handleResetThreshold}
+                  disabled={savingThreshold}
+                  className="text-xs font-medium text-slate-500 underline hover:text-slate-700 disabled:opacity-50"
+                >
+                  Reset to default ({threshold.default_pct}%)
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setEditingThreshold(false);
+                  setThresholdInput(String(threshold.threshold_pct));
+                  setThresholdError(null);
+                }}
+                disabled={savingThreshold}
+                className="text-xs text-slate-400 hover:text-slate-600"
+              >
+                Cancel
+              </button>
+              {thresholdError && <span className="text-red-600">{thresholdError}</span>}
+            </>
+          )}
+        </div>
+      )}
 
       {alerts.map((a) => {
         const expanded = expandedId === a.id;
