@@ -955,8 +955,9 @@ grant select, insert, update, delete on users to app_service;
 grant select, insert, update, delete on password_reset_tokens to app_service;
 -- Read-only, cross-user: the portfolio drop-alert scan needs to see every
 -- user's holdings, not just one RLS-scoped user's own (service_conn
--- bypasses RLS but still needs an explicit grant per table).
-grant select on portfolio_positions to app_service;
+-- bypasses RLS but still needs an explicit grant per table). Also used by
+-- the admin Users page to show each user's portfolio_count/position_count.
+grant select on portfolio_positions, portfolios to app_service;
 grant select, update on saved_predictions to app_service;
 grant select, update on watchlist_alerts to app_service;
 grant select, insert, update on app_settings to app_service;
