@@ -590,6 +590,14 @@ export interface AdminUser {
   position_count: number;
 }
 
+export interface AdminUserPortfolio {
+  id: number;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+  position_count: number;
+}
+
 export interface AdminActivityRow {
   id: number;
   email: string;

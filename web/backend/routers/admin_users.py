@@ -147,3 +147,106 @@ async def delete_user(user_id: str):
             raise HTTPException(400, "Cannot delete the admin account.")
         await conn.execute("DELETE FROM users WHERE id = $1", user_id)
     return {"ok": True}
+
+
+@router.get("/{user_id}/portfolios")
+async def list_user_portfolios(user_id: str):
+    """Per-portfolio detail for one user — the drill-down from the
+    portfolio_count shown in GET /admin/users, so an admin can see (and
+    act on) individual portfolios rather than only the account as a whole."""
+    async with service_conn() as conn:
+        user = await conn.fetchrow("SELECT id FROM users WHERE id = $1", user_id)
+        if user is None:
+            raise HTTPException(404, "User not found.")
+        rows = await conn.fetch(
+            """
+            SELECT p.id, p.name, p.is_active, p.created_at, count(pp.id) AS position_count
+            FROM portfolios p
+            LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = p.user_id
+            WHERE p.user_id = $1::uuid
+            GROUP BY p.id, p.name, p.is_active, p.created_at
+            ORDER BY p.created_at ASC
+            """,
+            user_id,
+        )
+    return [
+        {
+            "id": r["id"],
+            "name": r["name"],
+            "is_active": r["is_active"],
+            "created_at": r["created_at"].isoformat(),
+            "position_count": r["position_count"],
+        }
+        for r in rows
+    ]
+
+
+async def _auto_deactivate_if_no_active_portfolios(conn, user_id: str) -> bool:
+    """If a user has just lost their last active portfolio (deactivated or
+    deleted), also deactivate the account itself — mirroring
+    deactivate_user's reversible-suspension behavior, since an account with
+    nothing active left isn't meaningfully usable. Skipped for the admin
+    account, same guard as the direct deactivate/delete endpoints. Returns
+    whether the account was actually flipped."""
+    remaining_active = await conn.fetchval(
+        "SELECT count(*) FROM portfolios WHERE user_id = $1::uuid AND is_active", user_id
+    )
+    if remaining_active > 0:
+        return False
+    user_row = await conn.fetchrow("SELECT email, is_active FROM users WHERE id = $1", user_id)
+    if user_row is None or not user_row["is_active"] or user_row["email"].lower() == ADMIN_EMAIL.lower():
+        return False
+    await conn.execute("UPDATE users SET is_active = false WHERE id = $1", user_id)
+    return True
+
+
+@router.post("/{user_id}/portfolios/{portfolio_id}/deactivate")
+async def deactivate_user_portfolio(user_id: str, portfolio_id: int):
+    """Reversible, same shape as deactivate_user: hides this one portfolio
+    from the owning user (blocked in _resolve_portfolio_id, dropped from
+    GET /list) without touching its positions/strategies/alerts. If this
+    was the user's last active portfolio, the account is auto-deactivated
+    too — see _auto_deactivate_if_no_active_portfolios."""
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            "UPDATE portfolios SET is_active = false WHERE id = $1 AND user_id = $2::uuid RETURNING id, name, is_active",
+            portfolio_id, user_id,
+        )
+        if row is None:
+            raise HTTPException(404, "Portfolio not found.")
+        user_deactivated = await _auto_deactivate_if_no_active_portfolios(conn, user_id)
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "is_active": row["is_active"],
+        "user_auto_deactivated": user_deactivated,
+    }
+
+
+@router.post("/{user_id}/portfolios/{portfolio_id}/reactivate")
+async def reactivate_user_portfolio(user_id: str, portfolio_id: int):
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            "UPDATE portfolios SET is_active = true WHERE id = $1 AND user_id = $2::uuid RETURNING id, name, is_active",
+            portfolio_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Portfolio not found.")
+    return {"id": row["id"], "name": row["name"], "is_active": row["is_active"]}
+
+
+@router.delete("/{user_id}/portfolios/{portfolio_id}")
+async def delete_user_portfolio(user_id: str, portfolio_id: int):
+    """Permanent — distinct from deactivate above. Cascades to this
+    portfolio's positions/strategies/alerts via the FK on those tables. If
+    this was the user's last active portfolio, the account is auto-
+    deactivated too, same as the deactivate endpoint."""
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM portfolios WHERE id = $1 AND user_id = $2::uuid RETURNING id",
+            portfolio_id, user_id,
+        )
+        if row is None:
+            raise HTTPException(404, "Portfolio not found.")
+        user_deactivated = await _auto_deactivate_if_no_active_portfolios(conn, user_id)
+    return {"ok": True, "user_auto_deactivated": user_deactivated}

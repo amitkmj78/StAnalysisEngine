@@ -8,6 +8,7 @@ import type {
   AdminSqlQueryResponse,
   AdminSqlTablesResponse,
   AdminUser,
+  AdminUserPortfolio,
   AlertConditionType,
   AnalystRatingSummary,
   AuditLogResponse,
@@ -597,6 +598,31 @@ export function reactivateUser(userId: string) {
   return apiSend<{ id: string; email: string; is_active: boolean }>(
     `/api/v1/admin/users/${userId}/reactivate`,
     "POST",
+  );
+}
+
+export function getAdminUserPortfolios(userId: string) {
+  return apiFetch<AdminUserPortfolio[]>(`/api/v1/admin/users/${userId}/portfolios`);
+}
+
+export function deactivateAdminUserPortfolio(userId: string, portfolioId: number) {
+  return apiSend<{ id: number; name: string; is_active: boolean; user_auto_deactivated: boolean }>(
+    `/api/v1/admin/users/${userId}/portfolios/${portfolioId}/deactivate`,
+    "POST",
+  );
+}
+
+export function reactivateAdminUserPortfolio(userId: string, portfolioId: number) {
+  return apiSend<{ id: number; name: string; is_active: boolean }>(
+    `/api/v1/admin/users/${userId}/portfolios/${portfolioId}/reactivate`,
+    "POST",
+  );
+}
+
+export function deleteAdminUserPortfolio(userId: string, portfolioId: number) {
+  return apiSend<{ ok: boolean; user_auto_deactivated: boolean }>(
+    `/api/v1/admin/users/${userId}/portfolios/${portfolioId}`,
+    "DELETE",
   );
 }
 

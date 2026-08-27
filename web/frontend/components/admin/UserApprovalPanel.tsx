@@ -1,24 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 import {
   ApiError,
   approveUser,
+  deactivateAdminUserPortfolio,
   deactivateUser,
+  deleteAdminUserPortfolio,
   deleteUser,
+  getAdminUserPortfolios,
   getAdminUsers,
+  reactivateAdminUserPortfolio,
   reactivateUser,
   rejectUser,
   sendWelcomeEmail,
 } from "@/lib/api";
-import type { AdminUser } from "@/lib/types";
+import type { AdminUser, AdminUserPortfolio } from "@/lib/types";
 
 export default function UserApprovalPanel({ currentUserEmail }: { currentUserEmail: string }) {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [emailStatus, setEmailStatus] = useState<Record<string, "sent" | "failed">>({});
+
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [portfoliosByUser, setPortfoliosByUser] = useState<
+    Record<string, AdminUserPortfolio[] | "loading" | "error">
+  >({});
+  const [portfolioBusyId, setPortfolioBusyId] = useState<number | null>(null);
+  const [portfolioMessage, setPortfolioMessage] = useState<string | null>(null);
 
   async function load() {
     setError(null);
@@ -117,6 +128,79 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
     }
   }
 
+  async function loadPortfolios(userId: string) {
+    setPortfoliosByUser((prev) => ({ ...prev, [userId]: "loading" }));
+    try {
+      const portfolios = await getAdminUserPortfolios(userId);
+      setPortfoliosByUser((prev) => ({ ...prev, [userId]: portfolios }));
+    } catch {
+      setPortfoliosByUser((prev) => ({ ...prev, [userId]: "error" }));
+    }
+  }
+
+  function toggleExpanded(userId: string) {
+    if (expandedUserId === userId) {
+      setExpandedUserId(null);
+      return;
+    }
+    setExpandedUserId(userId);
+    if (!portfoliosByUser[userId]) {
+      loadPortfolios(userId);
+    }
+  }
+
+  async function handleDeactivatePortfolio(userId: string, portfolioId: number, name: string) {
+    if (!window.confirm(`Deactivate portfolio "${name}"? It will disappear from this user's account until reactivated. Its positions are kept.`)) {
+      return;
+    }
+    setPortfolioBusyId(portfolioId);
+    setPortfolioMessage(null);
+    try {
+      const res = await deactivateAdminUserPortfolio(userId, portfolioId);
+      await loadPortfolios(userId);
+      if (res.user_auto_deactivated) {
+        setPortfolioMessage(`That was this user's last active portfolio — their account was also deactivated.`);
+        await load();
+      }
+    } catch (err) {
+      setPortfolioMessage(err instanceof ApiError ? err.message : "Deactivate failed.");
+    } finally {
+      setPortfolioBusyId(null);
+    }
+  }
+
+  async function handleReactivatePortfolio(userId: string, portfolioId: number) {
+    setPortfolioBusyId(portfolioId);
+    setPortfolioMessage(null);
+    try {
+      await reactivateAdminUserPortfolio(userId, portfolioId);
+      await loadPortfolios(userId);
+    } catch (err) {
+      setPortfolioMessage(err instanceof ApiError ? err.message : "Reactivate failed.");
+    } finally {
+      setPortfolioBusyId(null);
+    }
+  }
+
+  async function handleDeletePortfolio(userId: string, portfolioId: number, name: string) {
+    if (!window.confirm(`Delete portfolio "${name}"? This removes it and all its positions permanently — this can't be undone.`)) {
+      return;
+    }
+    setPortfolioBusyId(portfolioId);
+    setPortfolioMessage(null);
+    try {
+      const res = await deleteAdminUserPortfolio(userId, portfolioId);
+      await Promise.all([loadPortfolios(userId), load()]);
+      if (res.user_auto_deactivated) {
+        setPortfolioMessage(`That was this user's last active portfolio — their account was also deactivated.`);
+      }
+    } catch (err) {
+      setPortfolioMessage(err instanceof ApiError ? err.message : "Delete failed.");
+    } finally {
+      setPortfolioBusyId(null);
+    }
+  }
+
   if (users === null && !error) {
     return <p className="text-sm text-slate-500">Loading users…</p>;
   }
@@ -190,7 +274,8 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
             </thead>
             <tbody>
               {approved.map((u) => (
-                <tr key={u.id} className="border-b border-slate-100 last:border-0">
+                <Fragment key={u.id}>
+                <tr className="border-b border-slate-100 last:border-0">
                   <td className="px-3 py-2 text-slate-700">{u.email}</td>
                   <td className="px-3 py-2">
                     <span
@@ -203,10 +288,14 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                   </td>
                   <td className="px-3 py-2 text-slate-600">
                     {u.portfolio_count > 0 ? (
-                      <>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(u.id)}
+                        className="underline decoration-dotted hover:text-slate-900"
+                      >
                         {u.portfolio_count} portfolio{u.portfolio_count === 1 ? "" : "s"}
                         <span className="text-slate-400"> · {u.position_count} position{u.position_count === 1 ? "" : "s"}</span>
-                      </>
+                      </button>
                     ) : (
                       <span className="text-slate-400">None</span>
                     )}
@@ -258,6 +347,83 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                     </div>
                   </td>
                 </tr>
+                {expandedUserId === u.id && (
+                  <tr className="border-b border-slate-100 last:border-0 bg-slate-50/60">
+                    <td colSpan={5} className="px-3 py-3">
+                      {portfolioMessage && (
+                        <p className="mb-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+                          {portfolioMessage}
+                        </p>
+                      )}
+                      {portfoliosByUser[u.id] === "loading" ? (
+                        <p className="text-xs text-slate-500">Loading portfolios…</p>
+                      ) : portfoliosByUser[u.id] === "error" ? (
+                        <p className="text-xs text-red-600">Failed to load portfolios.</p>
+                      ) : (
+                        <table className="min-w-full text-xs">
+                          <thead>
+                            <tr className="text-left uppercase tracking-wide text-slate-400">
+                              <th className="py-1 pr-3 font-medium">Name</th>
+                              <th className="py-1 pr-3 font-medium">Status</th>
+                              <th className="py-1 pr-3 font-medium">Positions</th>
+                              <th className="py-1 pr-3 font-medium">Created</th>
+                              <th className="py-1 pr-3"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(portfoliosByUser[u.id] as AdminUserPortfolio[]).map((p) => (
+                              <tr key={p.id} className="border-t border-slate-200">
+                                <td className="py-1.5 pr-3 text-slate-700">{p.name}</td>
+                                <td className="py-1.5 pr-3">
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 font-medium ${
+                                      p.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-500"
+                                    }`}
+                                  >
+                                    {p.is_active ? "Active" : "Inactive"}
+                                  </span>
+                                </td>
+                                <td className="py-1.5 pr-3 text-slate-600">{p.position_count}</td>
+                                <td className="py-1.5 pr-3 text-slate-500">
+                                  {new Date(p.created_at).toLocaleDateString()}
+                                </td>
+                                <td className="py-1.5 pr-3 text-right">
+                                  <div className="flex justify-end gap-2">
+                                    {p.is_active ? (
+                                      <button
+                                        onClick={() => handleDeactivatePortfolio(u.id, p.id, p.name)}
+                                        disabled={portfolioBusyId === p.id}
+                                        className="rounded-md border border-amber-200 px-2 py-0.5 font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                                      >
+                                        Deactivate
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleReactivatePortfolio(u.id, p.id)}
+                                        disabled={portfolioBusyId === p.id}
+                                        className="rounded-md border border-emerald-200 px-2 py-0.5 font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                                      >
+                                        Reactivate
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleDeletePortfolio(u.id, p.id, p.name)}
+                                      disabled={portfolioBusyId === p.id}
+                                      className="rounded-md border border-red-200 px-2 py-0.5 font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

@@ -58,16 +58,18 @@ def _record_to_dict(record) -> dict:
 async def _resolve_portfolio_id(conn, user_id: str, portfolio_id: Optional[int]) -> int:
     """
     A caller can name a specific portfolio (and it must actually belong to
-    them — never trust a raw id from the client without checking) or omit
-    one entirely, in which case this resolves to their oldest portfolio,
-    auto-creating "My Portfolio" if they don't have one yet (a brand-new
-    user's very first save). Every endpoint below goes through this rather
-    than trusting portfolio_id directly, so an id for someone else's
-    portfolio 404s instead of silently reading/writing across accounts.
+    them and be active — never trust a raw id from the client without
+    checking) or omit one entirely, in which case this resolves to their
+    oldest active portfolio, auto-creating "My Portfolio" if they don't
+    have one yet (a brand-new user's very first save, or every portfolio
+    they had has been deactivated by an admin). Every endpoint below goes
+    through this rather than trusting portfolio_id directly, so an id for
+    someone else's portfolio — or one an admin has deactivated — 404s
+    instead of silently reading/writing across accounts.
     """
     if portfolio_id is not None:
         row = await conn.fetchrow(
-            "SELECT id FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            "SELECT id FROM portfolios WHERE id = $1 AND user_id = $2::uuid AND is_active",
             portfolio_id, user_id,
         )
         if row is None:
@@ -75,7 +77,7 @@ async def _resolve_portfolio_id(conn, user_id: str, portfolio_id: Optional[int])
         return row["id"]
 
     row = await conn.fetchrow(
-        "SELECT id FROM portfolios WHERE user_id = $1::uuid ORDER BY created_at ASC LIMIT 1",
+        "SELECT id FROM portfolios WHERE user_id = $1::uuid AND is_active ORDER BY created_at ASC LIMIT 1",
         user_id,
     )
     if row is not None:
@@ -223,6 +225,10 @@ class CreatePortfolioRequest(BaseModel):
 
 @router.get("/list")
 async def list_portfolios(request: Request):
+    # is_active excludes anything an admin has deactivated — same
+    # reversible-suspension semantics as a deactivated user account, just
+    # scoped to one portfolio. See _resolve_portfolio_id for the matching
+    # enforcement on direct-id access.
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
         records = await conn.fetch(
@@ -230,7 +236,7 @@ async def list_portfolios(request: Request):
             SELECT p.id, p.name, p.created_at, count(pp.id) AS position_count
             FROM portfolios p
             LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = p.user_id
-            WHERE p.user_id = $1::uuid
+            WHERE p.user_id = $1::uuid AND p.is_active
             GROUP BY p.id, p.name, p.created_at
             ORDER BY p.created_at ASC
             """,

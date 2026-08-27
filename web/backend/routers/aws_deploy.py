@@ -481,6 +481,11 @@ drop policy if exists portfolios_isolation on portfolios;
 create policy portfolios_isolation on portfolios
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
+-- Same reversible-suspension shape as users.is_active: an admin can hide
+-- one specific portfolio (blocked from _resolve_portfolio_id, dropped
+-- from GET /list) without deleting its positions/strategies/alerts, distinct
+-- from the admin DELETE below which removes it and all of that permanently.
+alter table portfolios add column if not exists is_active boolean not null default true;
 
 create table if not exists portfolio_positions (
   id bigint generated always as identity primary key,
@@ -957,7 +962,11 @@ grant select, insert, update, delete on password_reset_tokens to app_service;
 -- user's holdings, not just one RLS-scoped user's own (service_conn
 -- bypasses RLS but still needs an explicit grant per table). Also used by
 -- the admin Users page to show each user's portfolio_count/position_count.
-grant select on portfolio_positions, portfolios to app_service;
+grant select on portfolio_positions to app_service;
+-- update/delete: the admin per-user portfolio panel deactivates/reactivates
+-- (update) or permanently removes (delete) a specific portfolio, cross-user
+-- like the rest of admin_users.py.
+grant select, update, delete on portfolios to app_service;
 grant select, update on saved_predictions to app_service;
 grant select, update on watchlist_alerts to app_service;
 grant select, insert, update on app_settings to app_service;
