@@ -677,6 +677,32 @@ export interface DropAlertThreshold {
   default_pct: number;
 }
 
+export interface GoalPlanAllocationRow {
+  ticker: string;
+  signal: "BUY" | "SELL" | "HOLD" | null;
+  expected_return_pct: number | null;
+  annualized_return_pct: number | null;
+  current_value: number;
+  weight_pct: number;
+  monthly_amount: number;
+}
+
+export interface GoalPlanResponse {
+  portfolio_id: number;
+  months_remaining: number;
+  target_amount: number;
+  target_date: string;
+  current_value: number;
+  current_holdings_annualized_return_pct: number | null;
+  contribution_annualized_return_pct: number | null;
+  allocation: GoalPlanAllocationRow[];
+  warnings: string[];
+  future_value_of_current_holdings: number;
+  required_monthly_contribution: number | null;
+  projected_value_with_given_contribution?: number;
+  gap_vs_target?: number;
+}
+
 export interface PitCaptureStats {
   row_count: number;
   days_captured: number;

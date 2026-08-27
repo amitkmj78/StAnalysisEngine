@@ -1,12 +1,18 @@
 import io
+from datetime import date
 from typing import List, Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
+from services.goal_plan_service import (
+    build_signal_weighted_allocation,
+    get_annualized_returns,
+    solve_goal_plan,
+)
 from services.manual_positions import build_manual_positions
 from services.portfolio_alert_service import build_drop_analysis, get_price_and_prev_close
 from services.portfolio_performance_service import compute_portfolio_performance
@@ -606,6 +612,117 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
         "predict_period": DEFAULT_PREDICT_PERIOD,
         "predict_days_ahead": DEFAULT_PREDICT_DAYS_AHEAD,
         "lookback_days": DEFAULT_LOOKBACK_DAYS,
+    }
+
+
+@router.get("/goal-plan")
+@limiter.limit("10/minute")
+async def goal_plan(
+    request: Request,
+    target_amount: float = Query(..., gt=0),
+    target_date: date = Query(...),
+    monthly_amount: Optional[float] = Query(None, ge=0),
+    portfolio_id: Optional[int] = None,
+):
+    """
+    Given this portfolio's current holdings, a target dollar amount, and a
+    target date: computes the required monthly contribution to reach it,
+    and what percentage of each month's contribution should go to which
+    holding — tilted toward whichever holding currently has the strongest
+    short-term (10-day) BUY/SELL/HOLD signal, same engine /insights uses.
+
+    The growth projection itself (both for existing holdings and for
+    where new contributions are allocated) instead uses each ticker's own
+    3-year trailing annualized return, not that short-term signal —
+    compounding a multi-year goal off a 10-day forecast would extrapolate
+    a short-term wiggle into an absurd annual rate. The two use cases are
+    intentionally different numbers: the signal says where new money
+    should tilt *this month*, the trailing return says how fast money
+    actually grows over years.
+    """
+    await enforce_daily_quota(request, "portfolio/goal-plan")
+    user_id = request.state.user["id"]
+
+    today = date.today()
+    months = (target_date.year - today.year) * 12 + (target_date.month - today.month)
+    if target_date.day < today.day:
+        months -= 1
+    if months < 1:
+        raise HTTPException(422, "target_date must be at least one month in the future.")
+
+    async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT ticker, shares, current_price FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
+        )
+
+    holdings = [r for r in records if (r["shares"] or 0) > 0 and r["ticker"]]
+    if not holdings:
+        raise HTTPException(422, "This portfolio has no positions to build a plan around.")
+
+    tickers = [r["ticker"] for r in holdings]
+    values = {r["ticker"]: (r["shares"] or 0) * (r["current_price"] or 0) for r in holdings}
+    current_value = sum(values.values())
+
+    comparison = await run_in_threadpool(
+        compute_predict_algo_comparison, tickers, DEFAULT_PREDICT_PERIOD, DEFAULT_PREDICT_DAYS_AHEAD
+    )
+    signal_by_ticker = {c["ticker"]: c for c in comparison}
+
+    annualized_returns = await run_in_threadpool(get_annualized_returns, tickers, 3)
+
+    allocation_input = [
+        {
+            "ticker": t,
+            "signal": signal_by_ticker.get(t, {}).get("predict_signal"),
+            "expected_return_pct": signal_by_ticker.get(t, {}).get("predict_expected_return_pct"),
+            "annualized_return_pct": annualized_returns.get(t),
+            "current_value": values.get(t, 0.0),
+        }
+        for t in tickers
+    ]
+    allocation = build_signal_weighted_allocation(allocation_input)
+
+    current_blended = (
+        sum((values.get(t, 0.0) / current_value) * (annualized_returns.get(t) or 0.0) for t in tickers)
+        if current_value > 0
+        else None
+    )
+    contribution_blended = sum(
+        (a["weight_pct"] / 100.0) * (a["annualized_return_pct"] or 0.0) for a in allocation
+    )
+
+    plan = solve_goal_plan(
+        current_value=current_value,
+        target_amount=target_amount,
+        months=months,
+        current_holdings_annualized_return_pct=current_blended,
+        contribution_annualized_return_pct=contribution_blended,
+        monthly_amount=monthly_amount,
+    )
+
+    required_monthly = plan.get("required_monthly_contribution")
+    for a in allocation:
+        a["monthly_amount"] = round(required_monthly * a["weight_pct"] / 100.0, 2) if required_monthly else 0.0
+
+    missing_return_tickers = [t for t in tickers if annualized_returns.get(t) is None]
+
+    return {
+        "portfolio_id": resolved_portfolio_id,
+        "months_remaining": months,
+        "target_amount": target_amount,
+        "target_date": target_date.isoformat(),
+        "current_value": current_value,
+        "current_holdings_annualized_return_pct": current_blended,
+        "contribution_annualized_return_pct": contribution_blended,
+        "allocation": allocation,
+        "warnings": (
+            [f"No multi-year price history for: {', '.join(missing_return_tickers)} — excluded from return blending."]
+            if missing_return_tickers
+            else []
+        ),
+        **plan,
     }
 
 

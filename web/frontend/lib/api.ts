@@ -24,6 +24,7 @@ import type {
   EntryScanRow,
   FundRankResponse,
   FundScoreResponse,
+  GoalPlanResponse,
   ManualPositionInput,
   MomentumBacktestResponse,
   MomentumOptions,
@@ -531,6 +532,21 @@ export function getPortfolioInsights(portfolioId?: number) {
     "/api/v1/portfolio/insights",
     portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
   );
+}
+
+export function getGoalPlan(
+  targetAmount: number,
+  targetDate: string,
+  monthlyAmount?: number,
+  portfolioId?: number,
+) {
+  const params: Record<string, string> = {
+    target_amount: String(targetAmount),
+    target_date: targetDate,
+  };
+  if (monthlyAmount !== undefined) params.monthly_amount = String(monthlyAmount);
+  if (portfolioId !== undefined) params.portfolio_id = String(portfolioId);
+  return apiFetch<GoalPlanResponse>("/api/v1/portfolio/goal-plan", params);
 }
 
 export function getPortfolioDropAlerts() {
