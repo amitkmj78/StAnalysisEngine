@@ -7,6 +7,7 @@ import {
   deletePortfolioPosition,
   editPortfolioPosition,
   getCurrentPrice,
+  getCurrentUser,
   getPortfolioInsights,
   getPortfolioPerformance,
   getPortfolioStrategies,
@@ -16,6 +17,7 @@ import {
   refreshPortfolio,
   submitManualPositions,
 } from "@/lib/api";
+import { isAdmin } from "@/lib/admin";
 import type {
   ManualPositionInput,
   Portfolio,
@@ -117,6 +119,7 @@ export default function PortfolioPage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   const [allPortfolios, setAllPortfolios] = useState<Portfolio[]>([]);
   const [portfolioReloadSignal, setPortfolioReloadSignal] = useState(0);
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const [mode, setMode] = useState<Mode>("manual");
   const [riskProfile, setRiskProfile] = useState("Balanced");
   const [riskFactor, setRiskFactor] = useState(5);
@@ -213,10 +216,27 @@ export default function PortfolioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPortfolioId]);
 
+  useEffect(() => {
+    getCurrentUser()
+      .then((u) => setIsAdminUser(isAdmin(u.email)))
+      .catch(() => {
+        // Silent — worst case the polling effect below just stays off.
+      });
+  }, []);
+
   // Live-ish prices without per-position polling: one batched call for the
   // whole portfolio every 10s (well under /performance's 15/min rate limit
   // regardless of how many positions exist), instead of each position
   // polling independently the way CurrentPriceBadge does elsewhere.
+  //
+  // Admin-only: every open tab polling every 10s adds up to real,
+  // continuous yfinance load across all of a user's positions — for the
+  // admin account that's an accepted cost of "live-ish" data, but it's
+  // not worth every user's browser tab contributing to the same
+  // Yahoo-rate-limit pressure the rest of the app is already fighting.
+  // Non-admin users still get fresh prices on every explicit refresh
+  // (switching portfolios, editing a position, etc.), just not this
+  // background tick.
   //
   // /performance can take well over 10s under live Yahoo rate-limiting
   // (observed up to ~50s) — a plain setInterval doesn't wait for the
@@ -225,7 +245,7 @@ export default function PortfolioPage() {
   // that's most harmful, further loading down the already-throttled
   // yfinance backend. inFlight skips a tick instead of stacking one.
   useEffect(() => {
-    if (summary === null || summary.total_positions === 0) return;
+    if (!isAdminUser || summary === null || summary.total_positions === 0) return;
     let inFlight = false;
     const interval = setInterval(() => {
       if (inFlight) return;
@@ -235,7 +255,7 @@ export default function PortfolioPage() {
       });
     }, 10000);
     return () => clearInterval(interval);
-  }, [summary?.total_positions]);
+  }, [isAdminUser, summary?.total_positions]);
 
   function updateRow(i: number, patch: Partial<ManualPositionInput>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));

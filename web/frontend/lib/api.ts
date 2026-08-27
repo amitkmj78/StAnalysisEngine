@@ -107,6 +107,10 @@ async function apiFetch<T>(path: string, params?: Record<string, string>): Promi
   return res.json();
 }
 
+export function getCurrentUser() {
+  return apiFetch<{ id: string; email: string }>("/api/v1/auth/me");
+}
+
 export function getPredictionSummary(ticker: string, period: string, daysAhead = 10) {
   return apiFetch<PredictionSummary>("/api/v1/predict/summary", {
     ticker,
