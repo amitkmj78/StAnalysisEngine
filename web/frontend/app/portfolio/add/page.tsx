@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ApiError, getCurrentPrice, importPortfolioCsv, submitManualPositions } from "@/lib/api";
 import type { ManualPositionInput } from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
+import TickerSearchInput from "@/components/TickerSearchInput";
 
 const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
 
@@ -167,11 +168,12 @@ export default function AddPositionsPage() {
           {rows.map((row, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <Field label="Ticker">
-                <input
+                <TickerSearchInput
                   value={row.ticker}
-                  onChange={(e) => updateRow(i, { ticker: e.target.value })}
-                  onBlur={(e) => populateCurrentPrice(i, e.target.value)}
-                  className="input w-24 uppercase"
+                  onChange={(v) => updateRow(i, { ticker: v })}
+                  onSelect={(v) => populateCurrentPrice(i, v)}
+                  onBlurValue={(v) => populateCurrentPrice(i, v)}
+                  className="input w-40 uppercase"
                 />
               </Field>
               <Field label="Name">

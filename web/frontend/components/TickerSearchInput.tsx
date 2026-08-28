@@ -8,12 +8,21 @@ import type { TickerSearchResult } from "@/lib/types";
 export default function TickerSearchInput({
   value,
   onChange,
+  onSelect,
+  onBlurValue,
   placeholder = "Ticker or company name",
   className = "input w-56",
   id,
 }: {
   value: string;
   onChange: (ticker: string) => void;
+  /** Fires only when a suggestion is actually picked from the dropdown —
+   * unlike onChange, which fires on every keystroke, this is the moment a
+   * caller can treat the ticker as confirmed (e.g. to look up its price). */
+  onSelect?: (ticker: string) => void;
+  /** Fires on blur with the current field value — covers a ticker typed by
+   * hand and confirmed by tabbing away, without picking a suggestion. */
+  onBlurValue?: (ticker: string) => void;
   placeholder?: string;
   className?: string;
   id?: string;
@@ -68,6 +77,7 @@ export default function TickerSearchInput({
   function select(r: TickerSearchResult) {
     setQuery(r.symbol);
     onChange(r.symbol);
+    onSelect?.(r.symbol);
     setOpen(false);
   }
 
@@ -78,6 +88,7 @@ export default function TickerSearchInput({
         value={query}
         onChange={(e) => handleInput(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
+        onBlur={() => onBlurValue?.(query.trim())}
         placeholder={placeholder}
         className={className}
         autoComplete="off"
