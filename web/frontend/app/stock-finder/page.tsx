@@ -918,12 +918,16 @@ export default function StockFinderPage() {
                                         {quantSignal.signal.expected_return_pct >= 0 ? "+" : ""}
                                         {quantSignal.signal.expected_return_pct.toFixed(2)}%
                                       </span>
-                                      {quantSignal.signal.signal_unstable && (
+                                      {quantSignal.signal.signal_flip_count !== null && (
                                         <span
-                                          title={`Flipped ${quantSignal.signal.signal_flip_count} times over its trailing ${quantSignal.signal.signal_days_captured}-day history`}
-                                          className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                                          title={`Signal has flipped over its trailing ${quantSignal.signal.signal_days_captured}-day history`}
+                                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                                            quantSignal.signal.signal_unstable
+                                              ? "bg-amber-50 text-amber-700"
+                                              : "bg-slate-100 text-slate-500"
+                                          }`}
                                         >
-                                          Unstable
+                                          {quantSignal.signal.signal_flip_count} flip{quantSignal.signal.signal_flip_count === 1 ? "" : "s"}
                                         </span>
                                       )}
                                     </span>

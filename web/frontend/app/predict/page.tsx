@@ -461,9 +461,15 @@ export default function PredictPage() {
                 This is one data-driven signal, not a guarantee — see backtest accuracy below for how it has
                 historically performed against a simple no-change baseline.
               </p>
-              {data.signal.signal_unstable && (
-                <p className="mt-2 inline-flex rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
-                  Unstable — flipped {data.signal.signal_flip_count} times over its trailing {data.signal.signal_days_captured}-day history. Treat this call with less confidence.
+              {data.signal.signal_flip_count !== null && (
+                <p
+                  className={`mt-2 inline-flex rounded-md px-2 py-1 text-xs font-medium ${
+                    data.signal.signal_unstable ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  Flipped {data.signal.signal_flip_count} time{data.signal.signal_flip_count === 1 ? "" : "s"} over its
+                  trailing {data.signal.signal_days_captured}-day history
+                  {data.signal.signal_unstable ? " — treat this call with less confidence." : "."}
                 </p>
               )}
               <div className="mt-3 flex items-center gap-3">
