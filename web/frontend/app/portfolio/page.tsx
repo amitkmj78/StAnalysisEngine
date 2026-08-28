@@ -6,38 +6,29 @@ import {
   ApiError,
   deletePortfolioPosition,
   editPortfolioPosition,
-  getCurrentPrice,
   getCurrentUser,
   getPortfolioInsights,
   getPortfolioPerformance,
   getPortfolioStrategies,
   getPortfolioSummary,
-  importPortfolioCsv,
   movePortfolioPosition,
   refreshPortfolio,
-  submitManualPositions,
 } from "@/lib/api";
 import { isAdmin } from "@/lib/admin";
 import type {
-  ManualPositionInput,
   Portfolio,
   PortfolioInsight,
   PortfolioPerformance,
   PortfolioStrategyRow,
   PortfolioSummary,
 } from "@/lib/types";
+import Link from "next/link";
 import PlanText from "@/components/PlanText";
 import GoalPlan from "@/components/GoalPlan";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
-
-const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
-
-type Mode = "manual" | "csv";
-
-const EMPTY_ROW: ManualPositionInput = { name: "", ticker: "", shares: 0, current_price: 0, avg_cost: 0 };
 
 const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
   Ticker: {
@@ -120,13 +111,8 @@ export default function PortfolioPage() {
   const [portfolioReloadSignal, setPortfolioReloadSignal] = useState(0);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [showGoalPlan, setShowGoalPlan] = useState(false);
-  const [mode, setMode] = useState<Mode>("manual");
-  const [riskProfile, setRiskProfile] = useState("Balanced");
-  const [riskFactor, setRiskFactor] = useState(5);
-
-  const [rows, setRows] = useState<ManualPositionInput[]>([{ ...EMPTY_ROW }]);
-  const [file, setFile] = useState<File | null>(null);
-  const [priceFetchingRow, setPriceFetchingRow] = useState<number | null>(null);
+  const [riskProfile] = useState("Balanced");
+  const [riskFactor] = useState(5);
 
   const [strategies, setStrategies] = useState<PortfolioStrategyRow[]>([]);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
@@ -138,7 +124,6 @@ export default function PortfolioPage() {
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [performanceInfoColumn, setPerformanceInfoColumn] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [watchlistNote, setWatchlistNote] = useState<string | null>(null);
@@ -262,62 +247,6 @@ export default function PortfolioPage() {
     // portfolio_id) would keep running instead of being torn down and
     // recreated against the newly-selected portfolio.
   }, [isAdminUser, summary?.total_positions, selectedPortfolioId]);
-
-  function updateRow(i: number, patch: Partial<ManualPositionInput>) {
-    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  }
-
-  function addRow() {
-    setRows((prev) => [...prev, { ...EMPTY_ROW }]);
-  }
-
-  function removeRow(i: number) {
-    setRows((prev) => prev.filter((_, idx) => idx !== i));
-  }
-
-  async function populateCurrentPrice(i: number, ticker: string) {
-    const trimmed = ticker.trim().toUpperCase();
-    if (!trimmed) return;
-    setPriceFetchingRow(i);
-    try {
-      const res = await getCurrentPrice(trimmed);
-      if (res.price !== null) {
-        updateRow(i, { current_price: res.price });
-      }
-    } catch {
-      // Lookup failed (bad ticker, no data) — leave whatever's there so the
-      // user can still type a price in by hand, same as before this existed.
-    } finally {
-      setPriceFetchingRow((cur) => (cur === i ? null : cur));
-    }
-  }
-
-  async function submitManual(e: React.FormEvent) {
-    e.preventDefault();
-    const valid = rows.filter((r) => r.ticker.trim() && r.shares > 0);
-    if (valid.length === 0) {
-      setError("Add at least one position with a ticker and share count.");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    setWatchlistNote(null);
-    try {
-      const res = await submitManualPositions(
-        valid.map((r) => ({ ...r, ticker: r.ticker.trim().toUpperCase() })),
-        riskProfile,
-        riskFactor,
-        selectedPortfolioId ?? undefined,
-      );
-      setRows([{ ...EMPTY_ROW }]);
-      noteWatchlist(res.watchlist_alerts_created);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save positions.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   function noteWatchlist(count: number) {
     if (count > 0) {
@@ -464,27 +393,6 @@ export default function PortfolioPage() {
     }
   }
 
-  async function submitCsv(e: React.FormEvent) {
-    e.preventDefault();
-    if (!file) {
-      setError("Choose a Robinhood activity CSV first.");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    setWatchlistNote(null);
-    try {
-      const res = await importPortfolioCsv(file, riskProfile, riskFactor, selectedPortfolioId ?? undefined);
-      setFile(null);
-      noteWatchlist(res.watchlist_alerts_created);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not process CSV.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <h1 className="text-2xl font-semibold text-slate-900">Portfolio Strategies</h1>
@@ -517,96 +425,14 @@ export default function PortfolioPage() {
 
       {showGoalPlan && <GoalPlan portfolioId={selectedPortfolioId} />}
 
-      <div className="mt-6 flex flex-wrap items-end gap-3">
-        <Field label="Risk profile">
-          <select value={riskProfile} onChange={(e) => setRiskProfile(e.target.value)} className="input">
-            {RISK_PROFILES.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Risk factor (1-10)">
-          <input type="number" min={1} max={10} value={riskFactor} onChange={(e) => setRiskFactor(Number(e.target.value))} className="input w-20" />
-        </Field>
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <button
-          onClick={() => setMode("manual")}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "manual" ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"}`}
+      <div className="mt-6">
+        <Link
+          href="/portfolio/add"
+          className="inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
         >
-          Manual Entry
-        </button>
-        <button
-          onClick={() => setMode("csv")}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "csv" ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"}`}
-        >
-          Import Robinhood CSV
-        </button>
+          + Add Positions
+        </Link>
       </div>
-
-      {mode === "manual" ? (
-        <form onSubmit={submitManual} className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5">
-          {rows.map((row, i) => (
-            <div key={i} className="flex flex-wrap items-end gap-2">
-              <Field label="Ticker">
-                <input
-                  value={row.ticker}
-                  onChange={(e) => updateRow(i, { ticker: e.target.value })}
-                  onBlur={(e) => populateCurrentPrice(i, e.target.value)}
-                  className="input w-24 uppercase"
-                />
-              </Field>
-              <Field label="Name">
-                <input value={row.name} onChange={(e) => updateRow(i, { name: e.target.value })} className="input w-32" />
-              </Field>
-              <Field label="Shares">
-                <input type="number" step="0.0001" value={row.shares || ""} onChange={(e) => updateRow(i, { shares: Number(e.target.value) })} className="input w-24" />
-              </Field>
-              <Field label="Avg cost">
-                <input type="number" step="0.01" value={row.avg_cost || ""} onChange={(e) => updateRow(i, { avg_cost: Number(e.target.value) })} className="input w-24" />
-              </Field>
-              <Field label="Current price">
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder={priceFetchingRow === i ? "Fetching…" : undefined}
-                  value={row.current_price || ""}
-                  onChange={(e) => updateRow(i, { current_price: Number(e.target.value) })}
-                  className="input w-24"
-                />
-              </Field>
-              {rows.length > 1 && (
-                <button type="button" onClick={() => removeRow(i)} className="text-xs text-red-600 hover:underline">
-                  Remove
-                </button>
-              )}
-            </div>
-          ))}
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={addRow} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
-              + Add Position
-            </button>
-            <button type="submit" disabled={submitting} className="btn-primary">
-              {submitting ? "Saving…" : "Save Positions"}
-            </button>
-          </div>
-        </form>
-      ) : (
-        <form onSubmit={submitCsv} className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5">
-          <Field label="Robinhood activity CSV">
-            <input
-              type="file"
-              accept=".csv"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="text-sm text-slate-700"
-            />
-          </Field>
-          <button type="submit" disabled={submitting} className="btn-primary self-start">
-            {submitting ? "Processing…" : "Import CSV"}
-          </button>
-        </form>
-      )}
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {watchlistNote && (
