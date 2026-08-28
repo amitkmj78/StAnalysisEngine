@@ -119,6 +119,7 @@ export default function PortfolioPage() {
   const [allPortfolios, setAllPortfolios] = useState<Portfolio[]>([]);
   const [portfolioReloadSignal, setPortfolioReloadSignal] = useState(0);
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const [showGoalPlan, setShowGoalPlan] = useState(false);
   const [mode, setMode] = useState<Mode>("manual");
   const [riskProfile, setRiskProfile] = useState("Balanced");
   const [riskFactor, setRiskFactor] = useState(5);
@@ -501,7 +502,20 @@ export default function PortfolioPage() {
         />
       </div>
 
-      <GoalPlan portfolioId={selectedPortfolioId} />
+      <div className="mt-6 flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="show-goal-plan"
+          checked={showGoalPlan}
+          onChange={(e) => setShowGoalPlan(e.target.checked)}
+          className="h-3.5 w-3.5 rounded border-slate-300"
+        />
+        <label htmlFor="show-goal-plan" className="text-sm font-medium text-slate-700">
+          Goal-Based Investing Plan
+        </label>
+      </div>
+
+      {showGoalPlan && <GoalPlan portfolioId={selectedPortfolioId} />}
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
         <Field label="Risk profile">
