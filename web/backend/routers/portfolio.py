@@ -272,6 +272,28 @@ async def create_portfolio(request: Request, body: CreatePortfolioRequest):
     return {**_record_to_dict(record), "position_count": 0}
 
 
+@router.delete("/{portfolio_id}")
+@limiter.limit("10/minute")
+async def delete_portfolio(request: Request, portfolio_id: int):
+    """Soft-delete (is_active = false) — the same reversible-suspension
+    pattern already used when an admin deactivates a portfolio, just
+    user-initiated here. Positions/strategies/history are left in place,
+    not dropped; they're just hidden from listings and no longer
+    resolvable via portfolio_id. If this was the user's only portfolio,
+    the next call that omits portfolio_id auto-creates a fresh
+    "My Portfolio" (see _resolve_portfolio_id) rather than erroring."""
+    await enforce_daily_quota(request, "portfolio/delete")
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "UPDATE portfolios SET is_active = false WHERE id = $1 AND user_id = $2::uuid AND is_active RETURNING id",
+            portfolio_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Portfolio not found.")
+    return {"ok": True}
+
+
 class ManualPositionIn(BaseModel):
     name: str = ""
     ticker: str

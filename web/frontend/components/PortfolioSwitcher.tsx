@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, createPortfolio, getPortfolios } from "@/lib/api";
+import { ApiError, createPortfolio, deletePortfolio, getPortfolios } from "@/lib/api";
 import type { Portfolio } from "@/lib/types";
 
 const STORAGE_KEY = "stanalysisengine.selectedPortfolioId";
@@ -31,6 +31,9 @@ export default function PortfolioSwitcher({
   const [newName, setNewName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function load(preferId?: number) {
     setLoading(true);
@@ -90,6 +93,29 @@ export default function PortfolioSwitcher({
     }
   }
 
+  const selectedPortfolio = portfolios.find((p) => p.id === selectedPortfolioId) ?? null;
+
+  async function handleDelete() {
+    if (!selectedPortfolio) return;
+    const positionNote =
+      selectedPortfolio.position_count > 0
+        ? ` It has ${selectedPortfolio.position_count} position${selectedPortfolio.position_count === 1 ? "" : "s"} — they won't be deleted, just no longer reachable from any portfolio you can see.`
+        : "";
+    if (!window.confirm(`Delete "${selectedPortfolio.name}"?${positionNote} This can't be undone from here.`)) {
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deletePortfolio(selectedPortfolio.id);
+      await load();
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "Could not delete this portfolio.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) return <p className="text-sm text-slate-500">Loading portfolios…</p>;
   if (error) return <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>;
 
@@ -109,6 +135,16 @@ export default function PortfolioSwitcher({
           ))}
         </select>
       </div>
+
+      <button
+        type="button"
+        onClick={handleDelete}
+        disabled={deleting || !selectedPortfolio || portfolios.length <= 1}
+        title={portfolios.length <= 1 ? "You need at least one portfolio — create another before deleting this one." : "Delete this portfolio"}
+        className="rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {deleting ? "Deleting…" : "Delete Portfolio"}
+      </button>
 
       {creating ? (
         <form onSubmit={handleCreate} className="flex items-end gap-2">
@@ -147,6 +183,7 @@ export default function PortfolioSwitcher({
           + New Portfolio
         </button>
       )}
+      {deleteError && <p className="w-full text-xs text-red-600">{deleteError}</p>}
     </div>
   );
 }
