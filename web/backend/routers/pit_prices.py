@@ -9,6 +9,7 @@ from services.pit_quant_signal_service import DEFAULT_UNIVERSE as QUANT_SIGNAL_D
 from web.backend.admin import require_admin
 from web.backend.db import service_conn
 from web.backend.pit_prices import (
+    UNSTABLE_FLIP_THRESHOLD,
     capture_and_persist_analyst_ratings,
     capture_and_persist_fundamentals,
     capture_and_persist_pit_prices,
@@ -234,6 +235,7 @@ async def signal_stability(lookback_days: int = Query(30, ge=1, le=180)):
                 "current_signal": series[-1]["signal"],
                 "current_streak_days": current_streak,
                 "last_flip_date": last_flip_date,
+                "unstable": flip_count >= UNSTABLE_FLIP_THRESHOLD,
             }
         )
 

@@ -26,6 +26,7 @@ from web.backend.app_settings import (
 from web.backend.auth import verify_bearer_token, verify_bearer_token_optional
 from web.backend.db import service_conn
 from web.backend.llm_cache import cached_init_llms, ordered_llms
+from web.backend.pit_prices import UNSTABLE_FLIP_THRESHOLD
 from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.scheduler import check_publication_alert
 from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
@@ -139,6 +140,11 @@ async def quant_vs_analyst(
     left-joined for that same date and may be null for a ticker if that
     day's analyst-rating capture missed it (yfinance coverage gap), not
     a code bug — shown as "no analyst data" rather than hidden.
+
+    Also carries each ticker's signal_flip_count over the trailing 30
+    captured days (as of as_of_date) and a signal_unstable flag once that
+    exceeds UNSTABLE_FLIP_THRESHOLD — one batch query, not a per-ticker
+    lookup, since this already covers the whole universe at once.
     """
     async with service_conn() as conn:
         if as_of_date is None:
@@ -148,6 +154,19 @@ async def quant_vs_analyst(
 
         rows = await conn.fetch(
             """
+            WITH windowed AS (
+                SELECT ticker, as_of_date, signal,
+                       LAG(signal) OVER (PARTITION BY ticker ORDER BY as_of_date) AS prev_signal
+                FROM pit_quant_signal
+                WHERE as_of_date <= $1 AND as_of_date >= $1 - 30
+            ),
+            flips AS (
+                SELECT ticker,
+                       count(*) FILTER (WHERE prev_signal IS NOT NULL AND signal <> prev_signal) AS flip_count,
+                       count(*) AS days_captured
+                FROM windowed
+                GROUP BY ticker
+            )
             SELECT
                 q.ticker,
                 q.signal AS quant_signal,
@@ -159,13 +178,18 @@ async def quant_vs_analyst(
                 a.buy_pct AS analyst_buy_pct,
                 a.target_mean AS analyst_target_mean,
                 a.target_high AS analyst_target_high,
-                a.target_low AS analyst_target_low
+                a.target_low AS analyst_target_low,
+                COALESCE(f.flip_count, 0) AS signal_flip_count,
+                COALESCE(f.days_captured, 1) AS signal_days_captured,
+                COALESCE(f.flip_count, 0) >= $2 AS signal_unstable
             FROM pit_quant_signal q
             LEFT JOIN pit_analyst_rating a ON a.ticker = q.ticker AND a.as_of_date = q.as_of_date
+            LEFT JOIN flips f ON f.ticker = q.ticker
             WHERE q.as_of_date = $1
             ORDER BY q.expected_return_pct DESC
             """,
             as_of_date,
+            UNSTABLE_FLIP_THRESHOLD,
         )
 
     return {

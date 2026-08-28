@@ -2,6 +2,9 @@ export interface SignalOut {
   signal: string;
   expected_return_pct: number;
   target_price: number;
+  signal_flip_count: number | null;
+  signal_days_captured: number | null;
+  signal_unstable: boolean | null;
 }
 
 export interface ForecastOut {
@@ -776,6 +779,9 @@ export interface QuantVsAnalystRow {
   analyst_target_mean: number | null;
   analyst_target_high: number | null;
   analyst_target_low: number | null;
+  signal_flip_count: number;
+  signal_days_captured: number;
+  signal_unstable: boolean;
 }
 
 export interface QuantVsAnalystResponse {

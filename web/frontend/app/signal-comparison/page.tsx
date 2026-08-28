@@ -7,7 +7,8 @@ import { ApiError, getQuantSignalNarrative, getQuantVsAnalyst } from "@/lib/api"
 import type { QuantVsAnalystResponse, QuantVsAnalystRow } from "@/lib/types";
 
 type SignalFilter = "ALL" | "BUY" | "SELL" | "HOLD";
-type SortKey = "ticker" | "quant_expected_return_pct" | "analyst_buy_pct" | "analyst_count";
+type StabilityFilter = "ALL" | "STABLE" | "UNSTABLE";
+type SortKey = "ticker" | "quant_expected_return_pct" | "analyst_buy_pct" | "analyst_count" | "signal_flip_count";
 
 const COLUMN_INFO: Record<string, ColumnInfo> = {
   quant_signal: {
@@ -40,6 +41,13 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
     title: "Analyst Target (Mean)",
     body: ["The average of covering analysts' individual price targets."],
   },
+  signal_flip_count: {
+    title: "Flips",
+    body: [
+      "How many times this ticker's Quant Signal has changed (BUY/HOLD/SELL) over its trailing captured history (up to 30 days).",
+      "\"Unstable\" means it's flipped 3+ times — treat today's signal with less confidence, since it hasn't settled on a view.",
+    ],
+  },
 };
 
 function signalBadgeClass(signal: string): string {
@@ -70,6 +78,7 @@ export default function SignalComparisonPage() {
 
   const [search, setSearch] = useState("");
   const [signalFilter, setSignalFilter] = useState<SignalFilter>("ALL");
+  const [stabilityFilter, setStabilityFilter] = useState<StabilityFilter>("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("quant_expected_return_pct");
   const [sortDesc, setSortDesc] = useState(true);
 
@@ -124,6 +133,9 @@ export default function SignalComparisonPage() {
     if (signalFilter !== "ALL") {
       filtered = filtered.filter((r) => r.quant_signal === signalFilter);
     }
+    if (stabilityFilter !== "ALL") {
+      filtered = filtered.filter((r) => (stabilityFilter === "UNSTABLE" ? r.signal_unstable : !r.signal_unstable));
+    }
     if (search.trim()) {
       const q = search.trim().toUpperCase();
       filtered = filtered.filter((r) => r.ticker.includes(q));
@@ -142,7 +154,7 @@ export default function SignalComparisonPage() {
       return sortDesc ? bn - an : an - bn;
     });
     return sorted;
-  }, [data, signalFilter, search, sortKey, sortDesc]);
+  }, [data, signalFilter, stabilityFilter, search, sortKey, sortDesc]);
 
   function SortableTh({ label, sortKeyName, info }: { label: string; sortKeyName: SortKey; info?: string }) {
     return (
@@ -207,6 +219,20 @@ export default function SignalComparisonPage() {
                 </button>
               ))}
             </div>
+            <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-1">
+              {(["ALL", "STABLE", "UNSTABLE"] as StabilityFilter[]).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setStabilityFilter(f)}
+                  title={f === "UNSTABLE" ? "Signal has flipped 3+ times in its trailing history" : undefined}
+                  className={`rounded px-3 py-1 text-sm font-medium ${
+                    stabilityFilter === f ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {f === "ALL" ? "All Signals" : f === "STABLE" ? "Stable Only" : "Unstable Only"}
+                </button>
+              ))}
+            </div>
           </div>
 
           {rows.length === 0 ? (
@@ -228,6 +254,7 @@ export default function SignalComparisonPage() {
                       </div>
                     </th>
                     <SortableTh label="Exp. Return" sortKeyName="quant_expected_return_pct" info="quant_expected_return_pct" />
+                    <SortableTh label="Flips" sortKeyName="signal_flip_count" info="signal_flip_count" />
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">Target</th>
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">Last Close</th>
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-left">
@@ -262,6 +289,17 @@ export default function SignalComparisonPage() {
                           >
                             {r.quant_expected_return_pct >= 0 ? "+" : ""}
                             {r.quant_expected_return_pct.toFixed(2)}%
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <span
+                              title={`${r.signal_flip_count} flip${r.signal_flip_count === 1 ? "" : "s"} over ${r.signal_days_captured} captured days`}
+                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                r.signal_unstable ? "bg-amber-50 text-amber-700" : "text-slate-500"
+                              }`}
+                            >
+                              {r.signal_flip_count}
+                              {r.signal_unstable && " Unstable"}
+                            </span>
                           </td>
                           <td className="px-3 py-2 text-right text-slate-600">{r.quant_target_price.toFixed(2)}</td>
                           <td className="px-3 py-2 text-right text-slate-600">{r.last_close.toFixed(2)}</td>
@@ -305,7 +343,7 @@ export default function SignalComparisonPage() {
                         </tr>
                         {narrative?.status === "ok" && (
                           <tr className="border-b border-slate-100 bg-slate-50/60 last:border-0">
-                            <td colSpan={9} className="px-3 py-2 text-xs leading-relaxed text-slate-600">
+                            <td colSpan={10} className="px-3 py-2 text-xs leading-relaxed text-slate-600">
                               <strong className="text-slate-700">{r.ticker} — quant technical context:</strong> {narrative.text}
                             </td>
                           </tr>

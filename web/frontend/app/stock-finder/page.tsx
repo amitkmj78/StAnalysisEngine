@@ -918,6 +918,14 @@ export default function StockFinderPage() {
                                         {quantSignal.signal.expected_return_pct >= 0 ? "+" : ""}
                                         {quantSignal.signal.expected_return_pct.toFixed(2)}%
                                       </span>
+                                      {quantSignal.signal.signal_unstable && (
+                                        <span
+                                          title={`Flipped ${quantSignal.signal.signal_flip_count} times over its trailing ${quantSignal.signal.signal_days_captured}-day history`}
+                                          className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                                        >
+                                          Unstable
+                                        </span>
+                                      )}
                                     </span>
                                   )}
                                 </td>

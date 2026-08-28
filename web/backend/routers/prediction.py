@@ -19,6 +19,7 @@ from services.prediction_service import (
 from services.prediction_verification_service import verify_prediction
 
 from web.backend.auth import verify_bearer_token
+from web.backend.pit_prices import get_signal_stability_for_ticker
 from web.backend.db import user_conn
 from web.backend.llm_cache import cached_init_llms, label_for_llm, ordered_llms
 from web.backend.rate_limit import enforce_daily_quota, limiter
@@ -93,10 +94,14 @@ async def predict_summary(
     if future_df is not None and not future_df.empty:
         sig = generate_trading_signal(last_close, future_df)
         if "target_price" in sig:
+            stability = await get_signal_stability_for_ticker(ticker)
             signal = SignalOut(
                 signal=sig["signal"],
                 expected_return_pct=sig["expected_return_pct"],
                 target_price=sig["target_price"],
+                signal_flip_count=stability["flip_count"] if stability else None,
+                signal_days_captured=stability["days_captured"] if stability else None,
+                signal_unstable=stability["unstable"] if stability else None,
             )
 
     backtest_df = await run_in_threadpool(predict_backtest_prices, ticker, period, days_back, tune)

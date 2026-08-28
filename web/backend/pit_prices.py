@@ -28,6 +28,51 @@ def _eastern_today() -> date:
     return datetime.now(_EASTERN).date()
 
 
+# A ticker is flagged "unstable" once its signal has flipped this many times
+# within the lookback window — high enough that it isn't tripped by one
+# ordinary boundary crossing, low enough to catch tickers like the ones that
+# prompted this (6 flips in 11 days) well before a long history piles up.
+UNSTABLE_FLIP_THRESHOLD = 3
+
+
+async def get_signal_stability_for_ticker(ticker: str, lookback_days: int = 30) -> dict | None:
+    """Flip-count/streak for one ticker from the pit_quant_signal PIT
+    history — powers the "unstable signal" indicator wherever the
+    Predict-page quant signal is shown (predict, stock finder), not just
+    the admin Signal Stability page. Returns None if there isn't at least
+    two captured days for this ticker yet to say anything."""
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT as_of_date, signal
+            FROM pit_quant_signal
+            WHERE ticker = $1
+              AND as_of_date >= (SELECT max(as_of_date) FROM pit_quant_signal WHERE ticker = $1) - $2::int
+            ORDER BY as_of_date
+            """,
+            ticker,
+            lookback_days,
+        )
+    if len(rows) < 2:
+        return None
+
+    flip_count = 0
+    current_streak = 1
+    for prev, cur in zip(rows, rows[1:]):
+        if cur["signal"] == prev["signal"]:
+            current_streak += 1
+        else:
+            flip_count += 1
+            current_streak = 1
+
+    return {
+        "flip_count": flip_count,
+        "days_captured": len(rows),
+        "current_streak_days": current_streak,
+        "unstable": flip_count >= UNSTABLE_FLIP_THRESHOLD,
+    }
+
+
 async def capture_and_persist_pit_prices(universe_id: str = DEFAULT_UNIVERSE) -> int:
     """
     TR-3 Phase 1: fetches today's close for each ticker in the universe and

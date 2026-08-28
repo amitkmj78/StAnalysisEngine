@@ -7,6 +7,12 @@ class SignalOut(BaseModel):
     signal: str
     expected_return_pct: float
     target_price: float
+    # Day-over-day flip stats from the pit_quant_signal PIT history — None
+    # when there isn't enough captured history yet for this ticker to say
+    # anything (e.g. a ticker outside the default capture universe).
+    signal_flip_count: int | None = None
+    signal_days_captured: int | None = None
+    signal_unstable: bool | None = None
 
 
 class ForecastOut(BaseModel):
