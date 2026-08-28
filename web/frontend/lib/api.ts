@@ -32,6 +32,7 @@ import type {
   MySubscription,
   PitPriceStatus,
   PitReconciliationReport,
+  SignalStabilityReport,
   Portfolio,
   PortfolioDropAlert,
   PortfolioInsightsResponse,
@@ -810,6 +811,12 @@ export function getPitReconciliation(targetDate: string, universeId = "All", loo
     universe_id: universeId,
     lookback_days: String(lookbackDays),
     top_n: String(topN),
+  });
+}
+
+export function getSignalStability(lookbackDays = 30) {
+  return apiFetch<SignalStabilityReport>("/api/v1/pit-prices/signal-stability", {
+    lookback_days: String(lookbackDays),
   });
 }
 

@@ -462,7 +462,7 @@ export default function PitPriceControls() {
       <div className="mt-4 flex flex-col gap-4">
         <PitStoreCard
           title="Quant Signal (internal model)"
-          description="Daily job (weekdays, 6:00pm ET, after market close) that trains the internal predict-page model per ticker and saves its signal, expected return, and target price. CPU-heavy (~500 tickers for the full S&P 500), so it's gated by its own flag independent of the price/fundamentals capture above and scheduled later to avoid resource contention with market-close activity. Nothing reads from this store yet — it exists to accumulate day-over-day comparison history."
+          description="Daily job (weekdays, 6:00pm ET, after market close) that trains the internal predict-page model per ticker and saves its signal, expected return, and target price. CPU-heavy (~500 tickers for the full S&P 500), so it's gated by its own flag independent of the price/fundamentals capture above and scheduled later to avoid resource contention with market-close activity. See Signal Stability for day-over-day flip analysis of this history."
           countLabel="Quant Signal"
           countValue={status?.quant_signal.ticker_count ?? 0}
           stats={status?.quant_signal ?? null}

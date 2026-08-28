@@ -48,6 +48,7 @@ const ADMIN_ENTRY: NavEntry = {
     { href: "/admin/users", label: "Users" },
     { href: "/admin/activity", label: "Activity" },
     { href: "/admin/scheduler", label: "Scheduler" },
+    { href: "/admin/signal-stability", label: "Signal Stability" },
     { href: "/admin/sql", label: "SQL" },
     { href: "/admin/integrations", label: "Integrations" },
     { href: "/admin/deploy", label: "Deploy" },

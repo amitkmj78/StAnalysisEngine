@@ -798,6 +798,37 @@ export interface PitReconciliationReport {
   byte_identical: boolean;
 }
 
+export interface SignalStabilityTicker {
+  ticker: string;
+  days_captured: number;
+  flip_count: number;
+  current_signal: "BUY" | "SELL" | "HOLD" | "UNKNOWN";
+  current_streak_days: number;
+  last_flip_date: string | null;
+}
+
+export interface SignalStabilityFlip {
+  ticker: string;
+  prev_date: string;
+  prev_signal: "BUY" | "SELL" | "HOLD" | "UNKNOWN";
+  date: string;
+  signal: "BUY" | "SELL" | "HOLD" | "UNKNOWN";
+  prev_expected_return_pct: number | null;
+  expected_return_pct: number | null;
+  prev_close: number | null;
+  last_close: number | null;
+  price_move_pct: number | null;
+  classification: "boundary" | "chase" | "model_shift";
+}
+
+export interface SignalStabilityReport {
+  buy_threshold_pct: number;
+  sell_threshold_pct: number;
+  lookback_days: number;
+  tickers: SignalStabilityTicker[];
+  recent_flips: SignalStabilityFlip[];
+}
+
 export interface PublishedSignalRow {
   id: number;
   published_at_utc: string;
