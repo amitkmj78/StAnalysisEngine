@@ -12,12 +12,19 @@ import ta
 import yfinance as yf
 
 from services.cache_utils import ttl_cache
+from services.rate_limit_utils import fetch_with_backoff
 from services.screener_service import INDEX_MAP
 
 logger = logging.getLogger(__name__)
 
 SP500_UNIVERSE_NAME = "US - S&P 500"
-MAX_PARALLEL_FETCHES = 10
+# 10 concurrent unpaced yfinance requests (2 calls each: history + info)
+# was a real, observed trigger for Yahoo's rate limiter — a burst that size
+# fires effectively instantly since ThreadPoolExecutor has no pacing
+# between workers. Lower concurrency plus fetch_with_backoff's per-call
+# pacing (see _build_stock_row) trades some wall-clock time on a full
+# S&P 500 scan for not tripping a sustained, account-wide block.
+MAX_PARALLEL_FETCHES = 4
 
 # "All" and SP500_UNIVERSE_NAME resolve their ticker lists lazily via
 # _universe_tickers (a live, cached Wikipedia fetch) rather than at import
@@ -189,8 +196,11 @@ def _rsi_balance_score(rsi: float | None) -> float | None:
 def _build_stock_row(ticker_symbol: str) -> dict | None:
     try:
         yf_ticker = yf.Ticker(ticker_symbol)
-        hist = yf_ticker.history(period="3y", auto_adjust=True).dropna()
-        info = yf_ticker.info or {}
+        # Previously unprotected — one of these ran concurrently across
+        # every worker thread with no backoff and no pacing, a real
+        # contributor to sustained "Too Many Requests" blocks from Yahoo.
+        hist = fetch_with_backoff(lambda: yf_ticker.history(period="3y", auto_adjust=True)).dropna()
+        info = fetch_with_backoff(lambda: yf_ticker.info) or {}
 
         if hist.empty or len(hist) < 70:
             return None

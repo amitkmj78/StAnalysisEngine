@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { getCurrentPrice } from "@/lib/api";
 import type { ExtendedHoursPrice } from "@/lib/types";
 
-const POLL_INTERVAL_MS = 1000;
+const POLL_INTERVAL_MS = 10000;
 
 export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: string; refreshKey?: number | string }) {
   const [price, setPrice] = useState<number | null>(null);
@@ -44,11 +44,14 @@ export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: stri
     // `refreshKey` changing (e.g. right after an analysis finishes) skips
     // the debounce for a single deliberate refresh. Otherwise the first
     // fetch is debounced so a user still typing a ticker doesn't fire one
-    // per keystroke. Once settled, poll once a second so the price keeps
-    // ticking live without needing any further trigger — the underlying
-    // lookup is cached for 60s server-side, so this is cheap even though
-    // it's polling every second (only actually refetches from the market
-    // whenever that cache turns over, not on every request).
+    // per keystroke. Once settled, poll every 10s so the price stays
+    // reasonably fresh without needing any further trigger — this used to
+    // poll every 1s on the (false) assumption that the underlying lookup
+    // was cached 60s server-side; it's actually cached ~2-10s, so a 1s
+    // poll was a real, uncached yfinance call almost every single tick,
+    // across every mounted badge on /portfolio, /predict, /chat, and
+    // /watchlist simultaneously — a real contributor to yfinance rate
+    // limiting, not just wasted requests.
     setFailed(false);
     const delay = refreshKey !== undefined ? 0 : 400;
     const debounce = setTimeout(async () => {

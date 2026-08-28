@@ -6,11 +6,12 @@ from .data_service import get_extended_hours_price, get_latest_price
 from .fund_comparison_service import price_near_date
 
 DEFAULT_LOOKBACK_DAYS = 30
-# Same pattern/value as stock_finder_service.py and entry_strategy_service.py:
-# each position needs a few independent, I/O-bound yfinance calls, so fan
+# Each position needs a few independent, I/O-bound yfinance calls, so fan
 # them out across positions rather than serializing behind a slow/rate-limited
-# ticker.
-MAX_PARALLEL_FETCHES = 10
+# ticker. Was 10 — a real, observed trigger for sustained Yahoo rate
+# limiting when fanned out with no pacing between workers (see
+# stock_finder_service.py's MAX_PARALLEL_FETCHES for the incident).
+MAX_PARALLEL_FETCHES = 4
 
 
 def compute_total_portfolio_value(positions: list[dict]) -> float:

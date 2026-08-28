@@ -54,16 +54,21 @@ def get_adjusted_history(ticker: str, period: str = "3y") -> pd.DataFrame:
         return pd.DataFrame()
 
 
-@ttl_cache(maxsize=256, ttl_seconds=2)
+@ttl_cache(maxsize=256, ttl_seconds=8)
 def get_latest_price(ticker: str):
     """
     Get the latest live price for the given ticker.
 
     Uses yfinance's lightweight `fast_info` quote (a single quote lookup,
-    not a full history fetch) so this stays cheap enough to genuinely poll
-    every second or two from the UI — `get_stock_data` is itself cached for
-    5 minutes, so routing through it here would make "live" price polling
+    not a full history fetch) so this stays cheap enough to poll from the
+    UI every several seconds — `get_stock_data` is itself cached for 5
+    minutes, so routing through it here would make "live" price polling
     silently return the same stale number for minutes at a time.
+
+    8s, not shorter: the UI polls every 10s (see CurrentPriceBadge), and a
+    TTL close to that poll interval means two badges/users requesting the
+    same ticker within the window share one real yfinance call instead of
+    each firing its own — real yfinance load, not just latency, at stake.
     """
     if not ticker:
         return None

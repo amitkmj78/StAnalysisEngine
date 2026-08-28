@@ -24,11 +24,15 @@ import pandas as pd
 import yfinance as yf
 
 from services.cache_utils import ttl_cache
+from services.rate_limit_utils import fetch_with_backoff
 from services.stock_finder_service import SP500_UNIVERSE_NAME, _universe_tickers
 
 logger = logging.getLogger(__name__)
 
-MAX_PARALLEL_FETCHES = 10
+# Was 10 — a real, observed trigger for sustained Yahoo rate limiting when
+# fanned out with no pacing between workers (see stock_finder_service.py's
+# MAX_PARALLEL_FETCHES for the incident).
+MAX_PARALLEL_FETCHES = 4
 
 # 11 GICS sector ETFs — used for sector relative strength (DR-I5). Not yet
 # consumed by compute_internals_score (P1 doesn't build the sector
@@ -52,7 +56,7 @@ INTERNALS_AUX_TICKERS = ["^VIX", "^VIX3M", "XLY", "XLP", "HYG", "IEF", "RSP", "S
 
 def _fetch_close_series(ticker: str, period: str) -> pd.Series | None:
     try:
-        hist = yf.Ticker(ticker).history(period=period, auto_adjust=True)
+        hist = fetch_with_backoff(lambda: yf.Ticker(ticker).history(period=period, auto_adjust=True))
         if hist.empty:
             return None
         close = hist["Close"]

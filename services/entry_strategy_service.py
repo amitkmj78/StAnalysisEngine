@@ -10,10 +10,14 @@ import yfinance as yf
 from services.cache_utils import ttl_cache
 from services.index_fund_service import INDEX_FUND_UNIVERSE
 from services.prediction_service import generate_trading_signal, predict_future_prices
+from services.rate_limit_utils import fetch_with_backoff
 from services.screener_service import INDEX_MAP
 from services.stock_finder_service import SP500_UNIVERSE_NAME, fetch_sp500_tickers
 
-MAX_PARALLEL_FETCHES = 10
+# Was 10 — a real, observed trigger for sustained Yahoo rate limiting when
+# fanned out with no pacing between workers (see stock_finder_service.py's
+# MAX_PARALLEL_FETCHES for the incident).
+MAX_PARALLEL_FETCHES = 4
 QUANT_PREDICT_PERIOD = "1y"
 QUANT_PREDICT_DAYS_AHEAD = 10
 
@@ -55,7 +59,7 @@ def get_entry_history(ticker: str, period: str = "1y") -> pd.DataFrame:
     if not cleaned:
         return pd.DataFrame()
     try:
-        return yf.Ticker(cleaned).history(period=period, auto_adjust=True).dropna()
+        return fetch_with_backoff(lambda: yf.Ticker(cleaned).history(period=period, auto_adjust=True)).dropna()
     except Exception:
         return pd.DataFrame()
 

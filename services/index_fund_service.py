@@ -11,7 +11,10 @@ import yfinance as yf
 from services.cache_utils import ttl_cache
 from services.rate_limit_utils import fetch_with_backoff
 
-MAX_PARALLEL_FETCHES = 10
+# Was 10 — even with fetch_with_backoff's per-call pacing, 10 concurrent
+# workers each making 3 calls was still a real, observed trigger for
+# sustained Yahoo rate limiting.
+MAX_PARALLEL_FETCHES = 4
 
 
 @dataclass(frozen=True)

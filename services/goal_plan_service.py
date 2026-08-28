@@ -3,8 +3,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import yfinance as yf
 
 from services.cache_utils import ttl_cache
+from services.rate_limit_utils import fetch_with_backoff
 
-MAX_PARALLEL_FETCHES = 10
+# Was 10 — a real, observed trigger for sustained Yahoo rate limiting when
+# fanned out with no pacing between workers (see stock_finder_service.py's
+# MAX_PARALLEL_FETCHES for the incident).
+MAX_PARALLEL_FETCHES = 4
 # Every held ticker keeps at least this share of new money regardless of
 # how weak its current signal is — this tilts where a recurring
 # contribution goes, it doesn't abandon a holding entirely over one
@@ -24,7 +28,7 @@ def get_annualized_return_pct(ticker: str, years: int = 3) -> float | None:
     "3Y Annualized %" already uses.
     """
     try:
-        hist = yf.Ticker(ticker).history(period=f"{years}y", auto_adjust=True).dropna()
+        hist = fetch_with_backoff(lambda: yf.Ticker(ticker).history(period=f"{years}y", auto_adjust=True)).dropna()
     except Exception:
         return None
     if hist.empty:
