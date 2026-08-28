@@ -1,5 +1,6 @@
 import logging
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from starlette.concurrency import run_in_threadpool
 
@@ -14,6 +15,17 @@ from services.pit_universe_service import capture_universe_membership
 from web.backend.db import service_conn
 
 logger = logging.getLogger(__name__)
+
+_EASTERN = ZoneInfo("America/New_York")
+
+
+def _eastern_today() -> date:
+    """The server runs on UTC system time, so a naive date.today() call made
+    in the evening (after 8pm ET / midnight UTC) mislabels data with
+    tomorrow's date. Ratings/fundamentals/signals should be stamped with the
+    US trading day they were captured for, not the server's UTC calendar
+    day."""
+    return datetime.now(_EASTERN).date()
 
 
 async def capture_and_persist_pit_prices(universe_id: str = DEFAULT_UNIVERSE) -> int:
@@ -63,7 +75,7 @@ async def capture_and_persist_universe_membership() -> int:
     if not rows:
         return 0
 
-    snapshot_date = date.today()
+    snapshot_date = _eastern_today()
     inserted = 0
     async with service_conn() as conn:
         for row in rows:
@@ -96,7 +108,7 @@ async def capture_and_persist_fundamentals(universe_id: str = FUNDAMENTALS_DEFAU
     if not rows:
         return 0
 
-    as_of_date = date.today()
+    as_of_date = _eastern_today()
     inserted = 0
     async with service_conn() as conn:
         for row in rows:
@@ -133,7 +145,7 @@ async def capture_and_persist_quant_signals(universe_id: str = QUANT_SIGNAL_DEFA
     if not rows:
         return 0
 
-    as_of_date = date.today()
+    as_of_date = _eastern_today()
     inserted = 0
     async with service_conn() as conn:
         for row in rows:
@@ -169,7 +181,7 @@ async def capture_and_persist_analyst_ratings(universe_id: str = ANALYST_RATING_
     if not rows:
         return 0
 
-    as_of_date = date.today()
+    as_of_date = _eastern_today()
     inserted = 0
     async with service_conn() as conn:
         for row in rows:
