@@ -337,6 +337,29 @@ def rank_stocks(goal: str, universe_key: str) -> pd.DataFrame:
     )
 
 
+def build_diversified_basket(goal: str, universe_key: str, picks_per_sector: int) -> pd.DataFrame:
+    """
+    A custom "index" of individual stocks spread across sectors, instead of
+    an existing ETF (see the Fund Screener for that): the picks_per_sector
+    highest-Score tickers from each sector present in this universe, using
+    the same ranking as /stock-finder. Sector-diversified by construction —
+    a hot sector can't dominate the basket just because more of its tickers
+    scored well.
+    """
+    ranked = rank_stocks(goal, universe_key)
+    if ranked.empty:
+        return ranked
+
+    # ranked is already sorted by Score descending, so a per-group head()
+    # keeps each sector's top scorers without re-sorting.
+    basket = ranked.groupby("Sector", sort=False, group_keys=False).head(picks_per_sector)
+    return (
+        basket[["Ticker", "Name", "Sector", "Price", "Score"]]
+        .sort_values(["Sector", "Score"], ascending=[True, False])
+        .reset_index(drop=True)
+    )
+
+
 def score_stock_ticker(goal: str, ticker_symbol: str) -> pd.DataFrame:
     df = get_single_stock_table(ticker_symbol).copy()
     if df.empty:

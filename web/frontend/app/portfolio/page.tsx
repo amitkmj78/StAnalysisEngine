@@ -425,12 +425,18 @@ export default function PortfolioPage() {
 
       {showGoalPlan && <GoalPlan portfolioId={selectedPortfolioId} />}
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-wrap gap-2">
         <Link
           href="/portfolio/add"
           className="inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
         >
           + Add Positions
+        </Link>
+        <Link
+          href="/portfolio/build-index"
+          className="inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+        >
+          + Build Diversified Index
         </Link>
       </div>
 

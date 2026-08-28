@@ -192,6 +192,14 @@ export function getStockScore(goal: string, ticker: string) {
   return apiFetch<StockScoreResponse>("/api/v1/stock-finder/score", { goal, ticker });
 }
 
+export function getDiversifiedBasket(goal: string, universe: string, picksPerSector: number) {
+  return apiFetch<StockRankResponse>("/api/v1/stock-finder/diversified-basket", {
+    goal,
+    universe,
+    picks_per_sector: String(picksPerSector),
+  });
+}
+
 export function getAnalystRating(ticker: string) {
   return apiFetch<AnalystRatingSummary>("/api/v1/stock-finder/analyst", { ticker });
 }

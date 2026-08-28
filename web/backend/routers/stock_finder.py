@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from services.analyst_rating_service import get_analyst_rating_summary
-from services.stock_finder_service import STOCK_UNIVERSES, rank_stocks, score_stock_ticker
+from services.stock_finder_service import STOCK_UNIVERSES, build_diversified_basket, rank_stocks, score_stock_ticker
 
 from web.backend.auth import verify_bearer_token
 from web.backend.db import user_conn
@@ -64,6 +64,27 @@ async def score(
     df = await run_in_threadpool(score_stock_ticker, goal, ticker)
     records = records_safe(df)
     return {"result": records[0] if records else None}
+
+
+@router.get("/diversified-basket")
+@limiter.limit("10/minute")
+async def diversified_basket(
+    request: Request,
+    goal: str = Query(...),
+    universe: str = Query("All"),
+    picks_per_sector: int = Query(2, ge=1, le=10),
+):
+    """A custom, sector-diversified basket of individual stocks — the
+    picks_per_sector highest-Score tickers from each sector in the
+    universe. Same cost profile as /rank (it calls it under the hood), so
+    same tight quota."""
+    await enforce_daily_quota(request, "stock-finder/diversified-basket")
+    _validate_goal(goal)
+    if universe not in STOCK_UNIVERSES:
+        raise HTTPException(422, f"universe must be one of {sorted(STOCK_UNIVERSES.keys())}")
+
+    df = await run_in_threadpool(build_diversified_basket, goal, universe, picks_per_sector)
+    return {"results": records_safe(df)}
 
 
 @router.get("/analyst")
