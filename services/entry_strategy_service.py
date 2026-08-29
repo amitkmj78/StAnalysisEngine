@@ -5,14 +5,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 import pandas as pd
 import ta
-import yfinance as yf
 
 from services.cache_utils import ttl_cache
 from services.index_fund_service import INDEX_FUND_UNIVERSE
 from services.prediction_service import generate_trading_signal, predict_future_prices
-from services.rate_limit_utils import fetch_with_backoff
 from services.screener_service import INDEX_MAP
 from services.stock_finder_service import SP500_UNIVERSE_NAME, fetch_sp500_tickers
+from services.yfinance_cache import get_cached_history
 
 # Was 10 — a real, observed trigger for sustained Yahoo rate limiting when
 # fanned out with no pacing between workers (see stock_finder_service.py's
@@ -59,7 +58,7 @@ def get_entry_history(ticker: str, period: str = "1y") -> pd.DataFrame:
     if not cleaned:
         return pd.DataFrame()
     try:
-        return fetch_with_backoff(lambda: yf.Ticker(cleaned).history(period=period, auto_adjust=True)).dropna()
+        return get_cached_history(cleaned, period, auto_adjust=True)
     except Exception:
         return pd.DataFrame()
 

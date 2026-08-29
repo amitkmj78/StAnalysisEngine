@@ -9,11 +9,10 @@ import numpy as np
 import pandas as pd
 import requests
 import ta
-import yfinance as yf
 
 from services.cache_utils import ttl_cache
-from services.rate_limit_utils import fetch_with_backoff
 from services.screener_service import INDEX_MAP
+from services.yfinance_cache import get_cached_history, get_cached_info
 
 logger = logging.getLogger(__name__)
 
@@ -195,12 +194,11 @@ def _rsi_balance_score(rsi: float | None) -> float | None:
 
 def _build_stock_row(ticker_symbol: str) -> dict | None:
     try:
-        yf_ticker = yf.Ticker(ticker_symbol)
-        # Previously unprotected — one of these ran concurrently across
-        # every worker thread with no backoff and no pacing, a real
-        # contributor to sustained "Too Many Requests" blocks from Yahoo.
-        hist = fetch_with_backoff(lambda: yf_ticker.history(period="3y", auto_adjust=True)).dropna()
-        info = fetch_with_backoff(lambda: yf_ticker.info) or {}
+        # Shared cache (services/yfinance_cache.py): dedupes against the
+        # Fund Screener, Goal Plan, entry-strategy scanner, etc. pulling
+        # the same ticker's history/info within the same 15-minute window.
+        hist = get_cached_history(ticker_symbol, "3y", auto_adjust=True)
+        info = get_cached_info(ticker_symbol)
 
         if hist.empty or len(hist) < 70:
             return None

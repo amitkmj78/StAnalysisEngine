@@ -21,11 +21,10 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
-import yfinance as yf
 
 from services.cache_utils import ttl_cache
-from services.rate_limit_utils import fetch_with_backoff
 from services.stock_finder_service import SP500_UNIVERSE_NAME, _universe_tickers
+from services.yfinance_cache import get_cached_history
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +55,7 @@ INTERNALS_AUX_TICKERS = ["^VIX", "^VIX3M", "XLY", "XLP", "HYG", "IEF", "RSP", "S
 
 def _fetch_close_series(ticker: str, period: str) -> pd.Series | None:
     try:
-        hist = fetch_with_backoff(lambda: yf.Ticker(ticker).history(period=period, auto_adjust=True))
+        hist = get_cached_history(ticker, period, auto_adjust=True)
         if hist.empty:
             return None
         close = hist["Close"]

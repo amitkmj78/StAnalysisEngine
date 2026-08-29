@@ -7,10 +7,9 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 from services.cache_utils import ttl_cache
-from services.rate_limit_utils import fetch_with_backoff
+from services.yfinance_cache import get_cached_history, get_cached_info
 
 # Was 10 — even with fetch_with_backoff's per-call pacing, 10 concurrent
 # workers each making 3 calls was still a real, observed trigger for
@@ -209,10 +208,12 @@ def _lookback_return(prices: pd.Series, trading_days: int) -> Optional[float]:
 
 def _build_fund_row(ticker_symbol: str, fallback_category: str = "Custom") -> Optional[Dict[str, object]]:
     try:
-        ticker = yf.Ticker(ticker_symbol)
-        history_1y = fetch_with_backoff(lambda: ticker.history(period="1y", auto_adjust=True)).dropna()
-        history_3y = fetch_with_backoff(lambda: ticker.history(period="3y", auto_adjust=True)).dropna()
-        info = fetch_with_backoff(lambda: ticker.info) or {}
+        # Shared cache (services/yfinance_cache.py): dedupes against Stock
+        # Finder, Goal Plan, the entry-strategy scanner, etc. pulling the
+        # same ticker's history/info within the same 15-minute window.
+        history_1y = get_cached_history(ticker_symbol, "1y", auto_adjust=True)
+        history_3y = get_cached_history(ticker_symbol, "3y", auto_adjust=True)
+        info = get_cached_info(ticker_symbol)
 
         if history_1y.empty:
             return None

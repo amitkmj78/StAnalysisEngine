@@ -6,6 +6,7 @@ import pandas as pd
 
 from .cache_utils import ttl_cache
 from .rate_limit_utils import fetch_with_backoff
+from .yfinance_cache import get_cached_history
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +23,14 @@ TIMEFRAME_MAPPING: Dict[str, str] = {
 
 @ttl_cache(maxsize=256, ttl_seconds=300)
 def get_stock_data(ticker: str, period: str) -> pd.DataFrame:
-    """Fetch historical stock data for a given ticker and period."""
+    """Fetch historical stock data for a given ticker and period. Routes
+    through the shared cross-feature cache (services/yfinance_cache.py)
+    so this doesn't re-fetch a ticker another feature already pulled the
+    same (ticker, period) history for in the last 15 minutes."""
     if not ticker:
         return pd.DataFrame()
     try:
-        data = fetch_with_backoff(lambda: yf.Ticker(ticker).history(period=period)).dropna()
-        return data
+        return get_cached_history(ticker, period)
     except Exception as e:
         logger.warning("Error fetching data for %s: %s", ticker, e)
         return pd.DataFrame()
@@ -47,8 +50,7 @@ def get_adjusted_history(ticker: str, period: str = "3y") -> pd.DataFrame:
     if not cleaned:
         return pd.DataFrame()
     try:
-        data = fetch_with_backoff(lambda: yf.Ticker(cleaned).history(period=period, auto_adjust=True))
-        return data.dropna()
+        return get_cached_history(cleaned, period, auto_adjust=True)
     except Exception as e:
         logger.warning("Error fetching adjusted history for %s: %s", ticker, e)
         return pd.DataFrame()
