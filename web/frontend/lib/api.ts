@@ -23,6 +23,7 @@ import type {
   EntryPlan,
   EntryScanRow,
   FundRankResponse,
+  FundReturnSince,
   FundScoreResponse,
   GoalPlanResponse,
   ManualPositionInput,
@@ -239,6 +240,10 @@ export function getFundRanking(goal: string, category: string) {
 
 export function getFundScore(goal: string, ticker: string) {
   return apiFetch<FundScoreResponse>("/api/v1/index-fund/score", { goal, ticker });
+}
+
+export function getFundReturnSince(ticker: string, since: string) {
+  return apiFetch<FundReturnSince>("/api/v1/index-fund/return-since", { ticker, since });
 }
 
 // Best To Enter Now

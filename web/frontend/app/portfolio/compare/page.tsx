@@ -7,11 +7,19 @@ import {
   ApiError,
   getFundGoals,
   getFundRanking,
+  getFundReturnSince,
   getPortfolioInsights,
   getPortfolioPerformance,
   getPortfolioSummary,
 } from "@/lib/api";
-import type { FundRankRow, PortfolioInsight, PortfolioPerformance, PortfolioSummary } from "@/lib/types";
+import type {
+  FundRankRow,
+  FundReturnSince,
+  Portfolio,
+  PortfolioInsight,
+  PortfolioPerformance,
+  PortfolioSummary,
+} from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 
 function fmtPct(v: number | null | undefined): string {
@@ -24,6 +32,14 @@ function pctClass(v: number | null | undefined): string {
   return v >= 0 ? "text-emerald-600" : "text-red-600";
 }
 
+function fmtDuration(days: number): string {
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"}`;
+  if (days < 365) return `${Math.round(days / 30)} month${Math.round(days / 30) === 1 ? "" : "s"}`;
+  const years = Math.floor(days / 365);
+  const months = Math.round((days % 365) / 30);
+  return months > 0 ? `${years}y ${months}mo` : `${years} year${years === 1 ? "" : "s"}`;
+}
+
 const SIGNAL_BADGE_CLASS: Record<string, string> = {
   BUY: "bg-emerald-50 text-emerald-700",
   SELL: "bg-red-50 text-red-700",
@@ -32,13 +48,17 @@ const SIGNAL_BADGE_CLASS: Record<string, string> = {
 
 export default function ComparePage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
+  const [allPortfolios, setAllPortfolios] = useState<Portfolio[]>([]);
   const [goal, setGoal] = useState("Balanced Core");
   const [goals, setGoals] = useState<string[]>(["Balanced Core"]);
 
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [performance, setPerformance] = useState<PortfolioPerformance | null>(null);
   const [insights, setInsights] = useState<PortfolioInsight[]>([]);
-  const [topFund, setTopFund] = useState<FundRankRow | null>(null);
+  const [topFunds, setTopFunds] = useState<FundRankRow[]>([]);
+
+  const [fundSince, setFundSince] = useState<FundReturnSince | null>(null);
+  const [fundSinceError, setFundSinceError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +80,8 @@ export default function ComparePage() {
   async function load() {
     setLoading(true);
     setError(null);
+    setFundSince(null);
+    setFundSinceError(null);
     try {
       const [summaryRes, performanceRes, insightsRes, fundRes] = await Promise.all([
         getPortfolioSummary(selectedPortfolioId ?? undefined),
@@ -70,13 +92,46 @@ export default function ComparePage() {
       setSummary(summaryRes.summary);
       setPerformance(performanceRes);
       setInsights(insightsRes.positions);
-      setTopFund(fundRes.results[0] ?? null);
+      setTopFunds(fundRes.results.slice(0, 5));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not load this comparison.");
     } finally {
       setLoading(false);
     }
   }
+
+  const selectedPortfolio = useMemo(
+    () => allPortfolios.find((p) => p.id === selectedPortfolioId) ?? null,
+    [allPortfolios, selectedPortfolioId],
+  );
+  const daysHeld = useMemo(() => {
+    if (!selectedPortfolio) return null;
+    const created = new Date(selectedPortfolio.created_at);
+    return Math.max(1, Math.round((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24)));
+  }, [selectedPortfolio]);
+
+  const topFund = topFunds[0] ?? null;
+
+  // Once we know how long this portfolio has actually existed, fetch the
+  // top fund's real point-in-time return over that identical window —
+  // "what if you'd put this money there instead, starting the same day" —
+  // rather than the fixed 30d/1Y/3Y windows the ranking table shows.
+  useEffect(() => {
+    if (!topFund || !selectedPortfolio) return;
+    const sinceDate = selectedPortfolio.created_at.slice(0, 10);
+    let cancelled = false;
+    setFundSinceError(null);
+    getFundReturnSince(topFund.Ticker, sinceDate)
+      .then((res) => {
+        if (!cancelled) setFundSince(res);
+      })
+      .catch((err) => {
+        if (!cancelled) setFundSinceError(err instanceof ApiError ? err.message : "Could not load the fund's return over this period.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [topFund, selectedPortfolio]);
 
   const signalCounts = useMemo(() => {
     const c = { BUY: 0, SELL: 0, HOLD: 0 };
@@ -95,7 +150,7 @@ export default function ComparePage() {
           <h1 className="text-2xl font-semibold text-slate-900">Portfolio vs. Best Fund</h1>
           <p className="mt-1 text-sm text-slate-500">
             Your portfolio&apos;s real performance and current signals, next to the Fund Screener&apos;s
-            top-ranked pick for the goal you choose — two different things, not a claim that one should
+            top-ranked picks for the goal you choose — two different things, not a claim that one should
             replace the other.
           </p>
         </div>
@@ -105,7 +160,11 @@ export default function ComparePage() {
       </div>
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
-        <PortfolioSwitcher selectedPortfolioId={selectedPortfolioId} onChange={setSelectedPortfolioId} />
+        <PortfolioSwitcher
+          selectedPortfolioId={selectedPortfolioId}
+          onChange={setSelectedPortfolioId}
+          onPortfoliosChange={setAllPortfolios}
+        />
         <Field label="Compare against goal">
           <select value={goal} onChange={(e) => setGoal(e.target.value)} className="input">
             {goals.map((g) => (
@@ -126,6 +185,7 @@ export default function ComparePage() {
               <p className="mt-1 text-xs text-slate-500">
                 {summary.total_positions} position{summary.total_positions === 1 ? "" : "s"} · $
                 {summary.total_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                {daysHeld !== null && ` · held ${fmtDuration(daysHeld)}`}
               </p>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <Metric label="30-Day Change" value={fmtPct(performance.value_diff_pct)} valueClass={pctClass(performance.value_diff_pct)} />
@@ -140,9 +200,10 @@ export default function ComparePage() {
                     Top Fund for &quot;{goal}&quot;: {topFund.Ticker}
                   </h2>
                   <p className="mt-1 text-xs text-slate-500">{topFund.Fund} · Score {topFund.Score}/100</p>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="mt-3 grid grid-cols-3 gap-3">
                     <Metric label="1Y Return" value={fmtPct(topFund["1Y Return %"] as number)} valueClass={pctClass(topFund["1Y Return %"] as number)} />
                     <Metric label="3Y Annualized" value={fmtPct(topFund["3Y Annualized %"] as number)} valueClass={pctClass(topFund["3Y Annualized %"] as number)} />
+                    <Metric label="Expense Ratio" value={topFund["Expense Ratio %"] != null ? `${(topFund["Expense Ratio %"] as number).toFixed(2)}%` : "—"} />
                   </div>
                 </>
               ) : (
@@ -150,6 +211,69 @@ export default function ComparePage() {
               )}
             </div>
           </div>
+
+          {topFund && daysHeld !== null && selectedPortfolio && (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
+              <h2 className="text-sm font-semibold text-slate-900">
+                Since You Started ({fmtDuration(daysHeld)})
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Your portfolio&apos;s gain vs. cost isn&apos;t tied to one exact start date — different
+                positions were added at different times. This is the real point-in-time comparison instead:
+                what {topFund.Ticker} actually returned over the exact same window your portfolio has existed.
+              </p>
+              {fundSinceError && <p className="mt-2 text-xs text-red-600">{fundSinceError}</p>}
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <Metric
+                  label="Your Gain vs. Cost"
+                  value={fmtPct(performance.total_gain_vs_cost_pct)}
+                  valueClass={pctClass(performance.total_gain_vs_cost_pct)}
+                />
+                <Metric
+                  label={`${topFund.Ticker} Since ${new Date(selectedPortfolio.created_at).toLocaleDateString()}`}
+                  value={fundSince ? fmtPct(fundSince.return_pct) : "…"}
+                  valueClass={fundSince ? pctClass(fundSince.return_pct) : undefined}
+                />
+              </div>
+            </div>
+          )}
+
+          {topFunds.length > 0 && (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
+              <h2 className="text-sm font-semibold text-slate-900">Top 5 Funds for &quot;{goal}&quot;</h2>
+              <div className="mt-3 overflow-x-auto rounded-md border border-slate-200">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <th className="px-3 py-2">Ticker</th>
+                      <th className="px-3 py-2">Fund</th>
+                      <th className="px-3 py-2 text-right">Score</th>
+                      <th className="px-3 py-2 text-right">1Y Return</th>
+                      <th className="px-3 py-2 text-right">Expense Ratio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topFunds.map((f, i) => (
+                      <tr key={f.Ticker} className="border-b border-slate-100 last:border-0">
+                        <td className="px-3 py-2 font-medium text-slate-800">
+                          {i === 0 && <span className="mr-1.5 text-amber-500">#1</span>}
+                          {f.Ticker}
+                        </td>
+                        <td className="px-3 py-2 text-slate-600">{f.Fund}</td>
+                        <td className="px-3 py-2 text-right text-slate-600">{f.Score}</td>
+                        <td className={`px-3 py-2 text-right font-medium ${pctClass(f["1Y Return %"] as number)}`}>
+                          {fmtPct(f["1Y Return %"] as number)}
+                        </td>
+                        <td className="px-3 py-2 text-right text-slate-600">
+                          {f["Expense Ratio %"] != null ? `${(f["Expense Ratio %"] as number).toFixed(2)}%` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-semibold text-slate-900">Current Signals Across Your Positions</h2>

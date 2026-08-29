@@ -224,6 +224,15 @@ export interface FundScoreResponse {
   result: FundRankRow | null;
 }
 
+export interface FundReturnSince {
+  ticker: string;
+  since: string;
+  days: number;
+  price_then: number;
+  price_now: number;
+  return_pct: number | null;
+}
+
 // Best To Enter Now
 export interface EntryScanRow {
   Ticker: string;
