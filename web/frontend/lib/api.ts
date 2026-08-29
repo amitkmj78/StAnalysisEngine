@@ -558,6 +558,13 @@ export function getPortfolioInsights(portfolioId?: number) {
   );
 }
 
+export function refreshPortfolioInsights(portfolioId?: number) {
+  const params = new URLSearchParams();
+  if (portfolioId !== undefined) params.set("portfolio_id", String(portfolioId));
+  const qs = params.toString();
+  return apiSend<PortfolioInsightsResponse>(`/api/v1/portfolio/insights/refresh${qs ? `?${qs}` : ""}`, "POST");
+}
+
 export function getPortfolio1yForecast(ticker: string) {
   return apiFetch<Portfolio1yForecast>("/api/v1/portfolio/insights/forecast-1y", { ticker });
 }

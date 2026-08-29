@@ -700,6 +700,33 @@ create policy saved_portfolio_goals_isolation on saved_portfolio_goals for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- Portfolio Compare's "Current Signals Across Your Positions" table is
+-- expensive to compute (a model trained per ticker per horizon), so it's
+-- snapshotted by US trading day rather than recomputed on every page
+-- load — one row per (user, portfolio, day), overwritten by an explicit
+-- refresh rather than accumulating history.
+create table if not exists portfolio_insights_snapshots (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  portfolio_id bigint not null references portfolios(id) on delete cascade,
+  as_of_date date not null,
+  positions jsonb not null,
+  concentration_threshold_pct real,
+  predict_period text,
+  predict_days_ahead integer,
+  lookback_days integer,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, portfolio_id, as_of_date)
+);
+create index if not exists portfolio_insights_snapshots_lookup_idx
+  on portfolio_insights_snapshots(user_id, portfolio_id, as_of_date desc);
+alter table portfolio_insights_snapshots enable row level security;
+drop policy if exists portfolio_insights_snapshots_isolation on portfolio_insights_snapshots;
+create policy portfolio_insights_snapshots_isolation on portfolio_insights_snapshots for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 create table if not exists watchlist_alerts (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,
@@ -984,7 +1011,7 @@ $$;
 
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
-grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens, saved_portfolio_goals to app_user;
+grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens, saved_portfolio_goals, portfolio_insights_snapshots to app_user;
 grant select, update on portfolio_drop_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;

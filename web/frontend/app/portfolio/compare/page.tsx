@@ -12,6 +12,7 @@ import {
   getPortfolioInsights,
   getPortfolioPerformance,
   getPortfolioSummary,
+  refreshPortfolioInsights,
 } from "@/lib/api";
 import type {
   FundRankRow,
@@ -97,6 +98,10 @@ export default function ComparePage() {
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [performance, setPerformance] = useState<PortfolioPerformance | null>(null);
   const [insights, setInsights] = useState<PortfolioInsight[]>([]);
+  const [insightsAsOfDate, setInsightsAsOfDate] = useState<string | null>(null);
+  const [insightsUpdatedAt, setInsightsUpdatedAt] = useState<string | null>(null);
+  const [refreshingInsights, setRefreshingInsights] = useState(false);
+  const [refreshInsightsError, setRefreshInsightsError] = useState<string | null>(null);
   const [topFunds, setTopFunds] = useState<FundRankRow[]>([]);
 
   const [fundSince, setFundSince] = useState<FundReturnSince | null>(null);
@@ -117,6 +122,21 @@ export default function ComparePage() {
       setForecasts1y((prev) => ({ ...prev, [ticker]: { status: "ok", pct: res.expected_return_pct } }));
     } catch {
       setForecasts1y((prev) => ({ ...prev, [ticker]: { status: "error" } }));
+    }
+  }
+
+  async function handleRefreshInsights() {
+    setRefreshingInsights(true);
+    setRefreshInsightsError(null);
+    try {
+      const res = await refreshPortfolioInsights(selectedPortfolioId ?? undefined);
+      setInsights(res.positions);
+      setInsightsAsOfDate(res.as_of_date ?? null);
+      setInsightsUpdatedAt(res.updated_at ?? null);
+    } catch (err) {
+      setRefreshInsightsError(err instanceof ApiError ? err.message : "Could not refresh signals.");
+    } finally {
+      setRefreshingInsights(false);
     }
   }
 
@@ -144,6 +164,7 @@ export default function ComparePage() {
     setFundSince(null);
     setFundSinceError(null);
     setForecasts1y({});
+    setRefreshInsightsError(null);
     try {
       const [summaryRes, performanceRes, insightsRes, fundRes] = await Promise.all([
         getPortfolioSummary(selectedPortfolioId ?? undefined),
@@ -154,6 +175,8 @@ export default function ComparePage() {
       setSummary(summaryRes.summary);
       setPerformance(performanceRes);
       setInsights(insightsRes.positions);
+      setInsightsAsOfDate(insightsRes.as_of_date ?? null);
+      setInsightsUpdatedAt(insightsRes.updated_at ?? null);
       setTopFunds(fundRes.results.slice(0, 5));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not load this comparison.");
@@ -478,7 +501,31 @@ export default function ComparePage() {
           )}
 
           <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="text-sm font-semibold text-slate-900">Current Signals Across Your Positions</h2>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Current Signals Across Your Positions</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {insightsAsOfDate ? (
+                    <>
+                      As of {insightsAsOfDate}
+                      {insightsUpdatedAt && ` · refreshed ${new Date(insightsUpdatedAt).toLocaleTimeString()}`} —
+                      saved once per day; refresh to recompute now.
+                    </>
+                  ) : (
+                    "Computing…"
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleRefreshInsights}
+                disabled={refreshingInsights}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                {refreshingInsights ? "Refreshing…" : "Refresh"}
+              </button>
+            </div>
+            {refreshInsightsError && <p className="mt-2 text-xs text-red-600">{refreshInsightsError}</p>}
             <div className="mt-3 flex flex-wrap gap-2">
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${SIGNAL_BADGE_CLASS.BUY}`}>{signalCounts.BUY} BUY</span>
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${SIGNAL_BADGE_CLASS.HOLD}`}>{signalCounts.HOLD} HOLD</span>

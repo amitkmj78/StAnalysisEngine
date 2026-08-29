@@ -541,6 +541,8 @@ export interface PortfolioInsightsResponse {
   predict_period?: string;
   predict_days_ahead?: number;
   lookback_days?: number;
+  as_of_date?: string;
+  updated_at?: string | null;
 }
 
 export interface PortfolioPerformanceRow {

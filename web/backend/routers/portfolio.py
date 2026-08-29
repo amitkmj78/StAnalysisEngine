@@ -1,6 +1,8 @@
 import io
-from datetime import date
+import json
+from datetime import date, datetime
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -561,34 +563,22 @@ async def portfolio_summary(request: Request, portfolio_id: Optional[int] = None
     return {"summary": summarize_portfolio(df)}
 
 
-@router.get("/insights")
-@limiter.limit("10/minute")
-async def portfolio_insights(request: Request, portfolio_id: Optional[int] = None):
-    """
-    Per-holding live BUY/SELL/HOLD signal + expected return (same engine
-    /predict uses) at its native predict_days_ahead horizon (10 trading
-    days — expected_return_pct/target_price) plus 1 and 5 trading days
-    (expected_return_pct_1d/target_price_1d, expected_return_pct_5d/
-    target_price_5d — all read from the same forecast the 10-day figures
-    come from, not separate model runs), momentum rank within the full
-    universe (same rule as /top-performers and the published track
-    record), and a concentration check — so the page can answer "should I
-    be worried about anything I hold," not just what it's worth. All
-    computed live, nothing persisted: reusing the exact functions already
-    called from /predict and /top-performers rather than a new signal path.
-    """
-    await enforce_daily_quota(request, "portfolio/insights")
-    user_id = request.state.user["id"]
+_EASTERN = ZoneInfo("America/New_York")
 
-    async with user_conn(user_id) as conn:
-        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
-        records = await conn.fetch(
-            "SELECT ticker, shares, current_price FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2",
-            user_id, resolved_portfolio_id,
-        )
-    if not records:
-        return {"positions": []}
 
+def _eastern_today() -> date:
+    """The server runs on UTC system time; a naive date.today() call made
+    in the evening (after 8pm ET) mislabels a snapshot with tomorrow's
+    date. Insights should be dated by the US trading day they were
+    computed for, not the server's UTC calendar day."""
+    return datetime.now(_EASTERN).date()
+
+
+async def _compute_portfolio_insights(records) -> dict:
+    """The actual live computation — same engine /predict and
+    /top-performers use. Expensive (a model trained per ticker per
+    horizon), which is exactly why callers snapshot the result by date
+    instead of re-running this on every page load."""
     tickers = [r["ticker"] for r in records]
 
     concentration_positions = [
@@ -651,6 +641,114 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
         "predict_days_ahead": DEFAULT_PREDICT_DAYS_AHEAD,
         "lookback_days": DEFAULT_LOOKBACK_DAYS,
     }
+
+
+async def _save_insights_snapshot(conn, user_id: str, portfolio_id: int, as_of: date, result: dict) -> datetime:
+    row = await conn.fetchrow(
+        """
+        INSERT INTO portfolio_insights_snapshots
+            (user_id, portfolio_id, as_of_date, positions, concentration_threshold_pct,
+             predict_period, predict_days_ahead, lookback_days, updated_at)
+        VALUES ($1::uuid, $2, $3, $4::jsonb, $5, $6, $7, $8, now())
+        ON CONFLICT (user_id, portfolio_id, as_of_date) DO UPDATE SET
+            positions = EXCLUDED.positions,
+            concentration_threshold_pct = EXCLUDED.concentration_threshold_pct,
+            predict_period = EXCLUDED.predict_period,
+            predict_days_ahead = EXCLUDED.predict_days_ahead,
+            lookback_days = EXCLUDED.lookback_days,
+            updated_at = now()
+        RETURNING updated_at
+        """,
+        user_id, portfolio_id, as_of, json.dumps(result["positions"]),
+        result["concentration_threshold_pct"], result["predict_period"],
+        result["predict_days_ahead"], result["lookback_days"],
+    )
+    return row["updated_at"]
+
+
+@router.get("/insights")
+@limiter.limit("10/minute")
+async def portfolio_insights(request: Request, portfolio_id: Optional[int] = None):
+    """
+    Per-holding live BUY/SELL/HOLD signal + expected return (same engine
+    /predict uses) at its native predict_days_ahead horizon (10 trading
+    days — expected_return_pct/target_price) plus 1, 5, and 30 trading
+    days, momentum rank within the full universe (same rule as
+    /top-performers and the published track record), and a concentration
+    check — so the page can answer "should I be worried about anything I
+    hold," not just what it's worth.
+
+    Computing this is expensive (a model trained per ticker per horizon),
+    so the result is snapshotted by US trading day: the first call each
+    day computes fresh and saves it; every call after that for the same
+    day+portfolio returns the saved snapshot instantly instead of
+    re-running the model. Use POST /insights/refresh to force a new
+    computation before the day naturally rolls over (e.g. after a
+    position changes intraday).
+    """
+    await enforce_daily_quota(request, "portfolio/insights")
+    user_id = request.state.user["id"]
+    as_of = _eastern_today()
+
+    async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+
+        snapshot = await conn.fetchrow(
+            """
+            SELECT positions, concentration_threshold_pct, predict_period, predict_days_ahead,
+                   lookback_days, updated_at
+            FROM portfolio_insights_snapshots
+            WHERE user_id = $1::uuid AND portfolio_id = $2 AND as_of_date = $3
+            """,
+            user_id, resolved_portfolio_id, as_of,
+        )
+        if snapshot is not None:
+            return {
+                "positions": json.loads(snapshot["positions"]),
+                "concentration_threshold_pct": snapshot["concentration_threshold_pct"],
+                "predict_period": snapshot["predict_period"],
+                "predict_days_ahead": snapshot["predict_days_ahead"],
+                "lookback_days": snapshot["lookback_days"],
+                "as_of_date": str(as_of),
+                "updated_at": snapshot["updated_at"].isoformat(),
+            }
+
+        records = await conn.fetch(
+            "SELECT ticker, shares, current_price FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
+        )
+        if not records:
+            return {"positions": [], "as_of_date": str(as_of), "updated_at": None}
+
+        result = await _compute_portfolio_insights(records)
+        updated_at = await _save_insights_snapshot(conn, user_id, resolved_portfolio_id, as_of, result)
+
+    return {**result, "as_of_date": str(as_of), "updated_at": updated_at.isoformat()}
+
+
+@router.post("/insights/refresh")
+@limiter.limit("10/minute")
+async def portfolio_insights_refresh(request: Request, portfolio_id: Optional[int] = None):
+    """Forces a fresh computation regardless of today's existing snapshot
+    (e.g. after a position changes intraday) and overwrites it — same
+    shape as GET /insights, so the frontend can just swap the response in."""
+    await enforce_daily_quota(request, "portfolio/insights/refresh")
+    user_id = request.state.user["id"]
+    as_of = _eastern_today()
+
+    async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT ticker, shares, current_price FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
+        )
+        if not records:
+            return {"positions": [], "as_of_date": str(as_of), "updated_at": None}
+
+        result = await _compute_portfolio_insights(records)
+        updated_at = await _save_insights_snapshot(conn, user_id, resolved_portfolio_id, as_of, result)
+
+    return {**result, "as_of_date": str(as_of), "updated_at": updated_at.isoformat()}
 
 
 @router.get("/insights/forecast-1y")
