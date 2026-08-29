@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -243,6 +244,17 @@ def _build_fund_row(ticker_symbol: str, fallback_category: str = "Custom") -> Op
         benchmark = info.get("fundFamily") or info.get("category") or "Yahoo Finance"
         category = info.get("category") or fallback_category
 
+        # yfinance returns this as a Unix timestamp (seconds) when the fund
+        # discloses it; not every fund does, so this is often None — shown
+        # as "unknown" rather than omitted, so a missing value reads as
+        # "the data isn't there" and not as "founded in 1970."
+        inception_ts = info.get("fundInceptionDate")
+        inception_date = (
+            datetime.fromtimestamp(inception_ts, tz=timezone.utc).strftime("%Y-%m-%d")
+            if inception_ts
+            else None
+        )
+
         return {
             "Ticker": ticker_symbol,
             "Fund": name,
@@ -259,6 +271,7 @@ def _build_fund_row(ticker_symbol: str, fallback_category: str = "Custom") -> Op
             "Return 30D %": return_30d,
             "Return 60D %": return_60d,
             "Return 90D %": return_90d,
+            "Inception Date": inception_date,
         }
     except Exception:
         return None

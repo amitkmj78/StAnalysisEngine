@@ -32,6 +32,10 @@ function pctClass(v: number | null | undefined): string {
   return v >= 0 ? "text-emerald-600" : "text-red-600";
 }
 
+function daysSince(isoDate: string): number {
+  return Math.max(0, Math.round((Date.now() - new Date(isoDate).getTime()) / (1000 * 60 * 60 * 24)));
+}
+
 function fmtDuration(days: number): string {
   if (days < 30) return `${days} day${days === 1 ? "" : "s"}`;
   if (days < 365) return `${Math.round(days / 30)} month${Math.round(days / 30) === 1 ? "" : "s"}`;
@@ -200,10 +204,14 @@ export default function ComparePage() {
                     Top Fund for &quot;{goal}&quot;: {topFund.Ticker}
                   </h2>
                   <p className="mt-1 text-xs text-slate-500">{topFund.Fund} · Score {topFund.Score}/100</p>
-                  <div className="mt-3 grid grid-cols-3 gap-3">
+                  <div className="mt-3 grid grid-cols-2 gap-3">
                     <Metric label="1Y Return" value={fmtPct(topFund["1Y Return %"] as number)} valueClass={pctClass(topFund["1Y Return %"] as number)} />
                     <Metric label="3Y Annualized" value={fmtPct(topFund["3Y Annualized %"] as number)} valueClass={pctClass(topFund["3Y Annualized %"] as number)} />
                     <Metric label="Expense Ratio" value={topFund["Expense Ratio %"] != null ? `${(topFund["Expense Ratio %"] as number).toFixed(2)}%` : "—"} />
+                    <Metric
+                      label="Time Since Inception"
+                      value={topFund["Inception Date"] ? fmtDuration(daysSince(topFund["Inception Date"] as string)) : "unknown"}
+                    />
                   </div>
                 </>
               ) : (
@@ -249,7 +257,9 @@ export default function ComparePage() {
                       <th className="px-3 py-2">Fund</th>
                       <th className="px-3 py-2 text-right">Score</th>
                       <th className="px-3 py-2 text-right">1Y Return</th>
+                      <th className="px-3 py-2 text-right">3Y Annualized</th>
                       <th className="px-3 py-2 text-right">Expense Ratio</th>
+                      <th className="px-3 py-2 text-right">Since Inception</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -264,8 +274,14 @@ export default function ComparePage() {
                         <td className={`px-3 py-2 text-right font-medium ${pctClass(f["1Y Return %"] as number)}`}>
                           {fmtPct(f["1Y Return %"] as number)}
                         </td>
+                        <td className={`px-3 py-2 text-right font-medium ${pctClass(f["3Y Annualized %"] as number)}`}>
+                          {fmtPct(f["3Y Annualized %"] as number)}
+                        </td>
                         <td className="px-3 py-2 text-right text-slate-600">
                           {f["Expense Ratio %"] != null ? `${(f["Expense Ratio %"] as number).toFixed(2)}%` : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right text-slate-600">
+                          {f["Inception Date"] ? fmtDuration(daysSince(f["Inception Date"] as string)) : "unknown"}
                         </td>
                       </tr>
                     ))}
