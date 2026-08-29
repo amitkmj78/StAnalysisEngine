@@ -1,6 +1,7 @@
 import datetime
 import logging
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 from typing import Optional
 
@@ -20,6 +21,14 @@ DEFAULT_LOOKBACK_DAYS = 30
 DEFAULT_TOP_N = 25
 DEFAULT_PREDICT_PERIOD = "1y"
 DEFAULT_PREDICT_DAYS_AHEAD = 10
+# compute_predict_algo_comparison used to run this fully sequentially — one
+# ticker's model training + yfinance fetch, then the next. Fine for a
+# handful of tickers, but a 15-16 position portfolio (or worse, an actively
+# rate-limited Yahoo session where each ticker eats its full retry/backoff
+# delay) turned into minutes of wall-clock time on /portfolio/insights.
+# Bounded concurrency, same MAX_PARALLEL_FETCHES=4 used elsewhere after the
+# rate-limit incident.
+PREDICT_COMPARE_MAX_PARALLEL = 4
 # Selectable horizons for comparing the Predict-page algorithm against the
 # published momentum picks. Capped at 30 to match the published lookback
 # window (comparing beyond that would forecast further out than the
@@ -158,9 +167,13 @@ def compute_predict_algo_comparison(
     from the same future_df already computed for the days_ahead-out
     signal above, no extra model call. None (the default) keeps existing
     callers' row shape unchanged. Each n must be <= days_ahead.
+
+    Tickers are fanned out across a small thread pool (PREDICT_COMPARE_MAX_PARALLEL)
+    rather than processed one at a time — see that constant's comment.
+    Callers key the result list by ticker, so return order doesn't matter.
     """
-    rows = []
-    for ticker in tickers:
+
+    def _row_for(ticker: str) -> dict:
         last_close = get_latest_price(ticker)
         future_df = predict_future_prices(ticker, period, days_ahead, False)
         if last_close is None or future_df is None or future_df.empty:
@@ -173,8 +186,7 @@ def compute_predict_algo_comparison(
             for n in extra_horizons or []:
                 row[f"predict_target_price_{n}d"] = None
                 row[f"predict_expected_return_pct_{n}d"] = None
-            rows.append(row)
-            continue
+            return row
 
         sig = generate_trading_signal(last_close, future_df)
         row = {
@@ -191,7 +203,13 @@ def compute_predict_algo_comparison(
             else:
                 row[f"predict_target_price_{n}d"] = None
                 row[f"predict_expected_return_pct_{n}d"] = None
-        rows.append(row)
+        return row
+
+    rows = []
+    with ThreadPoolExecutor(max_workers=PREDICT_COMPARE_MAX_PARALLEL) as executor:
+        futures = [executor.submit(_row_for, ticker) for ticker in tickers]
+        for future in as_completed(futures):
+            rows.append(future.result())
     return rows
 
 
