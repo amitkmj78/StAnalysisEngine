@@ -74,13 +74,15 @@ async def return_since(request: Request, ticker: str = Query(..., min_length=1),
     Real, point-in-time return for one ticker from `since` to now — "what
     if you'd put this money in this fund instead, starting the same day,"
     not a fixed 30d/1Y/3Y window that may not match how long the caller has
-    actually been invested.
+    actually been invested. `since` can be decades back (e.g. a fund's
+    inception date) — price_near_date is asked for "max" history, not the
+    2y default, to cover that.
     """
     await enforce_daily_quota(request, "index-fund/return-since")
     ticker = ticker.strip().upper()
     since_dt = datetime.combine(since, datetime.min.time())
 
-    price_then = await run_in_threadpool(price_near_date, ticker, since_dt)
+    price_then = await run_in_threadpool(price_near_date, ticker, since_dt, "max")
     price_now = await run_in_threadpool(get_latest_price, ticker)
     if price_then is None or price_now is None:
         raise HTTPException(404, f"No price history found for {ticker}.")

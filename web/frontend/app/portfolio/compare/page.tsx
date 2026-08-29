@@ -50,6 +50,19 @@ const SIGNAL_BADGE_CLASS: Record<string, string> = {
   HOLD: "bg-slate-100 text-slate-600",
 };
 
+const MATCHED_WINDOWS = [
+  { label: "30 Days", days: 30 },
+  { label: "6 Months", days: 182 },
+  { label: "1 Year", days: 365 },
+];
+
+interface MatchedWindow {
+  label: string;
+  days: number;
+  portfolioPct: number | null;
+  fundPct: number | null;
+}
+
 export default function ComparePage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   const [allPortfolios, setAllPortfolios] = useState<Portfolio[]>([]);
@@ -63,6 +76,10 @@ export default function ComparePage() {
 
   const [fundSince, setFundSince] = useState<FundReturnSince | null>(null);
   const [fundSinceError, setFundSinceError] = useState<string | null>(null);
+
+  const [inceptionReturn, setInceptionReturn] = useState<FundReturnSince | null>(null);
+  const [matchedWindows, setMatchedWindows] = useState<MatchedWindow[]>([]);
+  const [matchedWindowsLoading, setMatchedWindowsLoading] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +154,65 @@ export default function ComparePage() {
     };
   }, [topFund, selectedPortfolio]);
 
+  // The fund's total return from its actual inception date to now — not
+  // duration-matched to anything, just "how has this fund done over its
+  // whole real life."
+  useEffect(() => {
+    const inceptionDate = topFund?.["Inception Date"] as string | null | undefined;
+    if (!topFund || !inceptionDate) {
+      setInceptionReturn(null);
+      return;
+    }
+    let cancelled = false;
+    getFundReturnSince(topFund.Ticker, inceptionDate)
+      .then((res) => {
+        if (!cancelled) setInceptionReturn(res);
+      })
+      .catch(() => {
+        if (!cancelled) setInceptionReturn(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [topFund]);
+
+  // Your portfolio's real trailing performance next to the top fund's real
+  // point-in-time return, over identical 30-day/6-month/1-year windows —
+  // fixed, matched horizons, unlike "Since You Started" above which tracks
+  // however long this specific portfolio has actually existed.
+  useEffect(() => {
+    if (!topFund) {
+      setMatchedWindows([]);
+      return;
+    }
+    let cancelled = false;
+    setMatchedWindowsLoading(true);
+    setMatchedWindows(MATCHED_WINDOWS.map((w) => ({ ...w, portfolioPct: null, fundPct: null })));
+
+    Promise.all(
+      MATCHED_WINDOWS.map(async (w) => {
+        const sinceDate = new Date(Date.now() - w.days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const [perf, fundRet] = await Promise.all([
+          getPortfolioPerformance(w.days, selectedPortfolioId ?? undefined).catch(() => null),
+          getFundReturnSince(topFund.Ticker, sinceDate).catch(() => null),
+        ]);
+        return {
+          ...w,
+          portfolioPct: perf?.value_diff_pct ?? null,
+          fundPct: fundRet?.return_pct ?? null,
+        };
+      }),
+    ).then((results) => {
+      if (!cancelled) setMatchedWindows(results);
+    }).finally(() => {
+      if (!cancelled) setMatchedWindowsLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [topFund, selectedPortfolioId]);
+
   const signalCounts = useMemo(() => {
     const c = { BUY: 0, SELL: 0, HOLD: 0 };
     for (const p of insights) {
@@ -204,13 +280,18 @@ export default function ComparePage() {
                     Top Fund for &quot;{goal}&quot;: {topFund.Ticker}
                   </h2>
                   <p className="mt-1 text-xs text-slate-500">{topFund.Fund} · Score {topFund.Score}/100</p>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     <Metric label="1Y Return" value={fmtPct(topFund["1Y Return %"] as number)} valueClass={pctClass(topFund["1Y Return %"] as number)} />
                     <Metric label="3Y Annualized" value={fmtPct(topFund["3Y Annualized %"] as number)} valueClass={pctClass(topFund["3Y Annualized %"] as number)} />
                     <Metric label="Expense Ratio" value={topFund["Expense Ratio %"] != null ? `${(topFund["Expense Ratio %"] as number).toFixed(2)}%` : "—"} />
                     <Metric
                       label="Time Since Inception"
                       value={topFund["Inception Date"] ? fmtDuration(daysSince(topFund["Inception Date"] as string)) : "unknown"}
+                    />
+                    <Metric
+                      label="% Since Inception"
+                      value={topFund["Inception Date"] ? (inceptionReturn ? fmtPct(inceptionReturn.return_pct) : "…") : "unknown"}
+                      valueClass={inceptionReturn ? pctClass(inceptionReturn.return_pct) : undefined}
                     />
                   </div>
                 </>
@@ -242,6 +323,40 @@ export default function ComparePage() {
                   value={fundSince ? fmtPct(fundSince.return_pct) : "…"}
                   valueClass={fundSince ? pctClass(fundSince.return_pct) : undefined}
                 />
+              </div>
+            </div>
+          )}
+
+          {topFund && matchedWindows.length > 0 && (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
+              <h2 className="text-sm font-semibold text-slate-900">30 Days / 6 Months / 1 Year</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Your portfolio&apos;s real trailing performance next to what {topFund.Ticker} actually returned
+                over the same fixed windows — regardless of how long you&apos;ve personally held this portfolio.
+              </p>
+              <div className="mt-3 overflow-x-auto rounded-md border border-slate-200">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <th className="px-3 py-2">Window</th>
+                      <th className="px-3 py-2 text-right">Your Portfolio</th>
+                      <th className="px-3 py-2 text-right">{topFund.Ticker}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matchedWindows.map((w) => (
+                      <tr key={w.label} className="border-b border-slate-100 last:border-0">
+                        <td className="px-3 py-2 font-medium text-slate-800">{w.label}</td>
+                        <td className={`px-3 py-2 text-right font-medium ${pctClass(w.portfolioPct)}`}>
+                          {matchedWindowsLoading && w.portfolioPct === null ? "…" : fmtPct(w.portfolioPct)}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-medium ${pctClass(w.fundPct)}`}>
+                          {matchedWindowsLoading && w.fundPct === null ? "…" : fmtPct(w.fundPct)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

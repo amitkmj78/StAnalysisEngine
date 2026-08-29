@@ -16,13 +16,17 @@ def get_top_fund(goal: str = "Balanced Core", category: str = "All") -> Optional
     return {"ticker": str(winner["Ticker"]), "name": str(winner["Fund"])}
 
 
-def price_near_date(ticker: str, when: datetime) -> Optional[float]:
+def price_near_date(ticker: str, when: datetime, period: str = "2y") -> Optional[float]:
     """
     Closing price at or shortly after `when` — used to mark a benchmark's
     starting point for "return since you saved this prediction." Falls back
     to the most recent close if `when` is more recent than available history.
+
+    `period` defaults to "2y" (cheap, covers every existing caller's use
+    case — recent prediction/portfolio dates). Pass "max" for anything that
+    might reach back further than that, e.g. a fund's inception date.
     """
-    data = get_stock_data(ticker, "2y")
+    data = get_stock_data(ticker, period)
     if data.empty:
         return None
     when_naive = when.replace(tzinfo=None) if when.tzinfo else when
