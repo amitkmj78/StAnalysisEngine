@@ -75,6 +75,18 @@ interface MatchedWindow {
   fundPct: number | null;
 }
 
+interface PositionReturns {
+  d30: number | null;
+  m6: number | null;
+  y1: number | null;
+}
+
+function windowKey(days: number): keyof PositionReturns {
+  if (days <= 30) return "d30";
+  if (days <= 182) return "m6";
+  return "y1";
+}
+
 export default function ComparePage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   const [allPortfolios, setAllPortfolios] = useState<Portfolio[]>([]);
@@ -92,6 +104,7 @@ export default function ComparePage() {
   const [inceptionReturn, setInceptionReturn] = useState<FundReturnSince | null>(null);
   const [matchedWindows, setMatchedWindows] = useState<MatchedWindow[]>([]);
   const [matchedWindowsLoading, setMatchedWindowsLoading] = useState(false);
+  const [positionReturns, setPositionReturns] = useState<Record<string, PositionReturns>>({});
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +209,7 @@ export default function ComparePage() {
   useEffect(() => {
     if (!topFund) {
       setMatchedWindows([]);
+      setPositionReturns({});
       return;
     }
     let cancelled = false;
@@ -213,10 +227,27 @@ export default function ComparePage() {
           ...w,
           portfolioPct: perf?.value_diff_pct ?? null,
           fundPct: fundRet?.return_pct ?? null,
+          rows: perf?.rows ?? [],
         };
       }),
     ).then((results) => {
-      if (!cancelled) setMatchedWindows(results);
+      if (cancelled) return;
+      setMatchedWindows(results.map(({ rows, ...w }) => w));
+
+      // Same per-position rows the portfolio-level 30d/6mo/1yr figures above
+      // are built from — each position's own real trailing return at each
+      // window, not a single "expected return" number from the prediction
+      // model (that stays in the Signal column, which already has its own
+      // ~10-day horizon).
+      const byTicker: Record<string, PositionReturns> = {};
+      for (const w of results) {
+        const key = windowKey(w.days);
+        for (const row of w.rows) {
+          byTicker[row.ticker] = byTicker[row.ticker] ?? { d30: null, m6: null, y1: null };
+          byTicker[row.ticker][key] = row.diff_pct;
+        }
+      }
+      setPositionReturns(byTicker);
     }).finally(() => {
       if (!cancelled) setMatchedWindowsLoading(false);
     });
@@ -438,6 +469,10 @@ export default function ComparePage() {
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${SIGNAL_BADGE_CLASS.HOLD}`}>{signalCounts.HOLD} HOLD</span>
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${SIGNAL_BADGE_CLASS.SELL}`}>{signalCounts.SELL} SELL</span>
             </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Signal is the prediction model's BUY/HOLD/SELL call at its own ~10-day horizon. 30 Days/6 Months/1
+              Year are each position's real trailing return over that window — historical, not predicted.
+            </p>
 
             {concentrated.length > 0 && (
               <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -454,13 +489,17 @@ export default function ComparePage() {
                     <th className="px-3 py-2">Ticker</th>
                     <th className="px-3 py-2 text-right">Weight</th>
                     <th className="px-3 py-2">Signal</th>
-                    <th className="px-3 py-2 text-right">Expected Return</th>
+                    <th className="px-3 py-2 text-right">30 Days</th>
+                    <th className="px-3 py-2 text-right">6 Months</th>
+                    <th className="px-3 py-2 text-right">1 Year</th>
                   </tr>
                 </thead>
                 <tbody>
                   {[...insights]
                     .sort((a, b) => (b.weight_pct ?? 0) - (a.weight_pct ?? 0))
-                    .map((p) => (
+                    .map((p) => {
+                      const ret = positionReturns[p.ticker];
+                      return (
                       <tr key={p.ticker} className="border-b border-slate-100 last:border-0">
                         <td className="px-3 py-2 font-medium text-slate-800">
                           {p.ticker}
@@ -485,11 +524,18 @@ export default function ComparePage() {
                             <span className="text-slate-400">—</span>
                           )}
                         </td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(p.expected_return_pct)}`}>
-                          {fmtPct(p.expected_return_pct)}
+                        <td className={`px-3 py-2 text-right font-medium ${pctClass(ret?.d30)}`}>
+                          {matchedWindowsLoading && !ret ? "…" : fmtPct(ret?.d30)}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-medium ${pctClass(ret?.m6)}`}>
+                          {matchedWindowsLoading && !ret ? "…" : fmtPct(ret?.m6)}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-medium ${pctClass(ret?.y1)}`}>
+                          {matchedWindowsLoading && !ret ? "…" : fmtPct(ret?.y1)}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
