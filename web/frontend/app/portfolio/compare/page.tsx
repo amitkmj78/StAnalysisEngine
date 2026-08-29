@@ -21,6 +21,18 @@ import type {
   PortfolioSummary,
 } from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
+import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+
+const GOAL_INFO: ColumnInfo = {
+  title: "What do these goals mean?",
+  body: [
+    "Each goal describes what the fund's Score weighs — not a rule about what kind of fund can win. A single-sector fund can still top \"Balanced Core\" if it scores well on that blend, even though the fund itself isn't diversified.",
+    "Balanced Core: a well-rounded blend — 1Y return 35%, 3Y annualized 25%, expense ratio 20%, 1Y volatility 10%, 3Y max drawdown 10%.",
+    "Lowest Cost: minimizing fees above almost everything else — expense ratio 65%, 3Y annualized 20%, 1Y volatility 10%, fund assets 5%.",
+    "Best Growth: chasing the highest returns — 1Y return 50%, 3Y annualized 35%, 1Y volatility 10%, expense ratio 5%.",
+    "Most Stable: minimizing swings and drawdowns — 1Y volatility 45%, 3Y max drawdown 30%, expense ratio 15%, 3Y annualized 10%.",
+  ],
+};
 
 function fmtPct(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
@@ -83,6 +95,7 @@ export default function ComparePage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showGoalInfo, setShowGoalInfo] = useState(false);
 
   useEffect(() => {
     getFundGoals()
@@ -246,13 +259,25 @@ export default function ComparePage() {
           onPortfoliosChange={setAllPortfolios}
         />
         <Field label="Compare against goal">
-          <select value={goal} onChange={(e) => setGoal(e.target.value)} className="input">
-            {goals.map((g) => (
-              <option key={g} value={g}>{g}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-1.5">
+            <select value={goal} onChange={(e) => setGoal(e.target.value)} className="input">
+              {goals.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setShowGoalInfo(true)}
+              title="What do these goals mean?"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-normal text-slate-400 hover:border-slate-500 hover:text-slate-700"
+            >
+              i
+            </button>
+          </div>
         </Field>
       </div>
+
+      {showGoalInfo && <InfoModal info={GOAL_INFO} onClose={() => setShowGoalInfo(false)} />}
 
       {loading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
       {error && <p className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
