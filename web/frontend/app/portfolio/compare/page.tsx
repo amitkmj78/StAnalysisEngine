@@ -470,8 +470,15 @@ export default function ComparePage() {
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${SIGNAL_BADGE_CLASS.SELL}`}>{signalCounts.SELL} SELL</span>
             </div>
             <p className="mt-2 text-xs text-slate-500">
-              Signal is the prediction model's BUY/HOLD/SELL call at its own ~10-day horizon. 30 Days/6 Months/1
-              Year are each position's real trailing return over that window — historical, not predicted.
+              10D/30D Forecast are the prediction model's expected return at those horizons — both within the
+              5-to-60-day range the model is actually backtested for. 30D/6M/1Y Trailing are each position's
+              real historical return over that window instead — not predicted.
+            </p>
+            <p className="mt-1 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              1Y Forecast is the same model pushed to a 252-day recursive forecast — far beyond the ~5-60 day
+              range it&apos;s actually backtested for, and compounding forecast error at every step. Shown
+              because it was asked for, not because it&apos;s reliable — treat 1Y Trailing as the trustworthy
+              number for that horizon.
             </p>
 
             {concentrated.length > 0 && (
@@ -489,9 +496,14 @@ export default function ComparePage() {
                     <th className="px-3 py-2">Ticker</th>
                     <th className="px-3 py-2 text-right">Weight</th>
                     <th className="px-3 py-2">Signal</th>
-                    <th className="px-3 py-2 text-right">30 Days</th>
-                    <th className="px-3 py-2 text-right">6 Months</th>
-                    <th className="px-3 py-2 text-right">1 Year</th>
+                    <th className="px-3 py-2 text-right">10D Forecast</th>
+                    <th className="px-3 py-2 text-right">30D Forecast</th>
+                    <th className="px-3 py-2 text-right" title="Unvalidated — far beyond the model's backtested range">
+                      1Y Forecast <span className="text-amber-500">*</span>
+                    </th>
+                    <th className="px-3 py-2 text-right">30D Trailing</th>
+                    <th className="px-3 py-2 text-right">6M Trailing</th>
+                    <th className="px-3 py-2 text-right">1Y Trailing</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -523,6 +535,15 @@ export default function ComparePage() {
                           ) : (
                             <span className="text-slate-400">—</span>
                           )}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-medium ${pctClass(p.expected_return_pct)}`}>
+                          {fmtPct(p.expected_return_pct)}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-medium ${pctClass(p.expected_return_pct_30d)}`}>
+                          {fmtPct(p.expected_return_pct_30d)}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-medium ${pctClass(p.expected_return_pct_1y)}`}>
+                          {fmtPct(p.expected_return_pct_1y)}
                         </td>
                         <td className={`px-3 py-2 text-right font-medium ${pctClass(ret?.d30)}`}>
                           {matchedWindowsLoading && !ret ? "…" : fmtPct(ret?.d30)}

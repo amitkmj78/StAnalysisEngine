@@ -604,12 +604,37 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
     )
     signal_by_ticker = {c["ticker"]: c for c in comparison}
 
+    # Separate call, not an extra_horizon on the call above: the model's
+    # forecast only extends `days_ahead` trading days out, so a 30-day
+    # figure needs its own days_ahead=30 run. Kept apart from the call
+    # above so Signal (and expected_return_pct's existing 10-day meaning,
+    # used elsewhere in the app) stays anchored to DEFAULT_PREDICT_DAYS_AHEAD
+    # regardless of this addition.
+    comparison_30d = await run_in_threadpool(
+        compute_predict_algo_comparison, tickers, DEFAULT_PREDICT_PERIOD, 30, []
+    )
+    thirty_day_by_ticker = {c["ticker"]: c for c in comparison_30d}
+
+    # 252 trading days (~1 calendar year) — far beyond the ~5-60 day range
+    # this model is actually backtested against (see the marketing page's
+    # own claim). A 252-step recursive forecast compounds error at every
+    # step; this is included because it was explicitly requested with the
+    # understanding that it's unvalidated, not because it's trustworthy.
+    # Callers must present it labeled as such, never as equivalent to the
+    # 10d/30d figures above.
+    comparison_1y = await run_in_threadpool(
+        compute_predict_algo_comparison, tickers, DEFAULT_PREDICT_PERIOD, 252, []
+    )
+    one_year_by_ticker = {c["ticker"]: c for c in comparison_1y}
+
     rank_by_ticker = await run_in_threadpool(rank_within_universe, tickers, DEFAULT_UNIVERSE, DEFAULT_LOOKBACK_DAYS)
 
     positions = []
     for r in records:
         t = r["ticker"]
         sig = signal_by_ticker.get(t, {})
+        sig_30d = thirty_day_by_ticker.get(t, {})
+        sig_1y = one_year_by_ticker.get(t, {})
         rank = rank_by_ticker.get(t, {})
         conc = concentration_by_ticker.get(t, {})
         positions.append(
@@ -622,6 +647,10 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
                 "target_price_1d": sig.get("predict_target_price_1d"),
                 "expected_return_pct_5d": sig.get("predict_expected_return_pct_5d"),
                 "target_price_5d": sig.get("predict_target_price_5d"),
+                "expected_return_pct_30d": sig_30d.get("predict_expected_return_pct"),
+                "target_price_30d": sig_30d.get("predict_target_price"),
+                "expected_return_pct_1y": sig_1y.get("predict_expected_return_pct"),
+                "target_price_1y": sig_1y.get("predict_target_price"),
                 "rank": rank.get("rank"),
                 "universe_size": rank.get("universe_size"),
                 "trailing_return_pct": rank.get("trailing_return_pct"),
