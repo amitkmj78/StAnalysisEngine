@@ -277,7 +277,7 @@ def _build_fund_row(ticker_symbol: str, fallback_category: str = "Custom") -> Op
         return None
 
 
-@ttl_cache(maxsize=8, ttl_seconds=3600)
+@ttl_cache(maxsize=8, ttl_seconds=86400)
 def get_index_fund_table() -> pd.DataFrame:
     """
     Builds one row per fund in INDEX_FUND_UNIVERSE, fetched in parallel
@@ -286,7 +286,12 @@ def get_index_fund_table() -> pd.DataFrame:
     sequentially would be slow and risk Yahoo rate limits the same way a
     large sequential ticker loop already has elsewhere in this app.
     fetch_with_backoff inside _build_fund_row adds pacing/retry on top.
-    Cached for an hour regardless, so this cost is paid at most once/hour.
+
+    Cached for 24 hours: fund-level metrics (expense ratio, 1Y/3Y return,
+    volatility, inception date) don't meaningfully change intraday, and
+    this is one of the more expensive yfinance-touching endpoints in the
+    app (~62 funds x 3 calls) — a shorter TTL just re-pays that cost for
+    data that looks the same.
     """
     rows: List[Dict[str, object]] = []
 
@@ -309,7 +314,7 @@ def get_index_fund_table() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-@ttl_cache(maxsize=64, ttl_seconds=3600)
+@ttl_cache(maxsize=64, ttl_seconds=86400)
 def get_single_fund_table(ticker_symbol: str) -> pd.DataFrame:
     cleaned = ticker_symbol.strip().upper()
     if not cleaned:
