@@ -522,13 +522,17 @@ export interface PortfolioInsight {
   target_price_5d: number | null;
   expected_return_pct_30d: number | null;
   target_price_30d: number | null;
-  expected_return_pct_1y: number | null;
-  target_price_1y: number | null;
   rank: number | null;
   universe_size: number | null;
   trailing_return_pct: number | null;
   weight_pct: number | null;
   concentrated: boolean;
+}
+
+export interface Portfolio1yForecast {
+  ticker: string;
+  expected_return_pct: number | null;
+  target_price: number | null;
 }
 
 export interface PortfolioInsightsResponse {

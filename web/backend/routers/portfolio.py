@@ -615,18 +615,6 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
     )
     thirty_day_by_ticker = {c["ticker"]: c for c in comparison_30d}
 
-    # 252 trading days (~1 calendar year) — far beyond the ~5-60 day range
-    # this model is actually backtested against (see the marketing page's
-    # own claim). A 252-step recursive forecast compounds error at every
-    # step; this is included because it was explicitly requested with the
-    # understanding that it's unvalidated, not because it's trustworthy.
-    # Callers must present it labeled as such, never as equivalent to the
-    # 10d/30d figures above.
-    comparison_1y = await run_in_threadpool(
-        compute_predict_algo_comparison, tickers, DEFAULT_PREDICT_PERIOD, 252, []
-    )
-    one_year_by_ticker = {c["ticker"]: c for c in comparison_1y}
-
     rank_by_ticker = await run_in_threadpool(rank_within_universe, tickers, DEFAULT_UNIVERSE, DEFAULT_LOOKBACK_DAYS)
 
     positions = []
@@ -634,7 +622,6 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
         t = r["ticker"]
         sig = signal_by_ticker.get(t, {})
         sig_30d = thirty_day_by_ticker.get(t, {})
-        sig_1y = one_year_by_ticker.get(t, {})
         rank = rank_by_ticker.get(t, {})
         conc = concentration_by_ticker.get(t, {})
         positions.append(
@@ -649,8 +636,6 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
                 "target_price_5d": sig.get("predict_target_price_5d"),
                 "expected_return_pct_30d": sig_30d.get("predict_expected_return_pct"),
                 "target_price_30d": sig_30d.get("predict_target_price"),
-                "expected_return_pct_1y": sig_1y.get("predict_expected_return_pct"),
-                "target_price_1y": sig_1y.get("predict_target_price"),
                 "rank": rank.get("rank"),
                 "universe_size": rank.get("universe_size"),
                 "trailing_return_pct": rank.get("trailing_return_pct"),
@@ -665,6 +650,31 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
         "predict_period": DEFAULT_PREDICT_PERIOD,
         "predict_days_ahead": DEFAULT_PREDICT_DAYS_AHEAD,
         "lookback_days": DEFAULT_LOOKBACK_DAYS,
+    }
+
+
+@router.get("/insights/forecast-1y")
+@limiter.limit("20/minute")
+async def insights_forecast_1y(request: Request, ticker: str = Query(..., min_length=1)):
+    """
+    On-demand only — never bundled into /insights. A 252-trading-day
+    recursive forecast is far more expensive than the 10d/30d figures
+    there (each recursive step compounds the last), and it's unvalidated
+    besides (see the docstring on the removed eager version, and the UI's
+    own "unvalidated" label) — so a page loading many positions shouldn't
+    pay this cost for every one of them just to render.
+    """
+    await enforce_daily_quota(request, "portfolio/insights/forecast-1y")
+    ticker = ticker.strip().upper()
+
+    comparison = await run_in_threadpool(
+        compute_predict_algo_comparison, [ticker], DEFAULT_PREDICT_PERIOD, 252, []
+    )
+    row = comparison[0] if comparison else {}
+    return {
+        "ticker": ticker,
+        "expected_return_pct": row.get("predict_expected_return_pct"),
+        "target_price": row.get("predict_target_price"),
     }
 
 

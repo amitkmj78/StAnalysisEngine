@@ -36,6 +36,7 @@ import type {
   SignalStabilityReport,
   Portfolio,
   PortfolioDropAlert,
+  Portfolio1yForecast,
   PortfolioInsightsResponse,
   PortfolioListResponse,
   PortfolioPerformance,
@@ -555,6 +556,10 @@ export function getPortfolioInsights(portfolioId?: number) {
     "/api/v1/portfolio/insights",
     portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
   );
+}
+
+export function getPortfolio1yForecast(ticker: string) {
+  return apiFetch<Portfolio1yForecast>("/api/v1/portfolio/insights/forecast-1y", { ticker });
 }
 
 export function getGoalPlan(

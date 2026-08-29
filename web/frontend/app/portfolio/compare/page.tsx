@@ -8,6 +8,7 @@ import {
   getFundGoals,
   getFundRanking,
   getFundReturnSince,
+  getPortfolio1yForecast,
   getPortfolioInsights,
   getPortfolioPerformance,
   getPortfolioSummary,
@@ -105,6 +106,19 @@ export default function ComparePage() {
   const [matchedWindows, setMatchedWindows] = useState<MatchedWindow[]>([]);
   const [matchedWindowsLoading, setMatchedWindowsLoading] = useState(false);
   const [positionReturns, setPositionReturns] = useState<Record<string, PositionReturns>>({});
+  const [forecasts1y, setForecasts1y] = useState<
+    Record<string, { status: "loading" } | { status: "error" } | { status: "ok"; pct: number | null }>
+  >({});
+
+  async function loadForecast1y(ticker: string) {
+    setForecasts1y((prev) => ({ ...prev, [ticker]: { status: "loading" } }));
+    try {
+      const res = await getPortfolio1yForecast(ticker);
+      setForecasts1y((prev) => ({ ...prev, [ticker]: { status: "ok", pct: res.expected_return_pct } }));
+    } catch {
+      setForecasts1y((prev) => ({ ...prev, [ticker]: { status: "error" } }));
+    }
+  }
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +143,7 @@ export default function ComparePage() {
     setError(null);
     setFundSince(null);
     setFundSinceError(null);
+    setForecasts1y({});
     try {
       const [summaryRes, performanceRes, insightsRes, fundRes] = await Promise.all([
         getPortfolioSummary(selectedPortfolioId ?? undefined),
@@ -542,8 +557,34 @@ export default function ComparePage() {
                         <td className={`px-3 py-2 text-right font-medium ${pctClass(p.expected_return_pct_30d)}`}>
                           {fmtPct(p.expected_return_pct_30d)}
                         </td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(p.expected_return_pct_1y)}`}>
-                          {fmtPct(p.expected_return_pct_1y)}
+                        <td className="px-3 py-2 text-right">
+                          {(() => {
+                            const f1y = forecasts1y[p.ticker];
+                            if (!f1y) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => loadForecast1y(p.ticker)}
+                                  className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                >
+                                  Load
+                                </button>
+                              );
+                            }
+                            if (f1y.status === "loading") return <span className="text-xs text-slate-400">…</span>;
+                            if (f1y.status === "error") {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => loadForecast1y(p.ticker)}
+                                  className="text-xs font-medium text-red-600 hover:underline"
+                                >
+                                  Failed — retry
+                                </button>
+                              );
+                            }
+                            return <span className={`font-medium ${pctClass(f1y.pct)}`}>{fmtPct(f1y.pct)}</span>;
+                          })()}
                         </td>
                         <td className={`px-3 py-2 text-right font-medium ${pctClass(ret?.d30)}`}>
                           {matchedWindowsLoading && !ret ? "…" : fmtPct(ret?.d30)}
