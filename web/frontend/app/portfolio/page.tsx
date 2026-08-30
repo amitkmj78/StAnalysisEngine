@@ -618,7 +618,7 @@ export default function PortfolioPage() {
                             <span className="text-slate-400">{insightsLoading ? "…" : "—"}</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right text-slate-600">{r.shares}</td>
+                        <td className="px-3 py-2 text-right text-slate-600">{r.shares.toFixed(2)}</td>
                         {r.price_unavailable ? (
                           <td colSpan={4} className="px-3 py-2 text-slate-400">
                             No market data found for this ticker — check it&apos;s a valid, publicly-traded symbol.
@@ -872,7 +872,7 @@ export default function PortfolioPage() {
                   </div>
                 ) : (
                   <p className="mt-1 text-sm text-slate-500">
-                    {s.shares} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${s.current_price?.toFixed(2)}
+                    {s.shares?.toFixed(2)} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${s.current_price?.toFixed(2)}
                     {extendedHours && (
                       <span className={extendedHours.change_pct !== null && extendedHours.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}>
                         {" "}
