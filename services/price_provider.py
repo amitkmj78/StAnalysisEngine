@@ -37,3 +37,16 @@ def set_price_provider(provider: str) -> None:
         raise ValueError(f"provider must be one of {PRICE_PROVIDERS}, got {provider!r}")
     global _current_provider
     _current_provider = provider
+
+    # get_latest_price/get_extended_hours_price are ttl_cache'd keyed only
+    # on ticker, not provider — without this, a call made just before a
+    # switch (e.g. a None from Alpaca with no configured keys) would keep
+    # being served for up to 8-10s after switching back to Yahoo, making
+    # the switch look broken. Deferred import: avoids a circular import at
+    # module load time (data_service imports get_price_provider from this
+    # module), safe here since both modules are already fully loaded by
+    # the time anything actually calls set_price_provider.
+    from .data_service import get_extended_hours_price, get_latest_price
+
+    get_latest_price.cache.clear()
+    get_extended_hours_price.cache.clear()
