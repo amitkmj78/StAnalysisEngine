@@ -994,6 +994,26 @@ create table if not exists pit_analyst_rating (
 );
 create index if not exists pit_analyst_rating_ticker_date_idx on pit_analyst_rating(ticker, as_of_date desc);
 
+-- Shared, ticker-keyed (not user-scoped) LLM sentiment reading — one row
+-- per ticker per day, reused across every user/portfolio holding that
+-- ticker, same sharing rationale as the yfinance cache. This is a
+-- "current reading" display only, not a 5d/10d forecast: see
+-- docs/market-direction-sentiment-requirements.md 9a-9c, where a related
+-- predictive sentiment signal failed its own backtest validation gate
+-- four separate times. label/reasoning are nullable because a failed
+-- LLM call or unparseable response degrades that one ticker to "unknown"
+-- rather than blocking the rest of the portfolio.
+create table if not exists ticker_sentiment_snapshots (
+  id bigint generated always as identity primary key,
+  ticker text not null,
+  as_of_date date not null,
+  label text,
+  reasoning text,
+  updated_at timestamptz not null default now(),
+  unique (ticker, as_of_date)
+);
+create index if not exists ticker_sentiment_snapshots_ticker_date_idx on ticker_sentiment_snapshots(ticker, as_of_date desc);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -1047,6 +1067,8 @@ grant select on pit_quant_signal to app_user;
 grant select, insert on pit_quant_signal to app_service;
 grant select on pit_analyst_rating to app_user;
 grant select, insert on pit_analyst_rating to app_service;
+grant select on ticker_sentiment_snapshots to app_user;
+grant select, insert on ticker_sentiment_snapshots to app_service;
 -- update needed: scan_portfolios_for_drops refreshes an already-alerted
 -- row in place (see web/backend/portfolio_alerts.py) rather than only
 -- ever inserting new ones.

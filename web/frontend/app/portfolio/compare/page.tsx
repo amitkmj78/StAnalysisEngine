@@ -11,6 +11,7 @@ import {
   getPortfolio1yForecast,
   getPortfolioInsights,
   getPortfolioPerformance,
+  getPortfolioSentiment,
   getPortfolioSummary,
   refreshPortfolioInsights,
 } from "@/lib/api";
@@ -21,6 +22,7 @@ import type {
   PortfolioInsight,
   PortfolioPerformance,
   PortfolioSummary,
+  TickerSentiment,
 } from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
@@ -64,6 +66,12 @@ const SIGNAL_BADGE_CLASS: Record<string, string> = {
   HOLD: "bg-slate-100 text-slate-600",
 };
 
+const SENTIMENT_BADGE_CLASS: Record<string, string> = {
+  Bullish: "bg-emerald-50 text-emerald-700",
+  Bearish: "bg-red-50 text-red-700",
+  Neutral: "bg-slate-100 text-slate-600",
+};
+
 const MATCHED_WINDOWS = [
   { label: "30 Days", days: 30 },
   { label: "6 Months", days: 182 },
@@ -102,6 +110,8 @@ export default function ComparePage() {
   const [insightsUpdatedAt, setInsightsUpdatedAt] = useState<string | null>(null);
   const [refreshingInsights, setRefreshingInsights] = useState(false);
   const [refreshInsightsError, setRefreshInsightsError] = useState<string | null>(null);
+  const [sentiment, setSentiment] = useState<Record<string, TickerSentiment>>({});
+  const [sentimentLoading, setSentimentLoading] = useState(false);
   const [topFunds, setTopFunds] = useState<FundRankRow[]>([]);
 
   const [fundSince, setFundSince] = useState<FundReturnSince | null>(null);
@@ -157,6 +167,30 @@ export default function ComparePage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPortfolioId, goal]);
+
+  // Separate from load() deliberately: sentiment is shared/cached across
+  // every user by ticker, but the first request each day for an
+  // uncached ticker still runs a real LLM call, so it shouldn't block the
+  // rest of this page's (fast) render — signals show first, sentiment
+  // fills in once ready.
+  useEffect(() => {
+    if (selectedPortfolioId === null) return;
+    let cancelled = false;
+    setSentimentLoading(true);
+    getPortfolioSentiment(selectedPortfolioId ?? undefined)
+      .then((res) => {
+        if (!cancelled) setSentiment(res.sentiment);
+      })
+      .catch(() => {
+        if (!cancelled) setSentiment({});
+      })
+      .finally(() => {
+        if (!cancelled) setSentimentLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPortfolioId]);
 
   async function load() {
     setLoading(true);
@@ -558,6 +592,9 @@ export default function ComparePage() {
                     <th className="px-3 py-2">Ticker</th>
                     <th className="px-3 py-2 text-right">Weight</th>
                     <th className="px-3 py-2">Signal</th>
+                    <th className="px-3 py-2" title="Today's real news/earnings sentiment reading — not a forecast">
+                      Sentiment
+                    </th>
                     <th className="px-3 py-2 text-right">10D Forecast</th>
                     <th className="px-3 py-2 text-right">30D Forecast</th>
                     <th className="px-3 py-2 text-right" title="Unvalidated — far beyond the model's backtested range">
@@ -597,6 +634,29 @@ export default function ComparePage() {
                           ) : (
                             <span className="text-slate-400">—</span>
                           )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {(() => {
+                            const s = sentiment[p.ticker];
+                            if (!s) {
+                              return (
+                                <span className="text-xs text-slate-400">
+                                  {sentimentLoading ? "…" : "—"}
+                                </span>
+                              );
+                            }
+                            if (!s.label) {
+                              return <span className="text-xs text-slate-400">unavailable</span>;
+                            }
+                            return (
+                              <span
+                                title={s.reasoning ?? undefined}
+                                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${SENTIMENT_BADGE_CLASS[s.label]}`}
+                              >
+                                {s.label}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className={`px-3 py-2 text-right font-medium ${pctClass(p.expected_return_pct)}`}>
                           {fmtPct(p.expected_return_pct)}

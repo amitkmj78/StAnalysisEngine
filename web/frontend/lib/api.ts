@@ -41,6 +41,7 @@ import type {
   PortfolioListResponse,
   PortfolioPerformance,
   PortfolioPosition,
+  PortfolioSentimentResponse,
   PortfolioStrategyRow,
   PortfolioSubmitResponse,
   PortfolioSummary,
@@ -574,6 +575,13 @@ export function refreshPortfolioInsights(portfolioId?: number) {
 
 export function getPortfolio1yForecast(ticker: string) {
   return apiFetch<Portfolio1yForecast>("/api/v1/portfolio/insights/forecast-1y", { ticker });
+}
+
+export function getPortfolioSentiment(portfolioId?: number) {
+  return apiFetch<PortfolioSentimentResponse>(
+    "/api/v1/portfolio/sentiment",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
 }
 
 export function getGoalPlan(

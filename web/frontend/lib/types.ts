@@ -545,6 +545,16 @@ export interface PortfolioInsightsResponse {
   updated_at?: string | null;
 }
 
+export interface TickerSentiment {
+  label: "Bullish" | "Neutral" | "Bearish" | null;
+  reasoning: string | null;
+}
+
+export interface PortfolioSentimentResponse {
+  sentiment: Record<string, TickerSentiment>;
+  as_of_date: string;
+}
+
 export interface PortfolioPerformanceRow {
   ticker: string;
   shares: number;

@@ -22,6 +22,7 @@ from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
 from services.positions_from_csv import positions_from_activity_csv
 from services.ranking_utils import compute_position_concentration
+from services.sentiment_service import score_tickers_sentiment
 from services.signal_publication_service import (
     DEFAULT_LOOKBACK_DAYS,
     DEFAULT_PREDICT_DAYS_AHEAD,
@@ -774,6 +775,73 @@ async def insights_forecast_1y(request: Request, ticker: str = Query(..., min_le
         "expected_return_pct": row.get("predict_expected_return_pct"),
         "target_price": row.get("predict_target_price"),
     }
+
+
+@router.get("/sentiment")
+@limiter.limit("10/minute")
+async def portfolio_sentiment(request: Request, portfolio_id: Optional[int] = None):
+    """
+    Today's real, LLM-scored news/earnings sentiment (Bullish/Neutral/
+    Bearish + one-sentence reasoning) for every ticker held in this
+    portfolio — a "current reading" display, NOT a 5-day/10-day forecast.
+    See score_ticker_sentiment's docstring for why that distinction is
+    load-bearing here (a related predictive-sentiment signal failed
+    backtest validation 4 times in this codebase).
+
+    Cached per ticker per US trading day in ticker_sentiment_snapshots —
+    shared across every user/portfolio holding that ticker (unlike
+    portfolio_insights_snapshots, which is per-user), since the same
+    ticker's sentiment reading is identical regardless of who holds it.
+    The first request for a given ticker each day computes fresh; every
+    request after that, from any user, is a cache hit.
+    """
+    await enforce_daily_quota(request, "portfolio/sentiment")
+    user_id = request.state.user["id"]
+    as_of = _eastern_today()
+
+    async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT DISTINCT ticker FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
+        )
+    tickers = [r["ticker"] for r in records]
+    if not tickers:
+        return {"sentiment": {}, "as_of_date": str(as_of)}
+
+    async with service_conn() as conn:
+        cached_rows = await conn.fetch(
+            """
+            SELECT ticker, label, reasoning FROM ticker_sentiment_snapshots
+            WHERE as_of_date = $1 AND ticker = ANY($2::text[])
+            """,
+            as_of, tickers,
+        )
+    sentiment_by_ticker = {r["ticker"]: {"label": r["label"], "reasoning": r["reasoning"]} for r in cached_rows}
+
+    missing = [t for t in tickers if t not in sentiment_by_ticker]
+    if missing:
+        llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
+        llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
+        if llms:
+            fresh = await run_in_threadpool(score_tickers_sentiment, missing, llms)
+        else:
+            fresh = {t: {"label": None, "reasoning": None} for t in missing}
+
+        async with service_conn() as conn:
+            for ticker, result in fresh.items():
+                await conn.execute(
+                    """
+                    INSERT INTO ticker_sentiment_snapshots (ticker, as_of_date, label, reasoning, updated_at)
+                    VALUES ($1, $2, $3, $4, now())
+                    ON CONFLICT (ticker, as_of_date) DO UPDATE SET
+                        label = EXCLUDED.label, reasoning = EXCLUDED.reasoning, updated_at = now()
+                    """,
+                    ticker, as_of, result["label"], result["reasoning"],
+                )
+        sentiment_by_ticker.update(fresh)
+
+    return {"sentiment": sentiment_by_ticker, "as_of_date": str(as_of)}
 
 
 @router.get("/goal-plan")
