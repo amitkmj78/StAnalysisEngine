@@ -828,14 +828,20 @@ async def portfolio_sentiment(request: Request, portfolio_id: Optional[int] = No
         else:
             fresh = {t: {"label": None, "reasoning": None} for t in missing}
 
+        # ON CONFLICT DO NOTHING, not DO UPDATE: same immutable-snapshot
+        # pattern as pit_quant_signal/pit_analyst_rating (app_service only
+        # has INSERT, not UPDATE, on this table — a DO UPDATE clause needs
+        # UPDATE privilege too). If two requests race on the same missing
+        # ticker, whichever insert lands first wins; harmless for a same-day
+        # cache, and this endpoint's response uses its own freshly computed
+        # `fresh` values regardless of which row actually persisted.
         async with service_conn() as conn:
             for ticker, result in fresh.items():
                 await conn.execute(
                     """
                     INSERT INTO ticker_sentiment_snapshots (ticker, as_of_date, label, reasoning, updated_at)
                     VALUES ($1, $2, $3, $4, now())
-                    ON CONFLICT (ticker, as_of_date) DO UPDATE SET
-                        label = EXCLUDED.label, reasoning = EXCLUDED.reasoning, updated_at = now()
+                    ON CONFLICT (ticker, as_of_date) DO NOTHING
                     """,
                     ticker, as_of, result["label"], result["reasoning"],
                 )
