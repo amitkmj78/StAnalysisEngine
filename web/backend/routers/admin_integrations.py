@@ -92,6 +92,17 @@ def _test_crawlsearch() -> str:
     return f"Reachable — {data.get('indexed_pages', '?')} pages indexed"
 
 
+def _test_alpaca() -> str:
+    from services.alpaca_client import get_alpaca_latest_price
+
+    if not (os.getenv("ALPACA_API_KEY_ID") and os.getenv("ALPACA_API_SECRET_KEY")):
+        raise RuntimeError("ALPACA_API_KEY_ID/ALPACA_API_SECRET_KEY not configured.")
+    price = get_alpaca_latest_price("AAPL")
+    if price is None:
+        raise RuntimeError("No trade returned for AAPL — check the API keys, or IEX may have no recent print.")
+    return f"Live quote OK — AAPL ${price:.2f}"
+
+
 def _test_finnhub() -> str:
     import httpx
 
@@ -116,6 +127,13 @@ INTEGRATIONS = {
         "configured": lambda: True,
         "test": _test_yfinance,
         "note": "No API key — used directly for prices/history throughout the app.",
+    },
+    "alpaca": {
+        "name": "Alpaca",
+        "category": "Market Data",
+        "configured": lambda: bool(os.getenv("ALPACA_API_KEY_ID") and os.getenv("ALPACA_API_SECRET_KEY")),
+        "test": _test_alpaca,
+        "note": "Free real-time IEX quote feed — selectable as the live-price provider below.",
     },
     "finnhub": {
         "name": "Finnhub",

@@ -4,7 +4,9 @@ from typing import Dict
 import yfinance as yf
 import pandas as pd
 
+from .alpaca_client import get_alpaca_latest_price
 from .cache_utils import ttl_cache
+from .price_provider import get_price_provider
 from .rate_limit_utils import fetch_with_backoff
 from .yfinance_cache import get_cached_history
 
@@ -74,6 +76,15 @@ def get_latest_price(ticker: str):
     """
     if not ticker:
         return None
+
+    # Admin-switchable (services/price_provider.py). Deliberately not a
+    # fallback chain: if an admin flips this to Alpaca, a None here means
+    # "Alpaca has no quote for this ticker right now" — silently falling
+    # back to yfinance would hide that from whoever's checking whether
+    # the switch actually works.
+    if get_price_provider() == "alpaca":
+        return get_alpaca_latest_price(ticker)
+
     try:
         # Short/quick retry, not fetch_with_backoff's 8s default — this is
         # polled every 1-2s by the UI, so there's no point making one
@@ -119,8 +130,17 @@ def get_extended_hours_price(ticker: str):
     Cached shorter than before (10s, not 60s) to keep pace with the price
     badge's 1s polling, but longer than get_latest_price's 2s since this
     goes through the heavier `.info` full-quote call, not fast_info.
+
+    Yahoo-only: when the admin-switchable provider (services/
+    price_provider.py) is set to Alpaca, this returns None rather than a
+    wrong answer — Alpaca's free IEX feed doesn't expose a pre/post-market
+    state the way yfinance's `.info.marketState` does, and IEX's own
+    extended-hours coverage is thin enough that deriving one from trade
+    timestamps isn't worth the false confidence.
     """
     if not ticker:
+        return None
+    if get_price_provider() == "alpaca":
         return None
     try:
         # Same short-retry rationale as get_latest_price — polled

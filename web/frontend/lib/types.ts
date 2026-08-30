@@ -666,6 +666,7 @@ export interface AdminSettings {
   db_backup_enabled: boolean;
   horizon1_subscriptions_enabled: boolean;
   free_tier_lag_days: number;
+  price_data_provider: "yahoo" | "alpaca";
 }
 
 export interface BackupRun {

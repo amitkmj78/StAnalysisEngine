@@ -899,6 +899,14 @@ export function setDailyQuota(dailyQuota: number) {
   return apiSend<{ daily_quota: number }>("/api/v1/admin/settings/daily-quota", "POST", { daily_quota: dailyQuota });
 }
 
+export function setPriceDataProvider(provider: "yahoo" | "alpaca") {
+  return apiSend<{ price_data_provider: "yahoo" | "alpaca" }>(
+    "/api/v1/admin/settings/price-data-provider",
+    "POST",
+    { provider },
+  );
+}
+
 export function enableDbBackup() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/db-backup/enable", "POST");
 }

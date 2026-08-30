@@ -13,6 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from services.price_provider import set_price_provider
+from web.backend.app_settings import PRICE_DATA_PROVIDER_DEFAULT, PRICE_DATA_PROVIDER_KEY, get_setting_str
 from web.backend.db import close_pools, init_pools
 from web.backend.rate_limit import limiter
 from web.backend.scheduler import start_scheduler, stop_scheduler
@@ -48,6 +50,10 @@ from web.backend.routers import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_pools()
+    # Restore the admin's last choice of live-quote provider — see
+    # services/price_provider.py's docstring for why this is an
+    # in-process variable rather than a DB read on every price call.
+    set_price_provider(await get_setting_str(PRICE_DATA_PROVIDER_KEY, default=PRICE_DATA_PROVIDER_DEFAULT))
     start_scheduler()
     yield
     stop_scheduler()

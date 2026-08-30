@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import IntegrationsPanel from "@/components/admin/IntegrationsPanel";
+import PriceProviderControls from "@/components/admin/PriceProviderControls";
 import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
 
@@ -22,7 +23,8 @@ export default async function AdminIntegrationsPage() {
         exhaustion and the retired Groq model were found this session — only by checking manually).
       </p>
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-col gap-4">
+        <PriceProviderControls />
         <IntegrationsPanel />
       </div>
     </div>

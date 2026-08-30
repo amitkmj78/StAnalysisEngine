@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from services.price_provider import PRICE_PROVIDERS, set_price_provider
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
     DAILY_QUOTA_DEFAULT,
@@ -16,14 +17,18 @@ from web.backend.app_settings import (
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
     PORTFOLIO_DROP_THRESHOLD_DEFAULT,
     PORTFOLIO_DROP_THRESHOLD_PCT_KEY,
+    PRICE_DATA_PROVIDER_DEFAULT,
+    PRICE_DATA_PROVIDER_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
     get_setting_float,
     get_setting_int,
+    get_setting_str,
     set_setting_bool,
     set_setting_float,
     set_setting_int,
+    set_setting_str,
 )
 
 router = APIRouter(
@@ -54,6 +59,7 @@ async def get_settings():
         "db_backup_enabled": await get_setting_bool(DB_BACKUP_ENABLED_KEY, default=True),
         "horizon1_subscriptions_enabled": await get_setting_bool(HORIZON1_SUBSCRIPTIONS_ENABLED_KEY, default=False),
         "free_tier_lag_days": await get_setting_int(FREE_TIER_LAG_DAYS_KEY, default=FREE_TIER_LAG_DAYS_DEFAULT),
+        "price_data_provider": await get_setting_str(PRICE_DATA_PROVIDER_KEY, default=PRICE_DATA_PROVIDER_DEFAULT),
     }
 
 
@@ -209,3 +215,19 @@ class FreeTierLagDaysUpdate(BaseModel):
 async def set_free_tier_lag_days(body: FreeTierLagDaysUpdate):
     await set_setting_int(FREE_TIER_LAG_DAYS_KEY, body.free_tier_lag_days)
     return {"free_tier_lag_days": body.free_tier_lag_days}
+
+
+class PriceDataProviderUpdate(BaseModel):
+    provider: str
+
+
+@router.post("/price-data-provider")
+async def set_price_data_provider(body: PriceDataProviderUpdate):
+    """Switches which live-quote source get_latest_price/
+    get_extended_hours_price use, effective on the very next price
+    request — no restart needed (see services/price_provider.py)."""
+    if body.provider not in PRICE_PROVIDERS:
+        raise HTTPException(422, f"provider must be one of {PRICE_PROVIDERS}")
+    await set_setting_str(PRICE_DATA_PROVIDER_KEY, body.provider)
+    set_price_provider(body.provider)
+    return {"price_data_provider": body.provider}

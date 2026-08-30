@@ -64,6 +64,15 @@ HORIZON1_SUBSCRIPTIONS_ENABLED_KEY = "horizon1_subscriptions_enabled"
 # PORTFOLIO_DROP_THRESHOLD_PCT_KEY.
 FREE_TIER_LAG_DAYS_KEY = "free_tier_lag_days"
 FREE_TIER_LAG_DAYS_DEFAULT = 7
+# Which live-quote source get_latest_price/get_extended_hours_price
+# (services/data_service.py) use: "yahoo" (yfinance, unofficial/scraped,
+# free) or "alpaca" (Alpaca's free real-time IEX feed, needs
+# ALPACA_API_KEY_ID/ALPACA_API_SECRET_KEY). Defaults "yahoo" to preserve
+# existing behavior. Persisted here (survives a restart) but the value
+# actually read at request time is services.price_provider's in-process
+# cache — see that module's docstring for why.
+PRICE_DATA_PROVIDER_KEY = "price_data_provider"
+PRICE_DATA_PROVIDER_DEFAULT = "yahoo"
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:
@@ -106,6 +115,24 @@ async def set_setting_float(key: str, value: float) -> None:
             ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
             """,
             key, str(value),
+        )
+
+
+async def get_setting_str(key: str, default: str) -> str:
+    async with service_conn() as conn:
+        value = await conn.fetchval("SELECT value FROM app_settings WHERE key = $1", key)
+    return value if value is not None else default
+
+
+async def set_setting_str(key: str, value: str) -> None:
+    async with service_conn() as conn:
+        await conn.execute(
+            """
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES ($1, $2, now())
+            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+            """,
+            key, value,
         )
 
 
