@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 
 from services.data_service import get_latest_price
-from services.fund_comparison_service import price_near_date
+from services.fund_comparison_service import price_near_date, rank_funds_by_inception
 from services.index_fund_service import GOAL_WEIGHTS, rank_index_funds, score_fund_ticker
 
 from web.backend.auth import verify_bearer_token
@@ -64,6 +64,28 @@ async def rank(request: Request, goal: str = Query(...), category: str = Query("
         raise HTTPException(422, f"category must be one of {FUND_CATEGORIES}")
 
     df = await run_in_threadpool(rank_index_funds, goal, category)
+    return {"results": records_safe(df)}
+
+
+@router.get("/rank-by-inception")
+@limiter.limit("10/minute")
+async def rank_by_inception(
+    request: Request,
+    min_years: int = Query(..., ge=1, le=50),
+    category: str = Query("All"),
+):
+    """
+    Funds with at least `min_years` of real trading history, ranked by
+    their real since-inception % return — a long-run track record view.
+    Same cost profile as /rank (built on the same cached fund table),
+    plus one "max"-period price lookup per surviving fund, so same
+    quota tier.
+    """
+    await enforce_daily_quota(request, "index-fund/rank-by-inception")
+    if category not in FUND_CATEGORIES:
+        raise HTTPException(422, f"category must be one of {FUND_CATEGORIES}")
+
+    df = await run_in_threadpool(rank_funds_by_inception, min_years, category)
     return {"results": records_safe(df)}
 
 

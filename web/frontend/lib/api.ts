@@ -239,6 +239,13 @@ export function getFundRanking(goal: string, category: string) {
   return apiFetch<FundRankResponse>("/api/v1/index-fund/rank", { goal, category });
 }
 
+export function getFundsByInception(minYears: number, category: string) {
+  return apiFetch<FundRankResponse>("/api/v1/index-fund/rank-by-inception", {
+    min_years: String(minYears),
+    category,
+  });
+}
+
 export function getFundScore(goal: string, ticker: string) {
   return apiFetch<FundScoreResponse>("/api/v1/index-fund/score", { goal, ticker });
 }

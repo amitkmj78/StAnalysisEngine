@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import TickerSearchInput from "@/components/TickerSearchInput";
-import { ApiError, getFundCategories, getFundGoals, getFundRanking, getFundScore } from "@/lib/api";
+import { ApiError, getFundCategories, getFundGoals, getFundRanking, getFundScore, getFundsByInception } from "@/lib/api";
 import type { FundRankRow } from "@/lib/types";
 
 const DISPLAY_COLUMNS = ["Ticker", "Fund", "Category", "Price", "Score", "Expense Ratio %", "1Y Return %", "3Y Annualized %"];
+const INCEPTION_DISPLAY_COLUMNS = ["Ticker", "Fund", "Category", "Price", "Years Since Inception", "Since Inception Return %"];
+const MIN_YEARS_OPTIONS = [5, 10, 15, 20, 25];
 
 const TEXT_COLUMNS = new Set(["Ticker", "Fund", "Category"]);
 
@@ -33,15 +35,27 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
       "Lower is better. It's factored into every Goal's Score, from a minor 5% weight under \"Best Growth\" up to being the single biggest factor (65%) under \"Lowest Cost.\"",
     ],
   },
+  "Since Inception Return %": {
+    title: "Since Inception Return",
+    body: [
+      "Real, point-in-time return from the fund's actual inception date to now (inception-date price vs. current price) — not an annualized figure, and not a prediction.",
+      "Funds missing a disclosed inception date are excluded from this ranking rather than guessed at.",
+    ],
+  },
+  "Years Since Inception": {
+    title: "Years Since Inception",
+    body: ["How long the fund has actually existed, based on its disclosed inception date — the minimum you set filters out anything younger than that."],
+  },
 };
 
 export default function IndexFundPage() {
-  const [mode, setMode] = useState<"rank" | "score">("rank");
+  const [mode, setMode] = useState<"rank" | "score" | "inception">("rank");
   const [goal, setGoal] = useState("Balanced Core");
   const [goals, setGoals] = useState<string[]>(["Balanced Core"]);
   const [categories, setCategories] = useState<string[]>(["All"]);
   const [category, setCategory] = useState("All");
   const [ticker, setTicker] = useState("VOO");
+  const [minYears, setMinYears] = useState(10);
 
   const [results, setResults] = useState<FundRankRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -75,6 +89,9 @@ export default function IndexFundPage() {
       if (mode === "rank") {
         const res = await getFundRanking(goal, category);
         setResults(res.results);
+      } else if (mode === "inception") {
+        const res = await getFundsByInception(minYears, category);
+        setResults(res.results);
       } else {
         const res = await getFundScore(goal, ticker.trim().toUpperCase());
         setResults(res.result ? [res.result] : []);
@@ -88,6 +105,7 @@ export default function IndexFundPage() {
   }
 
   const winner = results[0];
+  const activeColumns = mode === "inception" ? INCEPTION_DISPLAY_COLUMNS : DISPLAY_COLUMNS;
 
   const sortedResults = sortColumn
     ? [...results].sort((a, b) => {
@@ -124,13 +142,18 @@ export default function IndexFundPage() {
         </Field>
 
         <Field label="Mode">
-          <select value={mode} onChange={(e) => setMode(e.target.value as "rank" | "score")} className="input">
+          <select value={mode} onChange={(e) => setMode(e.target.value as "rank" | "score" | "inception")} className="input">
             <option value="rank">Rank a category</option>
             <option value="score">Score one fund</option>
+            <option value="inception">Since inception</option>
           </select>
         </Field>
 
-        {mode === "rank" ? (
+        {mode === "score" ? (
+          <Field label="Ticker or fund name">
+            <TickerSearchInput value={ticker} onChange={setTicker} className="input w-56" />
+          </Field>
+        ) : (
           <Field label="Category">
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="input">
               {categories.map((c) => (
@@ -140,9 +163,15 @@ export default function IndexFundPage() {
               ))}
             </select>
           </Field>
-        ) : (
-          <Field label="Ticker or fund name">
-            <TickerSearchInput value={ticker} onChange={setTicker} className="input w-56" />
+        )}
+
+        {mode === "inception" && (
+          <Field label="Minimum years since inception">
+            <select value={minYears} onChange={(e) => setMinYears(Number(e.target.value))} className="input">
+              {MIN_YEARS_OPTIONS.map((y) => (
+                <option key={y} value={y}>{y}+ years</option>
+              ))}
+            </select>
           </Field>
         )}
 
@@ -164,22 +193,50 @@ export default function IndexFundPage() {
               Top Pick: {winner.Ticker} — {winner.Fund}
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Scored highest for <strong>{goal}</strong>
-              {mode === "rank" ? ` in ${category}` : ""}.
+              {mode === "inception"
+                ? `Best since-inception return among ${category === "All" ? "all funds" : category} with ${minYears}+ years of history.`
+                : (
+                  <>
+                    Scored highest for <strong>{goal}</strong>
+                    {mode === "rank" ? ` in ${category}` : ""}.
+                  </>
+                )}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Score" value={`${winner.Score}/100`} onInfoClick={() => setInfoColumn("Score")} />
-            <MetricTile label="Price" value={`$${Number(winner.Price).toFixed(2)}`} />
-            <MetricTile
-              label="Expense Ratio"
-              value={winner["Expense Ratio %"] != null ? `${Number(winner["Expense Ratio %"]).toFixed(2)}%` : "N/A"}
-            />
-            <MetricTile
-              label="1Y Return"
-              value={winner["1Y Return %"] != null ? `${Number(winner["1Y Return %"]).toFixed(1)}%` : "N/A"}
-            />
+            {mode === "inception" ? (
+              <>
+                <MetricTile
+                  label="Since Inception"
+                  value={winner["Since Inception Return %"] != null ? `${Number(winner["Since Inception Return %"]).toFixed(1)}%` : "N/A"}
+                  onInfoClick={() => setInfoColumn("Since Inception Return %")}
+                />
+                <MetricTile
+                  label="Years Since Inception"
+                  value={winner["Years Since Inception"] != null ? `${Number(winner["Years Since Inception"]).toFixed(1)}y` : "N/A"}
+                  onInfoClick={() => setInfoColumn("Years Since Inception")}
+                />
+                <MetricTile label="Price" value={`$${Number(winner.Price).toFixed(2)}`} />
+                <MetricTile
+                  label="Expense Ratio"
+                  value={winner["Expense Ratio %"] != null ? `${Number(winner["Expense Ratio %"]).toFixed(2)}%` : "N/A"}
+                />
+              </>
+            ) : (
+              <>
+                <MetricTile label="Score" value={`${winner.Score}/100`} onInfoClick={() => setInfoColumn("Score")} />
+                <MetricTile label="Price" value={`$${Number(winner.Price).toFixed(2)}`} />
+                <MetricTile
+                  label="Expense Ratio"
+                  value={winner["Expense Ratio %"] != null ? `${Number(winner["Expense Ratio %"]).toFixed(2)}%` : "N/A"}
+                />
+                <MetricTile
+                  label="1Y Return"
+                  value={winner["1Y Return %"] != null ? `${Number(winner["1Y Return %"]).toFixed(1)}%` : "N/A"}
+                />
+              </>
+            )}
           </div>
 
           {results.length > 1 && (
@@ -187,7 +244,7 @@ export default function IndexFundPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                    {DISPLAY_COLUMNS.map((col) => (
+                    {activeColumns.map((col) => (
                       <th key={col} className="px-3 py-2">
                         <div className="flex items-center gap-1">
                           <button
@@ -218,7 +275,7 @@ export default function IndexFundPage() {
                 <tbody>
                   {sortedResults.map((row) => (
                     <tr key={row.Ticker} className="border-b border-slate-100 last:border-0">
-                      {DISPLAY_COLUMNS.map((col) => (
+                      {activeColumns.map((col) => (
                         <td key={col} className="px-3 py-2 text-slate-700">
                           {formatCell(row[col])}
                         </td>
