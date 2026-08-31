@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 
-from services.alpaca_client import get_alpaca_latest_price
+import pytest
+
+from services.alpaca_client import AlpacaSymbolNotFound, get_alpaca_latest_price
 
 
 def _fake_env():
@@ -37,3 +39,15 @@ def test_get_alpaca_latest_price_returns_none_when_no_trade_in_response():
     fake_response.json.return_value = {}
     with _fake_env(), patch("services.alpaca_client.httpx.get", return_value=fake_response):
         assert get_alpaca_latest_price("ZZZZ") is None
+
+
+def test_get_alpaca_latest_price_raises_symbol_not_found_on_404():
+    """Mutual funds (FXAIX, CMIUX, ...) never trade on any exchange, so
+    Alpaca's IEX feed always 404s for them — a confirmed, permanent
+    answer, not a transient failure, so this must be distinguishable
+    from the generic None-on-any-error case above."""
+    fake_response = MagicMock()
+    fake_response.status_code = 404
+    with _fake_env(), patch("services.alpaca_client.httpx.get", return_value=fake_response):
+        with pytest.raises(AlpacaSymbolNotFound):
+            get_alpaca_latest_price("FXAIX")

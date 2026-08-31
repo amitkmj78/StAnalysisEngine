@@ -4,7 +4,7 @@ from typing import Dict
 import yfinance as yf
 import pandas as pd
 
-from .alpaca_client import get_alpaca_latest_price
+from .alpaca_client import AlpacaSymbolNotFound, get_alpaca_latest_price
 from .cache_utils import ttl_cache
 from .price_provider import get_price_provider
 from .rate_limit_utils import fetch_with_backoff
@@ -78,12 +78,20 @@ def get_latest_price(ticker: str):
         return None
 
     # Admin-switchable (services/price_provider.py). Deliberately not a
-    # fallback chain: if an admin flips this to Alpaca, a None here means
-    # "Alpaca has no quote for this ticker right now" — silently falling
-    # back to yfinance would hide that from whoever's checking whether
-    # the switch actually works.
+    # general fallback chain: if an admin flips this to Alpaca, a None
+    # here means "Alpaca has no quote for this ticker right now" —
+    # silently falling back to yfinance would hide that from whoever's
+    # checking whether the switch actually works. The one exception is
+    # AlpacaSymbolNotFound (Alpaca's own 404): that's not an outage, it's
+    # Alpaca correctly confirming this ticker never trades on any
+    # exchange (e.g. mutual funds like FXAIX) — no Alpaca plan will ever
+    # carry that data, so falling through to Yahoo below covers a known,
+    # permanent gap rather than masking a real failure.
     if get_price_provider() == "alpaca":
-        return get_alpaca_latest_price(ticker)
+        try:
+            return get_alpaca_latest_price(ticker)
+        except AlpacaSymbolNotFound:
+            pass
 
     try:
         # Short/quick retry, not fetch_with_backoff's 8s default — this is

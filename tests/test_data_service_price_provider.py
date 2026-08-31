@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
+from services.alpaca_client import AlpacaSymbolNotFound
 from services.data_service import get_extended_hours_price, get_latest_price
 from services.price_provider import set_price_provider
 
@@ -30,6 +31,17 @@ def test_get_latest_price_does_not_fall_back_to_yahoo_when_alpaca_has_no_quote()
     assert price is None
     mock_alpaca.assert_called_once()
     mock_yahoo.assert_not_called()
+
+
+def test_get_latest_price_falls_back_to_yahoo_when_alpaca_confirms_symbol_not_found():
+    """Mutual funds (FXAIX, ...) 404 on Alpaca permanently — that's the
+    one case that should fall through to Yahoo, unlike a plain None."""
+    set_price_provider("alpaca")
+    with patch(
+        "services.data_service.get_alpaca_latest_price", side_effect=AlpacaSymbolNotFound("FXAIX")
+    ), patch("services.data_service.fetch_with_backoff", return_value=88.0):
+        price = get_latest_price("ALPACA_TEST_TICKER_5")
+    assert price == 88.0
 
 
 def test_get_extended_hours_price_returns_none_when_alpaca_selected():
