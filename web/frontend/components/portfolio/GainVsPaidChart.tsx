@@ -13,6 +13,7 @@ export default function GainVsPaidChart({ rows }: { rows: PortfolioPerformanceRo
       <PlotlyChart
         data={[
           {
+            name: "Gain vs. cost",
             x: charted.map((r) => r.ticker),
             y: charted.map((r) => r.gain_vs_cost_pct),
             type: "bar",
@@ -26,15 +27,34 @@ export default function GainVsPaidChart({ rows }: { rows: PortfolioPerformanceRo
             textposition: "outside",
             hovertemplate: "%{x}<br>%{y:.1f}%<br>%{text}<extra></extra>",
           },
+          {
+            name: "Equity (value now)",
+            x: charted.map((r) => r.ticker),
+            y: charted.map((r) => r.value_now),
+            yaxis: "y2",
+            type: "scatter",
+            mode: "lines+markers",
+            line: { color: "#3b82f6", width: 2 },
+            marker: { color: "#3b82f6", size: 7 },
+            hovertemplate: "%{x}<br>Equity: $%{y:,.0f}<extra></extra>",
+          },
         ]}
         layout={{
-          title: { text: "Gain vs. Paid, by Position" },
+          title: { text: "Gain vs. Paid & Equity, by Position" },
           yaxis: { title: { text: "% vs. average cost" }, zeroline: true, zerolinecolor: "#cbd5e1" },
+          yaxis2: {
+            title: { text: "Equity ($)" },
+            overlaying: "y",
+            side: "right",
+            showgrid: false,
+            tickprefix: "$",
+          },
           xaxis: { title: { text: "" } },
+          legend: { orientation: "h", y: 1.15 },
           paper_bgcolor: "#ffffff",
           plot_bgcolor: "#ffffff",
-          height: 360,
-          margin: { t: 48, r: 16, b: 40, l: 56 },
+          height: 380,
+          margin: { t: 64, r: 56, b: 40, l: 56 },
           autosize: true,
         }}
         style={{ width: "100%" }}
