@@ -28,6 +28,7 @@ import GoalPlan from "@/components/GoalPlan";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
+import GainVsPaidChart from "@/components/portfolio/GainVsPaidChart";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 
 const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
@@ -508,6 +509,8 @@ export default function PortfolioPage() {
                   positive={performance.total_gain_vs_cost >= 0}
                 />
               </div>
+
+              <GainVsPaidChart rows={performance.rows} />
 
               <div className="mt-3 max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-white">
                 <table className="min-w-full text-sm">
