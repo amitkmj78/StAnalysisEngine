@@ -51,13 +51,17 @@ async def ask(request: Request, body: ChatRequest):
     # first, and if it fails (down, rate-limited, exhausted billing —
     # ask_meta_agent reports that as a "❌ Meta-agent crashed" string
     # rather than raising), fall through to the next configured one so a
-    # single provider outage doesn't take down chat entirely.
+    # single provider outage doesn't take down chat entirely. Same
+    # treatment for the "empty message" fallback (ask_meta_agent's own
+    # last resort when a model returns no usable text at all) — that's
+    # not a real answer either, and another configured provider is worth
+    # trying before showing the user a bare warning.
     answer = "No LLM provider was available to answer."
     actual_llm = None
     for candidate in llms:
         agent = await run_in_threadpool(build_agent, candidate)
         answer = await run_in_threadpool(ask_meta_agent, agent, ticker, body.question)
-        if not answer.startswith("❌ Meta-agent crashed:"):
+        if not answer.startswith("❌ Meta-agent crashed:") and not answer.startswith("⚠️ Meta-agent responded"):
             actual_llm = candidate
             break
 

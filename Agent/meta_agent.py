@@ -112,7 +112,12 @@ def build_agent(llm):
     ])
 
     agent_runnable = prompt | llm.bind_tools(tools)
-    return {"agent": agent_runnable, "tools": tools}
+    # `llm` (no tools bound) is kept alongside the tool-bound runnable so
+    # ask_meta_agent's post-tool-call summarization step can use a model
+    # that's structurally incapable of responding with another tool call
+    # instead of text — see the comment at that call site for why this
+    # matters.
+    return {"agent": agent_runnable, "tools": tools, "llm": llm}
 
 
 # ------------------------------------------------------------
@@ -121,6 +126,8 @@ def build_agent(llm):
 def ask_meta_agent(meta_agent, ticker: str, question: str) -> str:
     agent = meta_agent["agent"]
     tools = meta_agent["tools"]
+    llm = meta_agent["llm"]
+    combined = ""  # set below if any tools actually ran; referenced in the empty-response fallback
 
     full_input = f"""
     Analyze stock: {ticker}
@@ -165,14 +172,22 @@ def ask_meta_agent(meta_agent, ticker: str, question: str) -> str:
             combined = "\n\n".join(tool_outputs)
             log_debug("TOOL OUTPUT AGGREGATED", combined)
 
-            # Now ask LLM to summarize tool results
+            # Now ask the LLM to summarize tool results. Deliberately
+            # `llm.invoke` (no tools bound), not `agent.invoke` — the
+            # actual bug this fixes: re-invoking the tool-bound `agent`
+            # here let the model decide to call yet another tool instead
+            # of summarizing (observed with Groq's gpt-oss-20b), which
+            # left `.content` empty and silently fell through to the
+            # "empty message" warning below on every such request. A
+            # plain LLM call is structurally incapable of returning a
+            # tool call, so this always produces text.
             summary_prompt = f"""
             Summarize the following tool outputs into a final investor-ready answer:
 
             {combined}
             """
 
-            final_msg = agent.invoke({"input": summary_prompt})
+            final_msg = llm.invoke(summary_prompt)
             text = final_msg.content
         else:
             text = raw_response.content
@@ -184,6 +199,10 @@ def ask_meta_agent(meta_agent, ticker: str, question: str) -> str:
     # ---------------------------
     if not text or text.strip() == "":
         log_debug("EMPTY_RESPONSE_FALLBACK", "Agent returned empty output.")
+        # Real tool output beats a bare warning, if any was gathered —
+        # only fall back to the warning when there's truly nothing to show.
+        if combined.strip():
+            return combined
         return "⚠️ Meta-agent responded with an empty message."
 
     log_debug("ASK_META_AGENT — PARSED TEXT", text)
