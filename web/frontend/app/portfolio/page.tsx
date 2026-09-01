@@ -9,6 +9,7 @@ import {
   getCurrentUser,
   getPortfolioInsights,
   getPortfolioPerformance,
+  getPortfolioSentiment,
   getPortfolioStrategies,
   getPortfolioSummary,
   movePortfolioPosition,
@@ -21,6 +22,7 @@ import type {
   PortfolioPerformance,
   PortfolioStrategyRow,
   PortfolioSummary,
+  TickerSentiment,
 } from "@/lib/types";
 import Link from "next/link";
 import PlanText from "@/components/PlanText";
@@ -124,6 +126,7 @@ export default function PortfolioPage() {
   const [insights, setInsights] = useState<PortfolioInsight[]>([]);
   const [insightsError, setInsightsError] = useState<string | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [sentiment, setSentiment] = useState<Record<string, TickerSentiment>>({});
   const [performanceInfoColumn, setPerformanceInfoColumn] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -201,6 +204,25 @@ export default function PortfolioPage() {
       refresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPortfolioId]);
+
+  // Separate from refresh() deliberately, same rationale as /portfolio/
+  // compare: sentiment is shared/cached by ticker across every user, but
+  // the first request each day for an uncached ticker still runs a real
+  // LLM call, so it shouldn't block the rest of this page's (fast) render.
+  useEffect(() => {
+    if (selectedPortfolioId === null) return;
+    let cancelled = false;
+    getPortfolioSentiment(selectedPortfolioId)
+      .then((res) => {
+        if (!cancelled) setSentiment(res.sentiment);
+      })
+      .catch(() => {
+        if (!cancelled) setSentiment({});
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedPortfolioId]);
 
   useEffect(() => {
@@ -764,6 +786,7 @@ export default function PortfolioPage() {
             const isEditing = editingTicker === s.ticker;
             const extendedHours = performance?.rows.find((r) => r.ticker === s.ticker)?.extended_hours ?? null;
             const insight = insights.find((i) => i.ticker === s.ticker) ?? null;
+            const tickerSentiment = sentiment[s.ticker] ?? null;
             return (
               <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -933,7 +956,7 @@ export default function PortfolioPage() {
 
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
-                    <PlanText text={withLiveRead(s.short_term_plan, shortTermSignalNote(insight))} />
+                    <PlanText text={withLiveRead(s.short_term_plan, shortTermSignalNote(insight, tickerSentiment))} />
                   </div>
                   <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
                     <PlanText text={withLiveRead(s.long_term_plan, longTermMomentumNote(insight))} />
@@ -969,19 +992,49 @@ export default function PortfolioPage() {
 // model signal) feeds into it. These append a ticker-specific paragraph
 // using data the page has already fetched live (portfolio_insights) —
 // no extra request, and the stored plan itself is left untouched.
-function shortTermSignalNote(insight: PortfolioInsight | null): string | null {
+function shortTermSignalNote(insight: PortfolioInsight | null, sentiment: TickerSentiment | null): string | null {
   if (!insight || !insight.signal) return null;
   const expected =
     insight.expected_return_pct !== null
       ? ` (model expects ${insight.expected_return_pct >= 0 ? "+" : ""}${insight.expected_return_pct.toFixed(1)}% over its forecast horizon)`
       : "";
+
+  let signalLine: string;
   if (insight.signal === "BUY") {
-    return `The model's current signal is **BUY**${expected} — consistent with the case to keep holding here.`;
+    signalLine = `The model's current signal is **BUY**${expected} — consistent with the case to keep holding here.`;
+  } else if (insight.signal === "SELL") {
+    signalLine = `The model's current signal is **SELL**${expected} — this cuts against holding; worth watching closely, or locking in gains if you'd rather not fight the signal.`;
+  } else {
+    signalLine = `The model's current signal is **HOLD**${expected} — no strong edge either way right now.`;
   }
-  if (insight.signal === "SELL") {
-    return `The model's current signal is **SELL**${expected} — this cuts against holding; worth watching closely, or locking in gains if you'd rather not fight the signal.`;
+
+  // Signal alone clusters heavily on HOLD (BUY/SELL need a >=5%/<=-5%
+  // expected return), which made same-signal cards read as near-identical
+  // even with the % attached. Sentiment — scored per ticker from real
+  // news/earnings text — varies more, so it's appended as a second,
+  // genuinely differentiating layer rather than replacing the signal note.
+  if (!sentiment || !sentiment.label) return signalLine;
+
+  const agrees =
+    (sentiment.label === "Bullish" && insight.signal === "BUY") ||
+    (sentiment.label === "Bearish" && insight.signal === "SELL");
+  const conflicts =
+    (sentiment.label === "Bullish" && insight.signal === "SELL") ||
+    (sentiment.label === "Bearish" && insight.signal === "BUY");
+
+  let sentimentClause: string;
+  if (agrees) {
+    sentimentClause = `Today's news/earnings sentiment reads **${sentiment.label}** too — the two line up.`;
+  } else if (conflicts) {
+    sentimentClause = `Today's news/earnings sentiment reads **${sentiment.label}**, which cuts against the model's own call — a real tension worth digging into.`;
+  } else {
+    sentimentClause = `Today's news/earnings sentiment reads **${sentiment.label}**.`;
   }
-  return `The model's current signal is **HOLD**${expected} — no strong edge either way right now.`;
+  if (sentiment.reasoning) {
+    sentimentClause += ` (${sentiment.reasoning})`;
+  }
+
+  return `${signalLine} ${sentimentClause}`;
 }
 
 function longTermMomentumNote(insight: PortfolioInsight | null): string | null {
