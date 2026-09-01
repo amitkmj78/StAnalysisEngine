@@ -5,6 +5,9 @@ from langchain_openai import ChatOpenAI
 import requests
 from bs4 import BeautifulSoup
 
+from services.data_service import get_latest_price
+from services.yfinance_cache import get_cached_info
+
 today_date = datetime.date.today()
 
 # Global LLM
@@ -27,7 +30,7 @@ def safe(info, key, default="N/A"):
 # -------------------------------------------------------------
 def fetch_financials(ticker):
     try:
-        return yf.Ticker(ticker).info
+        return get_cached_info(ticker) or None
     except:
         return None
 
@@ -230,8 +233,15 @@ def financial_analysis(ticker: str, llm=None) -> str:
     if not info:
         return f"No financial data available for {ticker}."
 
+    # get_latest_price, not info["currentPrice"] — same reasoning as
+    # basicAgent.get_basic_stock_info: yfinance's own currentPrice field
+    # can be stale relative to other fields in the same .info response,
+    # and two tools reporting two different "Current Price" values in
+    # one Assistant answer reads as nonsensical even when each number is
+    # individually defensible.
+    live_price = get_latest_price(ticker)
     extracted = {
-        "Current Price": safe(info, "currentPrice"),
+        "Current Price": live_price if live_price is not None else safe(info, "currentPrice"),
         "Market Cap": safe(info, "marketCap"),
         "Forward P/E": safe(info, "forwardPE"),
         "Trailing P/E": safe(info, "trailingPE"),

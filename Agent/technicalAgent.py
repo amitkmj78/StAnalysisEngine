@@ -1,5 +1,6 @@
 import pandas as pd
-import yfinance as yf
+
+from services.data_service import get_latest_price, get_stock_data
 
 
 # Utility functions
@@ -73,9 +74,18 @@ def calculate_macd(series, short_window=12, long_window=26, signal_window=9):
 
 # Define Tool 2: Stock Technical Analysis
 def get_technical_analysis(ticker: str, period: str = "1y") -> str:
+    """
+    Current Price here is get_latest_price (the same live feed every
+    other tool/page in the app uses), not the last bar of the `period`
+    history — using the lagging historical close under the same label
+    as basicAgent's live current_price meant two tool calls in the same
+    Assistant answer could report two different "Current Price" values
+    for the same moment. history is still used for the SMAs (they need
+    the full series), just via the shared cache (get_stock_data) instead
+    of an uncached yf.Ticker call.
+    """
     try:
-        stock = yf.Ticker(ticker)
-        history = stock.history(period=period)
+        history = get_stock_data(ticker, period)
 
         if history.empty:
             return f"No historical data available for {ticker}."
@@ -83,9 +93,12 @@ def get_technical_analysis(ticker: str, period: str = "1y") -> str:
         history['SMA_20'] = history['Close'].rolling(window=20).mean()
         history['SMA_50'] = history['Close'].rolling(window=50).mean()
 
+        current_price = get_latest_price(ticker)
+        current_price_display = current_price if current_price is not None else history['Close'].iloc[-1]
+
         return f"""
         Technical analysis for {ticker} over {period}:
-        - Current Price: {history['Close'].iloc[-1]}
+        - Current Price: {current_price_display}
         - 20-day SMA: {history['SMA_20'].iloc[-1]}
         - 50-day SMA: {history['SMA_50'].iloc[-1]}
         """

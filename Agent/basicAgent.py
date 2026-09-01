@@ -1,5 +1,7 @@
-import yfinance as yf
 from datetime import datetime
+
+from services.data_service import get_latest_price
+from services.yfinance_cache import get_cached_info
 
 
 def safe(info, key, default="N/A"):
@@ -15,29 +17,35 @@ def get_basic_stock_info(ticker: str) -> str:
     """
     Returns a clean, reliable company snapshot for the given ticker.
     Always returns non-empty markdown suitable for the meta-agent.
+
+    Current Price comes from get_latest_price (the same live,
+    retry/backoff-wrapped, admin-switchable-provider price used
+    everywhere else in the app — /predict, /portfolio, /search), not
+    yfinance's own `.info['currentPrice']` field. That field is a
+    known source of self-contradictory answers: it can be stale
+    relative to `.info`'s own regularMarketDayLow/High in the same
+    response, producing a "current price" that falls outside the
+    day's own range — confusing enough that a user reported it as
+    "this information does not make any sense." Everything else here
+    (sector, market cap, P/E, targets) still comes from `.info`
+    (via the shared cache, not a raw uncached call) since those
+    fields don't carry the same same-response self-contradiction risk.
     """
 
     try:
-        stock = yf.Ticker(ticker)
-
-        # Primary data source
-        info = stock.info or {}
-
-        # If .info is empty (common now), fall back to fast_info
-        if not info:
-            try:
-                info = stock.fast_info or {}
-            except Exception:
-                info = {}
+        info = get_cached_info(ticker)
 
         if not info:
             return f"⚠️ No data found for ticker **{ticker}**."
 
+        current_price = get_latest_price(ticker)
+        current_price_str = f"{current_price:.2f}" if current_price is not None else safe(info, "currentPrice")
+
         today = datetime.now().strftime("%Y-%m-%d")
 
         return f"""
-## 📌 Basic Company Snapshot — {ticker}  
-_As of {today}_  
+## 📌 Basic Company Snapshot — {ticker}
+_As of {today}_
 
 ### 🏢 Company Profile
 - **Name:** {safe(info, 'longName')}
@@ -45,7 +53,7 @@ _As of {today}_
 - **Industry:** {safe(info, 'industry')}
 
 ### 💰 Stock Price & Valuation
-- **Current Price:** ${safe(info, 'currentPrice')}
+- **Current Price:** ${current_price_str}
 - **Market Cap:** {safe(info, 'marketCap')}
 - **Trailing P/E:** {safe(info, 'trailingPE')}
 - **Forward P/E:** {safe(info, 'forwardPE')}
@@ -68,7 +76,7 @@ _As of {today}_
 
 ---
 
-📝 _Data sourced from Yahoo Finance. Metrics may vary depending on availability._
+📝 _Current price from this app's live quote feed; other fields from Yahoo Finance. Metrics may vary depending on availability._
 """
     except Exception as e:
         return f"❌ Error fetching data for {ticker}: {e}"
