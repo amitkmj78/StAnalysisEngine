@@ -236,6 +236,7 @@ async def quant_signal_narrative(
     expected_return_pct: float = Query(...),
     target_price: float = Query(...),
     last_close: float = Query(...),
+    current_price: float | None = Query(None),
 ):
     """
     On-demand AI explanation of an already-known Quant Signal (the row
@@ -245,6 +246,12 @@ async def quant_signal_narrative(
     Real per-call LLM cost, so this is auth-required and quota-gated
     like /predict/narrative, not exposed on the public /quant-vs-analyst
     endpoint itself.
+
+    `current_price` is optional — the caller (the UI's own "Load" button
+    on the Current Price column) fetches it separately via /search/price
+    and passes it through here so the explanation can address whether
+    the move since the signal was captured is tracking the model's call.
+    Omitted, this behaves exactly as before.
     """
     await enforce_daily_quota(request, "signals/quant-vs-analyst/narrative")
 
@@ -254,7 +261,8 @@ async def quant_signal_narrative(
     llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
 
     narrative = await run_in_threadpool(
-        build_quant_signal_narrative, llms, ticker, signal, expected_return_pct, target_price, last_close
+        build_quant_signal_narrative,
+        llms, ticker, signal, expected_return_pct, target_price, last_close, current_price,
     )
     if narrative is None:
         raise HTTPException(502, "Failed to generate a narrative for this ticker.")

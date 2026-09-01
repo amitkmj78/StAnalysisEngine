@@ -994,14 +994,20 @@ export function getQuantSignalNarrative(
   expectedReturnPct: number,
   targetPrice: number,
   lastClose: number,
+  currentPrice?: number,
 ) {
-  return apiFetch<{ ticker: string; narrative: string; plain_english: string | null }>("/api/v1/signals/quant-vs-analyst/narrative", {
+  const params: Record<string, string> = {
     ticker,
     signal,
     expected_return_pct: String(expectedReturnPct),
     target_price: String(targetPrice),
     last_close: String(lastClose),
-  });
+  };
+  if (currentPrice !== undefined) params.current_price = String(currentPrice);
+  return apiFetch<{ ticker: string; narrative: string; plain_english: string | null }>(
+    "/api/v1/signals/quant-vs-analyst/narrative",
+    params,
+  );
 }
 
 export function getPredictAlgoComparison(daysAhead = 30) {

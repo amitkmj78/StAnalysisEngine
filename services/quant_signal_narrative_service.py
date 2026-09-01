@@ -43,6 +43,7 @@ def build_quant_signal_narrative(
     expected_return_pct: float,
     target_price: float,
     last_close: float,
+    current_price: Optional[float] = None,
 ) -> Optional[dict]:
     """
     `llms` is an ordered list of available providers (preferred first),
@@ -61,17 +62,43 @@ def build_quant_signal_narrative(
     decided elsewhere, by the model, not by this LLM call), and a plain-
     language rewrite must preserve that same restraint rather than
     smuggling in fresh advice just because the wording got simpler.
+
+    `current_price` (optional, a live quote the caller fetched separately
+    — this function never fetches one itself) lets the prompt address
+    whether the move since the signal was captured (last_close) is
+    tracking the model's call or has diverged from it, using the same
+    current technical picture — still descriptive, not a claim about
+    what caused the move, since correlation with today's indicators
+    isn't causation.
     """
     indicators_text = _current_indicators_text(ticker)
+
+    outcome_context = ""
+    if current_price is not None and last_close:
+        actual_pct_change = (current_price - last_close) / last_close * 100.0
+        outcome_context = (
+            f"\n\nSince this signal was captured, the price has actually moved from {last_close} to "
+            f"{current_price} ({actual_pct_change:+.2f}%), against a model forecast of "
+            f"{expected_return_pct:+.2f}% over 10 trading days. Note whether the current technical "
+            f"picture above still resembles what it looked like when the signal was likely generated, "
+            f"or has shifted — but do not claim to know why the price moved the way it did; the "
+            f"indicators only describe where things stand now, not a cause for what already happened."
+        )
 
     prompt = (
         f"The internal quant model's current signal for {ticker} is {signal}, "
         f"with an expected {expected_return_pct:+.2f}% return over the next 10 trading days "
-        f"(target price {target_price}, last close {last_close}).\n\n"
+        f"(target price {target_price}, last close {last_close})."
+        f"{outcome_context}\n\n"
         f"Current technical picture: {indicators_text}\n\n"
         "Write two short explanations of what in this technical picture is plausibly consistent "
         "with that signal — momentum, trend direction, overbought/oversold positioning, or "
-        "volatility band position. Base both only on the technical indicators given, not on "
+        "volatility band position." + (
+            " If an actual price move since the signal is given above, also note in each version "
+            "whether the current picture still supports the original call or looks different now."
+            if outcome_context
+            else ""
+        ) + " Base both only on the technical indicators (and the actual price move, if given) — not on "
         "analyst opinions, news, or earnings. Describe what the indicators show and let the "
         "reader judge — do not instruct them to buy or sell, and do not add any new opinion "
         "beyond what the indicators show.\n\n"

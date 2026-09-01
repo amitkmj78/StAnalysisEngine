@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 
 import InfoModal, { ColumnInfo } from "@/components/InfoModal";
-import { ApiError, getQuantSignalHistory, getQuantSignalNarrative, getQuantVsAnalyst } from "@/lib/api";
+import { ApiError, getCurrentPrice, getQuantSignalHistory, getQuantSignalNarrative, getQuantVsAnalyst } from "@/lib/api";
 import type { QuantSignalHistoryPoint, QuantVsAnalystResponse, QuantVsAnalystRow } from "@/lib/types";
 
 type SignalFilter = "ALL" | "BUY" | "SELL" | "HOLD";
@@ -49,6 +49,14 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
       "Click \"Why?\" next to any flip count to see exactly when the signal last changed and what moved — the model's expected return, target price, and the actual last close around that date. Pulled from the real captured history, not an AI guess.",
     ],
   },
+  current_price: {
+    title: "Current Price",
+    body: [
+      "A live quote, fetched on demand — distinct from Last Close, which is the price at the moment this signal was captured (as of the date shown at the top of the page).",
+      "The % shown next to it is the real move since the signal was captured, so you can see at a glance whether the price is actually tracking the model's call or has gone the other way.",
+      "Click \"Get AI Context\" after loading this to have the explanation address that move directly, alongside the usual technical picture.",
+    ],
+  },
 };
 
 function signalBadgeClass(signal: string): string {
@@ -76,6 +84,12 @@ interface NarrativeState {
 interface FlipState {
   status: "loading" | "error" | "ok";
   explanation?: string | null;
+  error?: string;
+}
+
+interface PriceState {
+  status: "loading" | "error" | "ok";
+  price?: number | null;
   error?: string;
 }
 
@@ -121,6 +135,7 @@ export default function SignalComparisonPage() {
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const [narratives, setNarratives] = useState<Record<string, NarrativeState>>({});
   const [flips, setFlips] = useState<Record<string, FlipState>>({});
+  const [prices, setPrices] = useState<Record<string, PriceState>>({});
 
   useEffect(() => {
     getQuantVsAnalyst()
@@ -129,15 +144,32 @@ export default function SignalComparisonPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  async function loadCurrentPrice(ticker: string) {
+    setPrices((prev) => ({ ...prev, [ticker]: { status: "loading" } }));
+    try {
+      const res = await getCurrentPrice(ticker);
+      setPrices((prev) => ({ ...prev, [ticker]: { status: "ok", price: res.price } }));
+    } catch (err) {
+      setPrices((prev) => ({
+        ...prev,
+        [ticker]: { status: "error", error: err instanceof ApiError ? err.message : "Failed to load current price." },
+      }));
+    }
+  }
+
   async function loadNarrative(row: QuantVsAnalystRow) {
     setNarratives((prev) => ({ ...prev, [row.ticker]: { status: "loading" } }));
     try {
+      const loadedPrice = prices[row.ticker];
       const res = await getQuantSignalNarrative(
         row.ticker,
         row.quant_signal,
         row.quant_expected_return_pct,
         row.quant_target_price,
         row.last_close,
+        loadedPrice?.status === "ok" && loadedPrice.price !== null && loadedPrice.price !== undefined
+          ? loadedPrice.price
+          : undefined,
       );
       setNarratives((prev) => ({
         ...prev,
@@ -310,6 +342,14 @@ export default function SignalComparisonPage() {
                     <SortableTh label="Flips" sortKeyName="signal_flip_count" info="signal_flip_count" />
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">Target</th>
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">Last Close</th>
+                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        Current Price
+                        <button onClick={() => setOpenInfo("current_price")} className="text-slate-400 hover:text-slate-600" aria-label="About Current Price">
+                          ⓘ
+                        </button>
+                      </div>
+                    </th>
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-left">
                       <div className="flex items-center gap-1">
                         Analyst Consensus
@@ -327,6 +367,7 @@ export default function SignalComparisonPage() {
                   {rows.map((r) => {
                     const narrative = narratives[r.ticker];
                     const flip = flips[r.ticker];
+                    const price = prices[r.ticker];
                     return (
                       <Fragment key={r.ticker}>
                         <tr className="border-b border-slate-100 last:border-0">
@@ -376,6 +417,47 @@ export default function SignalComparisonPage() {
                           </td>
                           <td className="px-3 py-2 text-right text-slate-600">{r.quant_target_price.toFixed(2)}</td>
                           <td className="px-3 py-2 text-right text-slate-600">{r.last_close.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right">
+                            {!price && (
+                              <button
+                                onClick={() => loadCurrentPrice(r.ticker)}
+                                className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                              >
+                                Load
+                              </button>
+                            )}
+                            {price?.status === "loading" && <span className="text-xs text-slate-400">…</span>}
+                            {price?.status === "error" && (
+                              <button
+                                onClick={() => loadCurrentPrice(r.ticker)}
+                                className="text-xs font-medium text-red-700 hover:underline"
+                              >
+                                Failed — retry
+                              </button>
+                            )}
+                            {price?.status === "ok" &&
+                              (price.price === null || price.price === undefined ? (
+                                <span className="text-xs text-slate-400">unavailable</span>
+                              ) : (
+                                (() => {
+                                  const livePrice = price.price as number;
+                                  const actualPct = ((livePrice - r.last_close) / r.last_close) * 100;
+                                  const trackingCall =
+                                    (r.quant_signal === "BUY" && actualPct >= 0) ||
+                                    (r.quant_signal === "SELL" && actualPct <= 0) ||
+                                    r.quant_signal === "HOLD";
+                                  return (
+                                    <span className="text-slate-700">
+                                      <strong>${livePrice.toFixed(2)}</strong>{" "}
+                                      <span className={trackingCall ? "text-emerald-600" : "text-red-600"}>
+                                        ({actualPct >= 0 ? "+" : ""}
+                                        {actualPct.toFixed(2)}% since signal)
+                                      </span>
+                                    </span>
+                                  );
+                                })()
+                              ))}
+                          </td>
                           <td className="px-3 py-2">
                             {r.analyst_consensus ? (
                               <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${consensusBadgeClass(r.analyst_consensus)}`}>
@@ -416,7 +498,7 @@ export default function SignalComparisonPage() {
                         </tr>
                         {narrative?.status === "ok" && (
                           <tr className="border-b border-slate-100 bg-slate-50/60 last:border-0">
-                            <td colSpan={10} className="px-3 py-2 text-xs leading-relaxed text-slate-600">
+                            <td colSpan={11} className="px-3 py-2 text-xs leading-relaxed text-slate-600">
                               {narrative.plainEnglish && (
                                 <p className="mb-2">
                                   <strong className="text-slate-700">{r.ticker} — in plain terms:</strong>{" "}
@@ -438,7 +520,7 @@ export default function SignalComparisonPage() {
                         )}
                         {flip?.status === "ok" && (
                           <tr className="border-b border-slate-100 bg-amber-50/40 last:border-0">
-                            <td colSpan={10} className="px-3 py-2 text-xs leading-relaxed text-slate-600">
+                            <td colSpan={11} className="px-3 py-2 text-xs leading-relaxed text-slate-600">
                               {flip.explanation ? (
                                 <p>
                                   <strong className="text-slate-700">{r.ticker} — most recent flip:</strong>{" "}
@@ -455,7 +537,7 @@ export default function SignalComparisonPage() {
                         )}
                         {flip?.status === "error" && (
                           <tr className="border-b border-slate-100 bg-red-50/40 last:border-0">
-                            <td colSpan={10} className="px-3 py-2 text-xs text-red-700">
+                            <td colSpan={11} className="px-3 py-2 text-xs text-red-700">
                               {flip.error}
                             </td>
                           </tr>

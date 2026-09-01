@@ -56,3 +56,34 @@ def test_build_quant_signal_narrative_returns_none_when_all_providers_fail():
     with patch("services.quant_signal_narrative_service._current_indicators_text", return_value="fake indicators"):
         result = build_quant_signal_narrative([_RaisingLLM()], "CASY", "BUY", 42.78, 1075.97, 753.58)
     assert result is None
+
+
+def test_build_quant_signal_narrative_includes_actual_move_when_current_price_given():
+    captured_prompt = {}
+
+    class _CapturingLLM:
+        def invoke(self, prompt: str):
+            captured_prompt["value"] = prompt
+            return _FakeMessage("TECHNICAL: ok\nPLAIN ENGLISH: ok")
+
+    with patch("services.quant_signal_narrative_service._current_indicators_text", return_value="fake indicators"):
+        build_quant_signal_narrative([_CapturingLLM()], "CASY", "BUY", 42.78, 1075.97, 753.58, current_price=700.0)
+
+    prompt = captured_prompt["value"]
+    assert "753.58 to 700.0" in prompt
+    assert "-7.11%" in prompt  # (700 - 753.58) / 753.58 * 100 == -7.1088...
+    assert "do not claim to know why the price moved" in prompt
+
+
+def test_build_quant_signal_narrative_omits_outcome_context_when_no_current_price():
+    captured_prompt = {}
+
+    class _CapturingLLM:
+        def invoke(self, prompt: str):
+            captured_prompt["value"] = prompt
+            return _FakeMessage("TECHNICAL: ok\nPLAIN ENGLISH: ok")
+
+    with patch("services.quant_signal_narrative_service._current_indicators_text", return_value="fake indicators"):
+        build_quant_signal_narrative([_CapturingLLM()], "CASY", "BUY", 42.78, 1075.97, 753.58)
+
+    assert "Since this signal was captured" not in captured_prompt["value"]
