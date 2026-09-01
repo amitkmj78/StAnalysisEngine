@@ -147,6 +147,7 @@ async def _merge_with_existing(conn, user_id: str, portfolio_id: int, new_holdin
 
 
 async def _save_and_respond(conn, user_id: str, portfolio_id: int, holdings_df: pd.DataFrame, risk_profile: str, risk_factor: int, source: str):
+    await _invalidate_insights_snapshot(conn, user_id, portfolio_id)
     if holdings_df.empty:
         return {"positions": [], "strategies": [], "summary": summarize_portfolio(pd.DataFrame())}
 
@@ -450,6 +451,7 @@ async def _delete_position_rows(conn, user_id: str, portfolio_id: int, ticker: s
         "DELETE FROM watchlist_alerts WHERE user_id = $1::uuid AND portfolio_id = $2 AND ticker = $3 AND source = 'portfolio_auto'",
         user_id, portfolio_id, ticker,
     )
+    await _invalidate_insights_snapshot(conn, user_id, portfolio_id)
     return True
 
 
@@ -574,6 +576,22 @@ def _eastern_today() -> date:
     date. Insights should be dated by the US trading day they were
     computed for, not the server's UTC calendar day."""
     return datetime.now(_EASTERN).date()
+
+
+async def _invalidate_insights_snapshot(conn, user_id: str, portfolio_id: int) -> None:
+    """Deletes today's cached insights snapshot for this portfolio, if
+    one exists, so the next GET /insights or /review recomputes fresh
+    instead of silently serving Signal/weight_pct/concentration numbers
+    from before this change. Without this, editing/adding/deleting/
+    moving a position leaves the cached snapshot (and everything built
+    on it, including the Portfolio Review's flagged-position weights)
+    stale until the day rolls over or someone remembers to hit Refresh
+    — exactly the bug that surfaced when a portfolio was edited (shares
+    changed, tickers added/removed) after that day's first insights load."""
+    await conn.execute(
+        "DELETE FROM portfolio_insights_snapshots WHERE user_id = $1::uuid AND portfolio_id = $2 AND as_of_date = $3",
+        user_id, portfolio_id, _eastern_today(),
+    )
 
 
 async def _compute_portfolio_insights(records) -> dict:
