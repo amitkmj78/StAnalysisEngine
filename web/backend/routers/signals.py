@@ -219,7 +219,7 @@ async def quant_signal_history(
             """
             SELECT as_of_date, signal, expected_return_pct, target_price, last_close
             FROM pit_quant_signal
-            WHERE ticker = $1 AND as_of_date >= (SELECT max(as_of_date) FROM pit_quant_signal) - $2
+            WHERE ticker = $1 AND as_of_date >= (SELECT max(as_of_date) FROM pit_quant_signal) - $2::integer
             ORDER BY as_of_date ASC
             """,
             ticker.strip().upper(), days,
