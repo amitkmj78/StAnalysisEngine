@@ -43,7 +43,7 @@ def build_quant_signal_narrative(
     expected_return_pct: float,
     target_price: float,
     last_close: float,
-) -> Optional[str]:
+) -> Optional[dict]:
     """
     `llms` is an ordered list of available providers (preferred first),
     tried in turn via invoke_with_fallback so one provider being down
@@ -51,6 +51,16 @@ def build_quant_signal_narrative(
     Returns None on total failure (every provider failed), matching the
     existing contract callers already handle (see web/backend/routers/
     signals.py's `if narrative is None: raise HTTPException(502, ...)`).
+
+    Returns {"technical": str, "plain_english": str} — the technical
+    version for a reader who already knows RSI/MACD/Bollinger, the plain
+    version translating the same facts into everyday language for one who
+    doesn't. Both explain, neither instructs ("do not tell the reader to
+    buy or sell") — that boundary is deliberate, not an oversight: this
+    function only interprets an already-computed signal (BUY/HOLD/SELL is
+    decided elsewhere, by the model, not by this LLM call), and a plain-
+    language rewrite must preserve that same restraint rather than
+    smuggling in fresh advice just because the wording got simpler.
     """
     indicators_text = _current_indicators_text(ticker)
 
@@ -59,16 +69,45 @@ def build_quant_signal_narrative(
         f"with an expected {expected_return_pct:+.2f}% return over the next 10 trading days "
         f"(target price {target_price}, last close {last_close}).\n\n"
         f"Current technical picture: {indicators_text}\n\n"
-        "In 2-4 sentences, explain what in this technical picture is plausibly consistent with "
-        "that signal — momentum, trend direction, overbought/oversold positioning, or volatility "
-        "band position. Base this only on the technical indicators given, not on analyst opinions, "
-        "news, or earnings. Describe what the indicators show and let the reader judge — do not "
-        "instruct them to buy or sell."
+        "Write two short explanations of what in this technical picture is plausibly consistent "
+        "with that signal — momentum, trend direction, overbought/oversold positioning, or "
+        "volatility band position. Base both only on the technical indicators given, not on "
+        "analyst opinions, news, or earnings. Describe what the indicators show and let the "
+        "reader judge — do not instruct them to buy or sell, and do not add any new opinion "
+        "beyond what the indicators show.\n\n"
+        "Respond in exactly this two-part format, nothing else:\n"
+        "TECHNICAL: <2-4 sentences, for a reader who already knows RSI, MACD, moving averages, "
+        "and Bollinger Bands>\n"
+        "PLAIN ENGLISH: <2-4 sentences, same facts, no jargon at all — explain what each signal "
+        "means in everyday terms (e.g. \"oversold\" as \"sold off harder than usual, possibly due "
+        "for a bounce\") as if to someone who has never looked at a stock chart>"
     )
 
     try:
         content, _ = invoke_with_fallback(llms, prompt)
-        return content
     except Exception as e:
         logger.warning("Quant signal narrative failed for %s (all providers): %s", ticker, e)
         return None
+
+    technical = None
+    plain_english = None
+    current_key = None
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.upper().startswith("TECHNICAL:"):
+            current_key = "technical"
+            technical = stripped.split(":", 1)[1].strip()
+        elif stripped.upper().startswith("PLAIN ENGLISH:"):
+            current_key = "plain_english"
+            plain_english = stripped.split(":", 1)[1].strip()
+        elif stripped and current_key == "technical":
+            technical = f"{technical} {stripped}".strip()
+        elif stripped and current_key == "plain_english":
+            plain_english = f"{plain_english} {stripped}".strip()
+
+    if technical is None and plain_english is None:
+        # Model didn't follow the format — fall back to showing the whole
+        # response as the technical field rather than discarding a real
+        # answer just because it wasn't split into two labeled parts.
+        return {"technical": content.strip(), "plain_english": None}
+    return {"technical": technical, "plain_english": plain_english}

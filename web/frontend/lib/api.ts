@@ -958,7 +958,7 @@ export function getQuantSignalNarrative(
   targetPrice: number,
   lastClose: number,
 ) {
-  return apiFetch<{ ticker: string; narrative: string }>("/api/v1/signals/quant-vs-analyst/narrative", {
+  return apiFetch<{ ticker: string; narrative: string; plain_english: string | null }>("/api/v1/signals/quant-vs-analyst/narrative", {
     ticker,
     signal,
     expected_return_pct: String(expectedReturnPct),

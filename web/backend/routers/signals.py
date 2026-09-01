@@ -230,7 +230,7 @@ async def quant_signal_narrative(
     )
     if narrative is None:
         raise HTTPException(502, "Failed to generate a narrative for this ticker.")
-    return {"ticker": ticker, "narrative": narrative}
+    return {"ticker": ticker, "narrative": narrative["technical"], "plain_english": narrative["plain_english"]}
 
 
 @router.get("/published/compare-to-predict-algo")

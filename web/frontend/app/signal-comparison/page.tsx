@@ -68,6 +68,7 @@ function consensusBadgeClass(consensus: string | null): string {
 interface NarrativeState {
   status: "loading" | "error" | "ok";
   text?: string;
+  plainEnglish?: string | null;
   error?: string;
 }
 
@@ -102,7 +103,10 @@ export default function SignalComparisonPage() {
         row.quant_target_price,
         row.last_close,
       );
-      setNarratives((prev) => ({ ...prev, [row.ticker]: { status: "ok", text: res.narrative } }));
+      setNarratives((prev) => ({
+        ...prev,
+        [row.ticker]: { status: "ok", text: res.narrative, plainEnglish: res.plain_english },
+      }));
     } catch (err) {
       setNarratives((prev) => ({
         ...prev,
@@ -344,7 +348,22 @@ export default function SignalComparisonPage() {
                         {narrative?.status === "ok" && (
                           <tr className="border-b border-slate-100 bg-slate-50/60 last:border-0">
                             <td colSpan={10} className="px-3 py-2 text-xs leading-relaxed text-slate-600">
-                              <strong className="text-slate-700">{r.ticker} — quant technical context:</strong> {narrative.text}
+                              {narrative.plainEnglish && (
+                                <p className="mb-2">
+                                  <strong className="text-slate-700">{r.ticker} — in plain terms:</strong>{" "}
+                                  {narrative.plainEnglish}
+                                </p>
+                              )}
+                              <p className="text-slate-500">
+                                <strong className="text-slate-600">
+                                  {r.ticker} — quant technical context:
+                                </strong>{" "}
+                                {narrative.text}
+                              </p>
+                              <p className="mt-2 text-[11px] italic text-slate-400">
+                                This explains what the indicators show, not investment advice — the model&apos;s own{" "}
+                                {r.quant_signal} call above is a forecast, not a guarantee.
+                              </p>
                             </td>
                           </tr>
                         )}
