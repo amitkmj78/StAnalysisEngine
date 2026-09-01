@@ -3,8 +3,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 
 import InfoModal, { ColumnInfo } from "@/components/InfoModal";
-import { ApiError, getQuantSignalNarrative, getQuantVsAnalyst } from "@/lib/api";
-import type { QuantVsAnalystResponse, QuantVsAnalystRow } from "@/lib/types";
+import { ApiError, getQuantSignalHistory, getQuantSignalNarrative, getQuantVsAnalyst } from "@/lib/api";
+import type { QuantSignalHistoryPoint, QuantVsAnalystResponse, QuantVsAnalystRow } from "@/lib/types";
 
 type SignalFilter = "ALL" | "BUY" | "SELL" | "HOLD";
 type StabilityFilter = "ALL" | "STABLE" | "UNSTABLE";
@@ -46,6 +46,7 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
     body: [
       "How many times this ticker's Quant Signal has changed (BUY/HOLD/SELL) over its trailing captured history (up to 30 days).",
       "\"Unstable\" means it's flipped 3+ times — treat today's signal with less confidence, since it hasn't settled on a view.",
+      "Click \"Why?\" next to any flip count to see exactly when the signal last changed and what moved — the model's expected return, target price, and the actual last close around that date. Pulled from the real captured history, not an AI guess.",
     ],
   },
 };
@@ -72,6 +73,40 @@ interface NarrativeState {
   error?: string;
 }
 
+interface FlipState {
+  status: "loading" | "error" | "ok";
+  explanation?: string | null;
+  error?: string;
+}
+
+const THRESHOLD_NOTE: Record<string, string> = {
+  BUY: "crossing above the +5% threshold the model requires for a BUY call",
+  SELL: "crossing below the -5% threshold the model requires for a SELL call",
+  HOLD: "moving back inside the -5%/+5% neutral band",
+};
+
+// Pure, non-LLM: the model didn't "explain" this, the captured history
+// just shows what actually happened — where the signal was before, where
+// it is now, and what moved (expected return, which is what BUY/SELL/
+// HOLD is thresholded against). See COLUMN_INFO.quant_signal for the
+// +5%/-5% rule this is describing.
+function describeLastFlip(history: QuantSignalHistoryPoint[]): string | null {
+  for (let i = history.length - 1; i > 0; i--) {
+    const to = history[i];
+    const from = history[i - 1];
+    if (to.signal === from.signal) continue;
+    const fmtPct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+    const note = THRESHOLD_NOTE[to.signal] ?? "";
+    return (
+      `Flipped from ${from.signal} to ${to.signal} on ${to.as_of_date}${note ? ` — ${note}` : ""}. ` +
+      `The model's expected return moved from ${fmtPct(from.expected_return_pct)} to ${fmtPct(to.expected_return_pct)} ` +
+      `(target price $${from.target_price.toFixed(2)} → $${to.target_price.toFixed(2)}), while the actual last close ` +
+      `moved from $${from.last_close.toFixed(2)} to $${to.last_close.toFixed(2)} over the same period.`
+    );
+  }
+  return null;
+}
+
 export default function SignalComparisonPage() {
   const [data, setData] = useState<QuantVsAnalystResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +120,7 @@ export default function SignalComparisonPage() {
 
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const [narratives, setNarratives] = useState<Record<string, NarrativeState>>({});
+  const [flips, setFlips] = useState<Record<string, FlipState>>({});
 
   useEffect(() => {
     getQuantVsAnalyst()
@@ -111,6 +147,19 @@ export default function SignalComparisonPage() {
       setNarratives((prev) => ({
         ...prev,
         [row.ticker]: { status: "error", error: err instanceof ApiError ? err.message : "Failed to generate context." },
+      }));
+    }
+  }
+
+  async function loadFlipDetails(row: QuantVsAnalystRow) {
+    setFlips((prev) => ({ ...prev, [row.ticker]: { status: "loading" } }));
+    try {
+      const res = await getQuantSignalHistory(row.ticker, 30);
+      setFlips((prev) => ({ ...prev, [row.ticker]: { status: "ok", explanation: describeLastFlip(res.history) } }));
+    } catch (err) {
+      setFlips((prev) => ({
+        ...prev,
+        [row.ticker]: { status: "error", error: err instanceof ApiError ? err.message : "Failed to load flip history." },
       }));
     }
   }
@@ -277,6 +326,7 @@ export default function SignalComparisonPage() {
                 <tbody>
                   {rows.map((r) => {
                     const narrative = narratives[r.ticker];
+                    const flip = flips[r.ticker];
                     return (
                       <Fragment key={r.ticker}>
                         <tr className="border-b border-slate-100 last:border-0">
@@ -304,6 +354,25 @@ export default function SignalComparisonPage() {
                               {r.signal_flip_count}
                               {r.signal_unstable && " Unstable"}
                             </span>
+                            {r.signal_flip_count > 0 && !flip && (
+                              <button
+                                onClick={() => loadFlipDetails(r)}
+                                className="ml-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
+                              >
+                                Why?
+                              </button>
+                            )}
+                            {flip?.status === "loading" && (
+                              <span className="ml-1.5 text-xs text-slate-400">…</span>
+                            )}
+                            {flip?.status === "error" && (
+                              <button
+                                onClick={() => loadFlipDetails(r)}
+                                className="ml-1.5 text-xs font-medium text-red-700 hover:underline"
+                              >
+                                Retry
+                              </button>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-right text-slate-600">{r.quant_target_price.toFixed(2)}</td>
                           <td className="px-3 py-2 text-right text-slate-600">{r.last_close.toFixed(2)}</td>
@@ -364,6 +433,30 @@ export default function SignalComparisonPage() {
                                 This explains what the indicators show, not investment advice — the model&apos;s own{" "}
                                 {r.quant_signal} call above is a forecast, not a guarantee.
                               </p>
+                            </td>
+                          </tr>
+                        )}
+                        {flip?.status === "ok" && (
+                          <tr className="border-b border-slate-100 bg-amber-50/40 last:border-0">
+                            <td colSpan={10} className="px-3 py-2 text-xs leading-relaxed text-slate-600">
+                              {flip.explanation ? (
+                                <p>
+                                  <strong className="text-slate-700">{r.ticker} — most recent flip:</strong>{" "}
+                                  {flip.explanation}
+                                </p>
+                              ) : (
+                                <p className="text-slate-400">
+                                  No flip found in the last 30 captured days for {r.ticker} — the flip count above
+                                  may reflect an older change outside this window.
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                        {flip?.status === "error" && (
+                          <tr className="border-b border-slate-100 bg-red-50/40 last:border-0">
+                            <td colSpan={10} className="px-3 py-2 text-xs text-red-700">
+                              {flip.error}
                             </td>
                           </tr>
                         )}

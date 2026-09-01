@@ -832,6 +832,14 @@ export interface QuantVsAnalystResponse {
   rows: QuantVsAnalystRow[];
 }
 
+export interface QuantSignalHistoryPoint {
+  as_of_date: string;
+  signal: "BUY" | "SELL" | "HOLD" | "UNKNOWN";
+  expected_return_pct: number;
+  target_price: number;
+  last_close: number;
+}
+
 export interface PitReconciliationReport {
   target_date: string;
   universe_id: string;

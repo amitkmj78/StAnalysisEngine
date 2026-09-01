@@ -52,6 +52,7 @@ import type {
   PredictionNarrative,
   PredictionSummary,
   PublishedSignalsResponse,
+  QuantSignalHistoryPoint,
   QuantVsAnalystResponse,
   SavedBaselineSnapshot,
   SavedGoal,
@@ -969,6 +970,13 @@ export function getQuantVsAnalyst(asOfDate?: string) {
   return apiFetch<QuantVsAnalystResponse>(
     "/api/v1/signals/quant-vs-analyst",
     asOfDate ? { as_of_date: asOfDate } : undefined,
+  );
+}
+
+export function getQuantSignalHistory(ticker: string, days = 30) {
+  return apiFetch<{ ticker: string; history: QuantSignalHistoryPoint[] }>(
+    "/api/v1/signals/quant-vs-analyst/history",
+    { ticker, days: String(days) },
   );
 }
 

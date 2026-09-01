@@ -199,6 +199,34 @@ async def quant_vs_analyst(
     }
 
 
+@router.get("/quant-vs-analyst/history", dependencies=[Depends(verify_bearer_token)])
+@limiter.limit("30/minute")
+async def quant_signal_history(
+    request: Request,
+    ticker: str = Query(...),
+    days: int = Query(30, ge=1, le=90),
+):
+    """
+    One ticker's real captured Quant Signal history (pit_quant_signal) —
+    same trailing window signal_flip_count above is computed from, just
+    returned row by row instead of collapsed to a count. Lets the UI show
+    *when* a signal last changed and what expected_return_pct/target_price
+    actually did around that date, rather than just "it flipped N times."
+    No LLM involved — this is the real captured data, not an inference.
+    """
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT as_of_date, signal, expected_return_pct, target_price, last_close
+            FROM pit_quant_signal
+            WHERE ticker = $1 AND as_of_date >= (SELECT max(as_of_date) FROM pit_quant_signal) - $2
+            ORDER BY as_of_date ASC
+            """,
+            ticker.strip().upper(), days,
+        )
+    return {"ticker": ticker.strip().upper(), "history": [_record_to_dict(r) for r in rows]}
+
+
 @router.get("/quant-vs-analyst/narrative", dependencies=[Depends(verify_bearer_token)])
 @limiter.limit("20/minute")
 async def quant_signal_narrative(
