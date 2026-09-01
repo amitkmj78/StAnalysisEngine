@@ -29,6 +29,7 @@ import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import GainVsPaidChart from "@/components/portfolio/GainVsPaidChart";
+import PortfolioReviewCard from "@/components/portfolio/PortfolioReviewCard";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 
 const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
@@ -464,6 +465,8 @@ export default function PortfolioPage() {
           <MetricTile label="Unrealized PnL" value={`${summary.total_pnl_pct.toFixed(2)}%`} />
         </div>
       )}
+
+      {summary && summary.total_positions > 0 && <PortfolioReviewCard portfolioId={selectedPortfolioId} />}
 
       {summary && summary.total_positions > 0 && (
         <div className="mt-6">

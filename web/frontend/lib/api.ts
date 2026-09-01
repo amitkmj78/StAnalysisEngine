@@ -41,6 +41,7 @@ import type {
   PortfolioListResponse,
   PortfolioPerformance,
   PortfolioPosition,
+  PortfolioReviewResponse,
   PortfolioSentimentResponse,
   PortfolioStrategyRow,
   PortfolioSubmitResponse,
@@ -602,6 +603,13 @@ export function getPortfolio1yForecast(ticker: string) {
 export function getPortfolioSentiment(portfolioId?: number) {
   return apiFetch<PortfolioSentimentResponse>(
     "/api/v1/portfolio/sentiment",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
+}
+
+export function getPortfolioReview(portfolioId?: number) {
+  return apiFetch<PortfolioReviewResponse>(
+    "/api/v1/portfolio/review",
     portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
   );
 }

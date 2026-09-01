@@ -22,6 +22,7 @@ from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
 from services.positions_from_csv import positions_from_activity_csv
 from services.ranking_utils import compute_position_concentration
+from services.portfolio_review_service import build_portfolio_review, flag_positions
 from services.sentiment_service import score_tickers_sentiment
 from services.signal_publication_service import (
     DEFAULT_LOOKBACK_DAYS,
@@ -667,6 +668,43 @@ async def _save_insights_snapshot(conn, user_id: str, portfolio_id: int, as_of: 
     return row["updated_at"]
 
 
+async def _get_or_compute_insights(conn, user_id: str, resolved_portfolio_id: int, as_of: date) -> dict:
+    """Shared by GET /insights and GET /review: today's snapshot if it
+    already exists, else compute-and-save it. Factored out so /review can
+    reuse the exact same (expensive, cached-by-day) computation rather
+    than triggering its own redundant model run."""
+    snapshot = await conn.fetchrow(
+        """
+        SELECT positions, concentration_threshold_pct, predict_period, predict_days_ahead,
+               lookback_days, updated_at
+        FROM portfolio_insights_snapshots
+        WHERE user_id = $1::uuid AND portfolio_id = $2 AND as_of_date = $3
+        """,
+        user_id, resolved_portfolio_id, as_of,
+    )
+    if snapshot is not None:
+        return {
+            "positions": json.loads(snapshot["positions"]),
+            "concentration_threshold_pct": snapshot["concentration_threshold_pct"],
+            "predict_period": snapshot["predict_period"],
+            "predict_days_ahead": snapshot["predict_days_ahead"],
+            "lookback_days": snapshot["lookback_days"],
+            "as_of_date": str(as_of),
+            "updated_at": snapshot["updated_at"].isoformat(),
+        }
+
+    records = await conn.fetch(
+        "SELECT ticker, shares, current_price FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2",
+        user_id, resolved_portfolio_id,
+    )
+    if not records:
+        return {"positions": [], "as_of_date": str(as_of), "updated_at": None}
+
+    result = await _compute_portfolio_insights(records)
+    updated_at = await _save_insights_snapshot(conn, user_id, resolved_portfolio_id, as_of, result)
+    return {**result, "as_of_date": str(as_of), "updated_at": updated_at.isoformat()}
+
+
 @router.get("/insights")
 @limiter.limit("10/minute")
 async def portfolio_insights(request: Request, portfolio_id: Optional[int] = None):
@@ -693,38 +731,9 @@ async def portfolio_insights(request: Request, portfolio_id: Optional[int] = Non
 
     async with user_conn(user_id) as conn:
         resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        result = await _get_or_compute_insights(conn, user_id, resolved_portfolio_id, as_of)
 
-        snapshot = await conn.fetchrow(
-            """
-            SELECT positions, concentration_threshold_pct, predict_period, predict_days_ahead,
-                   lookback_days, updated_at
-            FROM portfolio_insights_snapshots
-            WHERE user_id = $1::uuid AND portfolio_id = $2 AND as_of_date = $3
-            """,
-            user_id, resolved_portfolio_id, as_of,
-        )
-        if snapshot is not None:
-            return {
-                "positions": json.loads(snapshot["positions"]),
-                "concentration_threshold_pct": snapshot["concentration_threshold_pct"],
-                "predict_period": snapshot["predict_period"],
-                "predict_days_ahead": snapshot["predict_days_ahead"],
-                "lookback_days": snapshot["lookback_days"],
-                "as_of_date": str(as_of),
-                "updated_at": snapshot["updated_at"].isoformat(),
-            }
-
-        records = await conn.fetch(
-            "SELECT ticker, shares, current_price FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2",
-            user_id, resolved_portfolio_id,
-        )
-        if not records:
-            return {"positions": [], "as_of_date": str(as_of), "updated_at": None}
-
-        result = await _compute_portfolio_insights(records)
-        updated_at = await _save_insights_snapshot(conn, user_id, resolved_portfolio_id, as_of, result)
-
-    return {**result, "as_of_date": str(as_of), "updated_at": updated_at.isoformat()}
+    return result
 
 
 @router.post("/insights/refresh")
@@ -848,6 +857,70 @@ async def portfolio_sentiment(request: Request, portfolio_id: Optional[int] = No
         sentiment_by_ticker.update(fresh)
 
     return {"sentiment": sentiment_by_ticker, "as_of_date": str(as_of)}
+
+
+@router.get("/review")
+@limiter.limit("10/minute")
+async def portfolio_review(request: Request, portfolio_id: Optional[int] = None):
+    """
+    AI-assisted "what needs a look" review across the whole portfolio.
+    Reuses today's already-computed Signal/concentration (portfolio_
+    insights_snapshots, via the same helper GET /insights uses — no
+    fresh model run) and Sentiment (ticker_sentiment_snapshots, read-only
+    here — no fresh LLM sentiment calls; a ticker not yet scored today
+    just shows as unavailable rather than triggering its own fill).
+
+    Flagging is deterministic Python (SELL signal, concentrated,
+    sentiment/signal agreement — see services.portfolio_review_service.
+    flag_positions), so it's always available even if every LLM provider
+    is down; the one LLM call only turns an already-flagged list into a
+    readable paragraph, same "explain, don't instruct" boundary as the
+    Quant Signal AI Context.
+    """
+    await enforce_daily_quota(request, "portfolio/review")
+    user_id = request.state.user["id"]
+    as_of = _eastern_today()
+
+    async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        insights = await _get_or_compute_insights(conn, user_id, resolved_portfolio_id, as_of)
+
+    positions = insights.get("positions") or []
+    if not positions:
+        return {"summary": None, "flagged": [], "as_of_date": insights.get("as_of_date")}
+
+    tickers = [p["ticker"] for p in positions]
+    async with service_conn() as conn:
+        sentiment_rows = await conn.fetch(
+            "SELECT ticker, label FROM ticker_sentiment_snapshots WHERE as_of_date = $1 AND ticker = ANY($2::text[])",
+            as_of, tickers,
+        )
+    sentiment_by_ticker = {r["ticker"]: r["label"] for r in sentiment_rows}
+
+    enriched = [{**p, "sentiment_label": sentiment_by_ticker.get(p["ticker"])} for p in positions]
+    flagged = flag_positions(enriched)
+
+    summary = None
+    if flagged:
+        llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
+        llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
+        if llms:
+            summary = await run_in_threadpool(build_portfolio_review, llms, flagged)
+
+    return {
+        "summary": summary,
+        "flagged": [
+            {
+                "ticker": f["ticker"],
+                "signal": f.get("signal"),
+                "weight_pct": f.get("weight_pct"),
+                "sentiment_label": f.get("sentiment_label"),
+                "reasons": f["reasons"],
+            }
+            for f in flagged
+        ],
+        "as_of_date": insights.get("as_of_date"),
+    }
 
 
 @router.get("/goal-plan")

@@ -567,6 +567,20 @@ export interface PortfolioSentimentResponse {
   as_of_date: string;
 }
 
+export interface FlaggedPosition {
+  ticker: string;
+  signal: "BUY" | "SELL" | "HOLD" | null;
+  weight_pct: number | null;
+  sentiment_label: "Bullish" | "Neutral" | "Bearish" | null;
+  reasons: string[];
+}
+
+export interface PortfolioReviewResponse {
+  summary: string | null;
+  flagged: FlaggedPosition[];
+  as_of_date: string | null;
+}
+
 export interface PortfolioPerformanceRow {
   ticker: string;
   shares: number;
