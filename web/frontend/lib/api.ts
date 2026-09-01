@@ -55,6 +55,7 @@ import type {
   QuantVsAnalystResponse,
   SavedBaselineSnapshot,
   SavedGoal,
+  SavedMonthlyPlan,
   SavedNarrative,
   SavedPrediction,
   SavedScreen,
@@ -344,6 +345,26 @@ export function getMonthlyPlanSummary(
     monthly_amount: String(monthlyAmount),
     years: String(years),
   });
+}
+
+export function saveMonthlyPlan(body: {
+  name: string;
+  monthly_amount: number;
+  years: number;
+  fund_goal: string;
+  fund_category: string;
+  stock_goal: string;
+  stock_universe: string;
+}) {
+  return apiSend<{ plan: SavedMonthlyPlan }>("/api/v1/monthly-plan/saved", "POST", body);
+}
+
+export function getSavedMonthlyPlans() {
+  return apiFetch<{ plans: SavedMonthlyPlan[] }>("/api/v1/monthly-plan/saved");
+}
+
+export function deleteSavedMonthlyPlan(planId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/monthly-plan/saved/${planId}`, "DELETE");
 }
 
 // Strategies

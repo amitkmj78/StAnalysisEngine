@@ -700,6 +700,30 @@ create policy saved_portfolio_goals_isolation on saved_portfolio_goals for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- A saved GET /monthly-plan/summary form (both the fund and stock side of
+-- the page share one set of inputs, run together by the same "Build Plan"
+-- click) — same inputs re-run live against current prices/rankings each
+-- time it's loaded, not a frozen snapshot of the plan itself, same
+-- rationale as saved_portfolio_goals above.
+create table if not exists saved_monthly_plans (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  name text not null default 'Monthly Plan',
+  monthly_amount real not null,
+  years integer not null,
+  fund_goal text not null,
+  fund_category text not null,
+  stock_goal text not null,
+  stock_universe text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists saved_monthly_plans_user_idx on saved_monthly_plans(user_id, created_at desc);
+alter table saved_monthly_plans enable row level security;
+drop policy if exists saved_monthly_plans_isolation on saved_monthly_plans;
+create policy saved_monthly_plans_isolation on saved_monthly_plans for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 -- Portfolio Compare's "Current Signals Across Your Positions" table is
 -- expensive to compute (a model trained per ticker per horizon), so it's
 -- snapshotted by US trading day rather than recomputed on every page
@@ -1031,7 +1055,7 @@ $$;
 
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
-grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens, saved_portfolio_goals, portfolio_insights_snapshots to app_user;
+grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens, saved_portfolio_goals, portfolio_insights_snapshots, saved_monthly_plans to app_user;
 grant select, update on portfolio_drop_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;

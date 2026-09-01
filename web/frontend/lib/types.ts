@@ -368,6 +368,18 @@ export interface MonthlyPlanResponse {
   projected_value: number | null;
 }
 
+export interface SavedMonthlyPlan {
+  id: number;
+  name: string;
+  monthly_amount: number;
+  years: number;
+  fund_goal: string;
+  fund_category: string;
+  stock_goal: string;
+  stock_universe: string;
+  created_at: string;
+}
+
 // Strategies
 export interface ScoreFactor {
   metric: string;

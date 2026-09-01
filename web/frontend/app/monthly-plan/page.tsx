@@ -4,8 +4,15 @@ import { useEffect, useState } from "react";
 
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import MonthlyChart from "@/components/monthly/MonthlyChart";
-import { ApiError, getMonthlyPlanOptions, getMonthlyPlanSummary } from "@/lib/api";
-import type { MonthlyPlanResponse } from "@/lib/types";
+import {
+  ApiError,
+  deleteSavedMonthlyPlan,
+  getMonthlyPlanOptions,
+  getMonthlyPlanSummary,
+  getSavedMonthlyPlans,
+  saveMonthlyPlan,
+} from "@/lib/api";
+import type { MonthlyPlanResponse, SavedMonthlyPlan } from "@/lib/types";
 
 // Same ranking engine (and same weights) as /stock-finder and /index-fund —
 // this page's "Score" is that Score, not a separate computation, so the
@@ -52,6 +59,13 @@ export default function MonthlyPlanPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [planName, setPlanName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [savedPlans, setSavedPlans] = useState<SavedMonthlyPlan[] | null>(null);
+  const [savedPlansError, setSavedPlansError] = useState<string | null>(null);
+  const [deletingPlanId, setDeletingPlanId] = useState<number | null>(null);
+
   useEffect(() => {
     getMonthlyPlanOptions()
       .then((res) => {
@@ -65,18 +79,35 @@ export default function MonthlyPlanPage() {
         setStockUniverse(res.stock_universes[0] ?? "All");
       })
       .catch(() => {});
+    loadSavedPlans();
   }, []);
 
-  async function runPlan(e: React.FormEvent) {
-    e.preventDefault();
+  async function loadSavedPlans() {
+    setSavedPlansError(null);
+    try {
+      const res = await getSavedMonthlyPlans();
+      setSavedPlans(res.plans);
+    } catch (err) {
+      setSavedPlansError(err instanceof ApiError ? err.message : "Could not load saved plans.");
+    }
+  }
+
+  async function runPlanWithParams(
+    amount: number,
+    yrs: number,
+    fGoal: string,
+    fCat: string,
+    sGoal: string,
+    sUniv: string,
+  ) {
     setLoading(true);
     setError(null);
     setFundData(null);
     setStockData(null);
     try {
       const [fundResult, stockResult] = await Promise.allSettled([
-        getMonthlyPlanSummary("Fund", fundGoal, fundCategory, monthlyAmount, years),
-        getMonthlyPlanSummary("Stock", stockGoal, stockUniverse, monthlyAmount, years),
+        getMonthlyPlanSummary("Fund", fGoal, fCat, amount, yrs),
+        getMonthlyPlanSummary("Stock", sGoal, sUniv, amount, yrs),
       ]);
 
       if (fundResult.status === "fulfilled") setFundData(fundResult.value);
@@ -88,6 +119,56 @@ export default function MonthlyPlanPage() {
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function runPlan(e: React.FormEvent) {
+    e.preventDefault();
+    await runPlanWithParams(monthlyAmount, years, fundGoal, fundCategory, stockGoal, stockUniverse);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveMessage(null);
+    try {
+      await saveMonthlyPlan({
+        name: planName.trim() || "Monthly Plan",
+        monthly_amount: monthlyAmount,
+        years,
+        fund_goal: fundGoal,
+        fund_category: fundCategory,
+        stock_goal: stockGoal,
+        stock_universe: stockUniverse,
+      });
+      setSaveMessage("Saved.");
+      setPlanName("");
+      await loadSavedPlans();
+    } catch (err) {
+      setSaveMessage(err instanceof ApiError ? err.message : "Could not save this plan.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleLoadSavedPlan(p: SavedMonthlyPlan) {
+    setMonthlyAmount(p.monthly_amount);
+    setYears(p.years);
+    setFundGoal(p.fund_goal);
+    setFundCategory(p.fund_category);
+    setStockGoal(p.stock_goal);
+    setStockUniverse(p.stock_universe);
+    runPlanWithParams(p.monthly_amount, p.years, p.fund_goal, p.fund_category, p.stock_goal, p.stock_universe);
+  }
+
+  async function handleDeleteSavedPlan(id: number) {
+    setDeletingPlanId(id);
+    try {
+      await deleteSavedMonthlyPlan(id);
+      await loadSavedPlans();
+    } catch (err) {
+      setSavedPlansError(err instanceof ApiError ? err.message : "Could not delete this plan.");
+    } finally {
+      setDeletingPlanId(null);
     }
   }
 
@@ -161,6 +242,65 @@ export default function MonthlyPlanPage() {
           {loading ? "Building…" : "Build Plan"}
         </button>
       </form>
+
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <Field label="Save this plan as">
+          <input
+            type="text"
+            value={planName}
+            onChange={(e) => setPlanName(e.target.value)}
+            placeholder="e.g. Retirement DCA"
+            className="input w-56"
+          />
+        </Field>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save Plan"}
+        </button>
+        {saveMessage && <span className="text-xs text-slate-500">{saveMessage}</span>}
+      </div>
+
+      {savedPlans !== null && savedPlans.length > 0 && (
+        <div className="mt-4 border-t border-slate-200 pt-3">
+          <div className="text-xs font-semibold text-slate-700">Saved Plans</div>
+          {savedPlansError && <p className="mt-1 text-xs text-red-600">{savedPlansError}</p>}
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {savedPlans.map((p) => (
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs"
+              >
+                <span className="text-slate-700">
+                  <span className="font-medium">{p.name}</span> — ${p.monthly_amount.toLocaleString()}/mo for{" "}
+                  {p.years} {p.years === 1 ? "year" : "years"}
+                  <span className="text-slate-400">
+                    {" "}
+                    · Fund: {p.fund_goal} ({p.fund_category}) · Stock: {p.stock_goal} ({p.stock_universe})
+                  </span>
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleLoadSavedPlan(p)}
+                    className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-600 hover:bg-slate-100"
+                  >
+                    Load
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSavedPlan(p.id)}
+                    disabled={deletingPlanId === p.id}
+                    className="rounded-md border border-red-200 px-2 py-0.5 font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {deletingPlanId === p.id ? "Deleting…" : "Delete"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {loading && <p className="mt-4 text-sm text-slate-500">Building both plans…</p>}
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
