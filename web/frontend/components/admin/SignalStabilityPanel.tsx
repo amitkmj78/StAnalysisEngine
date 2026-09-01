@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import { ApiError, getSignalStability } from "@/lib/api";
 import type { SignalStabilityFlip, SignalStabilityReport } from "@/lib/types";
 
@@ -32,6 +33,41 @@ const CLASSIFICATION_INFO: Record<SignalStabilityFlip["classification"], { label
   },
 };
 
+const FLIP_TABLE_INFO: ColumnInfo = {
+  title: "Days Captured, Flips & Current Streak",
+  body: [
+    "Days Captured: how many of the lookback window's trading days actually have a captured Quant Signal for this ticker.",
+    "Flips: how many times the signal changed (BUY/HOLD/SELL) across those captured days.",
+    "Current Streak: how many consecutive captured days the signal has held its present value — a high flip count with a long current streak means it was unstable earlier but has settled recently.",
+    "A high flip count relative to Days Captured means the signal isn't settling on a view — treat the current call with less confidence.",
+  ],
+};
+
+const CLASSIFICATION_MODAL_INFO: ColumnInfo = {
+  title: "Reading a flip: Boundary, Chase, or Model shift",
+  body: [
+    "Every signal flip is put into one of three buckets, based on what expected_return_pct and the ticker's own price actually did around that date — not a guess, computed directly from the captured numbers already shown in that row.",
+    "Boundary: expected_return_pct barely crossed the ±5% BUY/SELL cutoff — most likely noise around a view that hasn't really changed underneath.",
+    "Chase: the flip lines up with the ticker's own big same-day price move — the model re-rating it right after the move already happened, not forecasting it in advance.",
+    "Model shift: a meaningful change in the forecast that isn't explained by boundary noise or a big same-day price move — the most likely case of the model's actual view genuinely changing.",
+    "None of these labels judge whether the new signal is \"right\" — they only describe the shape of what changed.",
+  ],
+};
+
+function InfoButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
+    >
+      i
+    </button>
+  );
+}
+
 function fmtPct(v: number | null): string {
   if (v === null) return "—";
   return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
@@ -46,6 +82,7 @@ export default function SignalStabilityPanel() {
   const [report, setReport] = useState<SignalStabilityReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openInfo, setOpenInfo] = useState<ColumnInfo | null>(null);
 
   async function load(days: number) {
     setLoading(true);
@@ -105,7 +142,10 @@ export default function SignalStabilityPanel() {
               <thead>
                 <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                   <th className="px-3 py-2">Ticker</th>
-                  <th className="px-3 py-2 text-right">Days Captured</th>
+                  <th className="px-3 py-2 text-right">
+                    Days Captured
+                    <InfoButton label="What do Days Captured, Flips, and Current Streak mean?" onClick={() => setOpenInfo(FLIP_TABLE_INFO)} />
+                  </th>
                   <th className="px-3 py-2 text-right">Flips</th>
                   <th className="px-3 py-2">Current Signal</th>
                   <th className="px-3 py-2 text-right">Current Streak</th>
@@ -149,7 +189,13 @@ export default function SignalStabilityPanel() {
                   <th className="px-3 py-2">Signal Change</th>
                   <th className="px-3 py-2 text-right">Expected Return</th>
                   <th className="px-3 py-2 text-right">Price Move</th>
-                  <th className="px-3 py-2">Read</th>
+                  <th className="px-3 py-2">
+                    Read
+                    <InfoButton
+                      label="What do Boundary, Chase, and Model shift mean?"
+                      onClick={() => setOpenInfo(CLASSIFICATION_MODAL_INFO)}
+                    />
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -194,6 +240,8 @@ export default function SignalStabilityPanel() {
           </div>
         </div>
       )}
+
+      {openInfo && <InfoModal info={openInfo} onClose={() => setOpenInfo(null)} />}
     </div>
   );
 }
