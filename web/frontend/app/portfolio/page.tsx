@@ -109,6 +109,17 @@ const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
   },
 };
 
+const LIVE_READ_INFO: ColumnInfo = {
+  title: "Signal, Sentiment & Live Read",
+  body: [
+    "Signal (BUY/HOLD/SELL badge): the app's own quant model's call, based on a forecast over the next several trading days — same model used on /predict. Most positions land on HOLD by design; BUY/SELL require an expected return of at least +5%/-5% after the raw forecast is deliberately damped toward zero.",
+    "Momentum Rank: where this ticker currently sits versus the rest of the tracked universe on trailing return — a real ranking, not a prediction.",
+    "Sentiment (in Live Read): today's real news/earnings sentiment (Bullish/Neutral/Bearish), scored from actual search results — a current reading, not a 5-day/10-day forecast. \"Agrees\"/\"conflicts\" describes whether it lines up with the quant Signal above; when it says the two conflict, that's exactly the kind of tension worth digging into before acting.",
+    "\"Stance\" is a general risk-management principle for any position at that P&L level and risk profile. \"Live Read\" is what's specific to this ticker right now (Signal, Sentiment, Momentum Rank) — read both together, not the Stance sentence alone.",
+    "None of this is investment advice — it describes what the app's own signals currently show, not a recommendation.",
+  ],
+};
+
 export default function PortfolioPage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   const [allPortfolios, setAllPortfolios] = useState<Portfolio[]>([]);
@@ -128,6 +139,7 @@ export default function PortfolioPage() {
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [sentiment, setSentiment] = useState<Record<string, TickerSentiment>>({});
   const [performanceInfoColumn, setPerformanceInfoColumn] = useState<string | null>(null);
+  const [showLiveReadInfo, setShowLiveReadInfo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -951,6 +963,15 @@ export default function PortfolioPage() {
                         {insight.weight_pct.toFixed(0)}% of portfolio — concentrated
                       </span>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setShowLiveReadInfo(true)}
+                      title="What do Signal, Sentiment, and Live Read mean?"
+                      aria-label="What do Signal, Sentiment, and Live Read mean?"
+                      className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal text-slate-400 hover:border-slate-500 hover:text-slate-700"
+                    >
+                      i
+                    </button>
                   </div>
                 )}
 
@@ -981,6 +1002,8 @@ export default function PortfolioPage() {
           onClose={() => setPerformanceInfoColumn(null)}
         />
       )}
+
+      {showLiveReadInfo && <InfoModal info={LIVE_READ_INFO} onClose={() => setShowLiveReadInfo(false)} />}
     </div>
   );
 }
