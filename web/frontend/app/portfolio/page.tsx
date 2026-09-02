@@ -140,6 +140,21 @@ export default function PortfolioPage() {
   const [sentiment, setSentiment] = useState<Record<string, TickerSentiment>>({});
   const [performanceInfoColumn, setPerformanceInfoColumn] = useState<string | null>(null);
   const [showLiveReadInfo, setShowLiveReadInfo] = useState(false);
+  // Collapsed by default — with 15+ positions, every card's full Short-/
+  // Long-Term Plan text (each with its own bullets, Stance, and Live
+  // Read) made this page a very long scroll of mostly-repeated structure.
+  // The header/price/badges row alone is enough to scan a whole
+  // portfolio; the full narrative is one click away per position.
+  const [expandedTickers, setExpandedTickers] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(ticker: string) {
+    setExpandedTickers((prev) => {
+      const next = new Set(prev);
+      if (next.has(ticker)) next.delete(ticker);
+      else next.add(ticker);
+      return next;
+    });
+  }
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -734,15 +749,33 @@ export default function PortfolioPage() {
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-slate-900">Strategies</h2>
-        {strategies.length > 0 && (
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-          >
-            {refreshing ? "Refreshing…" : "Refresh with Current Market"}
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {strategies.length > 0 && (
+            <button
+              onClick={() => setExpandedTickers(new Set(strategies.map((s) => s.ticker)))}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Expand All
+            </button>
+          )}
+          {expandedTickers.size > 0 && (
+            <button
+              onClick={() => setExpandedTickers(new Set())}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Collapse All
+            </button>
+          )}
+          {strategies.length > 0 && (
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            >
+              {refreshing ? "Refreshing…" : "Refresh with Current Market"}
+            </button>
+          )}
+        </div>
       </div>
       <p className="mt-1 text-xs text-slate-500">
         Pulls today&apos;s prices for the positions you&apos;ve already saved and recomputes the plans below —
@@ -799,6 +832,7 @@ export default function PortfolioPage() {
             const extendedHours = performance?.rows.find((r) => r.ticker === s.ticker)?.extended_hours ?? null;
             const insight = insights.find((i) => i.ticker === s.ticker) ?? null;
             const tickerSentiment = sentiment[s.ticker] ?? null;
+            const isExpanded = expandedTickers.has(s.ticker);
             return (
               <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -975,14 +1009,24 @@ export default function PortfolioPage() {
                   </div>
                 )}
 
-                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
-                    <PlanText text={withLiveRead(s.short_term_plan, shortTermSignalNote(insight, tickerSentiment))} />
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(s.ticker)}
+                  className="mt-3 flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700"
+                >
+                  {isExpanded ? "▾ Hide Short-/Long-Term Plan" : "▸ Show Short-/Long-Term Plan"}
+                </button>
+
+                {isExpanded && (
+                  <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
+                      <PlanText text={withLiveRead(s.short_term_plan, shortTermSignalNote(insight, tickerSentiment))} />
+                    </div>
+                    <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
+                      <PlanText text={withLiveRead(s.long_term_plan, longTermMomentumNote(insight))} />
+                    </div>
                   </div>
-                  <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
-                    <PlanText text={withLiveRead(s.long_term_plan, longTermMomentumNote(insight))} />
-                  </div>
-                </div>
+                )}
               </div>
             );
           })}
