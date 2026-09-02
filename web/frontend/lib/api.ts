@@ -16,6 +16,10 @@ import type {
   BaselineBand,
   ChatAskResponse,
   ChatProvidersResponse,
+  CrawlSearchDomainResetResult,
+  CrawlSearchDomainSaveResult,
+  CrawlSearchDomainsResponse,
+  CrawlSearchStats,
   CrawlSearchStatus,
   CurrentPriceResponse,
   DemandReport,
@@ -1145,6 +1149,29 @@ export function getCrawlSearchStatus() {
 
 export function stopCrawlSearchCrawl() {
   return apiSend<{ stopping: boolean }>("/api/v1/admin/integrations/crawlsearch/crawl", "DELETE");
+}
+
+export function getCrawlSearchDomains() {
+  return apiFetch<CrawlSearchDomainsResponse>("/api/v1/admin/integrations/crawlsearch/domains");
+}
+
+export function saveCrawlSearchDomainOverrides(domain: string, overrides: Record<string, unknown>) {
+  return apiSend<CrawlSearchDomainSaveResult>(
+    `/api/v1/admin/integrations/crawlsearch/domains/${encodeURIComponent(domain)}`,
+    "PUT",
+    { overrides }
+  );
+}
+
+export function resetCrawlSearchDomain(domain: string) {
+  return apiSend<CrawlSearchDomainResetResult>(
+    `/api/v1/admin/integrations/crawlsearch/domains/${encodeURIComponent(domain)}`,
+    "DELETE"
+  );
+}
+
+export function getCrawlSearchStats() {
+  return apiFetch<CrawlSearchStats>("/api/v1/admin/integrations/crawlsearch/stats");
 }
 
 export function runWebSearch(query: string, maxResults = 5, includeRawContent = false) {

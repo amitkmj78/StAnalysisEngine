@@ -307,3 +307,52 @@ async def stop_crawlsearch_crawl():
     immediately but the run itself ends a moment later; poll GET
     /crawlsearch/crawl to see it land."""
     return await run_in_threadpool(_crawlsearch_request, "DELETE", "/api/crawl")
+
+
+# ---------------------------------------------------------------------------
+# CrawlSearch domain config — proxies to that service's own
+# GET/PUT/DELETE /api/domains and GET /api/stats (see
+# crawlsearch/domain_config.py). Per-domain overrides (max pages, depth,
+# rate limit, sitemap use, include/exclude filters, boost, enabled) live
+# in CrawlSearch's own Postgres table and take effect on the next crawl
+# cycle with no redeploy — this router just forwards reads/writes so an
+# admin doesn't need CrawlSearch's separate built-in UI.
+# ---------------------------------------------------------------------------
+
+
+class CrawlSearchDomainOverrideRequest(BaseModel):
+    # Free-form on purpose, same as CrawlSearch's own request model — the
+    # set of valid keys is validated server-side there
+    # (domain_config._validate), so this proxy doesn't restate the schema.
+    overrides: dict
+
+
+@router.get("/crawlsearch/domains")
+async def list_crawlsearch_domains():
+    """Effective per-domain config (YAML baseline + DB overrides merged),
+    joined with real index coverage — the UI's domain table is a direct
+    render of this."""
+    return await run_in_threadpool(_crawlsearch_request, "GET", "/api/domains")
+
+
+@router.put("/crawlsearch/domains/{domain}")
+async def put_crawlsearch_domain(domain: str, body: CrawlSearchDomainOverrideRequest):
+    """Replaces the stored override set for one domain. An empty
+    `overrides` dict clears it (equivalent to "reset to file")."""
+    return await run_in_threadpool(
+        _crawlsearch_request, "PUT", f"/api/domains/{domain}", json={"overrides": body.overrides}
+    )
+
+
+@router.delete("/crawlsearch/domains/{domain}")
+async def reset_crawlsearch_domain(domain: str):
+    """Clears a domain's DB overrides, resetting it to the domains.yaml
+    baseline (or removing it entirely if it isn't in the file)."""
+    return await run_in_threadpool(_crawlsearch_request, "DELETE", f"/api/domains/{domain}")
+
+
+@router.get("/crawlsearch/stats")
+async def get_crawlsearch_stats():
+    """Index-wide summary (indexed pages, retention window, per-domain
+    coverage) — shown above the domain config table for context."""
+    return await run_in_threadpool(_crawlsearch_request, "GET", "/api/stats")

@@ -1086,6 +1086,53 @@ export interface CrawlSearchStatus {
   cancelled: boolean;
 }
 
+export interface CrawlSearchDomainConfig {
+  domain: string;
+  enabled: boolean;
+  max_pages: number;
+  max_depth: number;
+  min_delay_seconds: number;
+  boost: number;
+  use_sitemap: boolean;
+  include: string[];
+  exclude: string[];
+  seeds: string[];
+  tags: string[];
+  overridden_keys: string[];
+  in_yaml: boolean;
+  pages: number;
+  last_crawled: string | null;
+}
+
+export interface CrawlSearchDomainsResponse {
+  domains: CrawlSearchDomainConfig[];
+  all_tags: string[];
+  fields: string[];
+}
+
+export interface CrawlSearchDomainSaveResult {
+  domain: string;
+  overrides: Record<string, unknown>;
+  effective: CrawlSearchDomainConfig | null;
+}
+
+export interface CrawlSearchDomainResetResult {
+  domain: string;
+  result: "reset_to_yaml" | "removed";
+}
+
+export interface CrawlSearchStats {
+  indexed_pages: number;
+  domains_with_pages: number;
+  last_crawled_at: string | null;
+  pages_last_24h: number;
+  urls_seen: number;
+  configured_domains: number;
+  enabled_domains: number;
+  retention_days: number;
+  per_domain: { domain: string; pages: number; last_crawled: string | null }[];
+}
+
 // Horizon 1 — Impersonal Research Subscription (built, kept off; see
 // docs/signal-licensing-whitelabel-requirements.md.pdf)
 export interface MySubscription {
