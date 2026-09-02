@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -122,6 +122,16 @@ const LIVE_READ_INFO: ColumnInfo = {
 
 export default function PortfolioPage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
+  // Guards against out-of-order responses: switching portfolios quickly
+  // fires a new refresh() before a slower, now-stale one (e.g. under
+  // Yahoo rate-limiting) has resolved. Without checking this ref before
+  // applying a response, the stale request's data can land *after* the
+  // fresh one and silently overwrite it with the wrong portfolio's
+  // numbers — confirmed happening in practice, not just theoretical.
+  const latestPortfolioIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    latestPortfolioIdRef.current = selectedPortfolioId;
+  }, [selectedPortfolioId]);
   const [allPortfolios, setAllPortfolios] = useState<Portfolio[]>([]);
   const [portfolioReloadSignal, setPortfolioReloadSignal] = useState(0);
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -179,46 +189,58 @@ export default function PortfolioPage() {
   const [positionActionError, setPositionActionError] = useState<string | null>(null);
 
   async function refreshPerformance(showLoading: boolean) {
+    const requestedId = selectedPortfolioId;
     if (showLoading) setPerformanceLoading(true);
     setPerformanceError(null);
     try {
-      setPerformance(await getPortfolioPerformance(30, selectedPortfolioId ?? undefined));
+      const res = await getPortfolioPerformance(30, requestedId ?? undefined);
+      if (latestPortfolioIdRef.current !== requestedId) return; // superseded by a newer portfolio switch
+      setPerformance(res);
     } catch (err) {
+      if (latestPortfolioIdRef.current !== requestedId) return;
       setPerformanceError(err instanceof ApiError ? err.message : "Could not load 30-day performance.");
     } finally {
-      if (showLoading) setPerformanceLoading(false);
+      if (showLoading && latestPortfolioIdRef.current === requestedId) setPerformanceLoading(false);
     }
   }
 
   async function refreshInsights() {
+    const requestedId = selectedPortfolioId;
     setInsightsLoading(true);
     setInsightsError(null);
     try {
-      const res = await getPortfolioInsights(selectedPortfolioId ?? undefined);
+      const res = await getPortfolioInsights(requestedId ?? undefined);
+      if (latestPortfolioIdRef.current !== requestedId) return;
       setInsights(res.positions);
     } catch (err) {
+      if (latestPortfolioIdRef.current !== requestedId) return;
       setInsightsError(err instanceof ApiError ? err.message : "Could not load signal/rank data for your holdings.");
     } finally {
-      setInsightsLoading(false);
+      if (latestPortfolioIdRef.current === requestedId) setInsightsLoading(false);
     }
   }
 
   async function refresh() {
+    const requestedId = selectedPortfolioId;
     setLoading(true);
     setError(null);
     try {
       const [stratRes, summaryRes] = await Promise.all([
-        getPortfolioStrategies(selectedPortfolioId ?? undefined),
-        getPortfolioSummary(selectedPortfolioId ?? undefined),
+        getPortfolioStrategies(requestedId ?? undefined),
+        getPortfolioSummary(requestedId ?? undefined),
       ]);
+      if (latestPortfolioIdRef.current !== requestedId) return; // a newer switch has already taken over
       setStrategies(stratRes.strategies);
       setSummary(summaryRes.summary);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load portfolio.");
+      if (latestPortfolioIdRef.current === requestedId) {
+        setError(err instanceof ApiError ? err.message : "Could not load portfolio.");
+      }
     } finally {
-      setLoading(false);
+      if (latestPortfolioIdRef.current === requestedId) setLoading(false);
     }
 
+    if (latestPortfolioIdRef.current !== requestedId) return;
     await refreshPerformance(true);
     await refreshInsights();
   }
