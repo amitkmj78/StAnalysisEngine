@@ -15,8 +15,10 @@ is exactly the case that matters most to catch).
 
 import os
 import time
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from web.backend.admin import require_admin
@@ -222,3 +224,86 @@ async def test_integration(key: str):
     if not entry["configured"]():
         return {"ok": False, "detail": f"{entry['name']} is not configured on this server.", "latency_ms": None}
     return await run_in_threadpool(_run_test, entry)
+
+
+# ---------------------------------------------------------------------------
+# CrawlSearch on-demand crawl — proxies to the standalone CrawlSearch
+# service's own POST/GET/DELETE /api/crawl (see that project's
+# crawlsearch/crawl_runner.py). The crawl itself runs entirely on
+# CrawlSearch's side (background thread there, Postgres advisory lock
+# against its own systemd-timer cycles) — this router just forwards the
+# admin's request/poll/stop so it doesn't need to separately open
+# CrawlSearch's own UI.
+# ---------------------------------------------------------------------------
+
+CRAWLSEARCH_PROXY_TIMEOUT = 10.0  # start/status/stop all return immediately on CrawlSearch's side
+
+
+def _crawlsearch_base_url() -> str:
+    from services.web_search.backend import CRAWLSEARCH_API_URL
+
+    if not CRAWLSEARCH_API_URL:
+        raise HTTPException(503, "CRAWLSEARCH_API_URL not configured on this server.")
+    return CRAWLSEARCH_API_URL.rstrip("/")
+
+
+def _crawlsearch_headers() -> dict:
+    from services.web_search.backend import CRAWLSEARCH_API_KEY
+
+    return {"X-API-Key": CRAWLSEARCH_API_KEY} if CRAWLSEARCH_API_KEY else {}
+
+
+def _crawlsearch_request(method: str, path: str, **kwargs) -> dict:
+    import httpx
+
+    try:
+        response = httpx.request(
+            method,
+            f"{_crawlsearch_base_url()}{path}",
+            headers=_crawlsearch_headers(),
+            timeout=CRAWLSEARCH_PROXY_TIMEOUT,
+            **kwargs,
+        )
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"Could not reach CrawlSearch: {e}") from e
+    if response.status_code == 409:
+        # CrawlBusy — either an on-demand crawl or the systemd timer's own
+        # cycle already holds CrawlSearch's advisory lock.
+        detail = response.json().get("detail", "A crawl is already running.")
+        raise HTTPException(409, detail)
+    response.raise_for_status()
+    return response.json()
+
+
+class CrawlSearchCrawlRequest(BaseModel):
+    # None/empty means "every enabled domain" — same contract as
+    # CrawlSearch's own POST /api/crawl.
+    domains: Optional[list[str]] = None
+
+
+@router.post("/crawlsearch/crawl")
+async def start_crawlsearch_crawl(body: CrawlSearchCrawlRequest):
+    """Starts an on-demand CrawlSearch crawl cycle. Runs on CrawlSearch's
+    side in the background (minutes to hours for a full cycle) — this
+    call itself returns immediately with the initial status snapshot."""
+    return await run_in_threadpool(
+        _crawlsearch_request, "POST", "/api/crawl", json={"domains": body.domains}
+    )
+
+
+@router.get("/crawlsearch/crawl")
+async def get_crawlsearch_crawl_status():
+    """Polls the currently running (or most recently finished) crawl's
+    live progress — current domain, pages crawled, per-domain results."""
+    return await run_in_threadpool(_crawlsearch_request, "GET", "/api/crawl")
+
+
+@router.delete("/crawlsearch/crawl")
+async def stop_crawlsearch_crawl():
+    """Requests a cooperative stop. CrawlSearch finishes the fetch already
+    in flight and exits between URLs rather than aborting mid-request —
+    on purpose, since an aborted fetch mid-response is exactly the kind
+    of rudeness its politeness rules exist to prevent — so this returns
+    immediately but the run itself ends a moment later; poll GET
+    /crawlsearch/crawl to see it land."""
+    return await run_in_threadpool(_crawlsearch_request, "DELETE", "/api/crawl")

@@ -1061,6 +1061,31 @@ export interface AdminIntegrationTestResult {
   latency_ms: number | null;
 }
 
+export interface CrawlSearchDomainStats {
+  domain: string;
+  pages_crawled: number;
+  pages_skipped_robots: number;
+  pages_skipped_filter: number;
+  pages_failed: number;
+  skipped_domain: boolean;
+  disabled: boolean;
+  cancelled: boolean;
+}
+
+export interface CrawlSearchStatus {
+  running: boolean;
+  requested_stop: boolean;
+  started_at: number | null;
+  finished_at: number | null;
+  requested_domains: string[] | null;
+  current_domain: string | null;
+  current_domain_pages: number;
+  pages_crawled: number;
+  completed: CrawlSearchDomainStats[];
+  error: string | null;
+  cancelled: boolean;
+}
+
 // Horizon 1 — Impersonal Research Subscription (built, kept off; see
 // docs/signal-licensing-whitelabel-requirements.md.pdf)
 export interface MySubscription {

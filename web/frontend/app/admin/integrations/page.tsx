@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import CrawlSearchControl from "@/components/admin/CrawlSearchControl";
 import IntegrationsPanel from "@/components/admin/IntegrationsPanel";
 import PriceProviderControls from "@/components/admin/PriceProviderControls";
 import { isAdmin } from "@/lib/admin";
@@ -25,6 +26,7 @@ export default async function AdminIntegrationsPage() {
 
       <div className="mt-6 flex flex-col gap-4">
         <PriceProviderControls />
+        <CrawlSearchControl />
         <IntegrationsPanel />
       </div>
     </div>

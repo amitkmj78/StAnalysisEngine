@@ -16,6 +16,7 @@ import type {
   BaselineBand,
   ChatAskResponse,
   ChatProvidersResponse,
+  CrawlSearchStatus,
   CurrentPriceResponse,
   DemandReport,
   DropAlertThreshold,
@@ -1130,6 +1131,20 @@ export function getAdminIntegrations() {
 
 export function testAdminIntegration(key: string) {
   return apiSend<AdminIntegrationTestResult>(`/api/v1/admin/integrations/${key}/test`, "POST");
+}
+
+export function startCrawlSearchCrawl(domains?: string[]) {
+  return apiSend<CrawlSearchStatus>("/api/v1/admin/integrations/crawlsearch/crawl", "POST", {
+    domains: domains && domains.length > 0 ? domains : null,
+  });
+}
+
+export function getCrawlSearchStatus() {
+  return apiFetch<CrawlSearchStatus>("/api/v1/admin/integrations/crawlsearch/crawl");
+}
+
+export function stopCrawlSearchCrawl() {
+  return apiSend<{ stopping: boolean }>("/api/v1/admin/integrations/crawlsearch/crawl", "DELETE");
 }
 
 export function runWebSearch(query: string, maxResults = 5, includeRawContent = false) {
