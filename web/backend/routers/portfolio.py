@@ -22,7 +22,12 @@ from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
 from services.positions_from_csv import positions_from_activity_csv
 from services.ranking_utils import compute_position_concentration
-from services.portfolio_review_service import build_portfolio_review, flag_positions
+from services.portfolio_review_service import (
+    build_portfolio_review,
+    compute_market_values,
+    compute_sectors,
+    flag_positions,
+)
 from services.sentiment_service import score_tickers_sentiment
 from services.signal_publication_service import (
     DEFAULT_LOOKBACK_DAYS,
@@ -887,13 +892,18 @@ async def portfolio_review(request: Request, portfolio_id: Optional[int] = None)
     fresh model run) and Sentiment (ticker_sentiment_snapshots, read-only
     here — no fresh LLM sentiment calls; a ticker not yet scored today
     just shows as unavailable rather than triggering its own fill).
+    Adds live per-position dollar value and real sector (both fetched
+    fresh here, live prices/`.info` are cheap and short-TTL-cached, not
+    part of the once-a-day insights snapshot) so concentration flags
+    carry real numbers and can catch sector-wide concentration spread
+    across several tickers, not just one oversized position.
 
     Flagging is deterministic Python (SELL signal, concentrated,
-    sentiment/signal agreement — see services.portfolio_review_service.
-    flag_positions), so it's always available even if every LLM provider
-    is down; the one LLM call only turns an already-flagged list into a
-    readable paragraph, same "explain, don't instruct" boundary as the
-    Quant Signal AI Context.
+    sentiment/signal agreement, sector concentration — see
+    services.portfolio_review_service.flag_positions), so it's always
+    available even if every LLM provider is down; the one LLM call only
+    turns an already-flagged list into a readable paragraph, same
+    "explain, don't instruct" boundary as the Quant Signal AI Context.
     """
     await enforce_daily_quota(request, "portfolio/review")
     user_id = request.state.user["id"]
@@ -902,6 +912,10 @@ async def portfolio_review(request: Request, portfolio_id: Optional[int] = None)
     async with user_conn(user_id) as conn:
         resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
         insights = await _get_or_compute_insights(conn, user_id, resolved_portfolio_id, as_of)
+        share_records = await conn.fetch(
+            "SELECT ticker, shares FROM portfolio_strategies WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
+        )
 
     positions = insights.get("positions") or []
     if not positions:
@@ -915,7 +929,19 @@ async def portfolio_review(request: Request, portfolio_id: Optional[int] = None)
         )
     sentiment_by_ticker = {r["ticker"]: r["label"] for r in sentiment_rows}
 
-    enriched = [{**p, "sentiment_label": sentiment_by_ticker.get(p["ticker"])} for p in positions]
+    shares_input = [{"ticker": r["ticker"], "shares": r["shares"]} for r in share_records]
+    market_value_by_ticker = await run_in_threadpool(compute_market_values, shares_input)
+    sector_by_ticker = await run_in_threadpool(compute_sectors, tickers)
+
+    enriched = [
+        {
+            **p,
+            "sentiment_label": sentiment_by_ticker.get(p["ticker"]),
+            "market_value": market_value_by_ticker.get(p["ticker"]),
+            "sector": sector_by_ticker.get(p["ticker"]),
+        }
+        for p in positions
+    ]
     flagged = flag_positions(enriched)
 
     summary = None
@@ -933,6 +959,8 @@ async def portfolio_review(request: Request, portfolio_id: Optional[int] = None)
                 "signal": f.get("signal"),
                 "weight_pct": f.get("weight_pct"),
                 "sentiment_label": f.get("sentiment_label"),
+                "market_value": f.get("market_value"),
+                "sector": f.get("sector"),
                 "reasons": f["reasons"],
             }
             for f in flagged

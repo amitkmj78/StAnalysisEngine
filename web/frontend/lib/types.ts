@@ -572,6 +572,8 @@ export interface FlaggedPosition {
   signal: "BUY" | "SELL" | "HOLD" | null;
   weight_pct: number | null;
   sentiment_label: "Bullish" | "Neutral" | "Bearish" | null;
+  market_value: number | null;
+  sector: string | null;
   reasons: string[];
 }
 

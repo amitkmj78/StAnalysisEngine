@@ -40,9 +40,10 @@ export default function PortfolioReviewCard({ portfolioId }: { portfolioId: numb
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Portfolio Review</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Flags positions worth a second look — a SELL signal, a concentrated position, or sentiment and the
-            quant signal agreeing — using today&apos;s already-computed Signal and Sentiment for each holding, then
-            summarizes why. Describes what the data shows; it doesn&apos;t tell you to buy or sell.
+            Flags positions worth a second look — a SELL signal, a concentrated position (single-ticker or a whole
+            sector spread across several), or sentiment and the quant signal agreeing — using today&apos;s
+            already-computed Signal and Sentiment plus live dollar values for each holding, then summarizes why.
+            Describes what the data shows; it doesn&apos;t tell you to buy or sell.
           </p>
         </div>
         <button
@@ -89,7 +90,13 @@ export default function PortfolioReviewCard({ portfolioId }: { portfolioId: numb
                     </span>
                   )}
                   {f.weight_pct !== null && (
-                    <span className="text-xs text-slate-400">{f.weight_pct.toFixed(1)}% of portfolio</span>
+                    <span className="text-xs text-slate-400">
+                      {f.weight_pct.toFixed(1)}% of portfolio
+                      {f.market_value !== null && ` (${f.market_value.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 })})`}
+                    </span>
+                  )}
+                  {f.sector && (
+                    <span className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-500">{f.sector}</span>
                   )}
                 </div>
                 <p className="mt-1 text-xs text-slate-500">{f.reasons.join(" · ")}</p>
