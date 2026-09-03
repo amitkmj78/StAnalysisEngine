@@ -184,3 +184,19 @@ def get_extended_hours_price(ticker: str):
     except Exception as e:
         logger.warning("Error fetching extended-hours price for %s: %s", ticker, e)
         return None
+
+
+def get_effective_price(ticker: str):
+    """
+    The price a portfolio's live value should be based on right now: the
+    after-hours (pre/post-market) quote when the market is actually in
+    one of those states and available, else the regular-session latest
+    price. A big earnings/news move after the close is real money, not
+    noise — valuing a portfolio off the stale regular close until the
+    next open would understate/overstate it. Returns None only if
+    neither price is available.
+    """
+    extended = get_extended_hours_price(ticker)
+    if extended is not None:
+        return extended["price"]
+    return get_latest_price(ticker)

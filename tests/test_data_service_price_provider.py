@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from services.alpaca_client import AlpacaSymbolNotFound
-from services.data_service import get_extended_hours_price, get_latest_price
+from services.data_service import get_effective_price, get_extended_hours_price, get_latest_price
 from services.price_provider import set_price_provider
 
 
@@ -47,6 +47,24 @@ def test_get_latest_price_falls_back_to_yahoo_when_alpaca_confirms_symbol_not_fo
 def test_get_extended_hours_price_returns_none_when_alpaca_selected():
     set_price_provider("alpaca")
     assert get_extended_hours_price("ALPACA_TEST_TICKER_3") is None
+
+
+def test_get_effective_price_prefers_extended_hours_when_available():
+    with patch(
+        "services.data_service.get_extended_hours_price",
+        return_value={"state": "POST", "price": 145.0, "change_pct": 1.2},
+    ), patch("services.data_service.get_latest_price", return_value=142.0) as mock_latest:
+        price = get_effective_price("AFTER_HOURS_TICKER")
+    assert price == 145.0
+    mock_latest.assert_not_called()
+
+
+def test_get_effective_price_falls_back_to_regular_price_outside_extended_hours():
+    with patch("services.data_service.get_extended_hours_price", return_value=None), patch(
+        "services.data_service.get_latest_price", return_value=142.0
+    ):
+        price = get_effective_price("REGULAR_HOURS_TICKER")
+    assert price == 142.0
 
 
 def test_switching_provider_does_not_serve_stale_cached_result():

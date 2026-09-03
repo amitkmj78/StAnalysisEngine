@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Optional
 
-from .data_service import get_extended_hours_price, get_latest_price
+from .data_service import get_effective_price, get_extended_hours_price, get_latest_price
 from .fund_comparison_service import price_near_date
 
 DEFAULT_LOOKBACK_DAYS = 30
@@ -20,13 +20,17 @@ def compute_total_portfolio_value(positions: list[dict]) -> float:
     compute_portfolio_performance below. Used wherever only the current
     number matters (e.g. strategy plan progress tracking) so that call
     site isn't paying for a price-30-days-ago lookup it doesn't need.
+
+    Uses get_effective_price, so this reflects an after-hours move
+    (earnings, news) once the market is in one of those states, not the
+    stale regular-session close until the next open.
     """
     total = 0.0
     for pos in positions:
         shares = pos.get("shares") or 0
         if shares <= 0:
             continue
-        price_now = get_latest_price(pos["ticker"])
+        price_now = get_effective_price(pos["ticker"])
         if price_now is not None:
             total += shares * price_now
     return total
@@ -41,9 +45,14 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
 
     cost_basis = shares * avg_cost if avg_cost else None
 
-    price_now = get_latest_price(ticker)
+    price_now_regular = get_latest_price(ticker)
     price_then = price_near_date(ticker, when)
     extended_hours = get_extended_hours_price(ticker)
+    # Prefer the after-hours quote when the market is actually in one of
+    # those states — see get_effective_price. price_now_regular is kept
+    # separately so the UI can still show "regular session: $X" next to
+    # the after-hours-based value it's now actually using.
+    price_now = extended_hours["price"] if extended_hours else price_now_regular
 
     if price_now is None:
         return {
@@ -52,6 +61,7 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
             "avg_cost": avg_cost,
             "cost_basis": cost_basis,
             "price_now": None,
+            "price_now_regular": None,
             "price_30d_ago": None,
             "value_now": None,
             "value_30d_ago": None,
@@ -61,6 +71,7 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
             "gain_vs_cost_pct": None,
             "price_unavailable": True,
             "extended_hours": None,
+            "used_extended_hours": False,
         }
 
     value_now = shares * price_now
@@ -77,6 +88,7 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
         "avg_cost": avg_cost,
         "cost_basis": cost_basis,
         "price_now": price_now,
+        "price_now_regular": price_now_regular,
         "price_30d_ago": price_then,
         "value_now": value_now,
         "value_30d_ago": value_then,
@@ -86,6 +98,7 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
         "gain_vs_cost_pct": gain_vs_cost_pct,
         "price_unavailable": False,
         "extended_hours": extended_hours,
+        "used_extended_hours": extended_hours is not None,
     }
 
 

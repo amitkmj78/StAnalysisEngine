@@ -98,7 +98,7 @@ def test_flag_positions_can_flag_for_multiple_reasons():
 def test_compute_market_values_multiplies_shares_by_live_price():
     positions = [{"ticker": "AAA", "shares": 10.0}, {"ticker": "BBB", "shares": 2.0}]
     with patch(
-        "services.portfolio_review_service.get_latest_price",
+        "services.portfolio_review_service.get_effective_price",
         side_effect=lambda t: {"AAA": 100.0, "BBB": 250.0}[t],
     ):
         result = compute_market_values(positions)
@@ -108,7 +108,7 @@ def test_compute_market_values_multiplies_shares_by_live_price():
 def test_compute_market_values_omits_tickers_with_no_price():
     positions = [{"ticker": "AAA", "shares": 10.0}, {"ticker": "ZZZ", "shares": 5.0}]
     with patch(
-        "services.portfolio_review_service.get_latest_price",
+        "services.portfolio_review_service.get_effective_price",
         side_effect=lambda t: 100.0 if t == "AAA" else None,
     ):
         result = compute_market_values(positions)

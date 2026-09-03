@@ -584,6 +584,15 @@ export default function PortfolioPage() {
                 />
               </div>
 
+              {performance.rows.some((r) => r.used_extended_hours) && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Includes after-hours/pre-market prices for{" "}
+                  {performance.rows.filter((r) => r.used_extended_hours).length} holding
+                  {performance.rows.filter((r) => r.used_extended_hours).length === 1 ? "" : "s"} — see the Price
+                  column for which.
+                </p>
+              )}
+
               <GainVsPaidChart rows={performance.rows} />
 
               <div className="mt-3 max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-white">
@@ -704,22 +713,30 @@ export default function PortfolioPage() {
                           <>
                             <td className="px-3 py-2 text-right text-slate-600">
                               ${r.price_now!.toFixed(2)}
-                              {r.extended_hours && (
-                                <div
-                                  className={`text-xs ${
-                                    (r.extended_hours.change_pct ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"
-                                  }`}
-                                >
-                                  {r.extended_hours.state === "POST" ? "After hours" : "Pre-market"}: $
-                                  {r.extended_hours.price.toFixed(2)}
-                                  {r.extended_hours.change_pct !== null && (
-                                    <>
-                                      {" "}
-                                      ({r.extended_hours.change_pct >= 0 ? "+" : ""}
-                                      {r.extended_hours.change_pct.toFixed(2)}%)
-                                    </>
+                              {r.used_extended_hours && r.extended_hours && (
+                                <>
+                                  <span
+                                    className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                                      (r.extended_hours.change_pct ?? 0) >= 0
+                                        ? "bg-emerald-50 text-emerald-700"
+                                        : "bg-red-50 text-red-700"
+                                    }`}
+                                  >
+                                    {r.extended_hours.state === "POST" ? "after hours" : "pre-market"}
+                                    {r.extended_hours.change_pct !== null && (
+                                      <>
+                                        {" "}
+                                        ({r.extended_hours.change_pct >= 0 ? "+" : ""}
+                                        {r.extended_hours.change_pct.toFixed(2)}%)
+                                      </>
+                                    )}
+                                  </span>
+                                  {r.price_now_regular !== null && (
+                                    <div className="text-xs text-slate-400">
+                                      Regular session: ${r.price_now_regular.toFixed(2)}
+                                    </div>
                                   )}
-                                </div>
+                                </>
                               )}
                             </td>
                             <td className="px-3 py-2 text-right text-slate-600">

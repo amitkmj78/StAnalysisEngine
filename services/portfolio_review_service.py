@@ -21,7 +21,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
-from .data_service import get_latest_price
+from .data_service import get_effective_price
 from .llm_setup import invoke_with_fallback
 from .yfinance_cache import get_cached_info
 
@@ -36,17 +36,19 @@ MAX_PARALLEL_REVIEW_FETCHES = 4
 
 def compute_market_values(positions: list[dict]) -> dict[str, float]:
     """positions: [{"ticker": str, "shares": float}, ...]. Live prices
-    (get_latest_price — already ttl_cache'd, so this is cheap if
-    something else on the page just fetched the same ticker), fanned
-    out across a bounded thread pool since each fetch is independent
-    I/O. Tickers with no price found are omitted, not zeroed — a
-    missing dollar figure should read as "unavailable", not $0."""
+    (get_effective_price — after-hours quote when the market's in one of
+    those states, else the regular-session price; already ttl_cache'd
+    either way, so this is cheap if something else on the page just
+    fetched the same ticker), fanned out across a bounded thread pool
+    since each fetch is independent I/O. Tickers with no price found are
+    omitted, not zeroed — a missing dollar figure should read as
+    "unavailable", not $0."""
     if not positions:
         return {}
     tickers = [p["ticker"] for p in positions]
     shares_by_ticker = {p["ticker"]: p.get("shares") or 0 for p in positions}
     with ThreadPoolExecutor(max_workers=MAX_PARALLEL_REVIEW_FETCHES) as executor:
-        prices = list(executor.map(get_latest_price, tickers))
+        prices = list(executor.map(get_effective_price, tickers))
     return {
         ticker: shares_by_ticker[ticker] * price
         for ticker, price in zip(tickers, prices)

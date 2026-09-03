@@ -589,6 +589,7 @@ export interface PortfolioPerformanceRow {
   avg_cost: number | null;
   cost_basis: number | null;
   price_now: number | null;
+  price_now_regular: number | null;
   price_30d_ago: number | null;
   value_now: number | null;
   value_30d_ago: number | null;
@@ -598,6 +599,7 @@ export interface PortfolioPerformanceRow {
   gain_vs_cost_pct: number | null;
   price_unavailable: boolean;
   extended_hours: ExtendedHoursPrice | null;
+  used_extended_hours: boolean;
 }
 
 export interface PortfolioPerformance {
