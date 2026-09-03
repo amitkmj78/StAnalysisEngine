@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Optional
 
-from .data_service import get_effective_price, get_extended_hours_price, get_latest_price
+from .data_service import get_effective_price, get_extended_hours_price, get_latest_price, get_previous_close
 from .fund_comparison_service import price_near_date
 
 DEFAULT_LOOKBACK_DAYS = 30
@@ -48,6 +48,7 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
     price_now_regular = get_latest_price(ticker)
     price_then = price_near_date(ticker, when)
     extended_hours = get_extended_hours_price(ticker)
+    prev_close = get_previous_close(ticker)
     # Prefer the after-hours quote when the market is actually in one of
     # those states — see get_effective_price. price_now_regular is kept
     # separately so the UI can still show "regular session: $X" next to
@@ -72,6 +73,8 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
             "price_unavailable": True,
             "extended_hours": None,
             "used_extended_hours": False,
+            "day_gain": None,
+            "day_gain_pct": None,
         }
 
     value_now = shares * price_now
@@ -81,6 +84,15 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
 
     gain_vs_cost = value_now - cost_basis if cost_basis is not None else None
     gain_vs_cost_pct = (gain_vs_cost / cost_basis * 100.0) if cost_basis not in (None, 0) else None
+
+    # Today's gain/loss vs. yesterday's regular-session close — the
+    # standard day-P&L figure. Uses the same effective (after-hours-aware)
+    # price as value_now, so during pre/post-market this also captures
+    # that session's move on top of the regular session's, matching what
+    # value_now already represents.
+    value_prev_close = shares * prev_close if prev_close is not None else None
+    day_gain = value_now - value_prev_close if value_prev_close is not None else None
+    day_gain_pct = (day_gain / value_prev_close * 100.0) if value_prev_close not in (None, 0) else None
 
     return {
         "ticker": ticker,
@@ -99,6 +111,8 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
         "price_unavailable": False,
         "extended_hours": extended_hours,
         "used_extended_hours": extended_hours is not None,
+        "day_gain": day_gain,
+        "day_gain_pct": day_gain_pct,
     }
 
 
@@ -116,9 +130,10 @@ def compute_portfolio_performance(positions: list[dict], lookback_days: int = DE
     silently vanishing from the table.
 
     Each position's fetches (current price, price `lookback_days` ago,
-    extended-hours price) run in parallel across positions — same pattern
-    as stock_finder_service/entry_strategy_service — so one rate-limited
-    or slow ticker doesn't serialize the whole portfolio's load behind it.
+    extended-hours price, previous close) run in parallel across
+    positions — same pattern as stock_finder_service/entry_strategy_service
+    — so one rate-limited or slow ticker doesn't serialize the whole
+    portfolio's load behind it.
     """
     when = datetime.utcnow() - timedelta(days=lookback_days)
 
@@ -141,6 +156,17 @@ def compute_portfolio_performance(positions: list[dict], lookback_days: int = DE
         (total_gain_vs_cost / total_cost_basis * 100.0) if total_cost_basis > 0 else None
     )
 
+    day_gains = [r["day_gain"] for r in rows if r["day_gain"] is not None]
+    total_day_gain: Optional[float] = sum(day_gains) if day_gains else None
+    total_value_prev_close = sum(
+        r["value_now"] - r["day_gain"] for r in rows if r["day_gain"] is not None and r["value_now"] is not None
+    )
+    total_day_gain_pct: Optional[float] = (
+        (total_day_gain / total_value_prev_close * 100.0)
+        if total_day_gain is not None and total_value_prev_close
+        else None
+    )
+
     return {
         "lookback_days": lookback_days,
         "rows": rows,
@@ -151,4 +177,6 @@ def compute_portfolio_performance(positions: list[dict], lookback_days: int = DE
         "total_cost_basis": total_cost_basis,
         "total_gain_vs_cost": total_gain_vs_cost,
         "total_gain_vs_cost_pct": total_gain_vs_cost_pct,
+        "total_day_gain": total_day_gain,
+        "total_day_gain_pct": total_day_gain_pct,
     }

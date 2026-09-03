@@ -600,6 +600,8 @@ export interface PortfolioPerformanceRow {
   price_unavailable: boolean;
   extended_hours: ExtendedHoursPrice | null;
   used_extended_hours: boolean;
+  day_gain: number | null;
+  day_gain_pct: number | null;
 }
 
 export interface PortfolioPerformance {
@@ -612,6 +614,8 @@ export interface PortfolioPerformance {
   total_cost_basis: number;
   total_gain_vs_cost: number;
   total_gain_vs_cost_pct: number | null;
+  total_day_gain: number | null;
+  total_day_gain_pct: number | null;
 }
 
 export interface ManualPositionInput {

@@ -3,7 +3,12 @@ from unittest.mock import patch
 import pytest
 
 from services.alpaca_client import AlpacaSymbolNotFound
-from services.data_service import get_effective_price, get_extended_hours_price, get_latest_price
+from services.data_service import (
+    get_effective_price,
+    get_extended_hours_price,
+    get_latest_price,
+    get_previous_close,
+)
 from services.price_provider import set_price_provider
 
 
@@ -65,6 +70,19 @@ def test_get_effective_price_falls_back_to_regular_price_outside_extended_hours(
     ):
         price = get_effective_price("REGULAR_HOURS_TICKER")
     assert price == 142.0
+
+
+def test_get_previous_close_reads_fast_info():
+    mock_ticker = type("T", (), {"fast_info": {"previousClose": 141.5}})()
+    with patch("services.data_service.yf.Ticker", return_value=mock_ticker):
+        prev_close = get_previous_close("PREV_CLOSE_TICKER_1")
+    assert prev_close == 141.5
+
+
+def test_get_previous_close_returns_none_when_missing():
+    mock_ticker = type("T", (), {"fast_info": {}})()
+    with patch("services.data_service.yf.Ticker", return_value=mock_ticker):
+        assert get_previous_close("PREV_CLOSE_TICKER_2") is None
 
 
 def test_switching_provider_does_not_serve_stale_cached_result():

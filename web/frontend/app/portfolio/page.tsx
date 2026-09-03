@@ -82,7 +82,14 @@ const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
   "Price Now": {
     title: "Price Now",
     body: [
-      "The latest trade price. When the market is in pre-market or after-hours, an extra line shows that session's price and percent change separately from the regular-session price above it.",
+      "The latest trade price used for this row's value/gain figures. When the market is in pre-market or after-hours and a quote is available, this is that session's price, not the regular session's stale close — a badge marks it, and the regular-session price is shown underneath for reference.",
+    ],
+  },
+  Today: {
+    title: "Today",
+    body: [
+      "Today's dollar and percent gain/loss versus yesterday's regular-session close: (Price Now − Previous Close) × Shares — the standard \"day P&L\" figure most brokerages show.",
+      "While the market is in pre-market or after-hours, this uses that session's price, so it reflects the after-hours move too, not just the regular session's.",
     ],
   },
   "Price 30D Ago": {
@@ -555,10 +562,23 @@ export default function PortfolioPage() {
 
           {performance && performance.rows.length > 0 && (
             <>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-5">
                 <MetricTile
                   label="Value Now"
                   value={`$${performance.total_value_now.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                />
+                <MetricTile
+                  label="Today's Gain/Loss"
+                  value={
+                    performance.total_day_gain === null
+                      ? "—"
+                      : `${performance.total_day_gain >= 0 ? "+" : ""}$${performance.total_day_gain.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
+                          performance.total_day_gain_pct !== null
+                            ? ` (${performance.total_day_gain_pct >= 0 ? "+" : ""}${performance.total_day_gain_pct.toFixed(2)}%)`
+                            : ""
+                        }`
+                  }
+                  positive={performance.total_day_gain === null ? undefined : performance.total_day_gain >= 0}
                 />
                 <MetricTile
                   label="30D Change"
@@ -607,6 +627,7 @@ export default function PortfolioPage() {
                       <PerformanceTh label="10-Day Forecast" align="right" onInfoClick={() => setPerformanceInfoColumn("10-Day Forecast")} />
                       <PerformanceTh label="Shares" align="right" onInfoClick={() => setPerformanceInfoColumn("Shares")} />
                       <PerformanceTh label="Price Now" align="right" onInfoClick={() => setPerformanceInfoColumn("Price Now")} />
+                      <PerformanceTh label="Today" align="right" onInfoClick={() => setPerformanceInfoColumn("Today")} />
                       <PerformanceTh label="Price 30D Ago" align="right" onInfoClick={() => setPerformanceInfoColumn("Price 30D Ago")} />
                       <PerformanceTh label="30D Diff" align="right" onInfoClick={() => setPerformanceInfoColumn("30D Diff")} />
                       <PerformanceTh label="Avg Cost Paid" align="right" onInfoClick={() => setPerformanceInfoColumn("Avg Cost Paid")} />
@@ -706,7 +727,7 @@ export default function PortfolioPage() {
                         </td>
                         <td className="px-3 py-2 text-right text-slate-600">{r.shares.toFixed(2)}</td>
                         {r.price_unavailable ? (
-                          <td colSpan={4} className="px-3 py-2 text-slate-400">
+                          <td colSpan={6} className="px-3 py-2 text-slate-400">
                             No market data found for this ticker — check it&apos;s a valid, publicly-traded symbol.
                           </td>
                         ) : (
@@ -738,6 +759,21 @@ export default function PortfolioPage() {
                                   )}
                                 </>
                               )}
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-right font-medium ${
+                                r.day_gain === null
+                                  ? "text-slate-400"
+                                  : r.day_gain >= 0
+                                  ? "text-emerald-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {r.day_gain === null
+                                ? "—"
+                                : `${r.day_gain >= 0 ? "+" : ""}${r.day_gain.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
+                                    r.day_gain_pct !== null ? ` (${r.day_gain_pct >= 0 ? "+" : ""}${r.day_gain_pct.toFixed(1)}%)` : ""
+                                  }`}
                             </td>
                             <td className="px-3 py-2 text-right text-slate-600">
                               {r.price_30d_ago !== null ? `$${r.price_30d_ago.toFixed(2)}` : "—"}

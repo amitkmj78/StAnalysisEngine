@@ -200,3 +200,31 @@ def get_effective_price(ticker: str):
     if extended is not None:
         return extended["price"]
     return get_latest_price(ticker)
+
+
+@ttl_cache(maxsize=256, ttl_seconds=3600)
+def get_previous_close(ticker: str):
+    """
+    Yesterday's regular-session close — the reference point for "today's
+    gain/loss" (shares * (get_effective_price(ticker) - this)), the
+    standard day-P&L figure. Static for the whole trading day, so cached
+    far longer than the live-price lookups above.
+
+    Always yfinance's fast_info, regardless of the admin-switchable price
+    provider (services/price_provider.py): this is where the stock closed
+    yesterday, not a live quote, and Alpaca has no equivalent lookup —
+    same precedent as services/portfolio_alert_service.get_price_and_prev_close.
+    """
+    if not ticker:
+        return None
+    try:
+        prev_close = fetch_with_backoff(
+            lambda: yf.Ticker(ticker).fast_info.get("previousClose"),
+            max_retries=1, base_delay=0.1, retry_delay=1.0,
+        )
+        if prev_close is None:
+            return None
+        return round(float(prev_close), 2)
+    except Exception as e:
+        logger.warning("Error fetching previous close for %s: %s", ticker, e)
+        return None
