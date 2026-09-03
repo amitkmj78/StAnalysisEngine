@@ -1,4 +1,6 @@
 import logging
+import threading
+import time
 from typing import Dict
 
 import yfinance as yf
@@ -202,7 +204,12 @@ def get_effective_price(ticker: str):
     return get_latest_price(ticker)
 
 
-@ttl_cache(maxsize=256, ttl_seconds=3600)
+_previous_close_cache: Dict[str, float] = {}
+_previous_close_cache_ts: Dict[str, float] = {}
+_previous_close_lock = threading.Lock()
+_PREVIOUS_CLOSE_TTL_SECONDS = 3600
+
+
 def get_previous_close(ticker: str):
     """
     Yesterday's regular-session close — the reference point for "today's
@@ -214,17 +221,35 @@ def get_previous_close(ticker: str):
     provider (services/price_provider.py): this is where the stock closed
     yesterday, not a live quote, and Alpaca has no equivalent lookup —
     same precedent as services/portfolio_alert_service.get_price_and_prev_close.
+
+    Hand-rolled cache instead of the shared @ttl_cache decorator, on
+    purpose: this must NEVER cache a failed/None lookup for the same 1hr
+    TTL as a real one. A transient Yahoo rate-limit hit here (observed in
+    production: most of a 14-position portfolio's previousClose calls
+    failing at once under load) would otherwise get remembered as "no
+    previous close for this ticker" for a full hour, silently blanking
+    Today's Gain/Loss for that long even after Yahoo recovers seconds
+    later. A real result is still cached for the full hour (it's static
+    for the day); only a miss goes uncached, so the next poll just
+    retries. Real retries (not get_latest_price's quick 1s one) are worth
+    it here since this runs at most once an hour per ticker, not every
+    few seconds.
     """
     if not ticker:
         return None
+    with _previous_close_lock:
+        cached_at = _previous_close_cache_ts.get(ticker)
+        if cached_at is not None and (time.monotonic() - cached_at) < _PREVIOUS_CLOSE_TTL_SECONDS:
+            return _previous_close_cache[ticker]
     try:
-        prev_close = fetch_with_backoff(
-            lambda: yf.Ticker(ticker).fast_info.get("previousClose"),
-            max_retries=1, base_delay=0.1, retry_delay=1.0,
-        )
+        prev_close = fetch_with_backoff(lambda: yf.Ticker(ticker).fast_info.get("previousClose"))
         if prev_close is None:
             return None
-        return round(float(prev_close), 2)
+        result = round(float(prev_close), 2)
     except Exception as e:
         logger.warning("Error fetching previous close for %s: %s", ticker, e)
         return None
+    with _previous_close_lock:
+        _previous_close_cache[ticker] = result
+        _previous_close_cache_ts[ticker] = time.monotonic()
+    return result

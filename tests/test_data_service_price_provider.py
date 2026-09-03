@@ -85,6 +85,28 @@ def test_get_previous_close_returns_none_when_missing():
         assert get_previous_close("PREV_CLOSE_TICKER_2") is None
 
 
+def test_get_previous_close_does_not_cache_a_failed_lookup():
+    """Regression test: a rate-limited/failed fetch must not be remembered
+    for the same 1hr TTL as a real result — production hit exactly this,
+    where a transient Yahoo rate-limit blanked Today's Gain/Loss for most
+    of a portfolio for a full hour even though Yahoo recovered seconds
+    later. The very next call should retry, not serve a cached None."""
+    with patch("services.data_service.fetch_with_backoff", side_effect=Exception("Too Many Requests")):
+        assert get_previous_close("PREV_CLOSE_TICKER_3") is None
+
+    with patch("services.data_service.fetch_with_backoff", return_value=99.5):
+        assert get_previous_close("PREV_CLOSE_TICKER_3") == 99.5
+
+
+def test_get_previous_close_caches_a_successful_lookup():
+    """The other half of the same fix: a real result IS cached (it's
+    static for the trading day) -- a second call shouldn't refetch."""
+    with patch("services.data_service.fetch_with_backoff", return_value=88.25) as mock_fetch:
+        assert get_previous_close("PREV_CLOSE_TICKER_4") == 88.25
+        assert get_previous_close("PREV_CLOSE_TICKER_4") == 88.25
+    assert mock_fetch.call_count == 1
+
+
 def test_switching_provider_does_not_serve_stale_cached_result():
     """Regression test: get_latest_price is ttl_cache'd keyed only on
     ticker, not provider. Without clearing that cache on every switch (see
