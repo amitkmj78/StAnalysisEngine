@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import MarketNewsTicker from "@/components/MarketNewsTicker";
+import PortfolioMoversWidget from "@/components/PortfolioMoversWidget";
 import SafeBaselineBand from "@/components/SafeBaselineBand";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import BacktestChart from "@/components/prediction/BacktestChart";
@@ -363,6 +364,7 @@ export default function PredictPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <MarketNewsTicker />
+      <PortfolioMoversWidget />
       <h1 className="text-2xl font-semibold text-slate-900">AI Price Forecast</h1>
       <p className="mt-1 text-sm text-slate-500">
         A backtested quant forecast for one ticker, shown next to how often it has actually beaten doing
