@@ -31,6 +31,7 @@ import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import GainVsPaidChart from "@/components/portfolio/GainVsPaidChart";
+import MarketNewsTicker from "@/components/portfolio/MarketNewsTicker";
 import PortfolioReviewCard from "@/components/portfolio/PortfolioReviewCard";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 
@@ -475,6 +476,7 @@ export default function PortfolioPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
+      <MarketNewsTicker />
       <h1 className="text-2xl font-semibold text-slate-900">Portfolio Strategies</h1>
       <p className="mt-1 text-sm text-slate-500">
         Import a Robinhood activity CSV or enter positions manually to get short- and long-term plans per holding.

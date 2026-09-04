@@ -32,6 +32,7 @@ import type {
   FundScoreResponse,
   GoalPlanResponse,
   ManualPositionInput,
+  MarketNewsResponse,
   MomentumBacktestResponse,
   MomentumOptions,
   MonthlyPlanResponse,
@@ -1180,4 +1181,8 @@ export function runWebSearch(query: string, maxResults = 5, includeRawContent = 
     max_results: maxResults,
     include_raw_content: includeRawContent,
   });
+}
+
+export function getHotMarketNews() {
+  return apiFetch<MarketNewsResponse>("/api/v1/news/hot");
 }

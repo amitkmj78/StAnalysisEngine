@@ -31,6 +31,7 @@ from web.backend.routers import (
     db_backup,
     entry_strategy,
     index_fund,
+    market_news,
     momentum,
     monthly_plan,
     pit_prices,
@@ -79,6 +80,7 @@ app.include_router(baseline.router)
 app.include_router(prediction.router)
 app.include_router(stock_finder.router)
 app.include_router(index_fund.router)
+app.include_router(market_news.router)
 app.include_router(entry_strategy.router)
 app.include_router(monthly_plan.router)
 app.include_router(strategies.router)

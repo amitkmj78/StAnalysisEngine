@@ -1201,3 +1201,15 @@ export interface WebSearchResponse {
   results: WebSearchResult[];
   response_time_ms: number;
 }
+
+export interface MarketNewsItem {
+  title: string;
+  url: string;
+  source: string;
+  published_at: string | null;
+}
+
+export interface MarketNewsResponse {
+  items: MarketNewsItem[];
+  source: "yahoo" | "duckduckgo";
+}
