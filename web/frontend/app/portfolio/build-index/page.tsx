@@ -22,6 +22,7 @@ export default function BuildIndexPage() {
   const [universes, setUniverses] = useState<string[]>(["All"]);
   const [universe, setUniverse] = useState("All");
   const [picksPerSector, setPicksPerSector] = useState(2);
+  const [maxStocks, setMaxStocks] = useState("");
   const [totalAmount, setTotalAmount] = useState("10000");
 
   const [generating, setGenerating] = useState(false);
@@ -60,7 +61,8 @@ export default function BuildIndexPage() {
     setGenerateError(null);
     setSaved(false);
     try {
-      const res = await getDiversifiedBasket(goal, universe, picksPerSector);
+      const cap = Number(maxStocks);
+      const res = await getDiversifiedBasket(goal, universe, picksPerSector, cap > 0 ? cap : undefined);
       const amount = Number(totalAmount);
       const perStock = res.results.length > 0 && amount > 0 ? amount / res.results.length : 0;
       setBasket(
@@ -136,7 +138,8 @@ export default function BuildIndexPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Build a Diversified Index</h1>
           <p className="mt-1 text-sm text-slate-500">
             Generates a custom basket of individual stocks spread across sectors — the top-scoring tickers from
-            each sector in the universe you pick, equal-dollar weighted — then saves it as a new portfolio. For
+            each sector in the universe you pick, equal-dollar weighted — then saves it as a new portfolio. Set a
+            max stocks limit to cap the total basket size while still spreading picks evenly across sectors. For
             ranking existing index ETFs instead, see the <Link href="/index-fund" className="underline">Fund Screener</Link>.
           </p>
         </div>
@@ -168,6 +171,17 @@ export default function BuildIndexPage() {
             value={picksPerSector}
             onChange={(e) => setPicksPerSector(Number(e.target.value))}
             className="input w-20"
+          />
+        </Field>
+        <Field label="Max stocks (optional)">
+          <input
+            type="number"
+            min={1}
+            max={100}
+            placeholder="No limit"
+            value={maxStocks}
+            onChange={(e) => setMaxStocks(e.target.value)}
+            className="input w-28"
           />
         </Field>
         <Field label="Total to invest ($)">

@@ -204,12 +204,14 @@ export function getStockScore(goal: string, ticker: string) {
   return apiFetch<StockScoreResponse>("/api/v1/stock-finder/score", { goal, ticker });
 }
 
-export function getDiversifiedBasket(goal: string, universe: string, picksPerSector: number) {
-  return apiFetch<StockRankResponse>("/api/v1/stock-finder/diversified-basket", {
+export function getDiversifiedBasket(goal: string, universe: string, picksPerSector: number, maxStocks?: number) {
+  const params: Record<string, string> = {
     goal,
     universe,
     picks_per_sector: String(picksPerSector),
-  });
+  };
+  if (maxStocks !== undefined) params.max_stocks = String(maxStocks);
+  return apiFetch<StockRankResponse>("/api/v1/stock-finder/diversified-basket", params);
 }
 
 export function getAnalystRating(ticker: string) {

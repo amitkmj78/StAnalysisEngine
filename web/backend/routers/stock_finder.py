@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -73,17 +73,19 @@ async def diversified_basket(
     goal: str = Query(...),
     universe: str = Query("All"),
     picks_per_sector: int = Query(2, ge=1, le=10),
+    max_stocks: Optional[int] = Query(None, ge=1, le=100),
 ):
     """A custom, sector-diversified basket of individual stocks — the
     picks_per_sector highest-Score tickers from each sector in the
-    universe. Same cost profile as /rank (it calls it under the hood), so
-    same tight quota."""
+    universe, optionally capped at max_stocks total (round-robin across
+    sectors — see build_diversified_basket). Same cost profile as /rank
+    (it calls it under the hood), so same tight quota."""
     await enforce_daily_quota(request, "stock-finder/diversified-basket")
     _validate_goal(goal)
     if universe not in STOCK_UNIVERSES:
         raise HTTPException(422, f"universe must be one of {sorted(STOCK_UNIVERSES.keys())}")
 
-    df = await run_in_threadpool(build_diversified_basket, goal, universe, picks_per_sector)
+    df = await run_in_threadpool(build_diversified_basket, goal, universe, picks_per_sector, max_stocks)
     return {"results": records_safe(df)}
 
 

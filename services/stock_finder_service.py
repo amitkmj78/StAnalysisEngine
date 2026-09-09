@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import StringIO
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -345,7 +345,9 @@ def rank_stocks(goal: str, universe_key: str) -> pd.DataFrame:
     )
 
 
-def build_diversified_basket(goal: str, universe_key: str, picks_per_sector: int) -> pd.DataFrame:
+def build_diversified_basket(
+    goal: str, universe_key: str, picks_per_sector: int, max_stocks: Optional[int] = None
+) -> pd.DataFrame:
     """
     A custom "index" of individual stocks spread across sectors, instead of
     an existing ETF (see the Fund Screener for that): the picks_per_sector
@@ -353,6 +355,13 @@ def build_diversified_basket(goal: str, universe_key: str, picks_per_sector: int
     the same ranking as /stock-finder. Sector-diversified by construction —
     a hot sector can't dominate the basket just because more of its tickers
     scored well.
+
+    max_stocks, when given, caps the total basket size — useful since
+    picks_per_sector alone is a coarse lever (bumping it by 1 adds one
+    stock per sector at once, which can overshoot fast in a universe with
+    many sectors). The cap is applied by round-robin (see
+    _trim_to_max_stocks), not a flat top-N re-sort, so it can't collapse
+    the basket back down to one dominant sector.
     """
     ranked = rank_stocks(goal, universe_key)
     if ranked.empty:
@@ -361,11 +370,43 @@ def build_diversified_basket(goal: str, universe_key: str, picks_per_sector: int
     # ranked is already sorted by Score descending, so a per-group head()
     # keeps each sector's top scorers without re-sorting.
     basket = ranked.groupby("Sector", sort=False, group_keys=False).head(picks_per_sector)
-    return (
+    basket = (
         basket[["Ticker", "Name", "Sector", "Price", "Score"]]
         .sort_values(["Sector", "Score"], ascending=[True, False])
         .reset_index(drop=True)
     )
+    if max_stocks is not None and max_stocks > 0 and len(basket) > max_stocks:
+        basket = _trim_to_max_stocks(basket, max_stocks)
+    return basket
+
+
+def _trim_to_max_stocks(basket: pd.DataFrame, max_stocks: int) -> pd.DataFrame:
+    """
+    Round-robins one stock at a time across sectors — each sector's own
+    stocks already best-score-first — until max_stocks is reached, rather
+    than a flat top-N cut by Score. A flat cut could let one sector that
+    scored well across the board crowd out every other sector, defeating
+    the point of a "diversified" basket.
+    """
+    by_sector: Dict[str, List[int]] = {
+        sector: list(group.index) for sector, group in basket.groupby("Sector", sort=False)
+    }
+    sector_order = list(dict.fromkeys(basket["Sector"]))  # first-seen order, already Sector-sorted
+
+    selected: List[int] = []
+    while len(selected) < max_stocks:
+        added_this_round = False
+        for sector in sector_order:
+            if len(selected) >= max_stocks:
+                break
+            queue = by_sector[sector]
+            if queue:
+                selected.append(queue.pop(0))
+                added_this_round = True
+        if not added_this_round:
+            break
+
+    return basket.loc[selected].sort_values(["Sector", "Score"], ascending=[True, False]).reset_index(drop=True)
 
 
 def score_stock_ticker(goal: str, ticker_symbol: str) -> pd.DataFrame:

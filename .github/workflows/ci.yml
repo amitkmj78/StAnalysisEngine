@@ -21,4 +21,12 @@ jobs:
         run: pip install -r requirements-test.txt
 
       - name: Run tests
+        # OPENAI_API_KEY: several Agent/*.py modules construct a
+        # ChatOpenAI client at import time (e.g. Agent/financialAgent.py),
+        # which raises immediately if the key is entirely absent -- a
+        # presence check only, no network call happens at import, so a
+        # placeholder is enough to let tests that transitively import
+        # those modules collect at all.
+        env:
+          OPENAI_API_KEY: ci-placeholder-key
         run: pytest tests/ -v
