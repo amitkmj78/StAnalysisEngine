@@ -13,3 +13,5 @@ langchain-anthropic
 langchain-ollama
 cachetools
 yfinance
+ta
+streamlit
