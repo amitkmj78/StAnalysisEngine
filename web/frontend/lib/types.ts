@@ -618,6 +618,23 @@ export interface PortfolioPerformance {
   total_day_gain_pct: number | null;
 }
 
+export interface BenchmarkWorstPosition {
+  ticker: string;
+  gain_vs_cost_pct: number;
+  gain_vs_cost: number;
+  value_now: number;
+}
+
+export interface PortfolioBenchmarkComparison {
+  benchmark_ticker: string;
+  portfolio_return_pct: number | null;
+  benchmark_return_pct: number | null;
+  gap_pct: number | null;
+  underperforming: boolean;
+  worst_positions: BenchmarkWorstPosition[];
+  suggestion: string | null;
+}
+
 export interface ManualPositionInput {
   name: string;
   ticker: string;

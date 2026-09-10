@@ -30,6 +30,7 @@ import GoalPlan from "@/components/GoalPlan";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
+import BenchmarkComparisonCard from "@/components/portfolio/BenchmarkComparisonCard";
 import GainVsPaidChart from "@/components/portfolio/GainVsPaidChart";
 import MarketNewsTicker from "@/components/MarketNewsTicker";
 import PortfolioReviewCard from "@/components/portfolio/PortfolioReviewCard";
@@ -614,6 +615,8 @@ export default function PortfolioPage() {
                   column for which.
                 </p>
               )}
+
+              <BenchmarkComparisonCard portfolioId={selectedPortfolioId} />
 
               <GainVsPaidChart rows={performance.rows} />
 

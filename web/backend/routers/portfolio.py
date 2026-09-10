@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
+from services.benchmark_comparison_service import compute_benchmark_comparison
 from services.goal_plan_service import (
     build_signal_weighted_allocation,
     get_annualized_returns,
@@ -1209,9 +1210,47 @@ async def portfolio_performance(request: Request, lookback_days: int = 30, portf
             "total_cost_basis": 0.0,
             "total_gain_vs_cost": 0.0,
             "total_gain_vs_cost_pct": None,
+            "total_day_gain": None,
+            "total_day_gain_pct": None,
         }
 
     return await run_in_threadpool(compute_portfolio_performance, positions, lookback_days)
+
+
+@router.get("/benchmark")
+@limiter.limit("15/minute")
+async def portfolio_benchmark_comparison(request: Request, portfolio_id: Optional[int] = None):
+    """How this portfolio's total return compares to the S&P 500 (SPY)
+    since it was created — see services/benchmark_comparison_service.py
+    for what "since created" approximates and why."""
+    await enforce_daily_quota(request, "portfolio/benchmark")
+    user_id = request.state.user["id"]
+
+    async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        portfolio_row = await conn.fetchrow(
+            "SELECT created_at FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            resolved_portfolio_id, user_id,
+        )
+        records = await conn.fetch(
+            "SELECT ticker, shares, avg_cost FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
+        )
+
+    empty_response = {
+        "benchmark_ticker": "SPY",
+        "portfolio_return_pct": None,
+        "benchmark_return_pct": None,
+        "gap_pct": None,
+        "underperforming": False,
+        "worst_positions": [],
+        "suggestion": None,
+    }
+    positions = [{"ticker": r["ticker"], "shares": r["shares"], "avg_cost": r["avg_cost"]} for r in records]
+    if not positions or portfolio_row is None:
+        return empty_response
+
+    return await run_in_threadpool(compute_benchmark_comparison, positions, portfolio_row["created_at"])
 
 
 @router.get("/drop-alerts", dependencies=[Depends(require_admin)])

@@ -41,6 +41,7 @@ import type {
   PitReconciliationReport,
   SignalStabilityReport,
   Portfolio,
+  PortfolioBenchmarkComparison,
   PortfolioDropAlert,
   Portfolio1yForecast,
   PortfolioInsightsResponse,
@@ -588,6 +589,12 @@ export function getPortfolioPerformance(lookbackDays = 30, portfolioId?: number)
   const params: Record<string, string> = { lookback_days: String(lookbackDays) };
   if (portfolioId !== undefined) params.portfolio_id = String(portfolioId);
   return apiFetch<PortfolioPerformance>("/api/v1/portfolio/performance", params);
+}
+
+export function getPortfolioBenchmarkComparison(portfolioId?: number) {
+  const params: Record<string, string> = {};
+  if (portfolioId !== undefined) params.portfolio_id = String(portfolioId);
+  return apiFetch<PortfolioBenchmarkComparison>("/api/v1/portfolio/benchmark", params);
 }
 
 export function getPortfolioInsights(portfolioId?: number) {
