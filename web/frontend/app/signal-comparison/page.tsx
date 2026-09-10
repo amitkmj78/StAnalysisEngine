@@ -1,6 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 import InfoModal, { ColumnInfo } from "@/components/InfoModal";
 import { ApiError, getCurrentPrice, getQuantSignalHistory, getQuantSignalNarrative, getQuantVsAnalyst } from "@/lib/api";
@@ -122,11 +124,12 @@ function describeLastFlip(history: QuantSignalHistoryPoint[]): string | null {
 }
 
 export default function SignalComparisonPage() {
+  const searchParams = useSearchParams();
   const [data, setData] = useState<QuantVsAnalystResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("ticker")?.trim().toUpperCase() ?? "");
   const [signalFilter, setSignalFilter] = useState<SignalFilter>("ALL");
   const [stabilityFilter, setStabilityFilter] = useState<StabilityFilter>("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("quant_expected_return_pct");
@@ -265,6 +268,11 @@ export default function SignalComparisonPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
+      {searchParams.get("from") === "portfolio" && (
+        <Link href="/portfolio" className="mb-2 inline-block text-sm font-medium text-slate-600 hover:underline">
+          ← Back to Portfolio
+        </Link>
+      )}
       <h1 className="text-2xl font-semibold text-slate-900">Quant Signal vs. Analyst Rating</h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
         The internal quant model&apos;s BUY/HOLD/SELL call next to the real Wall Street analyst consensus, for

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
@@ -365,6 +366,11 @@ export default function PredictPage() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <MarketNewsTicker />
       <PortfolioMoversWidget />
+      {searchParams.get("from") === "portfolio" && (
+        <Link href="/portfolio" className="mb-2 inline-block text-sm font-medium text-slate-600 hover:underline">
+          ← Back to Portfolio
+        </Link>
+      )}
       <h1 className="text-2xl font-semibold text-slate-900">AI Price Forecast</h1>
       <p className="mt-1 text-sm text-slate-500">
         A backtested quant forecast for one ticker, shown next to how often it has actually beaten doing

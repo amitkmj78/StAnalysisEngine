@@ -651,6 +651,20 @@ export default function PortfolioPage() {
                               {insight.weight_pct?.toFixed(0)}%
                             </span>
                           )}
+                          <div className="mt-0.5 flex gap-2 text-[11px] font-normal">
+                            <Link
+                              href={`/predict?ticker=${r.ticker}&from=portfolio`}
+                              className="text-slate-500 hover:text-slate-800 hover:underline"
+                            >
+                              Forecast
+                            </Link>
+                            <Link
+                              href={`/signal-comparison?ticker=${r.ticker}&from=portfolio`}
+                              className="text-slate-500 hover:text-slate-800 hover:underline"
+                            >
+                              Quant vs Analyst
+                            </Link>
+                          </div>
                         </td>
                         <td className="px-3 py-2">
                           {insight?.signal ? (
