@@ -504,6 +504,20 @@ create table if not exists portfolio_positions (
   unrealized_pnl_pct real, source text, created_at timestamptz not null default now()
 );
 create index if not exists portfolio_positions_user_idx on portfolio_positions(user_id);
+
+-- created_at tracks row-insert time, which is NOT a stable "date this
+-- position was acquired": every save (including editing one unrelated
+-- position) deletes and reinserts every row for the whole portfolio
+-- (see _save_and_respond in web/backend/routers/portfolio.py), which
+-- would otherwise reset created_at to now() for every untouched
+-- position too. acquired_at is a separate, deliberately-preserved date
+-- -- set once (from a CSV's real earliest-buy date when available, else
+-- today, or a user-supplied date on manual entry) and carried forward
+-- by _merge_with_existing on every subsequent save, so it actually
+-- means "when this position was first added," not "when this row last
+-- happened to be rewritten."
+alter table portfolio_positions add column if not exists acquired_at date not null default current_date;
+
 alter table portfolio_positions enable row level security;
 drop policy if exists portfolio_positions_isolation on portfolio_positions;
 create policy portfolio_positions_isolation on portfolio_positions

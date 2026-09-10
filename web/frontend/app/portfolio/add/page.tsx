@@ -12,7 +12,14 @@ const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
 
 type Mode = "manual" | "csv";
 
-const EMPTY_ROW: ManualPositionInput = { name: "", ticker: "", shares: 0, current_price: 0, avg_cost: 0 };
+const EMPTY_ROW: ManualPositionInput = {
+  name: "",
+  ticker: "",
+  shares: 0,
+  current_price: 0,
+  avg_cost: 0,
+  acquired_at: null,
+};
 
 export default function AddPositionsPage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
@@ -123,7 +130,9 @@ export default function AddPositionsPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Add Positions</h1>
           <p className="mt-1 text-sm text-slate-500">
             Import a Robinhood activity CSV or enter positions manually. Each save also sets watchlist alerts by
-            default at the suggested upside target and stop for every position.
+            default at the suggested upside target and stop for every position. For a CSV import, the date you
+            actually bought is pulled from the file itself; for manual entry, leave &quot;Date acquired&quot;
+            blank to default to today.
           </p>
         </div>
         <Link href="/portfolio" className="text-sm font-medium text-slate-600 hover:underline">
@@ -193,6 +202,14 @@ export default function AddPositionsPage() {
                   value={row.current_price || ""}
                   onChange={(e) => updateRow(i, { current_price: Number(e.target.value) })}
                   className="input w-24"
+                />
+              </Field>
+              <Field label="Date acquired (optional)">
+                <input
+                  type="date"
+                  value={row.acquired_at ?? ""}
+                  onChange={(e) => updateRow(i, { acquired_at: e.target.value || null })}
+                  className="input w-36"
                 />
               </Field>
               {rows.length > 1 && (

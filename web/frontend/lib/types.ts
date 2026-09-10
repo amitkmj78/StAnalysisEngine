@@ -501,6 +501,7 @@ export interface PortfolioPosition {
   unrealized_pnl_pct: number | null;
   source: string;
   created_at: string;
+  acquired_at: string | null;
 }
 
 export interface PortfolioStrategyRow {
@@ -587,6 +588,7 @@ export interface PortfolioPerformanceRow {
   ticker: string;
   shares: number;
   avg_cost: number | null;
+  acquired_at: string | null;
   cost_basis: number | null;
   price_now: number | null;
   price_now_regular: number | null;
@@ -642,6 +644,7 @@ export interface ManualPositionInput {
   current_price: number;
   avg_cost: number;
   total_return_pct?: number | null;
+  acquired_at?: string | null;
 }
 
 export interface PortfolioSubmitResponse {

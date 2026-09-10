@@ -114,6 +114,17 @@ def load_broker_activity_csv(file_obj: IO[bytes]) -> pd.DataFrame:
     df_trades = df_trades.replace([np.inf, -np.inf], np.nan)
     df_trades = df_trades.dropna(subset=["quantity", "price"])
 
+    # Robinhood's export names this "Activity Date" (normalized above to
+    # activity_date); "process_date" is the fallback some export variants
+    # use instead. Missing entirely just means every trade's Date comes
+    # back NaT -- compute_positions_from_trades already treats that as
+    # "no real acquisition date available," same as a manually-entered
+    # position with none given.
+    date_col = "activity_date" if "activity_date" in df_trades.columns else "process_date"
+    trade_dates = (
+        pd.to_datetime(df_trades[date_col], errors="coerce") if date_col in df_trades.columns else pd.NaT
+    )
+
     # Standardized output
     df_clean = pd.DataFrame(
         {
@@ -121,6 +132,7 @@ def load_broker_activity_csv(file_obj: IO[bytes]) -> pd.DataFrame:
             "Side": df_trades["trans_code"].astype(str).str.upper().str.strip(),
             "Quantity": df_trades["quantity"].astype(float),
             "Price": df_trades["price"].astype(float),
+            "Date": trade_dates,
         }
     )
 
@@ -138,8 +150,8 @@ def load_broker_activity_csv(file_obj: IO[bytes]) -> pd.DataFrame:
 # -----------------------------
 def compute_positions_from_trades(trades: pd.DataFrame) -> pd.DataFrame:
     """
-    Given trades with columns [Ticker, Side, Quantity, Price],
-    compute current open positions using an average-cost model.
+    Given trades with columns [Ticker, Side, Quantity, Price], optionally
+    Date, compute current open positions using an average-cost model.
 
     For each ticker we track:
     - Net_Shares (float)
@@ -147,10 +159,14 @@ def compute_positions_from_trades(trades: pd.DataFrame) -> pd.DataFrame:
     - Total_Buy_Shares
     - Total_Sell_Shares
     - Realized_PnL (approx, using average cost)
+    - First_Buy_Date (earliest BUY trade's Date, if the input carries one --
+      used as the position's real "acquired" date instead of defaulting
+      to the import's upload date)
     """
     required_cols = {"Ticker", "Side", "Quantity", "Price"}
     if not required_cols.issubset(set(trades.columns)):
         raise ValueError(f"trades DataFrame must contain {required_cols}")
+    has_dates = "Date" in trades.columns
 
     positions: Dict[str, Dict[str, Any]] = {}
 
@@ -159,6 +175,7 @@ def compute_positions_from_trades(trades: pd.DataFrame) -> pd.DataFrame:
         side = str(row["Side"]).upper().strip()
         qty = float(row["Quantity"])
         px = float(row["Price"])
+        trade_date = row["Date"] if has_dates else None
 
         if tk not in positions:
             positions[tk] = {
@@ -167,6 +184,7 @@ def compute_positions_from_trades(trades: pd.DataFrame) -> pd.DataFrame:
                 "Total_Buy_Shares": 0.0,
                 "Total_Sell_Shares": 0.0,
                 "Realized_PnL": 0.0,
+                "First_Buy_Date": None,
             }
 
         pos = positions[tk]
@@ -189,6 +207,10 @@ def compute_positions_from_trades(trades: pd.DataFrame) -> pd.DataFrame:
 
             pos["Total_Buy_Shares"] += qty
 
+            if trade_date is not None and pd.notna(trade_date):
+                if pos["First_Buy_Date"] is None or trade_date < pos["First_Buy_Date"]:
+                    pos["First_Buy_Date"] = trade_date
+
         elif side == "SELL":
             sell_qty = qty
             # Realized PnL using current avg cost
@@ -210,6 +232,7 @@ def compute_positions_from_trades(trades: pd.DataFrame) -> pd.DataFrame:
                 "Total_Buy_Shares": round(p["Total_Buy_Shares"], 4),
                 "Total_Sell_Shares": round(p["Total_Sell_Shares"], 4),
                 "Realized_PnL": round(p["Realized_PnL"], 2),
+                "Acquired_At": p["First_Buy_Date"],
             }
         )
 

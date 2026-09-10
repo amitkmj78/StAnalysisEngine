@@ -668,6 +668,9 @@ export default function PortfolioPage() {
                               Quant vs Analyst
                             </Link>
                           </div>
+                          {r.acquired_at && (
+                            <div className="mt-0.5 text-[11px] text-slate-400">Held since {fmtAcquiredAt(r.acquired_at)}</div>
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           {insight?.signal ? (
@@ -1211,6 +1214,20 @@ function longTermMomentumNote(insight: PortfolioInsight | null): string | null {
 
 function withLiveRead(planText: string, note: string | null): string {
   return note ? `${planText}\n\n**Live Read:** ${note}` : planText;
+}
+
+function fmtAcquiredAt(isoDate: string): string {
+  // acquired_at is a date-only value ("YYYY-MM-DD") -- new Date(isoDate)
+  // would parse it as UTC midnight, which can display as the previous
+  // day in any timezone behind UTC. Building a local-time Date from the
+  // parsed components avoids that off-by-one.
+  const [year, month, day] = isoDate.split("-").map(Number);
+  if (!year || !month || !day) return isoDate;
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

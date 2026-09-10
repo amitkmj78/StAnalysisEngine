@@ -40,6 +40,7 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
     ticker = pos["ticker"]
     shares = pos.get("shares") or 0
     avg_cost = pos.get("avg_cost")
+    acquired_at = pos.get("acquired_at")
     if shares <= 0:
         return None
 
@@ -60,6 +61,7 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
             "ticker": ticker,
             "shares": shares,
             "avg_cost": avg_cost,
+            "acquired_at": acquired_at,
             "cost_basis": cost_basis,
             "price_now": None,
             "price_now_regular": None,
@@ -98,6 +100,7 @@ def _compute_position_row(pos: dict, when: datetime) -> Optional[dict]:
         "ticker": ticker,
         "shares": shares,
         "avg_cost": avg_cost,
+        "acquired_at": acquired_at,
         "cost_basis": cost_basis,
         "price_now": price_now,
         "price_now_regular": price_now_regular,

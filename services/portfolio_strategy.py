@@ -331,6 +331,12 @@ def build_robinhood_strategies(
                     "Risk_Factor": rf,
                     "Target_Price": target_price,
                     "Stop_Price": stop_price,
+                    # Passed straight through from the input row (not
+                    # part of what _normalize_holdings_row/pos extract)
+                    # so a preserved position's real acquired date, or a
+                    # CSV import's real earliest-buy date, survives this
+                    # rebuild instead of being silently dropped.
+                    "Acquired_At": row.get("Acquired_At"),
                 }
             )
         except Exception:

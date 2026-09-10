@@ -6,7 +6,8 @@ def build_manual_positions(
     shares: list[float],
     current_prices: list[float],
     avg_costs: list[float],
-    total_returns: list[float] | None = None
+    total_returns: list[float] | None = None,
+    acquired_dates: list[str | None] | None = None,
 ) -> pd.DataFrame:
     """
     Create a standardized holdings DataFrame from manual user input.
@@ -18,6 +19,8 @@ def build_manual_positions(
     - Current_Price
     - Avg_Cost
     - Unrealized_PnL_%
+    - Acquired_At (the date the user says they bought it, when given --
+      None otherwise, which _save_and_respond then defaults to today)
     """
     data = []
 
@@ -38,6 +41,8 @@ def build_manual_positions(
         else:
             pnl_pct = ((price - cost) / cost * 100) if cost > 0 else 0
 
+        acquired_at = acquired_dates[i] if acquired_dates and i < len(acquired_dates) else None
+
         data.append(
             {
                 "Ticker": tickers[i].upper().strip(),
@@ -46,6 +51,7 @@ def build_manual_positions(
                 "Avg_Cost": cost,
                 "Current_Price": price,
                 "Unrealized_PnL_%": pnl_pct,
+                "Acquired_At": acquired_at or None,
             }
         )
 

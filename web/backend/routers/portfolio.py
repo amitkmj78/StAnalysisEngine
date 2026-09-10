@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
+from services.acquired_at_utils import acquired_at_or_today, is_missing_date
 from services.benchmark_comparison_service import compute_benchmark_comparison
 from services.goal_plan_service import (
     build_signal_weighted_allocation,
@@ -119,11 +120,14 @@ async def _merge_with_existing(conn, user_id: str, portfolio_id: int, new_holdin
     additive instead of "replace the whole portfolio," matching how
     edit_position already behaved for a single ticker.
 
-    Preserved existing rows carry only Ticker/Shares/Avg_Cost (no
+    Preserved existing rows carry Ticker/Shares/Avg_Cost/Acquired_At (no
     Current_Price/Name — those aren't in portfolio_positions to begin
     with), which is exactly the shape refresh_portfolio already uses:
     _normalize_holdings_row fetches a live price for them, same as a
-    refresh would.
+    refresh would. Acquired_At specifically matters here: without
+    carrying it forward, every save would silently reset an untouched
+    position's real acquisition date right along with everything else
+    _save_and_respond rewrites.
     """
     new_tickers: set[str] = set()
     if not new_holdings_df.empty and "Ticker" in new_holdings_df.columns:
@@ -140,14 +144,36 @@ async def _merge_with_existing(conn, user_id: str, portfolio_id: int, new_holdin
             new_holdings_df = new_holdings_df.rename(columns={"Net_Shares": "Shares"})
 
     existing = await conn.fetch(
-        "SELECT ticker, shares, avg_cost FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+        "SELECT ticker, shares, avg_cost, acquired_at FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
         user_id, portfolio_id,
     )
     preserved_rows = [
-        {"Ticker": r["ticker"], "Shares": r["shares"], "Avg_Cost": r["avg_cost"]}
+        {"Ticker": r["ticker"], "Shares": r["shares"], "Avg_Cost": r["avg_cost"], "Acquired_At": r["acquired_at"]}
         for r in existing
         if r["ticker"] not in new_tickers
     ]
+
+    # A ticker that IS in the new submission but is also already saved
+    # (a manual re-entry, a CSV re-import covering an existing holding)
+    # is "taken exactly as submitted" per this function's own contract
+    # above — but that must not mean silently resetting its real
+    # acquired_at to today just because this particular save didn't
+    # happen to carry a date for it. Backfill from the existing row
+    # whenever the submission left Acquired_At blank; an explicit date
+    # in the submission (fresh CSV buy date, user-entered date, a caller
+    # already carrying the right value forward) always wins.
+    if not new_holdings_df.empty and "Ticker" in new_holdings_df.columns:
+        existing_acquired_at = {r["ticker"]: r["acquired_at"] for r in existing}
+        if "Acquired_At" not in new_holdings_df.columns:
+            new_holdings_df = new_holdings_df.assign(Acquired_At=None)
+        new_holdings_df = new_holdings_df.assign(
+            Acquired_At=new_holdings_df.apply(
+                lambda r: r["Acquired_At"]
+                if not is_missing_date(r["Acquired_At"])
+                else existing_acquired_at.get(str(r["Ticker"]).strip().upper()),
+                axis=1,
+            )
+        )
 
     return pd.concat([pd.DataFrame(preserved_rows), new_holdings_df], ignore_index=True, sort=False)
 
@@ -177,12 +203,13 @@ async def _save_and_respond(conn, user_id: str, portfolio_id: int, holdings_df: 
         record = await conn.fetchrow(
             """
             INSERT INTO portfolio_positions (
-                user_id, portfolio_id, ticker, name, shares, avg_cost, current_price, unrealized_pnl_pct, source
-            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+                user_id, portfolio_id, ticker, name, shares, avg_cost, current_price, unrealized_pnl_pct, source, acquired_at
+            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING *
             """,
             user_id, portfolio_id, row["Ticker"], row["Ticker"], _nan_to_none(row["Shares"]), _nan_to_none(row["Avg_Cost"]),
             _nan_to_none(row["Current_Price"]), _nan_to_none(row["Unrealized_PnL_%"]), source,
+            acquired_at_or_today(row.get("Acquired_At")),
         )
         position_rows.append(_record_to_dict(record))
 
@@ -312,6 +339,7 @@ class ManualPositionIn(BaseModel):
     current_price: float
     avg_cost: float
     total_return_pct: Optional[float] = None
+    acquired_at: Optional[date] = None
 
 
 class ManualPositionsRequest(BaseModel):
@@ -337,6 +365,7 @@ async def submit_manual_positions(request: Request, body: ManualPositionsRequest
         current_prices=[p.current_price for p in body.positions],
         avg_costs=[p.avg_cost for p in body.positions],
         total_returns=[p.total_return_pct for p in body.positions],
+        acquired_dates=[p.acquired_at for p in body.positions],
     )
     async with user_conn(user_id) as conn:
         portfolio_id = await _resolve_portfolio_id(conn, user_id, body.portfolio_id)
@@ -379,7 +408,7 @@ async def refresh_portfolio(request: Request, risk_profile: str = "Balanced", ri
     async with user_conn(user_id) as conn:
         resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
         records = await conn.fetch(
-            "SELECT ticker, shares, avg_cost, name FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            "SELECT ticker, shares, avg_cost, name, acquired_at FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
             user_id, resolved_portfolio_id,
         )
         if not records:
@@ -389,12 +418,15 @@ async def refresh_portfolio(request: Request, risk_profile: str = "Balanced", ri
         # Current_Price/Unrealized_PnL_% columns are present — that lets
         # _normalize_holdings_row fetch a live price AND derive PnL from it,
         # instead of PnL getting locked in against a 0/stale price first.
+        # Acquired_At carries the real saved date through — a refresh is
+        # a re-price, not a re-buy, so it must not reset it to today.
         holdings_df = pd.DataFrame(
             {
                 "Ticker": [r["ticker"] for r in records],
                 "Name": [r["name"] or r["ticker"] for r in records],
                 "Shares": [r["shares"] for r in records],
                 "Avg_Cost": [r["avg_cost"] for r in records],
+                "Acquired_At": [r["acquired_at"] for r in records],
             }
         )
         return await _save_and_respond(conn, user_id, resolved_portfolio_id, holdings_df, risk_profile, risk_factor, "Refreshed")
@@ -407,6 +439,7 @@ class PositionEditRequest(BaseModel):
     risk_profile: str = "Balanced"
     risk_factor: int = 5
     portfolio_id: Optional[int] = None
+    acquired_at: Optional[date] = None
 
 
 @router.put("/positions/{ticker}")
@@ -428,7 +461,14 @@ async def edit_position(request: Request, ticker: str, body: PositionEditRequest
 
     async with user_conn(user_id) as conn:
         portfolio_id = await _resolve_portfolio_id(conn, user_id, body.portfolio_id)
-        new_row = pd.DataFrame([{"Ticker": ticker, "Shares": body.shares, "Avg_Cost": body.avg_cost}])
+        # An edit changing shares/avg_cost isn't a re-buy: leaving
+        # acquired_at unset here lets _merge_with_existing backfill the
+        # ticker's real saved date automatically (an explicit
+        # body.acquired_at, e.g. the user correcting it, still wins), and
+        # only a genuinely new ticker falls through to today.
+        new_row = pd.DataFrame(
+            [{"Ticker": ticker, "Shares": body.shares, "Avg_Cost": body.avg_cost, "Acquired_At": body.acquired_at}]
+        )
         merged_df = await _merge_with_existing(conn, user_id, portfolio_id, new_row)
         return await _save_and_respond(conn, user_id, portfolio_id, merged_df, body.risk_profile, body.risk_factor, "Edited")
 
@@ -504,7 +544,7 @@ async def move_position(request: Request, ticker: str, body: MovePositionRequest
             raise HTTPException(422, "Source and destination portfolios must be different.")
 
         source_row = await conn.fetchrow(
-            "SELECT shares, avg_cost, current_price FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2 AND ticker = $3",
+            "SELECT shares, avg_cost, current_price, acquired_at FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2 AND ticker = $3",
             user_id, from_id, ticker,
         )
         if source_row is None:
@@ -512,6 +552,8 @@ async def move_position(request: Request, ticker: str, body: MovePositionRequest
 
         await _delete_position_rows(conn, user_id, from_id, ticker)
 
+        # A move between portfolios isn't a re-buy either — carry the
+        # original acquired_at over rather than letting it reset to today.
         new_row = pd.DataFrame(
             [
                 {
@@ -519,6 +561,7 @@ async def move_position(request: Request, ticker: str, body: MovePositionRequest
                     "Shares": source_row["shares"],
                     "Avg_Cost": source_row["avg_cost"],
                     "Current_Price": source_row["current_price"],
+                    "Acquired_At": source_row["acquired_at"],
                 }
             ]
         )
@@ -1194,11 +1237,14 @@ async def portfolio_performance(request: Request, lookback_days: int = 30, portf
     async with user_conn(user_id) as conn:
         resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
         records = await conn.fetch(
-            "SELECT ticker, shares, avg_cost FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            "SELECT ticker, shares, avg_cost, acquired_at FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
             user_id, resolved_portfolio_id,
         )
 
-    positions = [{"ticker": r["ticker"], "shares": r["shares"], "avg_cost": r["avg_cost"]} for r in records]
+    positions = [
+        {"ticker": r["ticker"], "shares": r["shares"], "avg_cost": r["avg_cost"], "acquired_at": r["acquired_at"]}
+        for r in records
+    ]
     if not positions:
         return {
             "lookback_days": lookback_days,
