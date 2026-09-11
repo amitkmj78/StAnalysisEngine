@@ -792,7 +792,7 @@ export default function PortfolioPage() {
                             <td className="px-3 py-2 text-right font-medium text-slate-800">
                               {r.value_now === null
                                 ? "—"
-                                : `$${r.value_now.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                                : `$${r.value_now.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`}
                             </td>
                             <td
                               className={`px-3 py-2 text-right font-medium ${
