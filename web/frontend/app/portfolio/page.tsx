@@ -87,6 +87,12 @@ const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
       "The latest trade price used for this row's value/gain figures. When the market is in pre-market or after-hours and a quote is available, this is that session's price, not the regular session's stale close — a badge marks it, and the regular-session price is shown underneath for reference.",
     ],
   },
+  "Market Value": {
+    title: "Market Value",
+    body: [
+      "What this position is worth right now: Shares × Price Now. Summed across every holding, this is the same number shown in the \"Value Now\" tile above the table.",
+    ],
+  },
   Today: {
     title: "Today",
     body: [
@@ -632,6 +638,7 @@ export default function PortfolioPage() {
                       <PerformanceTh label="10-Day Forecast" align="right" onInfoClick={() => setPerformanceInfoColumn("10-Day Forecast")} />
                       <PerformanceTh label="Shares" align="right" onInfoClick={() => setPerformanceInfoColumn("Shares")} />
                       <PerformanceTh label="Price Now" align="right" onInfoClick={() => setPerformanceInfoColumn("Price Now")} />
+                      <PerformanceTh label="Market Value" align="right" onInfoClick={() => setPerformanceInfoColumn("Market Value")} />
                       <PerformanceTh label="Today" align="right" onInfoClick={() => setPerformanceInfoColumn("Today")} />
                       <PerformanceTh label="Price 30D Ago" align="right" onInfoClick={() => setPerformanceInfoColumn("Price 30D Ago")} />
                       <PerformanceTh label="30D Diff" align="right" onInfoClick={() => setPerformanceInfoColumn("30D Diff")} />
@@ -749,7 +756,7 @@ export default function PortfolioPage() {
                         </td>
                         <td className="px-3 py-2 text-right text-slate-600">{r.shares.toFixed(2)}</td>
                         {r.price_unavailable ? (
-                          <td colSpan={6} className="px-3 py-2 text-slate-400">
+                          <td colSpan={7} className="px-3 py-2 text-slate-400">
                             No market data found for this ticker — check it&apos;s a valid, publicly-traded symbol.
                           </td>
                         ) : (
@@ -781,6 +788,11 @@ export default function PortfolioPage() {
                                   )}
                                 </>
                               )}
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium text-slate-800">
+                              {r.value_now === null
+                                ? "—"
+                                : `$${r.value_now.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
                             </td>
                             <td
                               className={`px-3 py-2 text-right font-medium ${
