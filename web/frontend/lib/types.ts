@@ -631,6 +631,7 @@ export interface PortfolioBenchmarkComparison {
   benchmark_ticker: string;
   portfolio_return_pct: number | null;
   benchmark_return_pct: number | null;
+  benchmark_today_pct: number | null;
   gap_pct: number | null;
   underperforming: boolean;
   worst_positions: BenchmarkWorstPosition[];

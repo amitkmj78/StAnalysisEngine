@@ -1287,6 +1287,7 @@ async def portfolio_benchmark_comparison(request: Request, portfolio_id: Optiona
         "benchmark_ticker": "SPY",
         "portfolio_return_pct": None,
         "benchmark_return_pct": None,
+        "benchmark_today_pct": None,
         "gap_pct": None,
         "underperforming": False,
         "worst_positions": [],

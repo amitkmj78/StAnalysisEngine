@@ -27,7 +27,7 @@ portfolio_review_service.
 from datetime import datetime
 from typing import Optional
 
-from .data_service import get_effective_price
+from .data_service import get_effective_price, get_previous_close
 from .fund_comparison_service import price_near_date
 from .portfolio_performance_service import compute_portfolio_performance
 
@@ -48,6 +48,15 @@ def compute_benchmark_comparison(positions: list[dict], portfolio_created_at: da
     benchmark_return_pct: Optional[float] = None
     if benchmark_price_then and benchmark_price_now:
         benchmark_return_pct = (benchmark_price_now / benchmark_price_then - 1.0) * 100.0
+
+    # Today's S&P move on its own -- same day-P&L math as a portfolio
+    # position's own "Today" column (get_previous_close vs. the current
+    # effective price), so it's directly comparable to the portfolio's
+    # own Today's Gain/Loss tile, not just the since-inception figure above.
+    benchmark_prev_close = get_previous_close(BENCHMARK_TICKER)
+    benchmark_today_pct: Optional[float] = None
+    if benchmark_prev_close and benchmark_price_now:
+        benchmark_today_pct = (benchmark_price_now / benchmark_prev_close - 1.0) * 100.0
 
     gap_pct: Optional[float] = None
     underperforming = False
@@ -94,6 +103,7 @@ def compute_benchmark_comparison(positions: list[dict], portfolio_created_at: da
         "benchmark_ticker": BENCHMARK_TICKER,
         "portfolio_return_pct": portfolio_return_pct,
         "benchmark_return_pct": benchmark_return_pct,
+        "benchmark_today_pct": benchmark_today_pct,
         "gap_pct": gap_pct,
         "underperforming": underperforming,
         "worst_positions": worst_positions,

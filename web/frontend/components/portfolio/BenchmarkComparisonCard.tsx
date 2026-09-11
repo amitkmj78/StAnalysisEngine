@@ -36,9 +36,13 @@ export default function BenchmarkComparisonCard({ portfolioId }: { portfolioId: 
 
   if (loading) return null;
   if (error) return <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>;
-  if (!data || data.gap_pct === null) return null;
+  // Renders as long as there's at least one real stat to show -- the
+  // since-inception comparison (gap_pct) needs the portfolio's creation
+  // date priced, but benchmark_today_pct only needs today's quotes and
+  // shouldn't disappear just because the other one failed.
+  if (!data || (data.gap_pct === null && data.benchmark_today_pct === null)) return null;
 
-  const positive = data.gap_pct >= 0;
+  const positive = data.gap_pct !== null && data.gap_pct >= 0;
 
   return (
     <div
@@ -50,26 +54,42 @@ export default function BenchmarkComparisonCard({ portfolioId }: { portfolioId: 
         <div className="flex items-center gap-4 text-sm">
           <span className="font-semibold text-slate-900">vs. S&amp;P 500 ({data.benchmark_ticker})</span>
           <span className="text-slate-600">
+            {data.benchmark_ticker} today{" "}
+            <strong
+              className={
+                data.benchmark_today_pct === null
+                  ? undefined
+                  : data.benchmark_today_pct >= 0
+                  ? "text-emerald-600"
+                  : "text-red-600"
+              }
+            >
+              {fmtPct(data.benchmark_today_pct)}
+            </strong>
+          </span>
+          <span className="text-slate-600">
             Portfolio <strong>{fmtPct(data.portfolio_return_pct)}</strong>
           </span>
           <span className="text-slate-600">
             {data.benchmark_ticker} <strong>{fmtPct(data.benchmark_return_pct)}</strong>
           </span>
         </div>
-        <span
-          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-            positive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-          }`}
-        >
-          {positive ? "Ahead by" : "Trailing by"} {Math.abs(data.gap_pct).toFixed(1)} pts
-        </span>
+        {data.gap_pct !== null && (
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+              positive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+            }`}
+          >
+            {positive ? "Ahead by" : "Trailing by"} {Math.abs(data.gap_pct).toFixed(1)} pts
+          </span>
+        )}
       </div>
       {data.underperforming && data.suggestion && (
         <p className="mt-2 text-sm text-amber-800">{data.suggestion}</p>
       )}
       <p className="mt-2 text-xs text-slate-400">
-        Since this portfolio was created — an approximation, not a date-matched return for each individual
-        position.
+        {data.benchmark_ticker} today is a real day-over-day move. Portfolio vs. {data.benchmark_ticker} is since
+        this portfolio was created — an approximation, not a date-matched return for each individual position.
       </p>
     </div>
   );
