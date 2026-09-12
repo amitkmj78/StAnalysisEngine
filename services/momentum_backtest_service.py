@@ -197,16 +197,37 @@ def _compute_backtest_momentum_ranking(
 
     frames = _download_universe_history(tickers, period=f"{years + 1}y")
 
-    closes: dict[str, pd.Series] = {}
-    volumes: dict[str, pd.Series] = {}
+    raw_closes: dict[str, pd.Series] = {}
+    raw_volumes: dict[str, pd.Series] = {}
     for t, frame in frames.items():
         try:
             series = frame["Close"].dropna()
             if len(series) > lookback_days + horizon_days * 2:
-                closes[t] = series
-                volumes[t] = frame["Volume"].reindex(series.index)
+                raw_closes[t] = series
+                raw_volumes[t] = frame["Volume"].reindex(series.index)
         except Exception:
             continue
+
+    if len(raw_closes) < top_n + 1:
+        return None
+
+    # A ticker that only started trading recently (a spinoff, a fresh
+    # IPO -- the S&P 500's constituent list changes ~20-30x/year, see
+    # fetch_sp500_tickers) genuinely can't be part of a multi-year
+    # backtest; it didn't exist for most of the window. Found live in
+    # production: two such tickers (61 and 74 days of history) were
+    # still passing the loose length filter above, then poisoning the
+    # hard date INTERSECTION for the entire ~500-ticker universe down
+    # to their own short history -- a real result that silently covered
+    # about 2 months while claiming to be a 3-year test. Requiring each
+    # included ticker to start at or before the target window's cutoff
+    # excludes only the tickers that actually can't cover it, instead of
+    # collapsing everyone else's usable history to match the newest
+    # listing in the universe.
+    overall_last_date = max(s.index[-1] for s in raw_closes.values())
+    window_cutoff = overall_last_date - pd.Timedelta(days=years * 365)
+    closes = {t: s for t, s in raw_closes.items() if s.index[0] <= window_cutoff}
+    volumes = {t: v for t, v in raw_volumes.items() if t in closes}
 
     if len(closes) < top_n + 1:
         return None
