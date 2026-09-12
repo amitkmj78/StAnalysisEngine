@@ -15,7 +15,21 @@ from .backtest_engine import (
     sortino,
 )
 from .index_fund_service import INDEX_FUND_UNIVERSE
+from .rate_limit_utils import fetch_with_backoff
 from .stock_finder_service import _universe_tickers as _resolve_stock_universe_tickers
+
+# A single yf.download() call for the full "All"/S&P 500 universe
+# (500+ tickers) gets hammered by Yahoo's rate limiter -- observed live:
+# most tickers failing outright, and the handful that "succeeded" still
+# only sharing a few months of overlapping dates instead of the
+# requested multi-year window (individual rows silently rate-limited
+# within an ostensibly successful response). Batching into smaller,
+# paced chunks is slower but actually returns complete data instead of
+# a result that LOOKS successful but silently covers a fraction of the
+# requested history -- exactly the kind of thing a "3-Year Test" must
+# not silently get wrong.
+_DOWNLOAD_BATCH_SIZE = 50
+_DOWNLOAD_BATCH_PAUSE_SECONDS = 2.0
 
 # TR-7: applied by default, not opt-in. Retail-realistic, not institutional —
 # most brokers (including the Robinhood-style CSV import this app already
@@ -57,6 +71,34 @@ def _universe_tickers(asset_type: str, universe_key: str) -> list[str]:
     if universe_key == "All":
         return [f.ticker for f in INDEX_FUND_UNIVERSE]
     return [f.ticker for f in INDEX_FUND_UNIVERSE if f.category == universe_key]
+
+
+def _download_universe_history(tickers: list[str], period: str) -> dict[str, pd.DataFrame]:
+    """
+    Chunked, paced replacement for one giant yf.download(tickers, ...) —
+    see the module-level comment on _DOWNLOAD_BATCH_SIZE for why. Each
+    chunk still goes through fetch_with_backoff for its own retry-on-
+    rate-limit; a chunk that fails even after that is skipped (those
+    tickers just won't appear in the result), not fatal to the whole
+    universe.
+    """
+    frames: dict[str, pd.DataFrame] = {}
+    for i in range(0, len(tickers), _DOWNLOAD_BATCH_SIZE):
+        chunk = tickers[i : i + _DOWNLOAD_BATCH_SIZE]
+        try:
+            raw = fetch_with_backoff(
+                lambda c=chunk: yf.download(c, period=period, auto_adjust=True, progress=False, group_by="ticker")
+            )
+        except Exception:
+            continue
+        for t in chunk:
+            try:
+                frames[t] = raw[t] if len(chunk) > 1 else raw
+            except Exception:
+                continue
+        if i + _DOWNLOAD_BATCH_SIZE < len(tickers):
+            time.sleep(_DOWNLOAD_BATCH_PAUSE_SECONDS)
+    return frames
 
 
 _backtest_cache: dict[tuple, dict] = {}
@@ -153,13 +195,12 @@ def _compute_backtest_momentum_ranking(
     if len(tickers) < top_n + 1:
         return None
 
-    raw = yf.download(tickers, period=f"{years + 1}y", auto_adjust=True, progress=False, group_by="ticker")
+    frames = _download_universe_history(tickers, period=f"{years + 1}y")
 
     closes: dict[str, pd.Series] = {}
     volumes: dict[str, pd.Series] = {}
-    for t in tickers:
+    for t, frame in frames.items():
         try:
-            frame = raw[t] if len(tickers) > 1 else raw
             series = frame["Close"].dropna()
             if len(series) > lookback_days + horizon_days * 2:
                 closes[t] = series
