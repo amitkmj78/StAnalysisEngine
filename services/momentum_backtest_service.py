@@ -15,7 +15,7 @@ from .backtest_engine import (
     sortino,
 )
 from .index_fund_service import INDEX_FUND_UNIVERSE
-from .stock_finder_service import STOCK_UNIVERSES
+from .stock_finder_service import _universe_tickers as _resolve_stock_universe_tickers
 
 # TR-7: applied by default, not opt-in. Retail-realistic, not institutional —
 # most brokers (including the Robinhood-style CSV import this app already
@@ -41,7 +41,19 @@ DEFAULT_CAPACITY_ADV_FRACTION = 0.01
 
 def _universe_tickers(asset_type: str, universe_key: str) -> list[str]:
     if asset_type == "Stock":
-        return list(STOCK_UNIVERSES.get(universe_key, []))
+        # "All" and "US - S&P 500" are deliberately empty placeholders in
+        # STOCK_UNIVERSES itself (see that dict's own comment) -- they
+        # resolve lazily via a live, 24h-cached Wikipedia fetch
+        # (stock_finder_service.fetch_sp500_tickers), not a static lookup.
+        # This function used to do `STOCK_UNIVERSES.get(universe_key, [])`
+        # directly, which silently returned an empty list for both of
+        # those keys -- a real, 100%-reproducible bug (not transient/rate
+        # -limit related) that made every "Stock" backtest against "All"
+        # or "US - S&P 500" fail with "not enough historical data",
+        # regardless of horizon_days/years/lookback_days. Reusing
+        # stock_finder_service's own resolver instead of reimplementing
+        # it here is what keeps this from silently diverging again.
+        return list(_resolve_stock_universe_tickers(universe_key))
     if universe_key == "All":
         return [f.ticker for f in INDEX_FUND_UNIVERSE]
     return [f.ticker for f in INDEX_FUND_UNIVERSE if f.category == universe_key]
