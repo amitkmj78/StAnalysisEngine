@@ -488,6 +488,12 @@ export function deletePortfolio(portfolioId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/portfolio/${portfolioId}`, "DELETE");
 }
 
+export function setPortfolioMargin(portfolioId: number, marginBalance: number) {
+  return apiSend<{ id: number; margin_balance: number }>(`/api/v1/portfolio/${portfolioId}/margin`, "PUT", {
+    margin_balance: marginBalance,
+  });
+}
+
 export function submitManualPositions(
   positions: ManualPositionInput[],
   riskProfile: string,

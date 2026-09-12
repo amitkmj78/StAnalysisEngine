@@ -14,6 +14,7 @@ import {
   getPortfolioSummary,
   movePortfolioPosition,
   refreshPortfolio,
+  setPortfolioMargin,
 } from "@/lib/api";
 import { isAdmin } from "@/lib/admin";
 import type {
@@ -153,6 +154,41 @@ export default function PortfolioPage() {
   const [showGoalPlan, setShowGoalPlan] = useState(false);
   const [riskProfile] = useState("Balanced");
   const [riskFactor] = useState(5);
+
+  const [marginInput, setMarginInput] = useState("");
+  const [marginSaving, setMarginSaving] = useState(false);
+  const [marginSaved, setMarginSaved] = useState(false);
+  const [marginError, setMarginError] = useState<string | null>(null);
+  const currentPortfolio = allPortfolios.find((p) => p.id === selectedPortfolioId) ?? null;
+
+  useEffect(() => {
+    setMarginInput(currentPortfolio ? String(currentPortfolio.margin_balance) : "");
+    setMarginSaved(false);
+    setMarginError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPortfolio?.id, currentPortfolio?.margin_balance]);
+
+  async function saveMargin() {
+    if (selectedPortfolioId === null) return;
+    const value = Number(marginInput);
+    if (!Number.isFinite(value) || value < 0) {
+      setMarginError("Enter a non-negative number.");
+      return;
+    }
+    setMarginSaving(true);
+    setMarginError(null);
+    setMarginSaved(false);
+    try {
+      await setPortfolioMargin(selectedPortfolioId, value);
+      setAllPortfolios((prev) => prev.map((p) => (p.id === selectedPortfolioId ? { ...p, margin_balance: value } : p)));
+      await refreshPerformance(false);
+      setMarginSaved(true);
+    } catch (err) {
+      setMarginError(err instanceof ApiError ? err.message : "Could not save margin balance.");
+    } finally {
+      setMarginSaving(false);
+    }
+  }
 
   const [strategies, setStrategies] = useState<PortfolioStrategyRow[]>([]);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
@@ -514,6 +550,31 @@ export default function PortfolioPage() {
 
       {showGoalPlan && <GoalPlan portfolioId={selectedPortfolioId} />}
 
+      {selectedPortfolioId !== null && (
+        <div className="mt-4 flex flex-wrap items-end gap-2">
+          <Field label="Margin balance ($ borrowed from broker)">
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={marginInput}
+              onChange={(e) => setMarginInput(e.target.value)}
+              className="input w-44"
+            />
+          </Field>
+          <button
+            type="button"
+            onClick={saveMargin}
+            disabled={marginSaving}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          >
+            {marginSaving ? "Saving…" : "Save"}
+          </button>
+          {marginSaved && <span className="text-xs font-medium text-emerald-700">Saved</span>}
+          {marginError && <span className="text-xs font-medium text-red-600">{marginError}</span>}
+        </div>
+      )}
+
       <div className="mt-6 flex flex-wrap gap-2">
         <Link
           href="/portfolio/add"
@@ -571,11 +632,24 @@ export default function PortfolioPage() {
 
           {performance && performance.rows.length > 0 && (
             <>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-5">
+              <div
+                className={
+                  performance.margin_balance > 0
+                    ? "mt-3 grid grid-cols-1 gap-3 sm:grid-cols-6"
+                    : "mt-3 grid grid-cols-1 gap-3 sm:grid-cols-5"
+                }
+              >
                 <MetricTile
                   label="Value Now"
                   value={`$${performance.total_value_now.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
                 />
+                {performance.margin_balance > 0 && (
+                  <MetricTile
+                    label="Net Equity"
+                    value={`$${performance.net_equity.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                    positive={performance.net_equity >= 0}
+                  />
+                )}
                 <MetricTile
                   label="Today's Gain/Loss"
                   value={

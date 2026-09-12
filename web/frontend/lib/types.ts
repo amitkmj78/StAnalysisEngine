@@ -484,6 +484,7 @@ export interface Portfolio {
   id: number;
   name: string;
   created_at: string;
+  margin_balance: number;
   position_count: number;
 }
 
@@ -618,6 +619,8 @@ export interface PortfolioPerformance {
   total_gain_vs_cost_pct: number | null;
   total_day_gain: number | null;
   total_day_gain_pct: number | null;
+  margin_balance: number;
+  net_equity: number;
 }
 
 export interface BenchmarkWorstPosition {

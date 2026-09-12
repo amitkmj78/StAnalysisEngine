@@ -279,11 +279,11 @@ async def list_portfolios(request: Request):
     async with user_conn(user_id) as conn:
         records = await conn.fetch(
             """
-            SELECT p.id, p.name, p.created_at, count(pp.id) AS position_count
+            SELECT p.id, p.name, p.created_at, p.margin_balance, count(pp.id) AS position_count
             FROM portfolios p
             LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = p.user_id
             WHERE p.user_id = $1::uuid AND p.is_active
-            GROUP BY p.id, p.name, p.created_at
+            GROUP BY p.id, p.name, p.created_at, p.margin_balance
             ORDER BY p.created_at ASC
             """,
             user_id,
@@ -304,7 +304,7 @@ async def create_portfolio(request: Request, body: CreatePortfolioRequest):
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
         record = await conn.fetchrow(
-            "INSERT INTO portfolios (user_id, name) VALUES ($1::uuid, $2) RETURNING id, name, created_at",
+            "INSERT INTO portfolios (user_id, name) VALUES ($1::uuid, $2) RETURNING id, name, created_at, margin_balance",
             user_id, name,
         )
     return {**_record_to_dict(record), "position_count": 0}
@@ -330,6 +330,32 @@ async def delete_portfolio(request: Request, portfolio_id: int):
     if row is None:
         raise HTTPException(404, "Portfolio not found.")
     return {"ok": True}
+
+
+class SetMarginRequest(BaseModel):
+    margin_balance: float
+
+
+@router.put("/{portfolio_id}/margin")
+@limiter.limit("20/minute")
+async def set_portfolio_margin(request: Request, portfolio_id: int, body: SetMarginRequest):
+    """Records money borrowed from the broker against this portfolio (0 =
+    no margin used). A liability the user edits directly, not derived
+    from anything else — Net Equity (see /performance) is total market
+    value minus this."""
+    await enforce_daily_quota(request, "portfolio/margin")
+    if body.margin_balance < 0:
+        raise HTTPException(422, "Margin balance can't be negative.")
+
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "UPDATE portfolios SET margin_balance = $1 WHERE id = $2 AND user_id = $3::uuid AND is_active RETURNING id, margin_balance",
+            body.margin_balance, portfolio_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Portfolio not found.")
+    return {"id": row["id"], "margin_balance": row["margin_balance"]}
 
 
 class ManualPositionIn(BaseModel):
@@ -1236,11 +1262,16 @@ async def portfolio_performance(request: Request, lookback_days: int = 30, portf
 
     async with user_conn(user_id) as conn:
         resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        portfolio_row = await conn.fetchrow(
+            "SELECT margin_balance FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            resolved_portfolio_id, user_id,
+        )
         records = await conn.fetch(
             "SELECT ticker, shares, avg_cost, acquired_at FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
             user_id, resolved_portfolio_id,
         )
 
+    margin_balance = portfolio_row["margin_balance"] if portfolio_row else 0.0
     positions = [
         {"ticker": r["ticker"], "shares": r["shares"], "avg_cost": r["avg_cost"], "acquired_at": r["acquired_at"]}
         for r in records
@@ -1258,9 +1289,18 @@ async def portfolio_performance(request: Request, lookback_days: int = 30, portf
             "total_gain_vs_cost_pct": None,
             "total_day_gain": None,
             "total_day_gain_pct": None,
+            "margin_balance": margin_balance,
+            "net_equity": -margin_balance,
         }
 
-    return await run_in_threadpool(compute_portfolio_performance, positions, lookback_days)
+    result = await run_in_threadpool(compute_portfolio_performance, positions, lookback_days)
+    # Net Equity is deliberately computed here, not in
+    # compute_portfolio_performance: margin_balance is a portfolio-level
+    # liability from the `portfolios` table, unrelated to any individual
+    # position's own price/gain math that service already owns.
+    result["margin_balance"] = margin_balance
+    result["net_equity"] = result["total_value_now"] - margin_balance
+    return result
 
 
 @router.get("/benchmark")

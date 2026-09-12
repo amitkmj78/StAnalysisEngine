@@ -503,6 +503,13 @@ alter table portfolios add column if not exists is_active boolean not null defau
 -- retirement account) while keeping it fully visible/active everywhere
 -- else. Checked in portfolio_alerts.scan_portfolios_for_drops.
 alter table portfolios add column if not exists drop_alerts_enabled boolean not null default true;
+-- Money borrowed from the broker against this portfolio (0 = no margin
+-- used / cash account). A liability, not a position -- total market
+-- value (sum of what's held) minus this is Net Equity, the standard
+-- brokerage distinction between account value and what you'd actually
+-- walk away with after paying the loan back. User-edited directly, not
+-- derived from anything else in this schema.
+alter table portfolios add column if not exists margin_balance real not null default 0;
 
 create table if not exists portfolio_positions (
   id bigint generated always as identity primary key,
