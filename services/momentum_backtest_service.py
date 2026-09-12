@@ -1,3 +1,5 @@
+import threading
+import time
 from typing import Optional
 
 import numpy as np
@@ -12,7 +14,6 @@ from .backtest_engine import (
     sharpe,
     sortino,
 )
-from .cache_utils import ttl_cache
 from .index_fund_service import INDEX_FUND_UNIVERSE
 from .stock_finder_service import STOCK_UNIVERSES
 
@@ -46,7 +47,12 @@ def _universe_tickers(asset_type: str, universe_key: str) -> list[str]:
     return [f.ticker for f in INDEX_FUND_UNIVERSE if f.category == universe_key]
 
 
-@ttl_cache(maxsize=32, ttl_seconds=21600)  # 6h — expensive to compute, doesn't need to be real-time
+_backtest_cache: dict[tuple, dict] = {}
+_backtest_cache_ts: dict[tuple, float] = {}
+_backtest_cache_lock = threading.Lock()
+_BACKTEST_CACHE_TTL_SECONDS = 21600  # 6h — expensive to compute, doesn't need to be real-time
+
+
 def backtest_momentum_ranking(
     asset_type: str,
     universe_key: str,
@@ -58,6 +64,51 @@ def backtest_momentum_ranking(
     commission_bps: float = DEFAULT_COMMISSION_BPS,
     borrow_cost_bps_annual: float = DEFAULT_BORROW_COST_BPS_ANNUAL,
     risk_free_rate_annual: float = 0.0,
+) -> Optional[dict]:
+    """
+    Hand-rolled cache instead of the shared @ttl_cache decorator, on
+    purpose: this must never cache a None (not-enough-data) result for
+    the same 6h TTL as a real one. A transient yf.download hiccup for
+    one ticker in a large universe (rate limit, timeout — exactly the
+    kind of blip this app has hit repeatedly elsewhere) would otherwise
+    get remembered as "impossible to backtest with these settings" for
+    six hours, even though a retry moments later would likely succeed.
+    Same fix shape as data_service.get_previous_close earlier this
+    session. A real result is still cached for the full 6h; only a
+    miss goes uncached, so the very next request retries for real.
+    """
+    cache_key = (
+        asset_type, universe_key, lookback_days, top_n, years, horizon_days,
+        slippage_bps, commission_bps, borrow_cost_bps_annual, risk_free_rate_annual,
+    )
+    with _backtest_cache_lock:
+        cached_at = _backtest_cache_ts.get(cache_key)
+        if cached_at is not None and (time.monotonic() - cached_at) < _BACKTEST_CACHE_TTL_SECONDS:
+            return _backtest_cache[cache_key]
+
+    result = _compute_backtest_momentum_ranking(
+        asset_type, universe_key, lookback_days, top_n, years, horizon_days,
+        slippage_bps, commission_bps, borrow_cost_bps_annual, risk_free_rate_annual,
+    )
+
+    if result is not None:
+        with _backtest_cache_lock:
+            _backtest_cache[cache_key] = result
+            _backtest_cache_ts[cache_key] = time.monotonic()
+    return result
+
+
+def _compute_backtest_momentum_ranking(
+    asset_type: str,
+    universe_key: str,
+    lookback_days: int,
+    top_n: int,
+    years: int,
+    horizon_days: int,
+    slippage_bps: float,
+    commission_bps: float,
+    borrow_cost_bps_annual: float,
+    risk_free_rate_annual: float,
 ) -> Optional[dict]:
     """
     Event-driven walk-forward backtest of a pure trailing-return ranking
