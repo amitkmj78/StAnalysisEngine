@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { SESSION_COOKIE_NAME } from "@/lib/session";
@@ -18,9 +18,22 @@ export async function login(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
+  // This fetch is server-to-server (Next.js -> FastAPI, both on the same
+  // box) — nginx never sees it, so it carries no X-Forwarded-For of its
+  // own. The browser's actual request DID go through nginx to reach this
+  // Server Action, though, so its X-Forwarded-For (the real visitor IP)
+  // is on the incoming request here; forward it explicitly so the
+  // backend's last-login-IP recording (web/backend/auth.get_client_ip)
+  // sees the visitor, not this server calling itself.
+  const incomingHeaders = await headers();
+  const forwardedFor = incomingHeaders.get("x-forwarded-for");
+
   const res = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(forwardedFor ? { "X-Forwarded-For": forwardedFor } : {}),
+    },
     body: JSON.stringify({ email, password }),
   });
 

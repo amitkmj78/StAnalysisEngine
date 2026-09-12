@@ -15,7 +15,7 @@ from services.password_policy_service import is_breached_password, validate_pass
 
 from web.backend.admin import ADMIN_EMAIL
 from web.backend.app_settings import PASSWORD_POLICY_ENABLED_KEY, get_setting_bool
-from web.backend.auth import SESSION_COOKIE_NAME, verify_bearer_token
+from web.backend.auth import SESSION_COOKIE_NAME, get_client_ip, verify_bearer_token
 from web.backend.db import service_conn
 from web.backend.rate_limit import limiter
 
@@ -83,7 +83,7 @@ class ResetPasswordRequest(BaseModel):
 
 
 @router.post("/signup")
-async def signup(body: SignupRequest, response: Response):
+async def signup(request: Request, body: SignupRequest, response: Response):
     await _validate_new_password(body.password)
 
     password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
@@ -109,6 +109,12 @@ async def signup(body: SignupRequest, response: Response):
         # admin approves the account.
         return {"id": str(row["id"]), "email": row["email"], "pending": True}
 
+    async with service_conn() as conn:
+        await conn.execute(
+            "UPDATE users SET last_login_at = now(), last_login_ip = $1 WHERE id = $2",
+            get_client_ip(request), row["id"],
+        )
+
     token = _issue_token(str(row["id"]), row["email"])
     _set_session_cookie(response, token)
     # Token included in the body (not just the Set-Cookie header) because the
@@ -119,7 +125,7 @@ async def signup(body: SignupRequest, response: Response):
 
 
 @router.post("/login")
-async def login(body: LoginRequest, response: Response):
+async def login(request: Request, body: LoginRequest, response: Response):
     async with service_conn() as conn:
         row = await conn.fetchrow(
             "SELECT id, email, password_hash, approved, is_active FROM users WHERE email = $1",
@@ -134,6 +140,12 @@ async def login(body: LoginRequest, response: Response):
 
     if not row["is_active"]:
         raise HTTPException(403, "This account has been deactivated. Contact an admin if you believe this is a mistake.")
+
+    async with service_conn() as conn:
+        await conn.execute(
+            "UPDATE users SET last_login_at = now(), last_login_ip = $1 WHERE id = $2",
+            get_client_ip(request), row["id"],
+        )
 
     token = _issue_token(str(row["id"]), row["email"])
     _set_session_cookie(response, token)

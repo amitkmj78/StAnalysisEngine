@@ -298,6 +298,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Portfolios</th>
                 <th className="px-3 py-2">Signed Up</th>
+                <th className="px-3 py-2">Last Login</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -330,6 +331,18 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                     )}
                   </td>
                   <td className="px-3 py-2 text-slate-500">{new Date(u.created_at).toLocaleString()}</td>
+                  <td className="px-3 py-2 text-slate-500">
+                    {u.last_login_at ? (
+                      <>
+                        {new Date(u.last_login_at).toLocaleString()}
+                        {u.last_login_ip && (
+                          <div className="text-xs text-slate-400">{u.last_login_ip}</div>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-slate-400">Never</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
                       {emailStatus[u.id] === "sent" && (
@@ -385,7 +398,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                 </tr>
                 {expandedUserId === u.id && (
                   <tr className="border-b border-slate-100 last:border-0 bg-slate-50/60">
-                    <td colSpan={5} className="px-3 py-3">
+                    <td colSpan={6} className="px-3 py-3">
                       {portfolioMessage && (
                         <p className="mb-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
                           {portfolioMessage}

@@ -673,6 +673,8 @@ export interface AdminUser {
   approved: boolean;
   is_active: boolean;
   created_at: string;
+  last_login_at: string | null;
+  last_login_ip: string | null;
   portfolio_count: number;
   position_count: number;
 }

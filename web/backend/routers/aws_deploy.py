@@ -438,6 +438,13 @@ alter table users add column if not exists session_invalidated_at timestamptz;
 -- this, only set once a user opts into a tighter/looser sensitivity
 -- than the shared default from the Portfolio page.
 alter table users add column if not exists drop_alert_threshold_pct real;
+-- Set on every successful /login (and the admin-bootstrap auto-login in
+-- /signup) — see web/backend/routers/auth.py. last_login_ip is read from
+-- X-Forwarded-For/X-Real-IP (this app sits behind nginx, so
+-- request.client.host alone is just nginx's own address), falling back
+-- to request.client.host only if neither header is present.
+alter table users add column if not exists last_login_at timestamptz;
+alter table users add column if not exists last_login_ip text;
 
 -- Forgot-password: only a sha256 hash of the token is ever stored, never
 -- the token itself, so a DB read can't be used to reset an account's

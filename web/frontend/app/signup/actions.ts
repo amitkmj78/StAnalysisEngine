@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { SESSION_COOKIE_NAME } from "@/lib/session";
@@ -14,9 +14,18 @@ export async function signup(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
+  // See app/login/actions.ts — this fetch is server-to-server, so the
+  // real visitor IP has to be forwarded explicitly from the incoming
+  // request's own X-Forwarded-For (set by nginx on the browser's hop).
+  const incomingHeaders = await headers();
+  const forwardedFor = incomingHeaders.get("x-forwarded-for");
+
   const res = await fetch(`${BACKEND_URL}/api/v1/auth/signup`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(forwardedFor ? { "X-Forwarded-For": forwardedFor } : {}),
+    },
     body: JSON.stringify({ email, password }),
   });
 

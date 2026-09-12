@@ -15,3 +15,5 @@ cachetools
 yfinance
 ta
 streamlit
+fastapi
+PyJWT

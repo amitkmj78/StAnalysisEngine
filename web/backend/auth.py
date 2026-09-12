@@ -43,6 +43,27 @@ async def _is_revoked(user_id: str, issued_at: int | None) -> bool:
     return datetime.fromtimestamp(issued_at, tz=timezone.utc) < invalidated_at
 
 
+def get_client_ip(request: Request) -> str | None:
+    """
+    The real client address, not nginx's own. This app always runs behind
+    nginx (see the proxy config in web/backend/routers/aws_deploy.py,
+    which sets both headers on every request), so request.client.host by
+    itself is just 127.0.0.1 — X-Forwarded-For (the original client, first
+    entry in a possibly-comma-separated chain of proxies) is authoritative
+    here; X-Real-IP and request.client.host are just fallbacks for local
+    dev / a request that somehow bypassed nginx.
+    """
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        first = forwarded_for.split(",")[0].strip()
+        if first:
+            return first
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else None
+
+
 def _extract_token(request: Request) -> str:
     # Cookie first (how the browser actually authenticates, httpOnly so JS
     # never touches it) — Authorization header kept as a fallback so curl/

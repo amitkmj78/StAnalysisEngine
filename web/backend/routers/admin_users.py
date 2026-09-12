@@ -23,12 +23,13 @@ async def list_users():
             """
             SELECT
                 u.id, u.email, u.approved, u.is_active, u.created_at,
+                u.last_login_at, u.last_login_ip,
                 count(DISTINCT p.id) AS portfolio_count,
                 count(pp.id) AS position_count
             FROM users u
             LEFT JOIN portfolios p ON p.user_id = u.id
             LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = u.id
-            GROUP BY u.id, u.email, u.approved, u.is_active, u.created_at
+            GROUP BY u.id, u.email, u.approved, u.is_active, u.created_at, u.last_login_at, u.last_login_ip
             ORDER BY u.created_at DESC
             """
         )
@@ -39,6 +40,8 @@ async def list_users():
             "approved": r["approved"],
             "is_active": r["is_active"],
             "created_at": r["created_at"].isoformat(),
+            "last_login_at": r["last_login_at"].isoformat() if r["last_login_at"] else None,
+            "last_login_ip": r["last_login_ip"],
             "portfolio_count": r["portfolio_count"],
             "position_count": r["position_count"],
         }

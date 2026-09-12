@@ -27,6 +27,10 @@ jobs:
         # presence check only, no network call happens at import, so a
         # placeholder is enough to let tests that transitively import
         # those modules collect at all.
+        # SESSION_SECRET: web/backend/auth.py reads this at import time
+        # (os.environ["SESSION_SECRET"]) -- same presence-only need, no
+        # real session is ever verified against it in the test suite.
         env:
           OPENAI_API_KEY: ci-placeholder-key
+          SESSION_SECRET: ci-placeholder-session-secret
         run: pytest tests/ -v
