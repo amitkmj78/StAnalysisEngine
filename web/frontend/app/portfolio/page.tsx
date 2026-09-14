@@ -609,7 +609,10 @@ export default function PortfolioPage() {
       {summary && (
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <MetricTile label="Positions" value={String(summary.total_positions)} />
-          <MetricTile label="Total Value" value={`$${summary.total_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
+          <MetricTile
+            label="Total Value"
+            value={`$${(performance?.total_value_now ?? summary.total_value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+          />
           <MetricTile label="Unrealized PnL" value={`${summary.total_pnl_pct.toFixed(2)}%`} />
         </div>
       )}
