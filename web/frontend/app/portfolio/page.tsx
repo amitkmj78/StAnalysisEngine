@@ -1012,10 +1012,18 @@ export default function PortfolioPage() {
       ) : (
         <div className="mt-3 grid grid-cols-1 gap-4 xl:grid-cols-2">
           {strategies.map((s) => {
-            const pnl = s.unrealized_pnl_pct;
+            // s.current_price / s.unrealized_pnl_pct come from
+            // portfolio_strategies, a snapshot written only at last
+            // save/import (see the /performance-vs-/summary mismatch
+            // fixed above) -- performance.rows is fetched fresh on every
+            // load, so prefer it here too, falling back to the stale
+            // snapshot only until that live fetch resolves.
+            const perfRow = performance?.rows.find((r) => r.ticker === s.ticker) ?? null;
+            const livePrice = perfRow?.price_now ?? s.current_price;
+            const pnl = perfRow?.gain_vs_cost_pct ?? s.unrealized_pnl_pct;
             const pnlPositive = pnl !== null && pnl >= 0;
             const isEditing = editingTicker === s.ticker;
-            const extendedHours = performance?.rows.find((r) => r.ticker === s.ticker)?.extended_hours ?? null;
+            const extendedHours = perfRow?.extended_hours ?? null;
             const insight = insights.find((i) => i.ticker === s.ticker) ?? null;
             const tickerSentiment = sentiment[s.ticker] ?? null;
             const isExpanded = expandedTickers.has(s.ticker);
@@ -1133,7 +1141,7 @@ export default function PortfolioPage() {
                   </div>
                 ) : (
                   <p className="mt-1 text-sm text-slate-500">
-                    {s.shares?.toFixed(2)} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${s.current_price?.toFixed(2)}
+                    {s.shares?.toFixed(2)} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${livePrice?.toFixed(2)}
                     {extendedHours && (
                       <span className={extendedHours.change_pct !== null && extendedHours.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}>
                         {" "}
