@@ -13,6 +13,7 @@ from services.signal_publication_service import (
     compute_predict_algo_comparison,
 )
 from services.quant_signal_narrative_service import build_quant_signal_narrative
+from services.quant_signal_outcome_service import summarize_quant_signal_outcomes
 from services.subscription_access_service import compute_free_tier_target_date, is_active_paid_subscriber
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
@@ -26,7 +27,7 @@ from web.backend.app_settings import (
 from web.backend.auth import verify_bearer_token, verify_bearer_token_optional
 from web.backend.db import service_conn
 from web.backend.llm_cache import cached_init_llms, ordered_llms
-from web.backend.pit_prices import UNSTABLE_FLIP_THRESHOLD
+from web.backend.pit_prices import QUANT_SIGNAL_HORIZON_DAYS, UNSTABLE_FLIP_THRESHOLD, evaluate_due_quant_signal_outcomes
 from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.scheduler import check_publication_alert
 from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
@@ -267,6 +268,45 @@ async def quant_signal_narrative(
     if narrative is None:
         raise HTTPException(502, "Failed to generate a narrative for this ticker.")
     return {"ticker": ticker, "narrative": narrative["technical"], "plain_english": narrative["plain_english"]}
+
+
+@router.get("/quant-vs-analyst/outcomes")
+@limiter.limit("30/minute")
+async def quant_signal_outcomes(
+    request: Request,
+    horizon_days: int = Query(QUANT_SIGNAL_HORIZON_DAYS),
+):
+    """
+    The real, live track record behind the Quant Signal column: for every
+    already-captured BUY/HOLD/SELL call old enough to have a real,
+    already-captured exit price (horizon_days trading days later), was it
+    actually right? Pooled by signal type, not per-ticker — most tickers
+    see very few BUY/SELL calls (they're the extreme tail of the
+    forecast), so a per-ticker win rate would mostly be noise from a
+    handful of samples. Public, unauthenticated, same rationale as
+    /signals/outcomes: this is the honest answer to "should I trust
+    this," not something to gate behind a login.
+    """
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            "SELECT signal, correct FROM quant_signal_outcomes WHERE horizon_days = $1",
+            horizon_days,
+        )
+    summary = summarize_quant_signal_outcomes([dict(r) for r in rows])
+    return {"horizon_days": horizon_days, "summary": summary}
+
+
+@router.post("/quant-vs-analyst/evaluate-now", dependencies=[Depends(require_admin)])
+async def quant_signal_evaluate_now(
+    horizon_days: int = Query(QUANT_SIGNAL_HORIZON_DAYS),
+):
+    """Manual trigger for the same outcome evaluation the scheduler runs
+    daily — for verifying the pipeline and catching up on the backlog of
+    already-due calls, not routine use. No enable-gate, same reasoning as
+    /signals/evaluate-now: evaluating already-captured PIT data isn't
+    itself a new disclosure."""
+    evaluated = await evaluate_due_quant_signal_outcomes(horizon_days=horizon_days)
+    return {"evaluated": evaluated}
 
 
 @router.get("/published/compare-to-predict-algo")

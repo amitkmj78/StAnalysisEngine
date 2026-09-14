@@ -5,8 +5,20 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 import InfoModal, { ColumnInfo } from "@/components/InfoModal";
-import { ApiError, getCurrentPrice, getQuantSignalHistory, getQuantSignalNarrative, getQuantVsAnalyst } from "@/lib/api";
-import type { QuantSignalHistoryPoint, QuantVsAnalystResponse, QuantVsAnalystRow } from "@/lib/types";
+import {
+  ApiError,
+  getCurrentPrice,
+  getQuantSignalHistory,
+  getQuantSignalNarrative,
+  getQuantSignalOutcomes,
+  getQuantVsAnalyst,
+} from "@/lib/api";
+import type {
+  QuantSignalHistoryPoint,
+  QuantSignalOutcomesResponse,
+  QuantVsAnalystResponse,
+  QuantVsAnalystRow,
+} from "@/lib/types";
 
 type SignalFilter = "ALL" | "BUY" | "SELL" | "HOLD";
 type StabilityFilter = "ALL" | "STABLE" | "UNSTABLE";
@@ -123,9 +135,15 @@ function describeLastFlip(history: QuantSignalHistoryPoint[]): string | null {
   return null;
 }
 
+function formatTrackRecord(entry: { count: number; win_rate_pct: number | null } | undefined): string {
+  if (!entry || entry.count === 0) return "not enough evaluated calls yet";
+  return `${entry.win_rate_pct}% correct (n=${entry.count})`;
+}
+
 export default function SignalComparisonPage() {
   const searchParams = useSearchParams();
   const [data, setData] = useState<QuantVsAnalystResponse | null>(null);
+  const [outcomes, setOutcomes] = useState<QuantSignalOutcomesResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -145,6 +163,12 @@ export default function SignalComparisonPage() {
       .then(setData)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load signal data."))
       .finally(() => setLoading(false));
+    // Best-effort: the page is still fully usable without a track record
+    // (e.g. too little PIT history evaluated yet), so a failure here is
+    // silently ignored rather than surfaced as a page-level error.
+    getQuantSignalOutcomes()
+      .then(setOutcomes)
+      .catch(() => undefined);
   }, []);
 
   async function loadCurrentPrice(ticker: string) {
@@ -207,6 +231,24 @@ export default function SignalComparisonPage() {
       setSortDesc(true);
     }
   }
+
+  const columnInfo = useMemo<Record<string, ColumnInfo>>(() => {
+    if (!outcomes) return COLUMN_INFO;
+    const { BUY, SELL, HOLD } = outcomes.summary;
+    return {
+      ...COLUMN_INFO,
+      quant_signal: {
+        ...COLUMN_INFO.quant_signal,
+        body: [
+          ...COLUMN_INFO.quant_signal.body,
+          `Real track record so far, over the ${outcomes.horizon_days}-trading-day horizon this signal is ` +
+            `thresholded against: BUY calls have been ${formatTrackRecord(BUY)}, SELL calls ${formatTrackRecord(SELL)}, ` +
+            `HOLD calls ${formatTrackRecord(HOLD)}. BUY/SELL fire rarely (the extreme tail of the forecast), so a ` +
+            "small n here means treat any single call with real caution, not confidence.",
+        ],
+      },
+    };
+  }, [outcomes]);
 
   const counts = useMemo(() => {
     const c = { BUY: 0, SELL: 0, HOLD: 0 };
@@ -282,6 +324,16 @@ export default function SignalComparisonPage() {
 
       {loading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
       {error && <p className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+      {data && !loading && outcomes && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <strong className="font-semibold">Real track record</strong> (calls evaluated {outcomes.horizon_days}{" "}
+          trading days after capture): BUY {formatTrackRecord(outcomes.summary.BUY)} · SELL{" "}
+          {formatTrackRecord(outcomes.summary.SELL)} · HOLD {formatTrackRecord(outcomes.summary.HOLD)}. BUY/SELL
+          are rare, tail-triggered calls — a small sample size here means treat any one call with caution, not
+          confidence. See the Signal column&apos;s ⓘ for more.
+        </div>
+      )}
 
       {data && !loading && (
         <>
@@ -560,8 +612,8 @@ export default function SignalComparisonPage() {
         </>
       )}
 
-      {openInfo && COLUMN_INFO[openInfo] && (
-        <InfoModal info={COLUMN_INFO[openInfo]} onClose={() => setOpenInfo(null)} />
+      {openInfo && columnInfo[openInfo] && (
+        <InfoModal info={columnInfo[openInfo]} onClose={() => setOpenInfo(null)} />
       )}
     </div>
   );

@@ -880,6 +880,20 @@ export interface QuantVsAnalystResponse {
   rows: QuantVsAnalystRow[];
 }
 
+export interface QuantSignalOutcomeSummaryEntry {
+  count: number;
+  win_rate_pct: number | null;
+}
+
+export interface QuantSignalOutcomesResponse {
+  horizon_days: number;
+  summary: {
+    BUY: QuantSignalOutcomeSummaryEntry;
+    SELL: QuantSignalOutcomeSummaryEntry;
+    HOLD: QuantSignalOutcomeSummaryEntry;
+  };
+}
+
 export interface QuantSignalHistoryPoint {
   as_of_date: string;
   signal: "BUY" | "SELL" | "HOLD" | "UNKNOWN";

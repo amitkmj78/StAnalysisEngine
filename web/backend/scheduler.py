@@ -29,6 +29,7 @@ from web.backend.pit_prices import (
     capture_and_persist_pit_prices,
     capture_and_persist_quant_signals,
     capture_and_persist_universe_membership,
+    evaluate_due_quant_signal_outcomes,
 )
 from web.backend.portfolio_alerts import scan_portfolios_for_drops
 from web.backend.signal_publication import (
@@ -62,6 +63,12 @@ PIT_ANALYST_RATING_CAPTURE_MINUTE_ET = 7
 # right at market close when other scheduled/user activity also peaks.
 PIT_QUANT_SIGNAL_CAPTURE_HOUR_ET = 18
 PIT_QUANT_SIGNAL_CAPTURE_MINUTE_ET = 0
+# After the capture above lands today's rows — mostly picks up older
+# calls that just became due (a call is only evaluable once horizon_days
+# *trading* days have actually elapsed, so this rarely evaluates today's
+# own capture; see evaluate_due_quant_signal_outcomes).
+QUANT_SIGNAL_EVALUATE_HOUR_ET = 18
+QUANT_SIGNAL_EVALUATE_MINUTE_ET = 30
 # TR-1 / NFR-01: publish within 60 minutes of the US market close (4:00pm ET).
 PUBLISH_HOUR_ET = 16
 PUBLISH_MINUTE_ET = 10
@@ -239,6 +246,19 @@ async def _capture_pit_quant_signals_job() -> None:
     inserted = await capture_and_persist_quant_signals()
     if inserted:
         logger.info("Scheduler: PIT quant signal capture — %d rows", inserted)
+
+
+async def _evaluate_quant_signal_outcomes_job() -> None:
+    """The live counterpart to the Quant Signal capture above: checks
+    every already-captured call old enough to have a real exit price on
+    record and evaluates it. Independent of PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY
+    — evaluating already-captured PIT data isn't itself a new capture, so
+    it keeps running even if capture is paused (same reasoning as
+    evaluate_due_signal_outcomes needing publish_signals_enabled only
+    because there'd be nothing to evaluate otherwise)."""
+    evaluated = await evaluate_due_quant_signal_outcomes()
+    if evaluated:
+        logger.info("Scheduler: evaluated %d quant signal outcomes", evaluated)
 
 
 async def _publish_daily_signals_job() -> None:
@@ -479,6 +499,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="capture_pit_quant_signals",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _evaluate_quant_signal_outcomes_job,
+        CronTrigger(
+            hour=QUANT_SIGNAL_EVALUATE_HOUR_ET, minute=QUANT_SIGNAL_EVALUATE_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="evaluate_quant_signal_outcomes",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

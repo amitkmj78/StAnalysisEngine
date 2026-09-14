@@ -1025,6 +1025,29 @@ create table if not exists pit_quant_signal (
 );
 create index if not exists pit_quant_signal_ticker_date_idx on pit_quant_signal(ticker, as_of_date desc);
 
+-- The live, out-of-sample counterpart to services/quant_signal_backtest_
+-- service.py's simulated walk-forward: one row per Quant Signal call
+-- (pit_quant_signal) once horizon_days trading days have actually
+-- elapsed and a real exit price (pit_prices) is on record, recording
+-- whether the BUY/HOLD/SELL call was actually right. Append-only like
+-- every other PIT table — a row's outcome never changes once computed.
+create table if not exists quant_signal_outcomes (
+  id bigint generated always as identity primary key,
+  ticker text not null,
+  as_of_date date not null,
+  signal text not null,
+  expected_return_pct real not null,
+  entry_price real not null,
+  horizon_days integer not null,
+  exit_date date not null,
+  exit_price real not null,
+  realized_return_pct real not null,
+  correct boolean not null,
+  evaluated_at_utc timestamptz not null default now(),
+  unique (ticker, as_of_date, horizon_days)
+);
+create index if not exists quant_signal_outcomes_ticker_date_idx on quant_signal_outcomes(ticker, as_of_date desc);
+
 -- Point-in-time capture of the same real, third-party analyst consensus
 -- shown on the Stock Screener's "Analyst Rating" column — one row per
 -- ticker per day (only for tickers with coverage that day), enabling
@@ -1117,6 +1140,8 @@ grant select on pit_fundamentals to app_user;
 grant select, insert on pit_fundamentals to app_service;
 grant select on pit_quant_signal to app_user;
 grant select, insert on pit_quant_signal to app_service;
+grant select on quant_signal_outcomes to app_user;
+grant select, insert on quant_signal_outcomes to app_service;
 grant select on pit_analyst_rating to app_user;
 grant select, insert on pit_analyst_rating to app_service;
 grant select on ticker_sentiment_snapshots to app_user;

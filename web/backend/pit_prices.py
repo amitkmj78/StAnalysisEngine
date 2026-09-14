@@ -10,8 +10,10 @@ from services.pit_fundamentals_service import DEFAULT_UNIVERSE as FUNDAMENTALS_D
 from services.pit_fundamentals_service import capture_universe_fundamentals
 from services.pit_price_service import DEFAULT_UNIVERSE, capture_universe_closes
 from services.pit_quant_signal_service import DEFAULT_UNIVERSE as QUANT_SIGNAL_DEFAULT_UNIVERSE
+from services.pit_quant_signal_service import PREDICT_DAYS_AHEAD as QUANT_SIGNAL_HORIZON_DAYS
 from services.pit_quant_signal_service import capture_universe_quant_signals
 from services.pit_universe_service import capture_universe_membership
+from services.quant_signal_outcome_service import compute_quant_signal_outcomes
 from web.backend.db import service_conn
 
 logger = logging.getLogger(__name__)
@@ -247,5 +249,71 @@ async def capture_and_persist_analyst_ratings(universe_id: str = ANALYST_RATING_
     logger.info(
         "PIT analyst rating capture for %s: %d/%d tickers newly inserted (rest already on record for today)",
         universe_id, inserted, len(rows),
+    )
+    return inserted
+
+
+async def evaluate_due_quant_signal_outcomes(horizon_days: int = QUANT_SIGNAL_HORIZON_DAYS) -> int:
+    """
+    The live, out-of-sample counterpart to
+    services.quant_signal_backtest_service's simulated walk-forward:
+    compares every already-captured Quant Signal call (pit_quant_signal)
+    against the real price horizon_days *captured* trading days later
+    (pit_prices) and records the outcome in quant_signal_outcomes. A call
+    whose ticker doesn't have that much price history yet simply isn't
+    due — compute_quant_signal_outcomes skips it rather than guessing.
+    Idempotent via that table's unique (ticker, as_of_date, horizon_days)
+    constraint, same ON CONFLICT DO NOTHING immutability guarantee as the
+    capture functions above. Returns the number of outcome rows actually
+    inserted.
+    """
+    async with service_conn() as conn:
+        signal_rows = await conn.fetch(
+            """
+            SELECT q.ticker, q.as_of_date, q.signal, q.expected_return_pct, q.last_close
+            FROM pit_quant_signal q
+            WHERE NOT EXISTS (
+                SELECT 1 FROM quant_signal_outcomes o
+                WHERE o.ticker = q.ticker AND o.as_of_date = q.as_of_date AND o.horizon_days = $1
+            )
+            """,
+            horizon_days,
+        )
+        if not signal_rows:
+            return 0
+
+        tickers = sorted({r["ticker"] for r in signal_rows})
+        min_as_of_date = min(r["as_of_date"] for r in signal_rows)
+        price_rows = await conn.fetch(
+            "SELECT ticker, price_date, close FROM pit_prices WHERE ticker = ANY($1) AND price_date >= $2",
+            tickers, min_as_of_date,
+        )
+
+    outcomes = compute_quant_signal_outcomes(
+        [dict(r) for r in signal_rows], [dict(r) for r in price_rows], horizon_days
+    )
+    if not outcomes:
+        return 0
+
+    inserted = 0
+    async with service_conn() as conn:
+        for o in outcomes:
+            result = await conn.execute(
+                """
+                INSERT INTO quant_signal_outcomes (
+                    ticker, as_of_date, signal, expected_return_pct, entry_price,
+                    horizon_days, exit_date, exit_price, realized_return_pct, correct
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ON CONFLICT (ticker, as_of_date, horizon_days) DO NOTHING
+                """,
+                o["ticker"], o["as_of_date"], o["signal"], o["expected_return_pct"], o["entry_price"],
+                o["horizon_days"], o["exit_date"], o["exit_price"], o["realized_return_pct"], o["correct"],
+            )
+            if result == "INSERT 0 1":
+                inserted += 1
+
+    logger.info(
+        "Quant signal outcome evaluation: %d/%d due calls newly evaluated",
+        inserted, len(outcomes),
     )
     return inserted
