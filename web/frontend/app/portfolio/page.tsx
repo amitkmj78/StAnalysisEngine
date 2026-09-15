@@ -356,14 +356,26 @@ export default function PortfolioPage() {
   useEffect(() => {
     if (!isAdminUser || summary === null || summary.total_positions === 0) return;
     let inFlight = false;
-    const interval = setInterval(() => {
-      if (inFlight) return;
+    const tick = () => {
+      // Backgrounded/minimized tab: skip this tick rather than burning a
+      // yfinance-backed call on data nobody's looking at. A returning tab
+      // fires document.visibilitychange below and catches up immediately
+      // instead of waiting out the rest of this interval.
+      if (document.hidden || inFlight) return;
       inFlight = true;
       refreshPerformance(false).finally(() => {
         inFlight = false;
       });
-    }, 10000);
-    return () => clearInterval(interval);
+    };
+    const interval = setInterval(tick, 10000);
+    const onVisibilityChange = () => {
+      if (!document.hidden) tick();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
     // selectedPortfolioId must be a dependency: refreshPerformance closes
     // over it, and without it here, switching to a portfolio with the same
     // total_positions count as the previous one wouldn't change any
