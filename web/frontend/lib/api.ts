@@ -51,6 +51,10 @@ import type {
   PortfolioReviewResponse,
   PortfolioSentimentResponse,
   PortfolioStrategyRow,
+  PlaidExchangeResponse,
+  PlaidItem,
+  PlaidLinkTokenResponse,
+  PlaidSyncResult,
   PortfolioSubmitResponse,
   PortfolioSummary,
   PredictAlgoComparisonResponse,
@@ -523,6 +527,36 @@ export async function importPortfolioCsv(
   });
   if (portfolioId !== undefined) params.set("portfolio_id", String(portfolioId));
   return apiUpload<PortfolioSubmitResponse>(`/api/v1/portfolio/import-csv?${params.toString()}`, formData);
+}
+
+export function createPlaidLinkToken() {
+  return apiSend<PlaidLinkTokenResponse>("/api/v1/plaid/link-token", "POST");
+}
+
+export function exchangePlaidPublicToken(
+  publicToken: string,
+  portfolioId?: number,
+  institutionId?: string,
+  institutionName?: string,
+) {
+  return apiSend<PlaidExchangeResponse>("/api/v1/plaid/exchange", "POST", {
+    public_token: publicToken,
+    portfolio_id: portfolioId,
+    institution_id: institutionId,
+    institution_name: institutionName,
+  });
+}
+
+export function getPlaidItems() {
+  return apiFetch<{ items: PlaidItem[] }>("/api/v1/plaid/items");
+}
+
+export function syncPlaidItem(itemId: number) {
+  return apiSend<PlaidSyncResult>(`/api/v1/plaid/items/${itemId}/sync`, "POST");
+}
+
+export function disconnectPlaidItem(itemId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/plaid/items/${itemId}`, "DELETE");
 }
 
 export function editPortfolioPosition(

@@ -25,3 +25,5 @@ apscheduler
 stripe
 beautifulsoup4
 ddgs
+plaid-python
+cryptography

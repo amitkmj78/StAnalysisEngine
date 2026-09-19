@@ -595,6 +595,12 @@ export default function PortfolioPage() {
           + Add Positions
         </Link>
         <Link
+          href="/portfolio/add?mode=plaid"
+          className="inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+        >
+          Connect Brokerage
+        </Link>
+        <Link
           href="/portfolio/build-index"
           className="inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
         >

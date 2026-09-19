@@ -1,16 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { usePlaidLink } from "react-plaid-link";
 
-import { ApiError, getCurrentPrice, importPortfolioCsv, submitManualPositions } from "@/lib/api";
+import {
+  ApiError,
+  createPlaidLinkToken,
+  exchangePlaidPublicToken,
+  getCurrentPrice,
+  importPortfolioCsv,
+  submitManualPositions,
+} from "@/lib/api";
 import type { ManualPositionInput } from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
 
 const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
 
-type Mode = "manual" | "csv";
+type Mode = "manual" | "csv" | "plaid";
 
 const EMPTY_ROW: ManualPositionInput = {
   name: "",
@@ -22,14 +31,19 @@ const EMPTY_ROW: ManualPositionInput = {
 };
 
 export default function AddPositionsPage() {
+  const searchParams = useSearchParams();
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
-  const [mode, setMode] = useState<Mode>("manual");
+  const [mode, setMode] = useState<Mode>(searchParams.get("mode") === "plaid" ? "plaid" : "manual");
   const [riskProfile, setRiskProfile] = useState("Balanced");
   const [riskFactor, setRiskFactor] = useState(5);
 
   const [rows, setRows] = useState<ManualPositionInput[]>([{ ...EMPTY_ROW }]);
   const [file, setFile] = useState<File | null>(null);
   const [priceFetchingRow, setPriceFetchingRow] = useState<number | null>(null);
+
+  const [plaidLinkToken, setPlaidLinkToken] = useState<string | null>(null);
+  const [plaidConnecting, setPlaidConnecting] = useState(false);
+  const [plaidPositionsImported, setPlaidPositionsImported] = useState<number | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +137,63 @@ export default function AddPositionsPage() {
     }
   }
 
+  const { open: openPlaidLink, ready: plaidLinkReady } = usePlaidLink({
+    token: plaidLinkToken,
+    onSuccess: async (publicToken, metadata) => {
+      // Plaid's own type allows null here, but Link only calls onSuccess
+      // after a real successful connection -- there's no real flow where
+      // this fires with no token, just a defensive guard against the
+      // wider type.
+      if (!publicToken) return;
+      setSubmitting(true);
+      setError(null);
+      setPlaidPositionsImported(null);
+      setSaved(false);
+      try {
+        const res = await exchangePlaidPublicToken(
+          publicToken,
+          selectedPortfolioId ?? undefined,
+          metadata.institution?.institution_id ?? undefined,
+          metadata.institution?.name ?? undefined,
+        );
+        setPlaidPositionsImported(res.sync.positions_upserted);
+        setSaved(res.sync.status === "success");
+        if (res.sync.status === "login_required" || res.sync.status === "error") {
+          setError(
+            "Connected, but the first sync didn't complete. Try \"Sync Now\" from Linked Accounts in a moment.",
+          );
+        }
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Could not finish connecting this account.");
+      } finally {
+        setSubmitting(false);
+        setPlaidLinkToken(null);
+      }
+    },
+    onExit: () => {
+      setPlaidConnecting(false);
+      setPlaidLinkToken(null);
+    },
+  });
+
+  useEffect(() => {
+    if (plaidLinkToken && plaidLinkReady) {
+      openPlaidLink();
+    }
+  }, [plaidLinkToken, plaidLinkReady, openPlaidLink]);
+
+  async function startPlaidConnect() {
+    setError(null);
+    setPlaidConnecting(true);
+    try {
+      const res = await createPlaidLinkToken();
+      setPlaidLinkToken(res.link_token);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not start connecting a brokerage account.");
+      setPlaidConnecting(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -169,6 +240,12 @@ export default function AddPositionsPage() {
           className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "csv" ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"}`}
         >
           Import Robinhood CSV
+        </button>
+        <button
+          onClick={() => setMode("plaid")}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "plaid" ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"}`}
+        >
+          Connect Brokerage
         </button>
       </div>
 
@@ -228,7 +305,7 @@ export default function AddPositionsPage() {
             </button>
           </div>
         </form>
-      ) : (
+      ) : mode === "csv" ? (
         <form onSubmit={submitCsv} className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5">
           <Field label="Robinhood activity CSV">
             <input
@@ -242,6 +319,29 @@ export default function AddPositionsPage() {
             {submitting ? "Processing…" : "Import CSV"}
           </button>
         </form>
+      ) : (
+        <div className="mt-4 flex flex-col items-start gap-3 rounded-lg border border-slate-200 bg-white p-5">
+          <p className="text-sm text-slate-600">
+            Link a real brokerage account through Plaid — your holdings import automatically and stay in sync.
+            Your login credentials go directly to Plaid&apos;s secure widget; this app never sees them.
+          </p>
+          <button
+            type="button"
+            onClick={startPlaidConnect}
+            disabled={plaidConnecting || submitting}
+            className="btn-primary"
+          >
+            {plaidConnecting ? "Opening…" : "Connect Brokerage"}
+          </button>
+          {plaidPositionsImported !== null && (
+            <p className="text-sm text-emerald-700">
+              Imported {plaidPositionsImported} position{plaidPositionsImported === 1 ? "" : "s"}.{" "}
+              <Link href="/portfolio/linked-accounts" className="underline">
+                Manage linked accounts
+              </Link>
+            </p>
+          )}
+        </div>
       )}
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

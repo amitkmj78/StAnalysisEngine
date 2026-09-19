@@ -35,6 +35,7 @@ from web.backend.routers import (
     momentum,
     monthly_plan,
     pit_prices,
+    plaid_integration,
     portfolio,
     prediction,
     search,
@@ -86,6 +87,7 @@ app.include_router(monthly_plan.router)
 app.include_router(strategies.router)
 app.include_router(trade_journal.router)
 app.include_router(portfolio.router)
+app.include_router(plaid_integration.router)
 app.include_router(chat.router)
 app.include_router(aws_deploy.router)
 app.include_router(search.router)

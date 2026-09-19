@@ -1089,6 +1089,63 @@ create table if not exists ticker_sentiment_snapshots (
 );
 create index if not exists ticker_sentiment_snapshots_ticker_date_idx on ticker_sentiment_snapshots(ticker, as_of_date desc);
 
+-- Plaid brokerage integration: one row per linked institution (a "Link"
+-- connection). access_token_encrypted is Fernet ciphertext (see
+-- web/backend/crypto_utils.py) -- never plaintext at rest, and never
+-- selected back to the frontend (routers/plaid_integration.py uses an
+-- explicit column list on every read, never `select *`, on this table).
+create table if not exists plaid_items (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  portfolio_id bigint not null references portfolios(id) on delete cascade,
+  plaid_item_id text not null unique,
+  access_token_encrypted bytea not null,
+  institution_id text,
+  institution_name text,
+  status text not null default 'active',
+  last_sync_at timestamptz,
+  last_sync_error text,
+  created_at timestamptz not null default now()
+);
+create index if not exists plaid_items_user_idx on plaid_items(user_id);
+alter table plaid_items enable row level security;
+drop policy if exists plaid_items_isolation on plaid_items;
+create policy plaid_items_isolation on plaid_items
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- Append-only history of each sync attempt for a linked item -- audit
+-- trail for "why did my holdings change/not change," same shape as
+-- backup_runs.
+create table if not exists plaid_sync_log (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  plaid_item_id bigint not null references plaid_items(id) on delete cascade,
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  status text not null,
+  positions_upserted integer,
+  error_detail text,
+  triggered_by text not null
+);
+create index if not exists plaid_sync_log_item_idx on plaid_sync_log(plaid_item_id, started_at desc);
+alter table plaid_sync_log enable row level security;
+drop policy if exists plaid_sync_log_isolation on plaid_sync_log;
+create policy plaid_sync_log_isolation on plaid_sync_log
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- Reconciliation scope for a Plaid sync: NULL for every manual/CSV row,
+-- set only for a row this item's own sync wrote. A sync's delete+reinsert
+-- (web/backend/plaid_sync.py) filters on THIS column, never on the
+-- text `source` column, so it can never touch a manual/CSV/other-item
+-- row that happens to share the same ticker -- see aws_deploy.py's own
+-- history: the pre-existing CSV-import merge path is ticker-keyed, not
+-- source-scoped, which is exactly the ambiguity this column avoids for
+-- an ongoing, unattended sync.
+alter table portfolio_positions add column if not exists plaid_item_id bigint references plaid_items(id) on delete cascade;
+alter table portfolio_strategies add column if not exists plaid_item_id bigint references plaid_items(id) on delete cascade;
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -1117,6 +1174,18 @@ grant select, insert, update, delete on password_reset_tokens to app_service;
 -- bypasses RLS but still needs an explicit grant per table). Also used by
 -- the admin Users page to show each user's portfolio_count/position_count.
 grant select on portfolio_positions to app_service;
+-- Widens app_service beyond the read-only grant above: the Plaid sync
+-- job (web/backend/plaid_sync.py) reconciles a linked item's holdings
+-- via service_conn, following the exact precedent scan_portfolios_for_drops
+-- already set for portfolio_drop_alerts -- RLS is bypassed, so every
+-- write in that job MUST scope by user_id AND portfolio_id AND
+-- plaid_item_id together, never any one alone.
+grant insert, update, delete on portfolio_positions to app_service;
+grant select, insert, update, delete on portfolio_strategies to app_service;
+grant select, insert, update, delete on plaid_items to app_user;
+grant select, update on plaid_items to app_service;
+grant select on plaid_sync_log to app_user;
+grant select, insert on plaid_sync_log to app_service;
 -- update/delete: the admin per-user portfolio panel deactivates/reactivates
 -- (update) or permanently removes (delete) a specific portfolio, cross-user
 -- like the rest of admin_users.py.

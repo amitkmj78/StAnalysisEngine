@@ -658,6 +658,31 @@ export interface PortfolioSubmitResponse {
   watchlist_alerts_created: number;
 }
 
+// Plaid brokerage connection
+export interface PlaidItem {
+  id: number;
+  institution_id: string | null;
+  institution_name: string | null;
+  status: "active" | "login_required" | "error" | "revoked";
+  last_sync_at: string | null;
+  last_sync_error: string | null;
+  created_at: string;
+}
+
+export interface PlaidLinkTokenResponse {
+  link_token: string;
+}
+
+export interface PlaidSyncResult {
+  status: "success" | "login_required" | "error" | "not_found";
+  positions_upserted: number;
+}
+
+export interface PlaidExchangeResponse {
+  item: PlaidItem;
+  sync: PlaidSyncResult;
+}
+
 // Meta-Agent Chat
 export interface ChatProvidersResponse {
   providers: string[];
