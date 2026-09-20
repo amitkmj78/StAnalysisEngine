@@ -44,7 +44,8 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
   Score: {
     title: "Score",
     body: [
-      "A relative rank within this fund's own category (FS-3): every metric is z-scored against the other funds in the same Category before weighting, so a fund is only ever compared to real peers — a bond fund is never scored against an equity fund's volatility.",
+      "A relative rank within this fund's own category: every metric is z-scored against the other funds in the same Category before weighting, so a fund is only ever compared to real peers — a bond fund is never scored against an equity fund's volatility.",
+      "It isn't a 0–100 grade. 0 means \"about average for its category\" on the metrics that matter to this Goal; positive means better than its peers, negative means worse — and the further from 0, the bigger the gap. A very small peer group (a handful of nearly-identical funds plus one real outlier) can push a Score well beyond ±100.",
       "The metrics and weights depend on the Goal you picked — see the weights strip above the table for the exact breakdown of whichever Goal is active.",
       "Expand a row (the ▸ on the left) to see the Return/Risk/Cost/Liquidity sub-scores and the raw metric behind each.",
     ],
@@ -406,7 +407,7 @@ export default function IndexFundPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Score" value={`${winner.Score}/100`} onInfoClick={() => setInfoColumn("Score")} />
+            <MetricTile label="Score" value={`${winner.Score >= 0 ? "+" : ""}${winner.Score}`} onInfoClick={() => setInfoColumn("Score")} />
             <MetricTile label="Price" value={`$${Number(winner.Price).toFixed(2)}`} />
             <MetricTile
               label="Expense Ratio"
