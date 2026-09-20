@@ -8,6 +8,7 @@ import { usePlaidLink } from "react-plaid-link";
 import {
   ApiError,
   createPlaidLinkToken,
+  createPortfolio,
   exchangePlaidPublicToken,
   getCurrentPrice,
   importPortfolioCsv,
@@ -150,9 +151,16 @@ export default function AddPositionsPage() {
       setPlaidPositionsImported(null);
       setSaved(false);
       try {
+        // A brokerage connection is its own account, not a handful of
+        // positions to fold into whatever portfolio happened to be
+        // selected -- give every connection a fresh, dedicated portfolio
+        // named after the institution, so it never lands mixed in with
+        // manual/CSV positions the user didn't intend to merge it with.
+        const institutionName = metadata.institution?.name ?? "Connected Brokerage";
+        const newPortfolio = await createPortfolio(institutionName);
         const res = await exchangePlaidPublicToken(
           publicToken,
-          selectedPortfolioId ?? undefined,
+          newPortfolio.id,
           metadata.institution?.institution_id ?? undefined,
           metadata.institution?.name ?? undefined,
         );
@@ -323,7 +331,9 @@ export default function AddPositionsPage() {
         <div className="mt-4 flex flex-col items-start gap-3 rounded-lg border border-slate-200 bg-white p-5">
           <p className="text-sm text-slate-600">
             Link a real brokerage account through Plaid — your holdings import automatically and stay in sync.
-            Your login credentials go directly to Plaid&apos;s secure widget; this app never sees them.
+            Your login credentials go directly to Plaid&apos;s secure widget; this app never sees them. Each
+            connection gets its own new portfolio (named after the institution), so it never mixes with positions
+            you added manually or by CSV.
           </p>
           <button
             type="button"
