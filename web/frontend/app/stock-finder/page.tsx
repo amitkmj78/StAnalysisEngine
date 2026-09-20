@@ -504,6 +504,14 @@ export default function StockFinderPage() {
     return () => observer.disconnect();
   }, [visibleColumns, sortedResults]);
 
+  // A plain scroll wheel has no horizontal axis at all on most mice (only
+  // trackpads/tilt-wheels do), so the wide table's horizontal overflow was
+  // effectively unreachable for anyone without one -- these buttons work
+  // regardless of input device.
+  function scrollTable(deltaX: number) {
+    tableWrapRef.current?.scrollBy({ left: deltaX, behavior: "smooth" });
+  }
+
   async function handleSaveScreen() {
     const name = screenName.trim();
     if (!name) {
@@ -858,8 +866,24 @@ export default function StockFinderPage() {
                     ` · sorted by ${sortKeys.map((k) => `${k.column} (${k.direction})`).join(", ")}`}
                 </span>
                 {tableOverflowing && (
-                  <span className={`text-xs font-medium ${PF.warnText} ${PF.warnBg} rounded-full px-2 py-0.5`}>
-                    {visibleColumns.length} columns selected — scroll right within the table to see them all →
+                  <span className={`flex items-center gap-1.5 text-xs font-medium ${PF.warnText} ${PF.warnBg} rounded-full py-0.5 pl-2.5 pr-1`}>
+                    {visibleColumns.length} columns selected — table scrolls sideways
+                    <button
+                      type="button"
+                      onClick={() => scrollTable(-400)}
+                      title="Scroll table left"
+                      className="flex h-5 w-5 items-center justify-center rounded-full border border-current"
+                    >
+                      ←
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scrollTable(400)}
+                      title="Scroll table right"
+                      className="flex h-5 w-5 items-center justify-center rounded-full border border-current"
+                    >
+                      →
+                    </button>
                   </span>
                 )}
               </div>
