@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 
 import {
   ApiError,
@@ -36,6 +37,39 @@ import GainVsPaidChart from "@/components/portfolio/GainVsPaidChart";
 import MarketNewsTicker from "@/components/MarketNewsTicker";
 import PortfolioReviewCard from "@/components/portfolio/PortfolioReviewCard";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+
+// Scoped to this page only -- the rest of the site keeps its existing
+// Geist font (see app/layout.tsx) and slate palette. "Ledger" direction
+// from the published redesign concepts: warm paper, Fraunces for
+// numbers/headings, IBM Plex for body/UI text and tabular data.
+const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
+const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-pf-sans" });
+const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
+
+const DISPLAY_FONT = { fontFamily: "var(--font-pf-display)" };
+const MONO_FONT = { fontFamily: "var(--font-pf-mono)" };
+
+// One small set of reusable class strings instead of the hex literal
+// repeated at every call site -- this is the page's whole "Ledger"
+// palette (see the published mockup): warm paper background, forest-
+// green accent, and good/bad kept close to (but distinct from) that
+// accent hue.
+const PF = {
+  page: "bg-[#f4f1ea]",
+  ink: "text-[#1f2420]",
+  muted: "text-[#857d6e]",
+  line: "border-[#ddd8cd]",
+  card: "rounded-xl border border-[#ddd8cd] bg-white",
+  good: "text-[#2f6b4f]",
+  bad: "text-[#a23b34]",
+  btn: "rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm font-medium text-[#1f2420] hover:border-[#2f5d50] hover:text-[#2f5d50]",
+  btnPrimary: "rounded-md bg-[#2f5d50] px-3 py-1.5 text-sm font-semibold text-[#f4f1ea] hover:bg-[#274e43]",
+};
+
+function goodBad(v: number | null | undefined): string {
+  if (v === null || v === undefined) return PF.muted;
+  return v >= 0 ? PF.good : PF.bad;
+}
 
 const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
   Ticker: {
@@ -91,7 +125,7 @@ const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
   "Market Value": {
     title: "Market Value",
     body: [
-      "What this position is worth right now: Shares × Price Now. Summed across every holding, this is the same number shown in the \"Value Now\" tile above the table.",
+      "What this position is worth right now: Shares × Price Now. Summed across every holding, this is the same number shown in the Total Value figure above.",
     ],
   },
   Today: {
@@ -201,7 +235,7 @@ export default function PortfolioPage() {
   const [sentiment, setSentiment] = useState<Record<string, TickerSentiment>>({});
   const [performanceInfoColumn, setPerformanceInfoColumn] = useState<string | null>(null);
   const [showLiveReadInfo, setShowLiveReadInfo] = useState(false);
-  // Collapsed by default — with 15+ positions, every card's full Short-/
+  // Collapsed by default — with 15+ positions, every row's full Short-/
   // Long-Term Plan text (each with its own bullets, Stance, and Live
   // Read) made this page a very long scroll of mostly-repeated structure.
   // The header/price/badges row alone is enough to scan a whole
@@ -529,737 +563,547 @@ export default function PortfolioPage() {
     }
   }
 
+  const totalValue = performance?.total_value_now ?? summary?.total_value ?? null;
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <MarketNewsTicker />
-      <h1 className="text-2xl font-semibold text-slate-900">Portfolio Strategies</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Import a Robinhood activity CSV or enter positions manually to get short- and long-term plans per holding.
-        Each save also sets watchlist alerts by default at the suggested upside target and stop for every position.
-      </p>
+    <div className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} ${PF.page} ${PF.ink}`} style={{ fontFamily: "var(--font-pf-sans)" }}>
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <MarketNewsTicker />
 
-      <div className="mt-6">
-        <PortfolioSwitcher
-          selectedPortfolioId={selectedPortfolioId}
-          onChange={setSelectedPortfolioId}
-          onPortfoliosChange={setAllPortfolios}
-          reloadSignal={portfolioReloadSignal}
-        />
-      </div>
-
-      <div className="mt-6 flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="show-goal-plan"
-          checked={showGoalPlan}
-          onChange={(e) => setShowGoalPlan(e.target.checked)}
-          className="h-3.5 w-3.5 rounded border-slate-300"
-        />
-        <label htmlFor="show-goal-plan" className="text-sm font-medium text-slate-700">
-          Goal-Based Investing Plan
-        </label>
-      </div>
-
-      {showGoalPlan && <GoalPlan portfolioId={selectedPortfolioId} />}
-
-      {selectedPortfolioId !== null && (
-        <div className="mt-4 flex flex-wrap items-end gap-2">
-          <Field label="Margin balance ($ borrowed from broker)">
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={marginInput}
-              onChange={(e) => setMarginInput(e.target.value)}
-              className="input w-44"
-            />
-          </Field>
-          <button
-            type="button"
-            onClick={saveMargin}
-            disabled={marginSaving}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-          >
-            {marginSaving ? "Saving…" : "Save"}
-          </button>
-          {marginSaved && <span className="text-xs font-medium text-emerald-700">Saved</span>}
-          {marginError && <span className="text-xs font-medium text-red-600">{marginError}</span>}
-        </div>
-      )}
-
-      <div className="mt-6 flex flex-wrap gap-2">
-        <Link
-          href="/portfolio/add"
-          className="inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
-          + Add Positions
-        </Link>
-        <Link
-          href="/portfolio/add?mode=plaid"
-          className="inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
-          Connect Brokerage
-        </Link>
-        <Link
-          href="/portfolio/build-index"
-          className="inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
-          + Build Diversified Index
-        </Link>
-        <Link
-          href="/portfolio/compare"
-          className="inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
-          Compare vs. Best Fund
-        </Link>
-      </div>
-
-      {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {watchlistNote && (
-        <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          {watchlistNote}{" "}
-          <a href="/watchlist" className="underline">
-            View watchlist
-          </a>
-        </p>
-      )}
-
-      {summary && (
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <MetricTile label="Positions" value={String(summary.total_positions)} />
-          <MetricTile
-            label="Total Value"
-            value={`$${(performance?.total_value_now ?? summary.total_value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+        {/* ---------- Toolbar: portfolio switcher + entry points ---------- */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#ddd8cd] pb-5">
+          <PortfolioSwitcher
+            selectedPortfolioId={selectedPortfolioId}
+            onChange={setSelectedPortfolioId}
+            onPortfoliosChange={setAllPortfolios}
+            reloadSignal={portfolioReloadSignal}
           />
-          <MetricTile label="Unrealized PnL" value={`${summary.total_pnl_pct.toFixed(2)}%`} />
+          <div className="flex flex-wrap gap-2">
+            <Link href="/portfolio/add" className={PF.btn}>
+              + Add Positions
+            </Link>
+            <Link href="/portfolio/add?mode=plaid" className={PF.btn}>
+              Connect Brokerage
+            </Link>
+            <Link href="/portfolio/build-index" className={PF.btn}>
+              + Build Diversified Index
+            </Link>
+            <Link href="/portfolio/compare" className={PF.btn}>
+              Compare vs. Best Fund
+            </Link>
+          </div>
         </div>
-      )}
 
-      {summary && summary.total_positions > 0 && <PortfolioReviewCard portfolioId={selectedPortfolioId} />}
+        {/* ---------- Goal plan + margin (utility row) ---------- */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <input
+            type="checkbox"
+            id="show-goal-plan"
+            checked={showGoalPlan}
+            onChange={(e) => setShowGoalPlan(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-[#ddd8cd]"
+          />
+          <label htmlFor="show-goal-plan" className="text-sm font-medium text-[#1f2420]">
+            Goal-Based Investing Plan
+          </label>
+        </div>
 
-      {summary && summary.total_positions > 0 && (
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold text-slate-900">Value vs. 30 Days Ago &amp; What You Paid</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Today&apos;s market price for every holding — against its price {performance?.lookback_days ?? 30} days
-            ago, and against your average cost — priced fresh each time, independent of when you last saved or
-            refreshed.
+        {showGoalPlan && <GoalPlan portfolioId={selectedPortfolioId} />}
+
+        {selectedPortfolioId !== null && (
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <Field label="Margin balance ($ borrowed from broker)">
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={marginInput}
+                onChange={(e) => setMarginInput(e.target.value)}
+                className="w-44 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm text-[#1f2420]"
+                style={MONO_FONT}
+              />
+            </Field>
+            <button type="button" onClick={saveMargin} disabled={marginSaving} className={`${PF.btn} disabled:opacity-50`}>
+              {marginSaving ? "Saving…" : "Save"}
+            </button>
+            {marginSaved && <span className={`text-xs font-medium ${PF.good}`}>Saved</span>}
+            {marginError && <span className={`text-xs font-medium ${PF.bad}`}>{marginError}</span>}
+          </div>
+        )}
+
+        {error && <p className={`mt-4 rounded-md border border-[#e4c9c5] bg-[#fbeceb] px-3 py-2 text-sm ${PF.bad}`}>{error}</p>}
+        {watchlistNote && (
+          <p className={`mt-4 rounded-md border border-[#cfe0d8] bg-[#ecf3ef] px-3 py-2 text-sm ${PF.good}`}>
+            {watchlistNote}{" "}
+            <a href="/watchlist" className="underline">
+              View watchlist
+            </a>
           </p>
+        )}
 
-          {performanceLoading && !performance && <p className="mt-2 text-sm text-slate-500">Loading…</p>}
-          {performanceError && (
-            <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{performanceError}</p>
-          )}
-
-          {performance && performance.rows.length > 0 && (
-            <>
-              <div
-                className={
-                  performance.margin_balance > 0
-                    ? "mt-3 grid grid-cols-1 gap-3 sm:grid-cols-6"
-                    : "mt-3 grid grid-cols-1 gap-3 sm:grid-cols-5"
-                }
-              >
-                <MetricTile
-                  label="Value Now"
-                  value={`$${performance.total_value_now.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
-                />
-                {performance.margin_balance > 0 && (
-                  <MetricTile
-                    label="Net Equity"
-                    value={`$${performance.net_equity.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
-                    positive={performance.net_equity >= 0}
-                  />
-                )}
-                <MetricTile
-                  label="Today's Gain/Loss"
-                  value={
-                    performance.total_day_gain === null
-                      ? "—"
-                      : `${performance.total_day_gain >= 0 ? "+" : ""}$${performance.total_day_gain.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
-                          performance.total_day_gain_pct !== null
-                            ? ` (${performance.total_day_gain_pct >= 0 ? "+" : ""}${performance.total_day_gain_pct.toFixed(2)}%)`
-                            : ""
-                        }`
-                  }
-                  positive={performance.total_day_gain === null ? undefined : performance.total_day_gain >= 0}
-                />
-                <MetricTile
-                  label="30D Change"
-                  value={`${performance.value_diff >= 0 ? "+" : ""}$${performance.value_diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
-                    performance.value_diff_pct !== null
-                      ? ` (${performance.value_diff_pct >= 0 ? "+" : ""}${performance.value_diff_pct.toFixed(2)}%)`
-                      : ""
-                  }`}
-                  positive={performance.value_diff >= 0}
-                />
-                <MetricTile
-                  label="Total Paid"
-                  value={`$${performance.total_cost_basis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
-                />
-                <MetricTile
-                  label="Gain vs. Paid"
-                  value={`${performance.total_gain_vs_cost >= 0 ? "+" : ""}$${performance.total_gain_vs_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
-                    performance.total_gain_vs_cost_pct !== null
-                      ? ` (${performance.total_gain_vs_cost_pct >= 0 ? "+" : ""}${performance.total_gain_vs_cost_pct.toFixed(2)}%)`
-                      : ""
-                  }`}
-                  positive={performance.total_gain_vs_cost >= 0}
-                />
-              </div>
-
-              {performance.rows.some((r) => r.used_extended_hours) && (
-                <p className="mt-2 text-xs text-slate-500">
-                  Includes after-hours/pre-market prices for{" "}
-                  {performance.rows.filter((r) => r.used_extended_hours).length} holding
-                  {performance.rows.filter((r) => r.used_extended_hours).length === 1 ? "" : "s"} — see the Price
-                  column for which.
-                </p>
-              )}
-
-              <BenchmarkComparisonCard portfolioId={selectedPortfolioId} />
-
-              <GainVsPaidChart rows={performance.rows} />
-
-              <div className="mt-3 max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-white">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                      <PerformanceTh label="Ticker" onInfoClick={() => setPerformanceInfoColumn("Ticker")} />
-                      <PerformanceTh label="Signal" onInfoClick={() => setPerformanceInfoColumn("Signal")} />
-                      <PerformanceTh label="Momentum Rank" onInfoClick={() => setPerformanceInfoColumn("Momentum Rank")} />
-                      <PerformanceTh label="Next-Day Forecast" align="right" onInfoClick={() => setPerformanceInfoColumn("Next-Day Forecast")} />
-                      <PerformanceTh label="5-Day Forecast" align="right" onInfoClick={() => setPerformanceInfoColumn("5-Day Forecast")} />
-                      <PerformanceTh label="10-Day Forecast" align="right" onInfoClick={() => setPerformanceInfoColumn("10-Day Forecast")} />
-                      <PerformanceTh label="Shares" align="right" onInfoClick={() => setPerformanceInfoColumn("Shares")} />
-                      <PerformanceTh label="Price Now" align="right" onInfoClick={() => setPerformanceInfoColumn("Price Now")} />
-                      <PerformanceTh label="Market Value" align="right" onInfoClick={() => setPerformanceInfoColumn("Market Value")} />
-                      <PerformanceTh label="Today" align="right" onInfoClick={() => setPerformanceInfoColumn("Today")} />
-                      <PerformanceTh label="Price 30D Ago" align="right" onInfoClick={() => setPerformanceInfoColumn("Price 30D Ago")} />
-                      <PerformanceTh label="30D Diff" align="right" onInfoClick={() => setPerformanceInfoColumn("30D Diff")} />
-                      <PerformanceTh label="Avg Cost Paid" align="right" onInfoClick={() => setPerformanceInfoColumn("Avg Cost Paid")} />
-                      <PerformanceTh label="Gain vs. Paid" align="right" onInfoClick={() => setPerformanceInfoColumn("Gain vs. Paid")} />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {performance.rows.map((r) => {
-                      const insight = insights.find((i) => i.ticker === r.ticker) ?? null;
-                      return (
-                      <tr key={r.ticker} className="border-b border-slate-100 last:border-0">
-                        <td className="px-3 py-2 font-medium text-slate-800">
-                          {r.ticker}
-                          {insight?.concentrated && (
-                            <span
-                              title="A single position this large drives most of your portfolio's swings."
-                              className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
-                            >
-                              {insight.weight_pct?.toFixed(0)}%
-                            </span>
-                          )}
-                          <div className="mt-0.5 flex gap-2 text-[11px] font-normal">
-                            <Link
-                              href={`/predict?ticker=${r.ticker}&from=portfolio`}
-                              className="text-slate-500 hover:text-slate-800 hover:underline"
-                            >
-                              Forecast
-                            </Link>
-                            <Link
-                              href={`/signal-comparison?ticker=${r.ticker}&from=portfolio`}
-                              className="text-slate-500 hover:text-slate-800 hover:underline"
-                            >
-                              Quant vs Analyst
-                            </Link>
-                          </div>
-                          {r.acquired_at && (
-                            <div className="mt-0.5 text-[11px] text-slate-400">Held since {fmtAcquiredAt(r.acquired_at)}</div>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          {insight?.signal ? (
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                insight.signal === "BUY"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : insight.signal === "SELL"
-                                  ? "bg-red-50 text-red-700"
-                                  : "bg-slate-100 text-slate-600"
-                              }`}
-                            >
-                              {insight.signal}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">{insightsLoading ? "…" : "—"}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-slate-600">
-                          {insight?.rank !== null && insight?.rank !== undefined && insight.universe_size
-                            ? `#${insight.rank} of ${insight.universe_size}`
-                            : insightsLoading
-                            ? "…"
-                            : "—"}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {insight?.target_price_1d != null && insight?.expected_return_pct_1d != null ? (
-                            <span
-                              className={`font-medium ${
-                                insight.expected_return_pct_1d >= 0 ? "text-emerald-600" : "text-red-600"
-                              }`}
-                            >
-                              ${insight.target_price_1d.toFixed(2)}
-                              <span className="ml-1 text-xs">
-                                ({insight.expected_return_pct_1d >= 0 ? "+" : ""}
-                                {insight.expected_return_pct_1d.toFixed(2)}%)
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">{insightsLoading ? "…" : "—"}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {insight?.target_price_5d != null && insight?.expected_return_pct_5d != null ? (
-                            <span
-                              className={`font-medium ${
-                                insight.expected_return_pct_5d >= 0 ? "text-emerald-600" : "text-red-600"
-                              }`}
-                            >
-                              ${insight.target_price_5d.toFixed(2)}
-                              <span className="ml-1 text-xs">
-                                ({insight.expected_return_pct_5d >= 0 ? "+" : ""}
-                                {insight.expected_return_pct_5d.toFixed(2)}%)
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">{insightsLoading ? "…" : "—"}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {insight?.target_price != null && insight?.expected_return_pct != null ? (
-                            <span
-                              className={`font-medium ${
-                                insight.expected_return_pct >= 0 ? "text-emerald-600" : "text-red-600"
-                              }`}
-                            >
-                              ${insight.target_price.toFixed(2)}
-                              <span className="ml-1 text-xs">
-                                ({insight.expected_return_pct >= 0 ? "+" : ""}
-                                {insight.expected_return_pct.toFixed(2)}%)
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">{insightsLoading ? "…" : "—"}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-right text-slate-600">{r.shares.toFixed(2)}</td>
-                        {r.price_unavailable ? (
-                          <td colSpan={7} className="px-3 py-2 text-slate-400">
-                            No market data found for this ticker — check it&apos;s a valid, publicly-traded symbol.
-                          </td>
-                        ) : (
-                          <>
-                            <td className="px-3 py-2 text-right text-slate-600">
-                              ${r.price_now!.toFixed(2)}
-                              {r.used_extended_hours && r.extended_hours && (
-                                <>
-                                  <span
-                                    className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                                      (r.extended_hours.change_pct ?? 0) >= 0
-                                        ? "bg-emerald-50 text-emerald-700"
-                                        : "bg-red-50 text-red-700"
-                                    }`}
-                                  >
-                                    {r.extended_hours.state === "POST" ? "after hours" : "pre-market"}
-                                    {r.extended_hours.change_pct !== null && (
-                                      <>
-                                        {" "}
-                                        ({r.extended_hours.change_pct >= 0 ? "+" : ""}
-                                        {r.extended_hours.change_pct.toFixed(2)}%)
-                                      </>
-                                    )}
-                                  </span>
-                                  {r.price_now_regular !== null && (
-                                    <div className="text-xs text-slate-400">
-                                      Regular session: ${r.price_now_regular.toFixed(2)}
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-right font-medium text-slate-800">
-                              {r.value_now === null
-                                ? "—"
-                                : `$${r.value_now.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right font-medium ${
-                                r.day_gain === null
-                                  ? "text-slate-400"
-                                  : r.day_gain >= 0
-                                  ? "text-emerald-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {r.day_gain === null
-                                ? "—"
-                                : `${r.day_gain >= 0 ? "+" : ""}${r.day_gain.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
-                                    r.day_gain_pct !== null ? ` (${r.day_gain_pct >= 0 ? "+" : ""}${r.day_gain_pct.toFixed(1)}%)` : ""
-                                  }`}
-                            </td>
-                            <td className="px-3 py-2 text-right text-slate-600">
-                              {r.price_30d_ago !== null ? `$${r.price_30d_ago.toFixed(2)}` : "—"}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right font-medium ${
-                                r.diff === null ? "text-slate-400" : r.diff >= 0 ? "text-emerald-600" : "text-red-600"
-                              }`}
-                            >
-                              {r.diff === null
-                                ? "—"
-                                : `${r.diff >= 0 ? "+" : ""}${r.diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
-                                    r.diff_pct !== null ? ` (${r.diff_pct >= 0 ? "+" : ""}${r.diff_pct.toFixed(1)}%)` : ""
-                                  }`}
-                            </td>
-                            <td className="px-3 py-2 text-right text-slate-600">
-                              {r.avg_cost !== null ? `$${r.avg_cost.toFixed(2)}` : "—"}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right font-medium ${
-                                r.gain_vs_cost === null
-                                  ? "text-slate-400"
-                                  : r.gain_vs_cost >= 0
-                                  ? "text-emerald-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {r.gain_vs_cost === null
-                                ? "—"
-                                : `${r.gain_vs_cost >= 0 ? "+" : ""}${r.gain_vs_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
-                                    r.gain_vs_cost_pct !== null
-                                      ? ` (${r.gain_vs_cost_pct >= 0 ? "+" : ""}${r.gain_vs_cost_pct.toFixed(1)}%)`
-                                      : ""
-                                  }`}
-                            </td>
-                          </>
-                        )}
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-slate-900">Strategies</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          {strategies.length > 0 && (
-            <button
-              onClick={() => setExpandedTickers(new Set(strategies.map((s) => s.ticker)))}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              Expand All
-            </button>
-          )}
-          {expandedTickers.size > 0 && (
-            <button
-              onClick={() => setExpandedTickers(new Set())}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              Collapse All
-            </button>
-          )}
-          {strategies.length > 0 && (
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-            >
-              {refreshing ? "Refreshing…" : "Refresh with Current Market"}
-            </button>
-          )}
-        </div>
-      </div>
-      <p className="mt-1 text-xs text-slate-500">
-        Pulls today&apos;s prices for the positions you&apos;ve already saved and recomputes the plans below —
-        no need to re-enter or re-upload anything.
-      </p>
-
-      <p className="mt-3 text-xs font-medium text-slate-500">
-        Add a new position — this only appends this one ticker, it won&apos;t touch anything else you&apos;ve
-        saved.
-      </p>
-      <form onSubmit={handleAddPosition} className="mt-1 flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-4">
-        <Field label="Ticker">
-          <TickerSearchInput
-            value={addTicker}
-            onChange={setAddTicker}
-            className="input w-32 uppercase"
-          />
-        </Field>
-        <CurrentPriceBadge ticker={addTicker} />
-        <Field label="Shares">
-          <input
-            type="number"
-            step="0.0001"
-            value={addShares}
-            onChange={(e) => setAddShares(e.target.value)}
-            className="input w-24"
-          />
-        </Field>
-        <Field label="Avg cost">
-          <input
-            type="number"
-            step="0.01"
-            value={addAvgCost}
-            onChange={(e) => setAddAvgCost(e.target.value)}
-            className="input w-24"
-          />
-        </Field>
-        <button type="submit" disabled={adding} className="btn-primary">
-          {adding ? "Adding…" : "Add to Portfolio"}
-        </button>
-        {addError && <p className="w-full text-xs text-red-600">{addError}</p>}
-      </form>
-
-      {loading ? (
-        <p className="mt-2 text-sm text-slate-500">Loading…</p>
-      ) : strategies.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">No saved strategies yet.</p>
-      ) : (
-        <div className="mt-3 grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {strategies.map((s) => {
-            // s.current_price / s.unrealized_pnl_pct come from
-            // portfolio_strategies, a snapshot written only at last
-            // save/import (see the /performance-vs-/summary mismatch
-            // fixed above) -- performance.rows is fetched fresh on every
-            // load, so prefer it here too, falling back to the stale
-            // snapshot only until that live fetch resolves.
-            const perfRow = performance?.rows.find((r) => r.ticker === s.ticker) ?? null;
-            const livePrice = perfRow?.price_now ?? s.current_price;
-            const pnl = perfRow?.gain_vs_cost_pct ?? s.unrealized_pnl_pct;
-            const pnlPositive = pnl !== null && pnl >= 0;
-            const isEditing = editingTicker === s.ticker;
-            const extendedHours = perfRow?.extended_hours ?? null;
-            const insight = insights.find((i) => i.ticker === s.ticker) ?? null;
-            const tickerSentiment = sentiment[s.ticker] ?? null;
-            const isExpanded = expandedTickers.has(s.ticker);
-            return (
-              <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-5">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <h3 className="text-base font-semibold text-slate-900">{s.ticker}</h3>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        pnl === null
-                          ? "bg-slate-100 text-slate-500"
-                          : pnlPositive
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-red-50 text-red-700"
-                      }`}
-                    >
-                      {pnl === null ? "—" : `${pnlPositive ? "+" : ""}${pnl.toFixed(2)}%`}
+        {/* ---------- Hero: total value + sub-line + chip row ---------- */}
+        {summary && (
+          <div className="mt-6 grid grid-cols-1 gap-8 border-b border-[#ddd8cd] pb-7 lg:grid-cols-[1.1fr_1fr]">
+            <div>
+              <p className="font-mono text-[11px] uppercase tracking-wider text-[#857d6e]" style={MONO_FONT}>
+                Total value · {currentPortfolio?.name ?? "Portfolio"}
+              </p>
+              <p className="mt-1 text-5xl font-semibold leading-none" style={DISPLAY_FONT}>
+                {totalValue !== null ? `$${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}
+              </p>
+              {performance && (
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-[#514c43]">
+                  {performance.total_day_gain !== null && (
+                    <span>
+                      Today{" "}
+                      <b className={goodBad(performance.total_day_gain)} style={MONO_FONT}>
+                        {performance.total_day_gain >= 0 ? "+" : ""}$
+                        {performance.total_day_gain.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        {performance.total_day_gain_pct !== null &&
+                          ` (${performance.total_day_gain_pct >= 0 ? "+" : ""}${performance.total_day_gain_pct.toFixed(2)}%)`}
+                      </b>
                     </span>
-                    {!isEditing && movingTicker !== s.ticker && (
-                      <>
-                        <button
-                          onClick={() => startEdit(s)}
-                          className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                        >
-                          Edit
-                        </button>
-                        {allPortfolios.length > 1 && (
-                          <button
-                            onClick={() => startMove(s.ticker)}
-                            className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                          >
-                            Move
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeletePosition(s.ticker)}
-                          disabled={deletingTicker === s.ticker}
-                          className="rounded-md border border-red-200 px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {deletingTicker === s.ticker ? "Deleting…" : "Delete"}
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  )}
+                  <span>
+                    30 days{" "}
+                    <b className={goodBad(performance.value_diff)} style={MONO_FONT}>
+                      {performance.value_diff >= 0 ? "+" : ""}$
+                      {performance.value_diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {performance.value_diff_pct !== null &&
+                        ` (${performance.value_diff_pct >= 0 ? "+" : ""}${performance.value_diff_pct.toFixed(2)}%)`}
+                    </b>
+                  </span>
+                  <span>
+                    Since cost{" "}
+                    <b className={goodBad(performance.total_gain_vs_cost)} style={MONO_FONT}>
+                      {performance.total_gain_vs_cost >= 0 ? "+" : ""}$
+                      {performance.total_gain_vs_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {performance.total_gain_vs_cost_pct !== null &&
+                        ` (${performance.total_gain_vs_cost_pct >= 0 ? "+" : ""}${performance.total_gain_vs_cost_pct.toFixed(2)}%)`}
+                    </b>
+                  </span>
                 </div>
+              )}
+            </div>
+            <div className="flex flex-wrap content-start gap-3">
+              <Chip label="Positions" value={String(summary.total_positions)} />
+              <Chip label="Unrealized PnL" value={`${summary.total_pnl_pct.toFixed(2)}%`} tone={summary.total_pnl_pct} />
+              {performance && <Chip label="Total Paid" value={`$${performance.total_cost_basis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />}
+              {performance && performance.margin_balance > 0 && (
+                <Chip
+                  label="Net Equity"
+                  value={`$${performance.net_equity.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                  tone={performance.net_equity}
+                />
+              )}
+            </div>
+          </div>
+        )}
 
-                {movingTicker === s.ticker && (
-                  <div className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
-                    <Field label="Move to">
-                      <select
-                        value={moveTargetId}
-                        onChange={(e) => setMoveTargetId(e.target.value)}
-                        className="input"
-                      >
-                        <option value="">Choose a portfolio…</option>
-                        {allPortfolios
-                          .filter((p) => p.id !== selectedPortfolioId)
-                          .map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                      </select>
-                    </Field>
-                    <button onClick={() => confirmMove(s.ticker)} disabled={moveSaving} className="btn-primary">
-                      {moveSaving ? "Moving…" : "Confirm Move"}
-                    </button>
-                    <button
-                      onClick={cancelMove}
-                      disabled={moveSaving}
-                      className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                    >
-                      Cancel
-                    </button>
-                    {positionActionError && <p className="w-full text-xs text-red-600">{positionActionError}</p>}
-                  </div>
-                )}
+        {summary && summary.total_positions > 0 && <PortfolioReviewCard portfolioId={selectedPortfolioId} />}
 
-                {isEditing ? (
-                  <div className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
-                    <Field label="Shares">
-                      <input
-                        type="number"
-                        step="0.0001"
-                        value={editShares}
-                        onChange={(e) => setEditShares(e.target.value)}
-                        className="input w-24"
-                      />
-                    </Field>
-                    <Field label="Avg cost">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={editAvgCost}
-                        onChange={(e) => setEditAvgCost(e.target.value)}
-                        className="input w-24"
-                      />
-                    </Field>
-                    <button
-                      onClick={() => saveEdit(s.ticker)}
-                      disabled={editSaving}
-                      className="btn-primary"
-                    >
-                      {editSaving ? "Saving…" : "Save"}
-                    </button>
-                    <button
-                      onClick={cancelEdit}
-                      disabled={editSaving}
-                      className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                    >
-                      Cancel
-                    </button>
-                    {editError && <p className="w-full text-xs text-red-600">{editError}</p>}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-sm text-slate-500">
-                    {s.shares?.toFixed(2)} sh @ avg ${s.avg_cost?.toFixed(2)} · now ${livePrice?.toFixed(2)}
-                    {extendedHours && (
-                      <span className={extendedHours.change_pct !== null && extendedHours.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}>
-                        {" "}
-                        · {extendedHours.state === "POST" ? "after hours" : "pre-market"}: $
-                        {extendedHours.price.toFixed(2)}
-                        {extendedHours.change_pct !== null && (
-                          <> ({extendedHours.change_pct >= 0 ? "+" : ""}{extendedHours.change_pct.toFixed(2)}%)</>
-                        )}
-                      </span>
-                    )}
+        {summary && summary.total_positions > 0 && (
+          <div className="mt-2">
+            {performanceLoading && !performance && <p className="mt-4 text-sm text-[#857d6e]">Loading…</p>}
+            {performanceError && (
+              <p className={`mt-4 rounded-md border border-[#e4c9c5] bg-[#fbeceb] px-3 py-2 text-sm ${PF.bad}`}>{performanceError}</p>
+            )}
+
+            {performance && performance.rows.length > 0 && (
+              <>
+                <BenchmarkComparisonCard portfolioId={selectedPortfolioId} />
+
+                {performance.rows.some((r) => r.used_extended_hours) && (
+                  <p className="mt-2 text-xs text-[#857d6e]">
+                    Includes after-hours/pre-market prices for{" "}
+                    {performance.rows.filter((r) => r.used_extended_hours).length} holding
+                    {performance.rows.filter((r) => r.used_extended_hours).length === 1 ? "" : "s"} — see the Price
+                    column for which.
                   </p>
                 )}
 
-                {insightsLoading && !insight && (
-                  <p className="mt-2 text-xs text-slate-400">Checking live signal &amp; rank…</p>
-                )}
-                {insight && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                    {insight.signal && (
-                      <span
-                        title={
-                          insight.expected_return_pct !== null
-                            ? `Expected ${insight.expected_return_pct >= 0 ? "+" : ""}${insight.expected_return_pct.toFixed(2)}% — same model as /predict`
-                            : "Same model as /predict"
-                        }
-                        className={`rounded-full px-2 py-0.5 font-semibold ${
-                          insight.signal === "BUY"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : insight.signal === "SELL"
-                            ? "bg-red-50 text-red-700"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {insight.signal}
-                      </span>
-                    )}
-                    {insight.rank !== null && insight.universe_size !== null && (
-                      <span className="text-slate-500">
-                        Momentum rank #{insight.rank} of {insight.universe_size}
-                      </span>
-                    )}
-                    {insight.concentrated && insight.weight_pct !== null && (
-                      <span
-                        title="A single position this large drives most of your portfolio's swings — consider whether that's intentional."
-                        className="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700"
-                      >
-                        {insight.weight_pct.toFixed(0)}% of portfolio — concentrated
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setShowLiveReadInfo(true)}
-                      title="What do Signal, Sentiment, and Live Read mean?"
-                      aria-label="What do Signal, Sentiment, and Live Read mean?"
-                      className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal text-slate-400 hover:border-slate-500 hover:text-slate-700"
-                    >
-                      i
-                    </button>
-                  </div>
-                )}
+                <GainVsPaidChart rows={performance.rows} />
+              </>
+            )}
+          </div>
+        )}
 
-                <button
-                  type="button"
-                  onClick={() => toggleExpanded(s.ticker)}
-                  className="mt-3 flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700"
-                >
-                  {isExpanded ? "▾ Hide Short-/Long-Term Plan" : "▸ Show Short-/Long-Term Plan"}
-                </button>
-
-                {isExpanded && (
-                  <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
-                      <PlanText text={withLiveRead(s.short_term_plan, shortTermSignalNote(insight, tickerSentiment))} />
-                    </div>
-                    <div className="rounded-md border border-slate-100 bg-slate-50/70 p-3">
-                      <PlanText text={withLiveRead(s.long_term_plan, longTermMomentumNote(insight))} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        {/* ---------- Holdings: one table, one row per position, expand for detail ---------- */}
+        <div className="mt-9 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold" style={DISPLAY_FONT}>
+            Holdings
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            {strategies.length > 0 && (
+              <button onClick={() => setExpandedTickers(new Set(strategies.map((s) => s.ticker)))} className={PF.btn}>
+                Expand All
+              </button>
+            )}
+            {expandedTickers.size > 0 && (
+              <button onClick={() => setExpandedTickers(new Set())} className={PF.btn}>
+                Collapse All
+              </button>
+            )}
+            {strategies.length > 0 && (
+              <button onClick={handleRefresh} disabled={refreshing} className={`${PF.btn} disabled:opacity-50`}>
+                {refreshing ? "Refreshing…" : "Refresh with Current Market"}
+              </button>
+            )}
+          </div>
         </div>
-      )}
+        <p className="mt-1 text-xs text-[#857d6e]">
+          Today&apos;s price for every holding, priced fresh each load. Click a row for forecasts, the 30-day/cost
+          comparison, and its short-/long-term plan.
+        </p>
 
-      {insightsError && (
-        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{insightsError}</p>
-      )}
-      {positionActionError && movingTicker === null && (
-        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{positionActionError}</p>
-      )}
+        <p className="mt-4 text-xs font-medium text-[#857d6e]">
+          Add a new position — this only appends this one ticker, it won&apos;t touch anything else you&apos;ve
+          saved.
+        </p>
+        <form onSubmit={handleAddPosition} className={`mt-1 flex flex-wrap items-end gap-2 ${PF.card} p-4`}>
+          <Field label="Ticker">
+            <TickerSearchInput value={addTicker} onChange={setAddTicker} className="input w-32 uppercase" />
+          </Field>
+          <CurrentPriceBadge ticker={addTicker} />
+          <Field label="Shares">
+            <input
+              type="number"
+              step="0.0001"
+              value={addShares}
+              onChange={(e) => setAddShares(e.target.value)}
+              className="w-24 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm text-[#1f2420]"
+            />
+          </Field>
+          <Field label="Avg cost">
+            <input
+              type="number"
+              step="0.01"
+              value={addAvgCost}
+              onChange={(e) => setAddAvgCost(e.target.value)}
+              className="w-24 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm text-[#1f2420]"
+            />
+          </Field>
+          <button type="submit" disabled={adding} className={`${PF.btnPrimary} disabled:opacity-50`}>
+            {adding ? "Adding…" : "Add to Portfolio"}
+          </button>
+          {addError && <p className={`w-full text-xs ${PF.bad}`}>{addError}</p>}
+        </form>
 
-      {performanceInfoColumn && PERFORMANCE_COLUMN_INFO[performanceInfoColumn] && (
-        <InfoModal
-          info={PERFORMANCE_COLUMN_INFO[performanceInfoColumn]}
-          onClose={() => setPerformanceInfoColumn(null)}
-        />
-      )}
+        {loading ? (
+          <p className="mt-3 text-sm text-[#857d6e]">Loading…</p>
+        ) : strategies.length === 0 ? (
+          <p className="mt-3 text-sm text-[#857d6e]">No saved strategies yet.</p>
+        ) : (
+          <div className={`mt-3 overflow-hidden ${PF.card}`}>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[#ddd8cd] bg-[#efebe3] text-left text-[10.5px] font-semibold uppercase tracking-wide text-[#857d6e]">
+                    <th className="px-4 py-3">Ticker</th>
+                    <th className="px-4 py-3">Signal</th>
+                    <th className="px-4 py-3 text-right">Shares</th>
+                    <th className="px-4 py-3 text-right">Price</th>
+                    <th className="px-4 py-3 text-right">Value</th>
+                    <th className="px-4 py-3 text-right">Today</th>
+                    <th className="px-4 py-3 text-right">Since Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {strategies.map((s) => {
+                    const perfRow = performance?.rows.find((r) => r.ticker === s.ticker) ?? null;
+                    const insight = insights.find((i) => i.ticker === s.ticker) ?? null;
+                    const tickerSentiment = sentiment[s.ticker] ?? null;
+                    const isExpanded = expandedTickers.has(s.ticker);
+                    const isEditing = editingTicker === s.ticker;
+                    const isMoving = movingTicker === s.ticker;
 
-      {showLiveReadInfo && <InfoModal info={LIVE_READ_INFO} onClose={() => setShowLiveReadInfo(false)} />}
+                    const livePrice = perfRow?.price_now ?? s.current_price;
+                    const pnlPct = perfRow?.gain_vs_cost_pct ?? s.unrealized_pnl_pct;
+                    const gainVsCostDollar = perfRow?.gain_vs_cost ?? null;
+
+                    return (
+                      <FragmentRow key={s.id}>
+                        <tr
+                          className="cursor-pointer border-b border-[#ede9df] last:border-0 hover:bg-[#faf8f3]"
+                          onClick={() => toggleExpanded(s.ticker)}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Chevron open={isExpanded} />
+                              <span className="font-semibold">{s.ticker}</span>
+                              {insight?.concentrated && (
+                                <span
+                                  title="A single position this large drives most of your portfolio's swings."
+                                  className="rounded-full bg-[#f4e3c9] px-1.5 py-0.5 text-[10px] font-bold text-[#8a6417]"
+                                >
+                                  {insight.weight_pct?.toFixed(0)}%
+                                </span>
+                              )}
+                            </div>
+                            {perfRow?.acquired_at && (
+                              <div className="mt-0.5 pl-[22px] text-[11px] text-[#a39b8b]">
+                                Held since {fmtAcquiredAt(perfRow.acquired_at)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {insight?.signal ? (
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                  insight.signal === "BUY"
+                                    ? "bg-[#e3ede8] text-[#2f6b4f]"
+                                    : insight.signal === "SELL"
+                                    ? "bg-[#f6e5e3] text-[#a23b34]"
+                                    : "bg-[#efece4] text-[#6b6459]"
+                                }`}
+                              >
+                                {insight.signal}
+                              </span>
+                            ) : (
+                              <span className="text-[#a39b8b]">{insightsLoading ? "…" : "—"}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right" style={MONO_FONT}>
+                            {s.shares?.toFixed(2) ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right" style={MONO_FONT}>
+                            {livePrice !== null && livePrice !== undefined ? `$${livePrice.toFixed(2)}` : "—"}
+                            {perfRow?.used_extended_hours && perfRow.extended_hours && (
+                              <div
+                                className={`mt-0.5 text-[10px] font-semibold ${
+                                  (perfRow.extended_hours.change_pct ?? 0) >= 0 ? PF.good : PF.bad
+                                }`}
+                              >
+                                {perfRow.extended_hours.state === "POST" ? "after hours" : "pre-market"}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium" style={MONO_FONT}>
+                            {perfRow && perfRow.value_now !== null
+                              ? `$${perfRow.value_now.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                              : "—"}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-medium ${goodBad(perfRow?.day_gain ?? null)}`} style={MONO_FONT}>
+                            {perfRow?.day_gain != null
+                              ? `${perfRow.day_gain >= 0 ? "+" : ""}${perfRow.day_gain.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
+                                  perfRow.day_gain_pct !== null ? ` (${perfRow.day_gain_pct >= 0 ? "+" : ""}${perfRow.day_gain_pct.toFixed(1)}%)` : ""
+                                }`
+                              : "—"}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-medium ${goodBad(pnlPct)}`} style={MONO_FONT}>
+                            {gainVsCostDollar !== null
+                              ? `${gainVsCostDollar >= 0 ? "+" : ""}${gainVsCostDollar.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
+                                  pnlPct !== null ? ` (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}%)` : ""
+                                }`
+                              : pnlPct !== null
+                              ? `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%`
+                              : "—"}
+                          </td>
+                        </tr>
+
+                        {isExpanded && (
+                          <tr className="border-b border-[#ede9df] bg-[#faf8f3] last:border-0">
+                            <td colSpan={7} className="px-4 py-5 pl-11">
+                              {perfRow?.price_unavailable ? (
+                                <p className="text-sm text-[#a39b8b]">
+                                  No market data found for this ticker — check it&apos;s a valid, publicly-traded
+                                  symbol.
+                                </p>
+                              ) : (
+                                <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
+                                  <DetailStat label="Momentum Rank">
+                                    {insight?.rank != null && insight.universe_size
+                                      ? `#${insight.rank} of ${insight.universe_size}`
+                                      : insightsLoading
+                                      ? "…"
+                                      : "—"}
+                                  </DetailStat>
+                                  <DetailStat label="1-Day Forecast" tone={insight?.expected_return_pct_1d ?? null}>
+                                    {insight?.target_price_1d != null && insight?.expected_return_pct_1d != null
+                                      ? `$${insight.target_price_1d.toFixed(2)} (${insight.expected_return_pct_1d >= 0 ? "+" : ""}${insight.expected_return_pct_1d.toFixed(2)}%)`
+                                      : "—"}
+                                  </DetailStat>
+                                  <DetailStat label="5-Day Forecast" tone={insight?.expected_return_pct_5d ?? null}>
+                                    {insight?.target_price_5d != null && insight?.expected_return_pct_5d != null
+                                      ? `$${insight.target_price_5d.toFixed(2)} (${insight.expected_return_pct_5d >= 0 ? "+" : ""}${insight.expected_return_pct_5d.toFixed(2)}%)`
+                                      : "—"}
+                                  </DetailStat>
+                                  <DetailStat label="10-Day Forecast" tone={insight?.expected_return_pct ?? null}>
+                                    {insight?.target_price != null && insight?.expected_return_pct != null
+                                      ? `$${insight.target_price.toFixed(2)} (${insight.expected_return_pct >= 0 ? "+" : ""}${insight.expected_return_pct.toFixed(2)}%)`
+                                      : "—"}
+                                  </DetailStat>
+                                  <DetailStat label="Price 30D Ago">
+                                    {perfRow?.price_30d_ago != null ? `$${perfRow.price_30d_ago.toFixed(2)}` : "—"}
+                                  </DetailStat>
+                                  <DetailStat label="30D Diff" tone={perfRow?.diff ?? null}>
+                                    {perfRow?.diff != null
+                                      ? `${perfRow.diff >= 0 ? "+" : ""}${perfRow.diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}${
+                                          perfRow.diff_pct !== null ? ` (${perfRow.diff_pct >= 0 ? "+" : ""}${perfRow.diff_pct.toFixed(1)}%)` : ""
+                                        }`
+                                      : "—"}
+                                  </DetailStat>
+                                  <DetailStat label="Avg Cost Paid">
+                                    {s.avg_cost !== null && s.avg_cost !== undefined ? `$${s.avg_cost.toFixed(2)}` : "—"}
+                                  </DetailStat>
+                                  <DetailStat label="Look up">
+                                    <div className="flex flex-col gap-0.5">
+                                      <Link
+                                        href={`/predict?ticker=${s.ticker}&from=portfolio`}
+                                        className="text-[#2f5d50] hover:underline"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        Forecast
+                                      </Link>
+                                      <Link
+                                        href={`/signal-comparison?ticker=${s.ticker}&from=portfolio`}
+                                        className="text-[#2f5d50] hover:underline"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        Quant vs Analyst
+                                      </Link>
+                                    </div>
+                                  </DetailStat>
+                                </div>
+                              )}
+
+                              {insight && (
+                                <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+                                  {insight.concentrated && insight.weight_pct !== null && (
+                                    <span
+                                      title="A single position this large drives most of your portfolio's swings — consider whether that's intentional."
+                                      className="rounded-full bg-[#f4e3c9] px-2 py-0.5 font-semibold text-[#8a6417]"
+                                    >
+                                      {insight.weight_pct.toFixed(0)}% of portfolio — concentrated
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowLiveReadInfo(true);
+                                    }}
+                                    title="What do Signal, Sentiment, and Live Read mean?"
+                                    aria-label="What do Signal, Sentiment, and Live Read mean?"
+                                    className="flex h-4 w-4 items-center justify-center rounded-full border border-[#ddd8cd] text-[10px] font-normal text-[#a39b8b] hover:border-[#857d6e] hover:text-[#1f2420]"
+                                  >
+                                    i
+                                  </button>
+                                </div>
+                              )}
+
+                              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="rounded-md border border-[#ede9df] bg-white p-3">
+                                  <PlanText text={withLiveRead(s.short_term_plan, shortTermSignalNote(insight, tickerSentiment))} />
+                                </div>
+                                <div className="rounded-md border border-[#ede9df] bg-white p-3">
+                                  <PlanText text={withLiveRead(s.long_term_plan, longTermMomentumNote(insight))} />
+                                </div>
+                              </div>
+
+                              <div className="mt-4 border-t border-[#ede9df] pt-4" onClick={(e) => e.stopPropagation()}>
+                                {isMoving ? (
+                                  <div className="flex flex-wrap items-end gap-2">
+                                    <Field label="Move to">
+                                      <select
+                                        value={moveTargetId}
+                                        onChange={(e) => setMoveTargetId(e.target.value)}
+                                        className="rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm"
+                                      >
+                                        <option value="">Choose a portfolio…</option>
+                                        {allPortfolios
+                                          .filter((p) => p.id !== selectedPortfolioId)
+                                          .map((p) => (
+                                            <option key={p.id} value={p.id}>
+                                              {p.name}
+                                            </option>
+                                          ))}
+                                      </select>
+                                    </Field>
+                                    <button onClick={() => confirmMove(s.ticker)} disabled={moveSaving} className={`${PF.btnPrimary} disabled:opacity-50`}>
+                                      {moveSaving ? "Moving…" : "Confirm Move"}
+                                    </button>
+                                    <button onClick={cancelMove} disabled={moveSaving} className={PF.btn}>
+                                      Cancel
+                                    </button>
+                                    {positionActionError && <p className={`w-full text-xs ${PF.bad}`}>{positionActionError}</p>}
+                                  </div>
+                                ) : isEditing ? (
+                                  <div className="flex flex-wrap items-end gap-2">
+                                    <Field label="Shares">
+                                      <input
+                                        type="number"
+                                        step="0.0001"
+                                        value={editShares}
+                                        onChange={(e) => setEditShares(e.target.value)}
+                                        className="w-24 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm"
+                                      />
+                                    </Field>
+                                    <Field label="Avg cost">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={editAvgCost}
+                                        onChange={(e) => setEditAvgCost(e.target.value)}
+                                        className="w-24 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm"
+                                      />
+                                    </Field>
+                                    <button onClick={() => saveEdit(s.ticker)} disabled={editSaving} className={`${PF.btnPrimary} disabled:opacity-50`}>
+                                      {editSaving ? "Saving…" : "Save"}
+                                    </button>
+                                    <button onClick={cancelEdit} disabled={editSaving} className={PF.btn}>
+                                      Cancel
+                                    </button>
+                                    {editError && <p className={`w-full text-xs ${PF.bad}`}>{editError}</p>}
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-wrap gap-2">
+                                    <button onClick={() => startEdit(s)} className={PF.btn}>
+                                      Edit
+                                    </button>
+                                    {allPortfolios.length > 1 && (
+                                      <button onClick={() => startMove(s.ticker)} className={PF.btn}>
+                                        Move
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleDeletePosition(s.ticker)}
+                                      disabled={deletingTicker === s.ticker}
+                                      className="rounded-md border border-[#e4c9c5] px-3 py-1.5 text-sm font-medium text-[#a23b34] hover:bg-[#fbeceb] disabled:opacity-50"
+                                    >
+                                      {deletingTicker === s.ticker ? "Deleting…" : "Delete"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </FragmentRow>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {insightsError && (
+          <p className={`mt-3 rounded-md border border-[#e4c9c5] bg-[#fbeceb] px-3 py-2 text-sm ${PF.bad}`}>{insightsError}</p>
+        )}
+        {positionActionError && movingTicker === null && (
+          <p className={`mt-3 rounded-md border border-[#e4c9c5] bg-[#fbeceb] px-3 py-2 text-sm ${PF.bad}`}>{positionActionError}</p>
+        )}
+
+        {performanceInfoColumn && PERFORMANCE_COLUMN_INFO[performanceInfoColumn] && (
+          <InfoModal
+            info={PERFORMANCE_COLUMN_INFO[performanceInfoColumn]}
+            onClose={() => setPerformanceInfoColumn(null)}
+          />
+        )}
+
+        {showLiveReadInfo && <InfoModal info={LIVE_READ_INFO} onClose={() => setShowLiveReadInfo(false)} />}
+      </div>
     </div>
   );
 }
@@ -1348,52 +1192,59 @@ function fmtAcquiredAt(isoDate: string): string {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
+      <label className="text-xs font-medium text-[#857d6e]">{label}</label>
       {children}
     </div>
   );
 }
 
-function MetricTile({ label, value, positive }: { label: string; value: string; positive?: boolean }) {
-  const valueClass =
-    positive === undefined ? "text-slate-900" : positive ? "text-emerald-600" : "text-red-600";
+function Chip({ label, value, tone }: { label: string; value: string; tone?: number | null }) {
+  const valueClass = tone === undefined ? "" : goodBad(tone);
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className={`mt-1 text-lg font-semibold ${valueClass}`}>{value}</p>
+    <div className="min-w-[128px] rounded-lg border border-[#ddd8cd] bg-white px-4 py-3">
+      <p className="font-mono text-[10.5px] uppercase tracking-wide text-[#857d6e]" style={MONO_FONT}>
+        {label}
+      </p>
+      <p className={`mt-0.5 text-lg font-semibold ${valueClass}`} style={MONO_FONT}>
+        {value}
+      </p>
     </div>
   );
 }
 
-function PerformanceTh({
-  label,
-  align,
-  onInfoClick,
-}: {
-  label: string;
-  align?: "left" | "right";
-  onInfoClick: () => void;
-}) {
+function Chevron({ open }: { open: boolean }) {
   return (
-    <th className={`sticky top-0 z-10 bg-slate-50 px-3 py-2 ${align === "right" ? "text-right" : ""}`}>
-      <div className={`flex items-center gap-1 ${align === "right" ? "justify-end" : ""}`}>
-        {align === "right" && <ThInfoButton label={label} onClick={onInfoClick} />}
-        <span>{label}</span>
-        {align !== "right" && <ThInfoButton label={label} onClick={onInfoClick} />}
-      </div>
-    </th>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      className={`h-3.5 w-3.5 flex-none text-[#857d6e] transition-transform ${open ? "rotate-90" : ""}`}
+    >
+      <path d="M9 5l7 7-7 7" />
+    </svg>
   );
 }
 
-function ThInfoButton({ label, onClick }: { label: string; onClick: () => void }) {
+function DetailStat({ label, tone, children }: { label: string; tone?: number | null; children: React.ReactNode }) {
+  const valueClass = tone === undefined ? "" : goodBad(tone);
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={`What is ${label}?`}
-      className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-300 text-[9px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
-    >
-      i
-    </button>
+    <div>
+      <p className="font-mono text-[10px] uppercase tracking-wide text-[#857d6e]" style={MONO_FONT}>
+        {label}
+      </p>
+      <p className={`mt-0.5 text-sm font-semibold ${valueClass}`} style={MONO_FONT}>
+        {children}
+      </p>
+    </div>
   );
+}
+
+// A holdings row is really two <tr>s (the row itself, plus an optional
+// detail row) that must stay adjacent siblings inside <tbody> -- a
+// wrapping element would break table semantics. React.Fragment does this
+// without one, but needs a key when used in a list; this thin wrapper
+// keeps the call sites above readable.
+function FragmentRow({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
