@@ -436,12 +436,23 @@ def _build_fund_row(fund: IndexFundCandidate, raw: FundRawData, start: pd.Timest
 
     window_stats = _stats_for_window(prices, start, end)
 
-    expense_ratio = (
-        info.get("annualReportExpenseRatio")
-        or info.get("netExpenseRatio")
-        or info.get("expenseRatio")
-        or info.get("totalExpenseRatio")
-    )
+    # netExpenseRatio is the only one of these four keys this yfinance
+    # version actually populates (confirmed live: annualReportExpenseRatio/
+    # expenseRatio/totalExpenseRatio are None for every fund in the
+    # universe) -- and unlike the other three, it already arrives as a
+    # percentage-point value (0.03 means 0.03%, matching the fund's real
+    # prospectus rate), not a fraction of 1. Passing it through
+    # _coerce_percent's fraction heuristic silently inflated every fund's
+    # expense ratio 100x (0.03% shown as 3.0%). The fallback keys are kept
+    # in case a future yfinance version populates them in the older,
+    # fraction-of-1 convention -- only they go through _coerce_percent.
+    net_expense_ratio = info.get("netExpenseRatio")
+    if net_expense_ratio is not None:
+        expense_ratio = float(net_expense_ratio)
+    else:
+        expense_ratio = _coerce_percent(
+            info.get("annualReportExpenseRatio") or info.get("expenseRatio") or info.get("totalExpenseRatio")
+        )
     assets = info.get("totalAssets")
     avg_daily_volume = info.get("averageDailyVolume3Month") or info.get("averageVolume")
     bid = info.get("bid")
@@ -472,7 +483,7 @@ def _build_fund_row(fund: IndexFundCandidate, raw: FundRawData, start: pd.Timest
         "Benchmark": fund.benchmark,
         "Category": category,
         "Price": latest_price,
-        "Expense Ratio %": _coerce_percent(expense_ratio),
+        "Expense Ratio %": expense_ratio,
         "Tracking Difference %": tracking_difference,
         "Assets ($B)": (float(assets) / 1_000_000_000) if assets else None,
         "Avg Daily Volume": float(avg_daily_volume) if avg_daily_volume else None,
@@ -496,7 +507,7 @@ def _build_fund_row(fund: IndexFundCandidate, raw: FundRawData, start: pd.Timest
         # Internal columns feeding scoring -- stripped or kept depending on
         # caller; mirrored 1:1 onto the display columns above so scoring
         # and display never drift out of sync.
-        "expense_ratio": _coerce_percent(expense_ratio),
+        "expense_ratio": expense_ratio,
         "return_1y": return_1y,
         "return_3y_annualized": return_3y_annualized,
         "volatility_1y": volatility_1y,
