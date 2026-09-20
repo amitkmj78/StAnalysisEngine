@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import Link from "next/link";
 
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
@@ -26,7 +27,60 @@ import type {
   StockRankRow,
 } from "@/lib/types";
 
+// Scoped to this page only -- same "Ledger" direction already shipped on
+// /portfolio and /predict (warm paper, Fraunces for headings/numbers, IBM
+// Plex for body/UI/tabular data). The rest of the site keeps its Geist
+// font (app/layout.tsx) and slate palette untouched.
+const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
+const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-pf-sans" });
+const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
+
+const PF = {
+  page: "bg-[#f4f1ea]",
+  ink: "text-[#1f2420]",
+  muted: "text-[#857d6e]",
+  line: "border-[#ddd8cd]",
+  card: "rounded-xl border border-[#ddd8cd] bg-white",
+  surface2: "bg-[#efebe3]",
+  good: "text-[#2f6b4f]",
+  bad: "text-[#a23b34]",
+  warnBg: "bg-[#f4e3c9]",
+  warnText: "text-[#8a6417]",
+  btn: "rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm font-medium text-[#1f2420] hover:border-[#2f5d50] hover:text-[#2f5d50]",
+  btnPrimary: "rounded-md bg-[#2f5d50] px-3 py-1.5 text-sm font-semibold text-[#f4f1ea] hover:bg-[#274e43]",
+  input: "rounded-md border border-[#ddd8cd] bg-white px-3 py-2 text-sm text-[#1f2420]",
+  chip: "inline-flex items-center gap-1 rounded-full border border-[#ddd8cd] bg-white px-2.5 py-1 text-xs text-[#1f2420]",
+};
+
+function goodBad(v: number | null | undefined): string {
+  if (v === null || v === undefined) return PF.muted;
+  return v >= 0 ? PF.good : PF.bad;
+}
+
 const GOALS = ["Short Term", "Long Term"];
+
+// Mirrors exactly the weights already documented in the Score column's own
+// tooltip below -- shown inline (rather than only on click) so the active
+// Goal's weighting is visible without hunting for the info icon.
+const GOAL_WEIGHTS_DISPLAY: Record<string, { label: string; pct: number; lowerIsBetter?: boolean }[]> = {
+  "Short Term": [
+    { label: "3-Month Return", pct: 30 },
+    { label: "1-Month Return", pct: 25 },
+    { label: "RSI Balance", pct: 15 },
+    { label: "MACD Signal Strength", pct: 15 },
+    { label: "Volume Strength", pct: 10 },
+    { label: "6-Month Volatility", pct: 5, lowerIsBetter: true },
+  ],
+  "Long Term": [
+    { label: "1-Year Return", pct: 28 },
+    { label: "3-Year Annualized Return", pct: 20 },
+    { label: "6-Month Return", pct: 12 },
+    { label: "Revenue Growth", pct: 12 },
+    { label: "Earnings Growth", pct: 10 },
+    { label: "Forward P/E", pct: 8, lowerIsBetter: true },
+    { label: "1-Year Max Drawdown", pct: 10, lowerIsBetter: true },
+  ],
+};
 
 // Every field _build_stock_row (services/stock_finder_service.py) returns,
 // in display order — the column picker offers all of these, not just the
@@ -126,9 +180,7 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
     title: "Score",
     body: [
       "A 0–100 blend of several metrics, each normalized against the other tickers in this result set (the best value in the current list scores highest on that metric, the worst scores lowest) — it's a relative ranking within this run, not an absolute grade. Re-running with a different universe can change a ticker's score even if nothing about the ticker itself changed.",
-      "The metrics and their weights depend on the Goal you picked:",
-      "\"Short Term\": 3-month return (30%), 1-month return (25%), RSI balance (15%), MACD signal strength (15%), volume strength (10%), 6-month volatility (5%, lower is better).",
-      "\"Long Term\": 1-year return (28%), 3-year annualized return (20%), 6-month return (12%), revenue growth (12%), earnings growth (10%), forward P/E (8%, lower is better), 1-year max drawdown (10%, lower is better).",
+      "The metrics and their weights depend on the Goal you picked — see the weights strip above the table for the exact breakdown of whichever Goal is active.",
       "Filters below narrow which rows are shown, but never change how Score is computed — scores stay comparable across different filter selections since they're calculated before filtering.",
     ],
   },
@@ -254,6 +306,7 @@ export default function StockFinderPage() {
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COLUMNS);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const [screens, setScreens] = useState<SavedScreen[]>([]);
   const [screensLoading, setScreensLoading] = useState(false);
@@ -318,6 +371,7 @@ export default function StockFinderPage() {
     setSortKeys([]);
     setQuantSignals({});
     setAnalystRatings({});
+    setExpandedRows(new Set());
     try {
       if (forMode === "rank") {
         const res = await getStockRanking(forGoal, forUniverse);
@@ -355,6 +409,15 @@ export default function StockFinderPage() {
       ...prev,
       sectors: prev.sectors.includes(sector) ? prev.sectors.filter((s) => s !== sector) : [...prev.sectors, sector],
     }));
+  }
+
+  function toggleRow(t: string) {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t);
+      else next.add(t);
+      return next;
+    });
   }
 
   function handleSort(col: string, additive: boolean) {
@@ -541,519 +604,564 @@ export default function StockFinderPage() {
       .sort((a, b) => (a.after?.rank ?? 99) - (b.after?.rank ?? 99));
   }, [compareScreen, sortedResults]);
 
+  const activeWeights = GOAL_WEIGHTS_DISPLAY[goal];
+  // "Detail" columns for the row-expand panel: whichever of ALL_COLUMNS the
+  // user hasn't already chosen to show inline via the column picker, minus
+  // the two lazy-loaded ones (they get their own dedicated table cell, not
+  // a duplicate in the expand panel).
+  const detailColumns = useMemo(
+    () => ALL_COLUMNS.filter((c) => !visibleColumns.includes(c) && c !== "Quant Signal" && c !== "Analyst Rating"),
+    [visibleColumns],
+  );
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Stock Screener</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Rank a stock universe by goal, or score one ticker directly. Filter, customize columns, and save screens
-        to reuse later.
-      </p>
+    <div className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} ${PF.page} ${PF.ink}`} style={{ fontFamily: "var(--font-pf-sans)" }}>
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <h1 className="text-3xl font-semibold" style={{ fontFamily: "var(--font-pf-display)" }}>
+          Stock Screener
+        </h1>
+        <p className={`mt-1 max-w-2xl text-sm ${PF.muted}`}>
+          Rank a stock universe by goal, or score one ticker directly. Filter, customize columns, and save screens
+          to reuse later.
+        </p>
 
-      <form onSubmit={runSearch} className="mt-6 flex flex-wrap items-end gap-3">
-        <Field label="Goal">
-          <select value={goal} onChange={(e) => setGoal(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-            {GOALS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Mode">
-          <select value={mode} onChange={(e) => setMode(e.target.value as "rank" | "score")} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-            <option value="rank">Rank a universe</option>
-            <option value="score">Score one ticker</option>
-          </select>
-        </Field>
-
-        {mode === "rank" ? (
-          <Field label="Universe">
-            <select value={universe} onChange={(e) => setUniverse(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-              {universes.map((u) => (
-                <option key={u} value={u}>
-                  {u}
+        <form onSubmit={runSearch} className={`mt-6 flex flex-wrap items-end gap-3 ${PF.card} p-4`}>
+          <Field label="Goal">
+            <select value={goal} onChange={(e) => setGoal(e.target.value)} className={PF.input}>
+              {GOALS.map((g) => (
+                <option key={g} value={g}>
+                  {g}
                 </option>
               ))}
             </select>
           </Field>
-        ) : (
-          <Field label="Ticker or company name">
-            <TickerSearchInput value={ticker} onChange={setTicker} className="w-56 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+
+          <Field label="Mode">
+            <select value={mode} onChange={(e) => setMode(e.target.value as "rank" | "score")} className={PF.input}>
+              <option value="rank">Rank a universe</option>
+              <option value="score">Score one ticker</option>
+            </select>
           </Field>
+
+          {mode === "rank" ? (
+            <Field label="Universe">
+              <select value={universe} onChange={(e) => setUniverse(e.target.value)} className={PF.input}>
+                {universes.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <Field label="Ticker or company name">
+              <TickerSearchInput value={ticker} onChange={setTicker} className={`${PF.input} w-56`} />
+            </Field>
+          )}
+
+          <button type="submit" disabled={loading} className={`${PF.btnPrimary} disabled:opacity-50`}>
+            {loading ? "Scanning…" : "Run"}
+          </button>
+        </form>
+
+        {mode === "rank" && (
+          <div className={`mt-3 flex flex-wrap items-center gap-2 rounded-xl ${PF.surface2} px-4 py-3`}>
+            <span className={`text-xs font-medium uppercase tracking-wide ${PF.muted}`}>Weights &middot; {goal}</span>
+            {activeWeights.map((w) => (
+              <span key={w.label} className={PF.chip}>
+                {w.label} <strong>{w.pct}%</strong>
+                {w.lowerIsBetter && <span className={PF.muted}>(lower is better)</span>}
+              </span>
+            ))}
+          </div>
         )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-        >
-          {loading ? "Scanning…" : "Run"}
-        </button>
-      </form>
+        {loading && (
+          <p className={`mt-4 text-sm ${PF.muted}`}>
+            {mode === "rank"
+              ? universe === "US - S&P 500" || universe === "All"
+                ? "Scoring roughly 500 tickers — this first run can take several minutes, cached for an hour after."
+                : "Scoring every ticker in the universe — first run for a universe can take a while, cached for an hour after."
+              : "Scoring this ticker…"}
+          </p>
+        )}
 
-      {loading && (
-        <p className="mt-4 text-sm text-slate-500">
-          {mode === "rank"
-            ? universe === "US - S&P 500" || universe === "All"
-              ? "Scoring roughly 500 tickers — this first run can take several minutes, cached for an hour after."
-              : "Scoring every ticker in the universe — first run for a universe can take a while, cached for an hour after."
-            : "Scoring this ticker…"}
-        </p>
-      )}
+        {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {!loading && hasSearched && results.length === 0 && !error && (
+          <p className={`mt-4 text-sm ${PF.muted}`}>No results for that selection.</p>
+        )}
 
-      {!loading && hasSearched && results.length === 0 && !error && (
-        <p className="mt-4 text-sm text-slate-500">No results for that selection.</p>
-      )}
+        {winner && !loading && (
+          <div className="mt-6 flex flex-col gap-6">
+            <div className={`${PF.card} p-5`}>
+              <h2 className="text-xl font-semibold" style={{ fontFamily: "var(--font-pf-display)" }}>
+                Top Pick: {winner.Ticker} — {winner.Name}
+              </h2>
+              <p className={`mt-1 text-sm ${PF.muted}`}>
+                Scored highest for <strong className={PF.ink}>{goal}</strong>
+                {mode === "rank" ? ` in ${universe}` : ""}
+                {mode === "rank" && `, out of ${results.length} ticker${results.length === 1 ? "" : "s"} screened.`}
+              </p>
+            </div>
 
-      {winner && !loading && (
-        <div className="mt-6 flex flex-col gap-6">
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Top Pick: {winner.Ticker} — {winner.Name}
-            </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Scored highest for <strong>{goal}</strong>
-              {mode === "rank" ? ` in ${universe}` : ""}.
-            </p>
-          </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <MetricTile label="Score" value={`${winner.Score}/100`} onInfoClick={() => setInfoColumn("Score")} />
+              <MetricTile label="Price" value={`$${Number(winner.Price).toFixed(2)}`} />
+              <MetricTile label="Sector" value={String(winner.Sector)} />
+              <MetricTile
+                label="1Y Return"
+                value={winner["1Y Return %"] != null ? `${Number(winner["1Y Return %"]).toFixed(1)}%` : "N/A"}
+                tone={goodBad(winner["1Y Return %"] as number | null)}
+              />
+            </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Score" value={`${winner.Score}/100`} onInfoClick={() => setInfoColumn("Score")} />
-            <MetricTile label="Price" value={`$${Number(winner.Price).toFixed(2)}`} />
-            <MetricTile label="Sector" value={String(winner.Sector)} />
-            <MetricTile
-              label="1Y Return"
-              value={winner["1Y Return %"] != null ? `${Number(winner["1Y Return %"]).toFixed(1)}%` : "N/A"}
-            />
-          </div>
-
-          {mode === "rank" && results.length > 1 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-semibold text-slate-900">Saved Screens</h3>
-                <div className="flex flex-wrap items-end gap-2">
-                  <input
-                    value={screenName}
-                    onChange={(e) => setScreenName(e.target.value)}
-                    placeholder="Screen name"
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-                  />
-                  <button
-                    onClick={handleSaveScreen}
-                    disabled={savingScreen}
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    {savingScreen ? "Saving…" : "Save this screen"}
-                  </button>
-                </div>
-              </div>
-              {saveScreenMessage && <p className="mt-2 text-xs text-slate-500">{saveScreenMessage}</p>}
-
-              {screensLoading ? (
-                <p className="mt-3 text-sm text-slate-500">Loading saved screens…</p>
-              ) : screens.length > 0 ? (
-                <div className="mt-3 flex flex-col gap-2">
-                  {screens.map((s) => (
-                    <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm">
-                      <span className="text-slate-700">
-                        <strong>{s.name}</strong> &middot; {s.goal} &middot; {s.universe} &middot;{" "}
-                        {new Date(s.saved_at).toLocaleDateString()}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleLoadScreen(s)}
-                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          Load &amp; Compare
-                        </button>
-                        <button
-                          onClick={() => handleDeleteScreen(s.id)}
-                          disabled={deletingScreenId === s.id}
-                          className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {deletingScreenId === s.id ? "…" : "Delete"}
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-slate-500">No saved screens yet.</p>
-              )}
-
-              {compareScreen && (
-                <div className="mt-4 border-t border-slate-200 pt-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Top 10 vs. &quot;{compareScreen.name}&quot; (saved {new Date(compareScreen.saved_at).toLocaleDateString()})
-                  </p>
-                  <div className="mt-2 overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                          <th className="px-2 py-1.5">Ticker</th>
-                          <th className="px-2 py-1.5">Then</th>
-                          <th className="px-2 py-1.5">Now</th>
-                          <th className="px-2 py-1.5">Change</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {comparisonRows.map((row) => (
-                          <tr key={row.ticker} className="border-b border-slate-100 last:border-0">
-                            <td className="px-2 py-1.5 font-medium text-slate-900">{row.ticker}</td>
-                            <td className="px-2 py-1.5 text-slate-700">
-                              {row.before ? `#${row.before.rank} (${row.before.score.toFixed(1)})` : "—"}
-                            </td>
-                            <td className="px-2 py-1.5 text-slate-700">
-                              {row.after ? `#${row.after.rank} (${row.after.score.toFixed(1)})` : "—"}
-                            </td>
-                            <td className="px-2 py-1.5">
-                              {!row.before ? (
-                                <span className="text-emerald-600">New entrant</span>
-                              ) : !row.after ? (
-                                <span className="text-red-600">Dropped out of top 10</span>
-                              ) : row.before.rank === row.after.rank ? (
-                                <span className="text-slate-400">Same rank</span>
-                              ) : row.before.rank > row.after.rank ? (
-                                <span className="text-emerald-600">Up {row.before.rank - row.after.rank}</span>
-                              ) : (
-                                <span className="text-red-600">Down {row.after.rank - row.before.rank}</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+            {mode === "rank" && results.length > 1 && (
+              <div className={`${PF.card} p-5`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-lg font-semibold" style={{ fontFamily: "var(--font-pf-display)" }}>
+                    Saved Screens
+                  </h3>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <input
+                      value={screenName}
+                      onChange={(e) => setScreenName(e.target.value)}
+                      placeholder="Screen name"
+                      className={`${PF.input} py-1.5`}
+                    />
+                    <button onClick={handleSaveScreen} disabled={savingScreen} className={`${PF.btn} disabled:opacity-50`}>
+                      {savingScreen ? "Saving…" : "Save this screen"}
+                    </button>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+                {saveScreenMessage && <p className={`mt-2 text-xs ${PF.muted}`}>{saveScreenMessage}</p>}
 
-          {mode === "rank" && results.length > 1 && (
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowFilters((v) => !v)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                {showFilters ? "Hide Filters" : "Filters"}
-                {filtersActive(filters) ? ` (active)` : ""}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowColumnPicker((v) => !v)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Columns
-              </button>
-              <span className="text-xs text-slate-500">
-                Showing {sortedResults.length} of {results.length} tickers
-                {sortKeys.length > 0 &&
-                  ` · sorted by ${sortKeys.map((k) => `${k.column} (${k.direction})`).join(", ")}`}
-              </span>
-            </div>
-          )}
+                {screensLoading ? (
+                  <p className={`mt-3 text-sm ${PF.muted}`}>Loading saved screens…</p>
+                ) : screens.length > 0 ? (
+                  <div className="mt-3 flex flex-col gap-2">
+                    {screens.map((s) => (
+                      <div key={s.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-md border ${PF.line} px-3 py-2 text-sm`}>
+                        <span className={PF.ink}>
+                          <strong>{s.name}</strong> &middot; {s.goal} &middot; {s.universe} &middot;{" "}
+                          {new Date(s.saved_at).toLocaleDateString()}
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <button onClick={() => handleLoadScreen(s)} className={`${PF.btn} px-2 py-1 text-xs`}>
+                            Load &amp; Compare
+                          </button>
+                          <button
+                            onClick={() => handleDeleteScreen(s.id)}
+                            disabled={deletingScreenId === s.id}
+                            className={`rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50`}
+                          >
+                            {deletingScreenId === s.id ? "…" : "Delete"}
+                          </button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={`mt-3 text-sm ${PF.muted}`}>No saved screens yet.</p>
+                )}
 
-          {showFilters && mode === "rank" && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <RangeFilter
-                  label="Market Cap ($B)"
-                  min={filters.marketCapMin}
-                  max={filters.marketCapMax}
-                  onMinChange={(v) => setFilters((prev) => ({ ...prev, marketCapMin: v }))}
-                  onMaxChange={(v) => setFilters((prev) => ({ ...prev, marketCapMax: v }))}
-                />
-                <RangeFilter
-                  label="Forward P/E"
-                  min={filters.forwardPeMin}
-                  max={filters.forwardPeMax}
-                  onMinChange={(v) => setFilters((prev) => ({ ...prev, forwardPeMin: v }))}
-                  onMaxChange={(v) => setFilters((prev) => ({ ...prev, forwardPeMax: v }))}
-                />
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-slate-500">Volume Strength % (min)</label>
-                  <input
-                    type="number"
-                    value={filters.volumeStrengthMin}
-                    onChange={(e) => setFilters((prev) => ({ ...prev, volumeStrengthMin: e.target.value }))}
-                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                    placeholder="e.g. 0"
-                  />
-                </div>
+                {compareScreen && (
+                  <div className={`mt-4 border-t ${PF.line} pt-4`}>
+                    <p className={`text-xs font-semibold uppercase tracking-wide ${PF.muted}`}>
+                      Top 10 vs. &quot;{compareScreen.name}&quot; (saved {new Date(compareScreen.saved_at).toLocaleDateString()})
+                    </p>
+                    <div className="mt-2 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className={`border-b ${PF.line} text-left text-xs font-medium uppercase tracking-wide ${PF.muted}`}>
+                            <th className="px-2 py-1.5">Ticker</th>
+                            <th className="px-2 py-1.5">Then</th>
+                            <th className="px-2 py-1.5">Now</th>
+                            <th className="px-2 py-1.5">Change</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {comparisonRows.map((row) => (
+                            <tr key={row.ticker} className={`border-b ${PF.line} last:border-0`}>
+                              <td className="px-2 py-1.5 font-medium" style={{ fontFamily: "var(--font-pf-mono)" }}>
+                                {row.ticker}
+                              </td>
+                              <td className="px-2 py-1.5">
+                                {row.before ? `#${row.before.rank} (${row.before.score.toFixed(1)})` : "—"}
+                              </td>
+                              <td className="px-2 py-1.5">
+                                {row.after ? `#${row.after.rank} (${row.after.score.toFixed(1)})` : "—"}
+                              </td>
+                              <td className="px-2 py-1.5">
+                                {!row.before ? (
+                                  <span className={PF.good}>New entrant</span>
+                                ) : !row.after ? (
+                                  <span className={PF.bad}>Dropped out of top 10</span>
+                                ) : row.before.rank === row.after.rank ? (
+                                  <span className={PF.muted}>Same rank</span>
+                                ) : row.before.rank > row.after.rank ? (
+                                  <span className={PF.good}>Up {row.before.rank - row.after.rank}</span>
+                                ) : (
+                                  <span className={PF.bad}>Down {row.after.rank - row.before.rank}</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="mt-3">
-                <label className="text-xs font-medium text-slate-500">Sector</label>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {availableSectors.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => toggleSector(s)}
-                      className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                        filters.sectors.includes(s)
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-300 text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {s}
-                    </button>
+            )}
+
+            {mode === "rank" && results.length > 1 && (
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowFilters((v) => !v)}
+                  className={`${PF.btn} ${showFilters ? "border-[#2f5d50] text-[#2f5d50]" : ""}`}
+                >
+                  {showFilters ? "Hide Filters" : "Filters"}
+                  {filtersActive(filters) ? ` (active)` : ""}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowColumnPicker((v) => !v)}
+                  className={`${PF.btn} ${showColumnPicker ? "border-[#2f5d50] text-[#2f5d50]" : ""}`}
+                >
+                  Columns
+                </button>
+                <span className={`text-xs ${PF.muted}`}>
+                  Showing {sortedResults.length} of {results.length} tickers
+                  {sortKeys.length > 0 &&
+                    ` · sorted by ${sortKeys.map((k) => `${k.column} (${k.direction})`).join(", ")}`}
+                </span>
+              </div>
+            )}
+
+            {showFilters && mode === "rank" && (
+              <div className={`${PF.card} p-4`}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <RangeFilter
+                    label="Market Cap ($B)"
+                    min={filters.marketCapMin}
+                    max={filters.marketCapMax}
+                    onMinChange={(v) => setFilters((prev) => ({ ...prev, marketCapMin: v }))}
+                    onMaxChange={(v) => setFilters((prev) => ({ ...prev, marketCapMax: v }))}
+                  />
+                  <RangeFilter
+                    label="Forward P/E"
+                    min={filters.forwardPeMin}
+                    max={filters.forwardPeMax}
+                    onMinChange={(v) => setFilters((prev) => ({ ...prev, forwardPeMin: v }))}
+                    onMaxChange={(v) => setFilters((prev) => ({ ...prev, forwardPeMax: v }))}
+                  />
+                  <div className="flex flex-col gap-1">
+                    <label className={`text-xs font-medium ${PF.muted}`}>Volume Strength % (min)</label>
+                    <input
+                      type="number"
+                      value={filters.volumeStrengthMin}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, volumeStrengthMin: e.target.value }))}
+                      className={PF.input}
+                      placeholder="e.g. 0"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className={`text-xs font-medium ${PF.muted}`}>Sector</label>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {availableSectors.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => toggleSector(s)}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                          filters.sectors.includes(s)
+                            ? "border-[#2f5d50] bg-[#2f5d50] text-white"
+                            : `${PF.line} ${PF.muted} hover:bg-[#efebe3]`
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {filtersActive(filters) && (
+                  <button
+                    type="button"
+                    onClick={() => setFilters(EMPTY_FILTERS)}
+                    className={`mt-3 text-xs font-medium ${PF.muted} underline hover:text-[#1f2420]`}
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+            )}
+
+            {showColumnPicker && mode === "rank" && (
+              <div className={`${PF.card} p-4`}>
+                <p className={`text-xs font-medium ${PF.muted}`}>Choose visible columns</p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                  {ALL_COLUMNS.map((col) => (
+                    <label key={col} className="flex items-center gap-1.5 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns.includes(col)}
+                        disabled={col === REQUIRED_COLUMN}
+                        onChange={() => toggleColumn(col)}
+                      />
+                      {col}
+                    </label>
                   ))}
                 </div>
               </div>
-              {filtersActive(filters) && (
-                <button
-                  type="button"
-                  onClick={() => setFilters(EMPTY_FILTERS)}
-                  className="mt-3 text-xs font-medium text-slate-500 underline hover:text-slate-800"
-                >
-                  Clear all filters
-                </button>
-              )}
-            </div>
-          )}
+            )}
 
-          {showColumnPicker && mode === "rank" && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <p className="text-xs font-medium text-slate-500">Choose visible columns</p>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-                {ALL_COLUMNS.map((col) => (
-                  <label key={col} className="flex items-center gap-1.5 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.includes(col)}
-                      disabled={col === REQUIRED_COLUMN}
-                      onChange={() => toggleColumn(col)}
-                    />
-                    {col}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {results.length > 1 && (
-            <div className="max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-white">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                    {visibleColumns.map((col) => {
-                      const keyIndex = sortKeys.findIndex((k) => k.column === col);
-                      return (
-                        <th key={col} className="sticky top-0 z-10 bg-slate-50 px-3 py-2">
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={(e) => handleSort(col, e.shiftKey)}
-                              title="Click to sort; shift-click to add as a secondary sort key"
-                              className="flex items-center gap-1 uppercase tracking-wide text-slate-500 hover:text-slate-900"
-                            >
-                              {col}
-                              <span className="text-[10px] text-slate-400">
-                                {keyIndex !== -1
-                                  ? `${sortKeys[keyIndex].direction === "asc" ? "▲" : "▼"}${
-                                      sortKeys.length > 1 ? keyIndex + 1 : ""
-                                    }`
-                                  : ""}
-                              </span>
-                            </button>
-                            {COLUMN_INFO[col] && (
+            {results.length > 1 && (
+              <div className={`max-h-[70vh] overflow-auto rounded-xl border ${PF.line} bg-white`}>
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className={`border-b ${PF.line} ${PF.surface2} text-left text-[11px] font-medium uppercase tracking-wide ${PF.muted}`}>
+                      <th className={`sticky top-0 z-10 ${PF.surface2} w-8 px-2 py-2`} />
+                      {visibleColumns.map((col) => {
+                        const keyIndex = sortKeys.findIndex((k) => k.column === col);
+                        return (
+                          <th key={col} className={`sticky top-0 z-10 ${PF.surface2} px-3 py-2`}>
+                            <div className="flex items-center gap-1">
                               <button
                                 type="button"
-                                onClick={() => setInfoColumn(col)}
-                                title={`What is ${col}?`}
-                                className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
+                                onClick={(e) => handleSort(col, e.shiftKey)}
+                                title="Click to sort; shift-click to add as a secondary sort key"
+                                className={`flex items-center gap-1 uppercase tracking-wide ${PF.muted} hover:text-[#1f2420]`}
                               >
-                                i
+                                {col}
+                                <span className="text-[10px]">
+                                  {keyIndex !== -1
+                                    ? `${sortKeys[keyIndex].direction === "asc" ? "▲" : "▼"}${
+                                        sortKeys.length > 1 ? keyIndex + 1 : ""
+                                      }`
+                                    : ""}
+                                </span>
                               </button>
-                            )}
-                          </div>
-                        </th>
-                      );
-                    })}
-                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedResults.map((row) => {
-                    const t = String(row.Ticker);
-                    const quantSignal = quantSignals[t];
-                    const analystRating = analystRatings[t];
-                    return (
-                      <Fragment key={t}>
-                        <tr className="border-b border-slate-100 last:border-0">
-                          {visibleColumns.map((col) => {
-                            if (col === "Quant Signal") {
-                              return (
-                                <td key={col} className="px-3 py-2 text-slate-700">
-                                  {!quantSignal ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => loadQuantSignal(t)}
-                                      className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                                    >
-                                      Load
-                                    </button>
-                                  ) : quantSignal.status === "loading" ? (
-                                    <span className="text-xs text-slate-400">…</span>
-                                  ) : quantSignal.status === "error" ? (
-                                    <span className="text-xs text-slate-400">—</span>
-                                  ) : (
-                                    <span className="flex items-center gap-1.5">
-                                      <span
-                                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                          quantSignal.signal.signal === "BUY"
-                                            ? "bg-emerald-50 text-emerald-700"
-                                            : quantSignal.signal.signal === "SELL"
-                                            ? "bg-red-50 text-red-700"
-                                            : "bg-slate-100 text-slate-600"
-                                        }`}
-                                      >
-                                        {quantSignal.signal.signal}
-                                      </span>
-                                      <span className="text-xs text-slate-500">
-                                        {quantSignal.signal.expected_return_pct >= 0 ? "+" : ""}
-                                        {quantSignal.signal.expected_return_pct.toFixed(2)}%
-                                      </span>
-                                      {quantSignal.signal.signal_flip_count !== null && (
-                                        <span
-                                          title={`Signal has flipped over its trailing ${quantSignal.signal.signal_days_captured}-day history`}
-                                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                                            quantSignal.signal.signal_unstable
-                                              ? "bg-amber-50 text-amber-700"
-                                              : "bg-slate-100 text-slate-500"
-                                          }`}
-                                        >
-                                          {quantSignal.signal.signal_flip_count} flip{quantSignal.signal.signal_flip_count === 1 ? "" : "s"}
-                                        </span>
-                                      )}
-                                    </span>
-                                  )}
-                                </td>
-                              );
-                            }
-                            if (col === "Analyst Rating") {
-                              return (
-                                <td key={col} className="px-3 py-2 text-slate-700">
-                                  {!analystRating ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => loadAnalystRating(t)}
-                                      className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                                    >
-                                      Load
-                                    </button>
-                                  ) : analystRating.status === "loading" ? (
-                                    <span className="text-xs text-slate-400">…</span>
-                                  ) : analystRating.status === "error" ? (
-                                    <span className="text-xs text-slate-400">No coverage</span>
-                                  ) : (
-                                    <span className="flex flex-col gap-0.5">
+                              {COLUMN_INFO[col] && (
+                                <button
+                                  type="button"
+                                  onClick={() => setInfoColumn(col)}
+                                  title={`What is ${col}?`}
+                                  className={`flex h-4 w-4 items-center justify-center rounded-full border ${PF.line} text-[10px] font-normal normal-case ${PF.muted} hover:border-[#2f5d50] hover:text-[#2f5d50]`}
+                                >
+                                  i
+                                </button>
+                              )}
+                            </div>
+                          </th>
+                        );
+                      })}
+                      <th className={`sticky top-0 z-10 ${PF.surface2} px-3 py-2`}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedResults.map((row) => {
+                      const t = String(row.Ticker);
+                      const quantSignal = quantSignals[t];
+                      const analystRating = analystRatings[t];
+                      const expanded = expandedRows.has(t);
+                      return (
+                        <Fragment key={t}>
+                          <tr className={`border-b ${PF.line} last:border-0 hover:bg-[#faf9f5]`}>
+                            <td className="px-2 py-2">
+                              <button
+                                type="button"
+                                onClick={() => toggleRow(t)}
+                                className={`flex h-5 w-5 items-center justify-center rounded ${PF.muted} hover:bg-[#efebe3] hover:text-[#1f2420]`}
+                                title="Show more stats"
+                              >
+                                {expanded ? "▾" : "▸"}
+                              </button>
+                            </td>
+                            {visibleColumns.map((col) => {
+                              if (col === "Quant Signal") {
+                                return (
+                                  <td key={col} className="px-3 py-2">
+                                    {!quantSignal ? (
+                                      <button type="button" onClick={() => loadQuantSignal(t)} className={`${PF.btn} px-2 py-0.5 text-xs`}>
+                                        Load
+                                      </button>
+                                    ) : quantSignal.status === "loading" ? (
+                                      <span className={`text-xs ${PF.muted}`}>…</span>
+                                    ) : quantSignal.status === "error" ? (
+                                      <span className={`text-xs ${PF.muted}`}>—</span>
+                                    ) : (
                                       <span className="flex items-center gap-1.5">
                                         <span
                                           className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                            /buy/i.test(analystRating.rating.consensus)
-                                              ? "bg-emerald-50 text-emerald-700"
-                                              : /sell|underperform/i.test(analystRating.rating.consensus)
-                                              ? "bg-red-50 text-red-700"
-                                              : "bg-slate-100 text-slate-600"
+                                            quantSignal.signal.signal === "BUY"
+                                              ? "bg-[#e3f0e9] text-[#2f6b4f]"
+                                              : quantSignal.signal.signal === "SELL"
+                                              ? "bg-[#f6e7e5] text-[#a23b34]"
+                                              : `${PF.surface2} ${PF.muted}`
                                           }`}
                                         >
-                                          {analystRating.rating.consensus}
+                                          {quantSignal.signal.signal}
                                         </span>
-                                        {analystRating.rating.analyst_count !== null && (
-                                          <span className="text-xs text-slate-400">
-                                            ({analystRating.rating.analyst_count})
+                                        <span className={`text-xs ${PF.muted}`} style={{ fontFamily: "var(--font-pf-mono)" }}>
+                                          {quantSignal.signal.expected_return_pct >= 0 ? "+" : ""}
+                                          {quantSignal.signal.expected_return_pct.toFixed(2)}%
+                                        </span>
+                                        {quantSignal.signal.signal_flip_count !== null && (
+                                          <span
+                                            title={`Signal has flipped over its trailing ${quantSignal.signal.signal_days_captured}-day history`}
+                                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                                              quantSignal.signal.signal_unstable
+                                                ? `${PF.warnBg} ${PF.warnText}`
+                                                : `${PF.surface2} ${PF.muted}`
+                                            }`}
+                                          >
+                                            {quantSignal.signal.signal_flip_count} flip{quantSignal.signal.signal_flip_count === 1 ? "" : "s"}
                                           </span>
                                         )}
                                       </span>
-                                      {analystRating.rating.target_mean !== null && (
-                                        <span className="text-xs text-slate-500">
-                                          Target ${analystRating.rating.target_mean.toFixed(2)}
+                                    )}
+                                  </td>
+                                );
+                              }
+                              if (col === "Analyst Rating") {
+                                return (
+                                  <td key={col} className="px-3 py-2">
+                                    {!analystRating ? (
+                                      <button type="button" onClick={() => loadAnalystRating(t)} className={`${PF.btn} px-2 py-0.5 text-xs`}>
+                                        Load
+                                      </button>
+                                    ) : analystRating.status === "loading" ? (
+                                      <span className={`text-xs ${PF.muted}`}>…</span>
+                                    ) : analystRating.status === "error" ? (
+                                      <span className={`text-xs ${PF.muted}`}>No coverage</span>
+                                    ) : (
+                                      <span className="flex flex-col gap-0.5">
+                                        <span className="flex items-center gap-1.5">
+                                          <span
+                                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                              /buy/i.test(analystRating.rating.consensus)
+                                                ? "bg-[#e3f0e9] text-[#2f6b4f]"
+                                                : /sell|underperform/i.test(analystRating.rating.consensus)
+                                                ? "bg-[#f6e7e5] text-[#a23b34]"
+                                                : `${PF.surface2} ${PF.muted}`
+                                            }`}
+                                          >
+                                            {analystRating.rating.consensus}
+                                          </span>
+                                          {analystRating.rating.analyst_count !== null && (
+                                            <span className={`text-xs ${PF.muted}`}>({analystRating.rating.analyst_count})</span>
+                                          )}
                                         </span>
-                                      )}
-                                    </span>
-                                  )}
+                                        {analystRating.rating.target_mean !== null && (
+                                          <span className={`text-xs ${PF.muted}`} style={{ fontFamily: "var(--font-pf-mono)" }}>
+                                            Target ${analystRating.rating.target_mean.toFixed(2)}
+                                          </span>
+                                        )}
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              }
+                              const isNumeric = !TEXT_COLUMNS.has(col);
+                              return (
+                                <td
+                                  key={col}
+                                  className={`px-3 py-2 ${isNumeric ? "text-right" : ""}`}
+                                  style={isNumeric ? { fontFamily: "var(--font-pf-mono)" } : undefined}
+                                >
+                                  {formatCell(row[col])}
                                 </td>
                               );
-                            }
-                            return (
-                              <td key={col} className="px-3 py-2 text-slate-700">
-                                {formatCell(row[col])}
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-2 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setWatchlistTicker(watchlistTicker === t ? null : t);
-                                  setWatchlistMessage(null);
-                                  setWatchlistThreshold("");
-                                }}
-                                className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                              >
-                                Watchlist
-                              </button>
-                              <Link
-                                href={`/predict?ticker=${encodeURIComponent(t)}`}
-                                className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                              >
-                                Forecast
-                              </Link>
-                            </div>
-                          </td>
-                        </tr>
-                        {watchlistTicker === t && (
-                          <tr className="border-b border-slate-100 bg-slate-50 last:border-0">
-                            <td colSpan={visibleColumns.length + 1} className="px-3 py-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-xs font-medium text-slate-500">Alert me when {t} is</span>
-                                <select
-                                  value={watchlistCondition}
-                                  onChange={(e) => setWatchlistCondition(e.target.value as AlertConditionType)}
-                                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
-                                >
-                                  <option value="price_above">above</option>
-                                  <option value="price_below">below</option>
-                                </select>
-                                <input
-                                  type="number"
-                                  value={watchlistThreshold}
-                                  onChange={(e) => setWatchlistThreshold(e.target.value)}
-                                  placeholder="Price"
-                                  className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
-                                />
+                            })}
+                            <td className="px-3 py-2 text-right">
+                              <div className="flex items-center justify-end gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleAddToWatchlist(t)}
-                                  disabled={watchlistSaving}
-                                  className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                                  onClick={() => {
+                                    setWatchlistTicker(watchlistTicker === t ? null : t);
+                                    setWatchlistMessage(null);
+                                    setWatchlistThreshold("");
+                                  }}
+                                  className={`${PF.btn} px-2 py-1 text-xs`}
                                 >
-                                  {watchlistSaving ? "Adding…" : "Add"}
+                                  Watchlist
                                 </button>
-                                {watchlistMessage && <span className="text-xs text-slate-500">{watchlistMessage}</span>}
+                                <Link href={`/predict?ticker=${encodeURIComponent(t)}`} className={`${PF.btn} px-2 py-1 text-xs`}>
+                                  Forecast
+                                </Link>
                               </div>
                             </td>
                           </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+                          {expanded && (
+                            <tr className={`border-b ${PF.line} ${PF.surface2} last:border-0`}>
+                              <td />
+                              <td colSpan={visibleColumns.length + 1} className="px-4 py-3">
+                                {detailColumns.length > 0 ? (
+                                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                    {detailColumns.map((col) => (
+                                      <div key={col}>
+                                        <p className={`text-[10.5px] font-medium uppercase tracking-wide ${PF.muted}`}>{col}</p>
+                                        <p className="mt-0.5 text-sm" style={{ fontFamily: "var(--font-pf-mono)" }}>
+                                          {formatCell(row[col])}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className={`text-xs ${PF.muted}`}>Every available column is already shown — use Columns to hide some and see them here instead.</p>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                          {watchlistTicker === t && (
+                            <tr className={`border-b ${PF.line} ${PF.surface2} last:border-0`}>
+                              <td />
+                              <td colSpan={visibleColumns.length + 1} className="px-3 py-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className={`text-xs font-medium ${PF.muted}`}>Alert me when {t} is</span>
+                                  <select
+                                    value={watchlistCondition}
+                                    onChange={(e) => setWatchlistCondition(e.target.value as AlertConditionType)}
+                                    className={`${PF.input} px-2 py-1 text-xs`}
+                                  >
+                                    <option value="price_above">above</option>
+                                    <option value="price_below">below</option>
+                                  </select>
+                                  <input
+                                    type="number"
+                                    value={watchlistThreshold}
+                                    onChange={(e) => setWatchlistThreshold(e.target.value)}
+                                    placeholder="Price"
+                                    className={`${PF.input} w-24 px-2 py-1 text-xs`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddToWatchlist(t)}
+                                    disabled={watchlistSaving}
+                                    className={`${PF.btnPrimary} px-2.5 py-1 text-xs disabled:opacity-50`}
+                                  >
+                                    {watchlistSaving ? "Adding…" : "Add"}
+                                  </button>
+                                  {watchlistMessage && <span className={`text-xs ${PF.muted}`}>{watchlistMessage}</span>}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
-      {infoColumn && COLUMN_INFO[infoColumn] && (
-        <InfoModal info={COLUMN_INFO[infoColumn]} onClose={() => setInfoColumn(null)} />
-      )}
+        {infoColumn && COLUMN_INFO[infoColumn] && <InfoModal info={COLUMN_INFO[infoColumn]} onClose={() => setInfoColumn(null)} />}
+      </div>
     </div>
   );
 }
@@ -1067,7 +1175,7 @@ function formatCell(value: string | number | null | undefined) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
+      <label className={`text-xs font-medium ${PF.muted}`}>{label}</label>
       {children}
     </div>
   );
@@ -1088,23 +1196,11 @@ function RangeFilter({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
+      <label className={`text-xs font-medium ${PF.muted}`}>{label}</label>
       <div className="flex items-center gap-2">
-        <input
-          type="number"
-          value={min}
-          onChange={(e) => onMinChange(e.target.value)}
-          placeholder="Min"
-          className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-        />
-        <span className="text-slate-400">–</span>
-        <input
-          type="number"
-          value={max}
-          onChange={(e) => onMaxChange(e.target.value)}
-          placeholder="Max"
-          className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-        />
+        <input type="number" value={min} onChange={(e) => onMinChange(e.target.value)} placeholder="Min" className={`${PF.input} w-full py-1.5`} />
+        <span className={PF.muted}>–</span>
+        <input type="number" value={max} onChange={(e) => onMaxChange(e.target.value)} placeholder="Max" className={`${PF.input} w-full py-1.5`} />
       </div>
     </div>
   );
@@ -1114,27 +1210,31 @@ function MetricTile({
   label,
   value,
   onInfoClick,
+  tone,
 }: {
   label: string;
   value: string;
   onInfoClick?: () => void;
+  tone?: string;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="flex items-center gap-1 text-xs text-slate-500">
+    <div className={`${PF.card} p-3`}>
+      <p className={`flex items-center gap-1 text-xs ${PF.muted}`}>
         {label}
         {onInfoClick && (
           <button
             type="button"
             onClick={onInfoClick}
             title={`What is ${label}?`}
-            className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
+            className={`flex h-4 w-4 items-center justify-center rounded-full border ${PF.line} text-[10px] font-normal normal-case ${PF.muted} hover:border-[#2f5d50] hover:text-[#2f5d50]`}
           >
             i
           </button>
         )}
       </p>
-      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
+      <p className={`mt-1 text-lg font-semibold ${tone ?? ""}`} style={{ fontFamily: "var(--font-pf-display)" }}>
+        {value}
+      </p>
     </div>
   );
 }
