@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import Link from "next/link";
 
@@ -307,6 +307,8 @@ export default function StockFinderPage() {
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COLUMNS);
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const tableWrapRef = useRef<HTMLDivElement | null>(null);
+  const [tableOverflowing, setTableOverflowing] = useState(false);
 
   const [screens, setScreens] = useState<SavedScreen[]>([]);
   const [screensLoading, setScreensLoading] = useState(false);
@@ -483,6 +485,24 @@ export default function StockFinderPage() {
       return 0;
     });
   }, [filteredResults, sortKeys]);
+
+  // Selecting more columns than fit the viewport makes the table wider than
+  // its wrapper with no visible cue that the rest is one scroll away
+  // (native scrollbars are overlay/hover-only in most browsers) — this
+  // tracks real overflow so the toolbar can say so explicitly instead of
+  // just looking cut off.
+  useEffect(() => {
+    const el = tableWrapRef.current;
+    if (!el) {
+      setTableOverflowing(false);
+      return;
+    }
+    const check = () => setTableOverflowing(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [visibleColumns, sortedResults]);
 
   async function handleSaveScreen() {
     const name = screenName.trim();
@@ -837,6 +857,11 @@ export default function StockFinderPage() {
                   {sortKeys.length > 0 &&
                     ` · sorted by ${sortKeys.map((k) => `${k.column} (${k.direction})`).join(", ")}`}
                 </span>
+                {tableOverflowing && (
+                  <span className={`text-xs font-medium ${PF.warnText} ${PF.warnBg} rounded-full px-2 py-0.5`}>
+                    {visibleColumns.length} columns selected — scroll right within the table to see them all →
+                  </span>
+                )}
               </div>
             )}
 
@@ -919,15 +944,19 @@ export default function StockFinderPage() {
             )}
 
             {results.length > 1 && (
-              <div className={`max-h-[70vh] overflow-auto rounded-xl border ${PF.line} bg-white`}>
+              <div ref={tableWrapRef} className={`max-h-[70vh] overflow-auto rounded-xl border ${PF.line} bg-white`}>
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className={`border-b ${PF.line} ${PF.surface2} text-left text-[11px] font-medium uppercase tracking-wide ${PF.muted}`}>
-                      <th className={`sticky top-0 z-10 ${PF.surface2} w-8 px-2 py-2`} />
+                      <th className={`sticky left-0 top-0 z-20 ${PF.surface2} w-8 px-2 py-2`} />
                       {visibleColumns.map((col) => {
                         const keyIndex = sortKeys.findIndex((k) => k.column === col);
+                        const pinned = col === "Ticker";
                         return (
-                          <th key={col} className={`sticky top-0 z-10 ${PF.surface2} px-3 py-2`}>
+                          <th
+                            key={col}
+                            className={`sticky top-0 ${PF.surface2} px-3 py-2 ${pinned ? "left-8 z-20" : "z-10"}`}
+                          >
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
@@ -970,7 +999,7 @@ export default function StockFinderPage() {
                       return (
                         <Fragment key={t}>
                           <tr className={`border-b ${PF.line} last:border-0 hover:bg-[#faf9f5]`}>
-                            <td className="px-2 py-2">
+                            <td className={`sticky left-0 z-[5] bg-white px-2 py-2`}>
                               <button
                                 type="button"
                                 onClick={() => toggleRow(t)}
@@ -1066,11 +1095,14 @@ export default function StockFinderPage() {
                                 );
                               }
                               const isNumeric = !TEXT_COLUMNS.has(col);
+                              const pinned = col === "Ticker";
                               return (
                                 <td
                                   key={col}
-                                  className={`px-3 py-2 ${isNumeric ? "text-right" : ""}`}
-                                  style={isNumeric ? { fontFamily: "var(--font-pf-mono)" } : undefined}
+                                  className={`px-3 py-2 ${isNumeric ? "text-right" : ""} ${
+                                    pinned ? "sticky left-8 z-[5] bg-white font-medium" : ""
+                                  }`}
+                                  style={isNumeric || pinned ? { fontFamily: "var(--font-pf-mono)" } : undefined}
                                 >
                                   {formatCell(row[col])}
                                 </td>
