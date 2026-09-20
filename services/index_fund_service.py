@@ -567,10 +567,20 @@ def _apply_peer_group_scores(df: pd.DataFrame, weights: Dict[str, float]) -> pd.
     Category group's mean/std before weighting, never against the whole
     result set. When `category != "All"` upstream already filtered to one
     category, so this groupby naturally has exactly one group -- there is
-    no separate "single category" code path."""
+    no separate "single category" code path.
+
+    Deliberately iterates the groupby and concatenates rather than using
+    groupby(...).apply(...): pandas changed .apply()'s default behavior
+    across the 2.x -> 3.x line to silently exclude the grouping column
+    (Category) from what's passed to the function and from the
+    reconstructed result -- caught in production (pandas 3.0.5) via a
+    KeyError on "Category" downstream, while the local/CI pandas (2.3.3)
+    only warned. Manual iteration's `group` is always the real DataFrame
+    slice, Category column included, on every pandas version."""
     if df.empty:
         return df
-    return df.groupby("Category", group_keys=False).apply(lambda g: _score_group(g, weights))
+    scored_groups = [_score_group(group, weights) for _, group in df.groupby("Category", sort=False)]
+    return pd.concat(scored_groups, ignore_index=False)
 
 
 def rank_index_funds(goal: str, category: str, window: str = "5y", custom_weights: Optional[Dict[str, float]] = None) -> tuple[pd.DataFrame, dict]:
