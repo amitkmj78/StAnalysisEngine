@@ -1,6 +1,17 @@
 import PlotlyChart from "@/components/PlotlyChart";
 import type { ForecastOut } from "@/lib/types";
 
+// "Ledger" palette (see web/frontend/app/predict/page.tsx's PF constant)
+// -- Plotly reads plain hex/rgba strings from its data/layout config, not
+// CSS, so these are literal values matching that palette rather than a
+// shared token.
+const GOOD = "#2f6b4f";
+const CI_FILL = "rgba(47, 107, 79, 0.15)";
+const INK = "#1f2420";
+const MUTED = "#857d6e";
+const GRID_LINE = "#ddd8cd";
+const SURFACE = "#ffffff";
+
 export default function ForecastChart({ ticker, forecast }: { ticker: string; forecast: ForecastOut }) {
   return (
     <PlotlyChart
@@ -11,7 +22,7 @@ export default function ForecastChart({ ticker, forecast }: { ticker: string; fo
           type: "scatter",
           mode: "lines+markers",
           name: "Predicted",
-          line: { color: "#059669", width: 2.5 },
+          line: { color: GOOD, width: 2.5 },
         },
         {
           x: forecast.dates,
@@ -28,17 +39,18 @@ export default function ForecastChart({ ticker, forecast }: { ticker: string; fo
           type: "scatter",
           mode: "lines",
           fill: "tonexty",
-          fillcolor: "rgba(5, 150, 105, 0.15)",
+          fillcolor: CI_FILL,
           line: { width: 0 },
           name: "95% CI",
         },
       ]}
       layout={{
-        title: { text: `${ticker} — ${forecast.dates.length}-Day Forecast` },
-        xaxis: { title: { text: "Date" } },
-        yaxis: { title: { text: "Price (USD)" } },
-        paper_bgcolor: "#ffffff",
-        plot_bgcolor: "#ffffff",
+        title: { text: `${ticker} — ${forecast.dates.length}-Day Forecast`, font: { color: INK } },
+        font: { color: MUTED, family: "IBM Plex Sans, sans-serif" },
+        xaxis: { title: { text: "Date" }, gridcolor: GRID_LINE, linecolor: GRID_LINE },
+        yaxis: { title: { text: "Price (USD)" }, gridcolor: GRID_LINE, linecolor: GRID_LINE },
+        paper_bgcolor: SURFACE,
+        plot_bgcolor: SURFACE,
         height: 420,
         margin: { t: 48, r: 24, b: 40, l: 56 },
         autosize: true,
