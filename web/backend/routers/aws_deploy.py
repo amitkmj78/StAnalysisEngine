@@ -1182,6 +1182,13 @@ grant select on portfolio_positions to app_service;
 -- plaid_item_id together, never any one alone.
 grant insert, update, delete on portfolio_positions to app_service;
 grant select, insert, update, delete on portfolio_strategies to app_service;
+-- sync_item_holdings (plaid_sync.py) calls the same
+-- _invalidate_insights_snapshot() portfolio.py's own save path uses, so
+-- it needs the same access there that app_user already has. select is
+-- required too, not just delete -- Postgres requires SELECT on any
+-- column referenced in a DELETE's WHERE clause, not only DELETE on the
+-- table itself.
+grant select, delete on portfolio_insights_snapshots to app_service;
 grant select, insert, update, delete on plaid_items to app_user;
 grant select, update on plaid_items to app_service;
 grant select on plaid_sync_log to app_user;
