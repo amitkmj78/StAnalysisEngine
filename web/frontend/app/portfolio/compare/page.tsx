@@ -16,6 +16,7 @@ import {
   refreshPortfolioInsights,
 } from "@/lib/api";
 import type {
+  FundGoal,
   FundRankRow,
   FundReturnSince,
   Portfolio,
@@ -101,7 +102,7 @@ export default function ComparePage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
   const [allPortfolios, setAllPortfolios] = useState<Portfolio[]>([]);
   const [goal, setGoal] = useState("Balanced Core");
-  const [goals, setGoals] = useState<string[]>(["Balanced Core"]);
+  const [goals, setGoals] = useState<FundGoal[]>([]);
 
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [performance, setPerformance] = useState<PortfolioPerformance | null>(null);
@@ -204,7 +205,7 @@ export default function ComparePage() {
         getPortfolioSummary(selectedPortfolioId ?? undefined),
         getPortfolioPerformance(30, selectedPortfolioId ?? undefined),
         getPortfolioInsights(selectedPortfolioId ?? undefined),
-        getFundRanking(goal, "All"),
+        getFundRanking(goal, "All", "5y"),
       ]);
       setSummary(summaryRes.summary);
       setPerformance(performanceRes);
@@ -364,9 +365,11 @@ export default function ComparePage() {
         <Field label="Compare against goal">
           <div className="flex items-center gap-1.5">
             <select value={goal} onChange={(e) => setGoal(e.target.value)} className="input">
-              {goals.map((g) => (
-                <option key={g} value={g}>{g}</option>
-              ))}
+              {goals
+                .filter((g) => g.name !== "Custom")
+                .map((g) => (
+                  <option key={g.name} value={g.name}>{g.name}</option>
+                ))}
             </select>
             <button
               type="button"

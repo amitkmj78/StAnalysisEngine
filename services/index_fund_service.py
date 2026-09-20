@@ -23,20 +23,27 @@ class IndexFundCandidate:
     name: str
     benchmark: str
     category: str
+    # Only populated for the handful of broad equity benchmarks with an
+    # unambiguous, free Yahoo index ticker -- Dow-Jones-branded indices,
+    # MSCI/FTSE international indices, and every bond index have no clean
+    # free Yahoo ticker, so Tracking Difference is "N/A" for those funds
+    # rather than a guessed/wrong number. See index_fund_service's own
+    # module docstring-equivalent comment above TRACKING_DIFFERENCE below.
+    benchmark_index_ticker: Optional[str] = None
 
 
 INDEX_FUND_UNIVERSE: List[IndexFundCandidate] = [
     # US Large Blend
-    IndexFundCandidate("VOO", "Vanguard S&P 500 ETF", "S&P 500", "US Large Blend"),
-    IndexFundCandidate("IVV", "iShares Core S&P 500 ETF", "S&P 500", "US Large Blend"),
-    IndexFundCandidate("SPLG", "SPDR Portfolio S&P 500 ETF", "S&P 500", "US Large Blend"),
-    IndexFundCandidate("SPY", "SPDR S&P 500 ETF Trust", "S&P 500", "US Large Blend"),
+    IndexFundCandidate("VOO", "Vanguard S&P 500 ETF", "S&P 500", "US Large Blend", "^GSPC"),
+    IndexFundCandidate("IVV", "iShares Core S&P 500 ETF", "S&P 500", "US Large Blend", "^GSPC"),
+    IndexFundCandidate("SPLG", "SPDR Portfolio S&P 500 ETF", "S&P 500", "US Large Blend", "^GSPC"),
+    IndexFundCandidate("SPY", "SPDR S&P 500 ETF Trust", "S&P 500", "US Large Blend", "^GSPC"),
     # US Total Market
     IndexFundCandidate("VTI", "Vanguard Total Stock Market ETF", "CRSP US Total Market", "US Total Market"),
     IndexFundCandidate("ITOT", "iShares Core S&P Total US Stock Market ETF", "S&P Total US Stock Market", "US Total Market"),
     IndexFundCandidate("SCHB", "Schwab US Broad Market ETF", "Dow Jones US Broad Stock Market", "US Total Market"),
     # US Large Growth
-    IndexFundCandidate("QQQ", "Invesco QQQ Trust", "Nasdaq-100", "US Large Growth"),
+    IndexFundCandidate("QQQ", "Invesco QQQ Trust", "Nasdaq-100", "US Large Growth", "^NDX"),
     IndexFundCandidate("VUG", "Vanguard Growth ETF", "CRSP US Large Cap Growth", "US Large Growth"),
     IndexFundCandidate("IWF", "iShares Russell 1000 Growth ETF", "Russell 1000 Growth", "US Large Growth"),
     IndexFundCandidate("SCHG", "Schwab US Large-Cap Growth ETF", "Dow Jones US Large-Cap Growth", "US Large Growth"),
@@ -46,12 +53,12 @@ INDEX_FUND_UNIVERSE: List[IndexFundCandidate] = [
     IndexFundCandidate("SCHV", "Schwab US Large-Cap Value ETF", "Dow Jones US Large-Cap Value", "US Large Value"),
     # US Mid Cap
     IndexFundCandidate("VO", "Vanguard Mid-Cap ETF", "CRSP US Mid Cap", "US Mid Cap"),
-    IndexFundCandidate("IJH", "iShares Core S&P Mid-Cap ETF", "S&P MidCap 400", "US Mid Cap"),
+    IndexFundCandidate("IJH", "iShares Core S&P Mid-Cap ETF", "S&P MidCap 400", "US Mid Cap", "^MID"),
     IndexFundCandidate("SCHM", "Schwab US Mid-Cap ETF", "Dow Jones US Mid-Cap", "US Mid Cap"),
     # US Small Cap
-    IndexFundCandidate("IWM", "iShares Russell 2000 ETF", "Russell 2000", "US Small Cap"),
+    IndexFundCandidate("IWM", "iShares Russell 2000 ETF", "Russell 2000", "US Small Cap", "^RUT"),
     IndexFundCandidate("VB", "Vanguard Small-Cap ETF", "CRSP US Small Cap", "US Small Cap"),
-    IndexFundCandidate("IJR", "iShares Core S&P Small-Cap ETF", "S&P SmallCap 600", "US Small Cap"),
+    IndexFundCandidate("IJR", "iShares Core S&P Small-Cap ETF", "S&P SmallCap 600", "US Small Cap", "^SML"),
     IndexFundCandidate("SCHA", "Schwab US Small-Cap ETF", "Dow Jones US Small-Cap", "US Small Cap"),
     # International Developed
     IndexFundCandidate("VEA", "Vanguard FTSE Developed Markets ETF", "FTSE Developed All Cap ex US", "International Developed"),
@@ -106,6 +113,9 @@ INDEX_FUND_UNIVERSE: List[IndexFundCandidate] = [
 ]
 
 
+# The four preset goals keep their exact original metric/weight definitions
+# -- not redefined to match any external example, since that would silently
+# change what an existing goal means to someone who already picked it.
 GOAL_WEIGHTS: Dict[str, Dict[str, float]] = {
     "Balanced Core": {
         "return_1y": 0.35,
@@ -141,32 +151,98 @@ GOAL_WEIGHTS: Dict[str, Dict[str, float]] = {
     },
 }
 
+# Metrics a "Custom" goal's sliders may weight -- broader than the four
+# presets above (adds the new window-based/liquidity metrics), but every
+# preset above only ever uses a subset of this same set, so scoring logic
+# never has to special-case "preset vs custom."
+CUSTOM_WEIGHTABLE_METRICS = [
+    "return_1y", "return_3y_annualized", "return_30d", "return_60d", "return_90d", "cagr_window",
+    "expense_ratio", "volatility_1y", "max_drawdown_3y", "std_dev_window", "sharpe_window", "sortino_window",
+    "assets_billions", "avg_daily_volume", "bid_ask_spread_pct",
+]
 
-LOWER_IS_BETTER = {"expense_ratio", "volatility_1y", "max_drawdown_3y"}
+LOWER_IS_BETTER = {
+    "expense_ratio", "volatility_1y", "max_drawdown_3y", "std_dev_window", "bid_ask_spread_pct",
+}
 
 METRIC_LABELS: Dict[str, str] = {
     "return_1y": "1-Year Return",
     "return_3y_annualized": "3-Year Annualized Return",
-    "expense_ratio": "Expense Ratio",
-    "volatility_1y": "1-Year Volatility",
-    "max_drawdown_3y": "3-Year Max Drawdown",
-    "assets_billions": "Fund Assets",
     "return_30d": "30-Day Return",
     "return_60d": "60-Day Return",
     "return_90d": "90-Day Return",
+    "cagr_window": "CAGR (selected window)",
+    "expense_ratio": "Expense Ratio",
+    "volatility_1y": "1-Year Volatility",
+    "max_drawdown_3y": "3-Year Max Drawdown",
+    "std_dev_window": "Std. Dev. (selected window)",
+    "sharpe_window": "Sharpe Ratio (selected window)",
+    "sortino_window": "Sortino Ratio (selected window)",
+    "assets_billions": "Fund Assets (AUM)",
+    "avg_daily_volume": "Avg. Daily Volume",
+    "bid_ask_spread_pct": "Bid/Ask Spread (live)",
 }
 
 METRIC_UNITS: Dict[str, str] = {
-    "return_1y": "%",
-    "return_3y_annualized": "%",
-    "expense_ratio": "%",
-    "volatility_1y": "%",
-    "max_drawdown_3y": "%",
-    "assets_billions": "$B",
-    "return_30d": "%",
-    "return_60d": "%",
-    "return_90d": "%",
+    "return_1y": "%", "return_3y_annualized": "%", "return_30d": "%", "return_60d": "%", "return_90d": "%",
+    "cagr_window": "%", "expense_ratio": "%", "volatility_1y": "%", "max_drawdown_3y": "%", "std_dev_window": "%",
+    "sharpe_window": "", "sortino_window": "", "assets_billions": "$B", "avg_daily_volume": "sh", "bid_ask_spread_pct": "%",
 }
+
+# Which of the four FS-5 display buckets each metric's sub-score rolls up
+# into. A bucket is only shown for a given goal if that goal actually
+# weights at least one metric in it -- "Most Stable" never weights
+# assets_billions/avg_daily_volume/bid_ask_spread_pct, so it never shows a
+# fake empty Liquidity bucket.
+METRIC_BUCKET: Dict[str, str] = {
+    "return_1y": "Return", "return_3y_annualized": "Return", "return_30d": "Return",
+    "return_60d": "Return", "return_90d": "Return", "cagr_window": "Return",
+    "volatility_1y": "Risk", "max_drawdown_3y": "Risk", "std_dev_window": "Risk",
+    "sharpe_window": "Risk", "sortino_window": "Risk",
+    "expense_ratio": "Cost",
+    "assets_billions": "Liquidity", "avg_daily_volume": "Liquidity", "bid_ask_spread_pct": "Liquidity",
+}
+
+WINDOW_DAYS: Dict[str, int] = {"1y": 365, "3y": 3 * 365, "5y": 5 * 365, "10y": 10 * 365}
+VALID_WINDOWS = set(WINDOW_DAYS) | {"max_common"}
+
+
+class InvalidCustomWeights(ValueError):
+    """Raised by normalize_custom_weights on any validation failure. Kept as
+    a plain ValueError (not an HTTPException) so this module has no FastAPI
+    dependency -- callers like web/backend/routers/index_fund.py catch this
+    and translate it into a 422."""
+
+
+def normalize_custom_weights(raw: Dict[str, object]) -> Dict[str, float]:
+    """
+    Validates a raw metric->weight mapping (as parsed from the API's
+    `weights` JSON query param) and normalizes it to sum to 1.0, so the
+    Custom goal's sliders can send any positive relative values without
+    keeping their own normalization in sync with the server's.
+    """
+    if not raw:
+        raise InvalidCustomWeights("weights must be a non-empty object of metric -> weight.")
+
+    unknown = set(raw) - set(CUSTOM_WEIGHTABLE_METRICS)
+    if unknown:
+        raise InvalidCustomWeights(f"Unknown weight metric(s): {sorted(unknown)}. Allowed: {CUSTOM_WEIGHTABLE_METRICS}")
+
+    total = 0.0
+    cleaned: Dict[str, float] = {}
+    for metric, value in raw.items():
+        try:
+            v = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            raise InvalidCustomWeights(f"weights[{metric}] must be a number.")
+        if v < 0:
+            raise InvalidCustomWeights(f"weights[{metric}] must be non-negative.")
+        cleaned[metric] = v
+        total += v
+
+    if total <= 0:
+        raise InvalidCustomWeights("At least one weight must be greater than 0.")
+    return {metric: value / total for metric, value in cleaned.items()}
 
 
 def _coerce_percent(value: Optional[float]) -> Optional[float]:
@@ -206,192 +282,389 @@ def _lookback_return(prices: pd.Series, trading_days: int) -> Optional[float]:
     return (end / start - 1.0) * 100
 
 
-def _build_fund_row(ticker_symbol: str, fallback_category: str = "Custom") -> Optional[Dict[str, object]]:
+@dataclass(frozen=True)
+class FundRawData:
+    info: dict
+    prices: pd.Series  # full "max"-period close history, auto_adjusted (dividends reinvested)
+
+
+def _fetch_raw(ticker_symbol: str) -> Optional[FundRawData]:
     try:
-        # Shared cache (services/yfinance_cache.py): dedupes against Stock
-        # Finder, Goal Plan, the entry-strategy scanner, etc. pulling the
-        # same ticker's history/info within the same 15-minute window.
-        history_1y = get_cached_history(ticker_symbol, "1y", auto_adjust=True)
-        history_3y = get_cached_history(ticker_symbol, "3y", auto_adjust=True)
+        history = get_cached_history(ticker_symbol, "max", auto_adjust=True)
         info = get_cached_info(ticker_symbol)
-
-        if history_1y.empty:
+        if history.empty:
             return None
-
-        close_1y = history_1y["Close"]
-        close_3y = history_3y["Close"] if not history_3y.empty else close_1y
-        daily_returns = close_1y.pct_change().dropna()
-
-        latest_price = float(close_1y.iloc[-1])
-        return_1y = ((latest_price / float(close_1y.iloc[0])) - 1) * 100
-        volatility_1y = float(daily_returns.std() * np.sqrt(252) * 100) if not daily_returns.empty else None
-        return_3y_annualized = _annualized_return(close_3y)
-        max_drawdown_3y = _max_drawdown(close_3y)
-
-        return_10d = _lookback_return(close_1y, 10)
-        return_30d = _lookback_return(close_1y, 30)
-        return_60d = _lookback_return(close_1y, 60)
-        return_90d = _lookback_return(close_1y, 90)
-
-        expense_ratio = (
-            info.get("annualReportExpenseRatio")
-            or info.get("netExpenseRatio")
-            or info.get("expenseRatio")
-            or info.get("totalExpenseRatio")
-        )
-        assets = info.get("totalAssets")
-
-        name = info.get("shortName") or info.get("longName") or ticker_symbol
-        benchmark = info.get("fundFamily") or info.get("category") or "Yahoo Finance"
-        category = info.get("category") or fallback_category
-
-        # yfinance returns this as a Unix timestamp (seconds) when the fund
-        # discloses it; not every fund does, so this is often None — shown
-        # as "unknown" rather than omitted, so a missing value reads as
-        # "the data isn't there" and not as "founded in 1970."
-        inception_ts = info.get("fundInceptionDate")
-        inception_date = (
-            datetime.fromtimestamp(inception_ts, tz=timezone.utc).strftime("%Y-%m-%d")
-            if inception_ts
-            else None
-        )
-
-        return {
-            "Ticker": ticker_symbol,
-            "Fund": name,
-            "Benchmark": benchmark,
-            "Category": category,
-            "Price": latest_price,
-            "Expense Ratio %": _coerce_percent(expense_ratio),
-            "1Y Return %": return_1y,
-            "3Y Annualized %": return_3y_annualized,
-            "1Y Volatility %": volatility_1y,
-            "3Y Max Drawdown %": max_drawdown_3y,
-            "Assets ($B)": (float(assets) / 1_000_000_000) if assets else None,
-            "Return 10D %": return_10d,
-            "Return 30D %": return_30d,
-            "Return 60D %": return_60d,
-            "Return 90D %": return_90d,
-            "Inception Date": inception_date,
-        }
+        return FundRawData(info=info, prices=history["Close"].dropna())
     except Exception:
         return None
 
 
 @ttl_cache(maxsize=8, ttl_seconds=86400)
-def get_index_fund_table() -> pd.DataFrame:
+def _get_raw_fund_data() -> Dict[str, FundRawData]:
     """
-    Builds one row per fund in INDEX_FUND_UNIVERSE, fetched in parallel
-    (mirrors services/market_data_service.py's _fetch_closes_parallel
-    pattern) — at ~62 funds x 3 yfinance calls each, doing this
-    sequentially would be slow and risk Yahoo rate limits the same way a
-    large sequential ticker loop already has elsewhere in this app.
-    fetch_with_backoff inside _build_fund_row adds pacing/retry on top.
-
-    Cached for 24 hours: fund-level metrics (expense ratio, 1Y/3Y return,
-    volatility, inception date) don't meaningfully change intraday, and
-    this is one of the more expensive yfinance-touching endpoints in the
-    app (~62 funds x 3 calls) — a shorter TTL just re-pays that cost for
-    data that looks the same.
+    One yfinance info+max-history fetch per fund in INDEX_FUND_UNIVERSE,
+    plus one per unique benchmark index ticker (deduped -- several funds
+    share e.g. ^GSPC). Fetched in parallel, same pattern as before. Cached
+    24h: this is the only network-bound step: every per-window statistic
+    (CAGR/drawdown/Sharpe/etc. for whatever Window the user picks) is
+    computed by slicing this already-fetched "max" series, never by a new
+    yfinance call -- so changing the Window control re-scores instantly
+    (FS-1/FS-2), it never re-fetches.
     """
-    rows: List[Dict[str, object]] = []
+    tickers = {fund.ticker for fund in INDEX_FUND_UNIVERSE}
+    tickers |= {fund.benchmark_index_ticker for fund in INDEX_FUND_UNIVERSE if fund.benchmark_index_ticker}
 
+    raw: Dict[str, FundRawData] = {}
     with ThreadPoolExecutor(max_workers=MAX_PARALLEL_FETCHES) as executor:
-        futures = {
-            executor.submit(_build_fund_row, fund.ticker, fund.category): fund
-            for fund in INDEX_FUND_UNIVERSE
-        }
+        futures = {executor.submit(_fetch_raw, t): t for t in tickers}
         for future in as_completed(futures):
-            fund = futures[future]
-            row = future.result()
-            if row is not None:
-                row["Fund"] = fund.name
-                row["Benchmark"] = fund.benchmark
-                row["Category"] = fund.category
-                rows.append(row)
-
-    order = {fund.ticker: i for i, fund in enumerate(INDEX_FUND_UNIVERSE)}
-    rows.sort(key=lambda r: order.get(r["Ticker"], len(order)))
-    return pd.DataFrame(rows)
+            ticker = futures[future]
+            data = future.result()
+            if data is not None:
+                raw[ticker] = data
+    return raw
 
 
-@ttl_cache(maxsize=64, ttl_seconds=86400)
-def get_single_fund_table(ticker_symbol: str) -> pd.DataFrame:
+def _window_bounds(window: str, price_series: Dict[str, pd.Series]) -> tuple[Optional[pd.Timestamp], Optional[pd.Timestamp], Optional[str]]:
+    """
+    Returns (start, end, error). `end` is always the earliest of each
+    series' own last date, so every fund in the set is compared over
+    literally identical trading days even if one fund's data happens to be
+    a day staler than another's.
+
+    Fixed windows (1y/3y/5y/10y): start = end - N calendar years.
+    "max_common": start = the LATEST of each series' own first date -- the
+    longest range every fund in the set actually has data for (FS-2's own
+    wording: "the longest window where every fund in the result set has
+    data").
+    """
+    series = [s for s in price_series.values() if not s.empty]
+    if not series:
+        return None, None, "No price history available for this selection."
+
+    end = min(s.index[-1] for s in series)
+
+    if window == "max_common":
+        start = max(s.index[0] for s in series)
+        if start >= end:
+            return None, None, "These funds have no overlapping history."
+        return start, end, None
+
+    if window not in WINDOW_DAYS:
+        return None, None, f"window must be one of {sorted(VALID_WINDOWS)}"
+
+    start = end - pd.Timedelta(days=WINDOW_DAYS[window])
+    return start, end, None
+
+
+def _slice(prices: pd.Series, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
+    return prices[(prices.index >= start) & (prices.index <= end)]
+
+
+def _stats_for_window(prices: pd.Series, start: pd.Timestamp, end: pd.Timestamp) -> Dict[str, Optional[float]]:
+    """CAGR/max drawdown/std dev/Sharpe/Sortino over one fund's price slice
+    for the resolved window. Risk-free rate is treated as 0% -- the same
+    simplifying convention services/momentum_backtest_service.py already
+    uses for its own risk_free_rate_annual, not a new assumption. Returns
+    every field as None (not a misleading number) when the slice has fewer
+    than ~20 trading days — too little data for any of these to mean
+    anything."""
+    window_prices = _slice(prices, start, end)
+    if len(window_prices) < 20:
+        return {"cagr_window": None, "max_drawdown_window": None, "std_dev_window": None, "sharpe_window": None, "sortino_window": None}
+
+    daily_returns = window_prices.pct_change().dropna()
+    cagr = _annualized_return(window_prices)
+    max_dd = _max_drawdown(window_prices)
+
+    if daily_returns.empty or daily_returns.std() == 0 or pd.isna(daily_returns.std()):
+        std_dev = float(daily_returns.std() * np.sqrt(252) * 100) if not daily_returns.empty else None
+        sharpe = None
+    else:
+        std_dev = float(daily_returns.std() * np.sqrt(252) * 100)
+        mean_annual = float(daily_returns.mean() * 252)
+        std_annual = float(daily_returns.std() * np.sqrt(252))
+        sharpe = mean_annual / std_annual if std_annual else None
+
+    downside = daily_returns[daily_returns < 0]
+    if not downside.empty and downside.std() and not pd.isna(downside.std()):
+        downside_annual = float(downside.std() * np.sqrt(252))
+        mean_annual = float(daily_returns.mean() * 252)
+        sortino = mean_annual / downside_annual if downside_annual else None
+    else:
+        sortino = None
+
+    return {
+        "cagr_window": cagr,
+        "max_drawdown_window": max_dd,
+        "std_dev_window": std_dev,
+        "sharpe_window": sharpe,
+        "sortino_window": sortino,
+    }
+
+
+def _tracking_difference(fund_prices: pd.Series, benchmark_prices: Optional[pd.Series], start: pd.Timestamp, end: pd.Timestamp) -> Optional[float]:
+    """Fund CAGR minus benchmark index CAGR over the same window -- only
+    computed when this fund has a confidently-mapped benchmark_index_ticker
+    (see IndexFundCandidate.benchmark_index_ticker's own comment); None
+    otherwise, shown as "N/A" rather than guessed."""
+    if benchmark_prices is None:
+        return None
+    fund_cagr = _annualized_return(_slice(fund_prices, start, end))
+    bench_cagr = _annualized_return(_slice(benchmark_prices, start, end))
+    if fund_cagr is None or bench_cagr is None:
+        return None
+    return fund_cagr - bench_cagr
+
+
+def _build_fund_row(fund: IndexFundCandidate, raw: FundRawData, start: pd.Timestamp, end: pd.Timestamp, benchmark_raw: Optional[FundRawData]) -> Dict[str, object]:
+    info = raw.info
+    prices = raw.prices
+
+    close_1y = _slice(prices, end - pd.Timedelta(days=365), end)
+    daily_returns_1y = close_1y.pct_change().dropna()
+    latest_price = float(prices.iloc[-1])
+    return_1y = _lookback_return(prices, min(len(close_1y) - 1, 252)) if len(close_1y) > 1 else None
+    volatility_1y = float(daily_returns_1y.std() * np.sqrt(252) * 100) if not daily_returns_1y.empty else None
+    return_3y_annualized = _annualized_return(_slice(prices, end - pd.Timedelta(days=3 * 365), end))
+    max_drawdown_3y = _max_drawdown(_slice(prices, end - pd.Timedelta(days=3 * 365), end))
+
+    return_10d = _lookback_return(prices, 10)
+    return_30d = _lookback_return(prices, 30)
+    return_60d = _lookback_return(prices, 60)
+    return_90d = _lookback_return(prices, 90)
+
+    window_stats = _stats_for_window(prices, start, end)
+
+    expense_ratio = (
+        info.get("annualReportExpenseRatio")
+        or info.get("netExpenseRatio")
+        or info.get("expenseRatio")
+        or info.get("totalExpenseRatio")
+    )
+    assets = info.get("totalAssets")
+    avg_daily_volume = info.get("averageDailyVolume3Month") or info.get("averageVolume")
+    bid = info.get("bid")
+    ask = info.get("ask")
+    bid_ask_spread_pct = None
+    if bid and ask and bid > 0 and ask > 0 and ask >= bid:
+        mid = (bid + ask) / 2
+        bid_ask_spread_pct = ((ask - bid) / mid) * 100 if mid else None
+    distribution_yield = _coerce_percent(info.get("yield") or info.get("trailingAnnualDividendYield"))
+    # annualHoldingsTurnover is confirmed missing even for SPY/BND (the two
+    # largest, most-disclosed funds in this universe) -- shipped as N/A
+    # rather than silently omitted, so the gap is visible, not hidden.
+    turnover_pct = _coerce_percent(info.get("annualHoldingsTurnover"))
+
+    name = info.get("shortName") or info.get("longName") or fund.name
+    category = info.get("category") or fund.category
+
+    inception_ts = info.get("fundInceptionDate")
+    inception_date = (
+        datetime.fromtimestamp(inception_ts, tz=timezone.utc).strftime("%Y-%m-%d") if inception_ts else None
+    )
+
+    tracking_difference = _tracking_difference(prices, benchmark_raw.prices if benchmark_raw else None, start, end)
+
+    return {
+        "Ticker": fund.ticker,
+        "Fund": name,
+        "Benchmark": fund.benchmark,
+        "Category": category,
+        "Price": latest_price,
+        "Expense Ratio %": _coerce_percent(expense_ratio),
+        "Tracking Difference %": tracking_difference,
+        "Assets ($B)": (float(assets) / 1_000_000_000) if assets else None,
+        "Avg Daily Volume": float(avg_daily_volume) if avg_daily_volume else None,
+        "Bid/Ask Spread %": bid_ask_spread_pct,
+        "1Y Return %": return_1y,
+        "3Y Annualized %": return_3y_annualized,
+        "1Y Volatility %": volatility_1y,
+        "3Y Max Drawdown %": max_drawdown_3y,
+        "Return 10D %": return_10d,
+        "Return 30D %": return_30d,
+        "Return 60D %": return_60d,
+        "Return 90D %": return_90d,
+        "CAGR (Window) %": window_stats["cagr_window"],
+        "Max Drawdown (Window) %": window_stats["max_drawdown_window"],
+        "Std Dev (Window) %": window_stats["std_dev_window"],
+        "Sharpe (Window)": window_stats["sharpe_window"],
+        "Sortino (Window)": window_stats["sortino_window"],
+        "Distribution Yield %": distribution_yield,
+        "Turnover %": turnover_pct,
+        "Inception Date": inception_date,
+        # Internal columns feeding scoring -- stripped or kept depending on
+        # caller; mirrored 1:1 onto the display columns above so scoring
+        # and display never drift out of sync.
+        "expense_ratio": _coerce_percent(expense_ratio),
+        "return_1y": return_1y,
+        "return_3y_annualized": return_3y_annualized,
+        "volatility_1y": volatility_1y,
+        "max_drawdown_3y": max_drawdown_3y,
+        "assets_billions": (float(assets) / 1_000_000_000) if assets else None,
+        "return_30d": return_30d,
+        "return_60d": return_60d,
+        "return_90d": return_90d,
+        "cagr_window": window_stats["cagr_window"],
+        "std_dev_window": window_stats["std_dev_window"],
+        "sharpe_window": window_stats["sharpe_window"],
+        "sortino_window": window_stats["sortino_window"],
+        "avg_daily_volume": float(avg_daily_volume) if avg_daily_volume else None,
+        "bid_ask_spread_pct": bid_ask_spread_pct,
+    }
+
+
+def _zscore_series(series: pd.Series, lower_is_better: bool) -> pd.Series:
+    """Cross-sectional z-score within whatever group `series` already is
+    (the caller is responsible for having grouped by Category first) --
+    (x - group_mean) / group_std, sign-flipped when lower is better. 0.0
+    when the group's std is 0/NaN (every fund tied, or all missing) rather
+    than a divide-by-zero or a misleadingly large score."""
+    numeric = pd.to_numeric(series, errors="coerce")
+    mean = numeric.mean()
+    std = numeric.std()
+    if pd.isna(std) or std == 0:
+        z = pd.Series([0.0] * len(series), index=series.index)
+    else:
+        z = (numeric - mean) / std
+    if lower_is_better:
+        z = -z
+    return z.fillna(0.0)
+
+
+def _score_group(group: pd.DataFrame, weights: Dict[str, float]) -> pd.DataFrame:
+    group = group.copy()
+    score = pd.Series([0.0] * len(group), index=group.index)
+    breakdown_by_row: Dict[object, Dict[str, dict]] = {idx: {} for idx in group.index}
+
+    for metric, weight in weights.items():
+        if metric not in group.columns:
+            continue
+        z = _zscore_series(group[metric], metric in LOWER_IS_BETTER)
+        contribution = z * weight
+        score += contribution
+        bucket = METRIC_BUCKET.get(metric, "Other")
+        for idx in group.index:
+            bucket_entry = breakdown_by_row[idx].setdefault(bucket, {"sub_score": 0.0, "metrics": []})
+            bucket_entry["sub_score"] += float(contribution.loc[idx])
+            bucket_entry["metrics"].append(
+                {
+                    "key": metric,
+                    "label": METRIC_LABELS.get(metric, metric),
+                    "unit": METRIC_UNITS.get(metric, ""),
+                    "raw_value": None if pd.isna(group.loc[idx, metric]) else float(group.loc[idx, metric]),
+                    "weight": weight,
+                }
+            )
+
+    group["Score"] = (score * 100).round(1)
+    group["_breakdown"] = [breakdown_by_row[idx] for idx in group.index]
+    return group
+
+
+def _apply_peer_group_scores(df: pd.DataFrame, weights: Dict[str, float]) -> pd.DataFrame:
+    """Peer-group (FS-3) scoring: every metric is z-scored against its own
+    Category group's mean/std before weighting, never against the whole
+    result set. When `category != "All"` upstream already filtered to one
+    category, so this groupby naturally has exactly one group -- there is
+    no separate "single category" code path."""
+    if df.empty:
+        return df
+    return df.groupby("Category", group_keys=False).apply(lambda g: _score_group(g, weights))
+
+
+def rank_index_funds(goal: str, category: str, window: str = "5y", custom_weights: Optional[Dict[str, float]] = None) -> tuple[pd.DataFrame, dict]:
+    """
+    Returns (ranked_df, window_meta). window_meta always carries
+    {"window": ..., "start": "YYYY-MM-DD"|None, "end": "YYYY-MM-DD"|None,
+    "error": str|None} so the frontend can show the resolved date range
+    (FS-2) even when nothing failed.
+
+    Deliberately NOT cached (unlike _get_raw_fund_data, which is the one
+    real network-bound step and stays cached 24h): this only slices/scores
+    already-cached price series -- cheap pandas arithmetic over at most a
+    few dozen rows -- and custom_weights is a plain dict, which cachetools'
+    default key function can't hash anyway. Recomputing on every call is
+    both correct and fast enough that a cache would only add complexity.
+    """
+    raw = _get_raw_fund_data()
+    candidates = [f for f in INDEX_FUND_UNIVERSE if (category == "All" or f.category == category) and f.ticker in raw]
+    if not candidates:
+        return pd.DataFrame(), {"window": window, "start": None, "end": None, "error": "No funds matched this selection."}
+
+    price_series = {f.ticker: raw[f.ticker].prices for f in candidates}
+    start, end, error = _window_bounds(window, price_series)
+    window_meta = {
+        "window": window,
+        "start": str(start.date()) if start is not None else None,
+        "end": str(end.date()) if end is not None else None,
+        "error": error,
+    }
+    if start is None or end is None:
+        return pd.DataFrame(), window_meta
+
+    rows = [
+        _build_fund_row(fund, raw[fund.ticker], start, end, raw.get(fund.benchmark_index_ticker) if fund.benchmark_index_ticker else None)
+        for fund in candidates
+    ]
+    df = pd.DataFrame(rows)
+
+    weights = custom_weights if goal == "Custom" else GOAL_WEIGHTS[goal]
+    df = _apply_peer_group_scores(df, weights)
+    df = df.sort_values(["Category", "Score", "1Y Return %", "Assets ($B)"], ascending=[True, False, False, False]).reset_index(drop=True)
+    return df, window_meta
+
+
+def score_fund_ticker(goal: str, ticker_symbol: str, window: str = "5y", custom_weights: Optional[Dict[str, float]] = None) -> tuple[pd.DataFrame, dict]:
+    """
+    Scores one arbitrary ticker (FS-2's "Score one fund" mode) against the
+    peer-group statistics of the matching category in the main universe --
+    same z-score mechanics as rank_index_funds, just applied to a group of
+    one candidate row plus the reference universe's own rows for the same
+    category, so the standalone fund is judged against real peers rather
+    than a baseline of itself (z of a lone row is always 0/meaningless).
+    """
     cleaned = ticker_symbol.strip().upper()
     if not cleaned:
-        return pd.DataFrame()
-    row = _build_fund_row(cleaned)
-    return pd.DataFrame([row]) if row is not None else pd.DataFrame()
+        return pd.DataFrame(), {"window": window, "start": None, "end": None, "error": "No ticker given."}
+
+    raw_data = _fetch_raw(cleaned)
+    if raw_data is None:
+        return pd.DataFrame(), {"window": window, "start": None, "end": None, "error": f"No price history found for {cleaned}."}
+
+    detected_category = raw_data.info.get("category") or "Custom"
+    universe_raw = _get_raw_fund_data()
+    peers = [f for f in INDEX_FUND_UNIVERSE if f.category == detected_category and f.ticker in universe_raw]
+
+    price_series = {cleaned: raw_data.prices, **{f.ticker: universe_raw[f.ticker].prices for f in peers}}
+    start, end, error = _window_bounds(window, price_series)
+    window_meta = {
+        "window": window,
+        "start": str(start.date()) if start is not None else None,
+        "end": str(end.date()) if end is not None else None,
+        "error": error,
+    }
+    if start is None or end is None:
+        return pd.DataFrame(), window_meta
+
+    candidate = IndexFundCandidate(cleaned, cleaned, "Custom", detected_category)
+    rows = [_build_fund_row(candidate, raw_data, start, end, None)]
+    rows += [_build_fund_row(f, universe_raw[f.ticker], start, end, universe_raw.get(f.benchmark_index_ticker) if f.benchmark_index_ticker else None) for f in peers]
+    df = pd.DataFrame(rows)
+
+    weights = custom_weights if goal == "Custom" else GOAL_WEIGHTS[goal]
+    df = _apply_peer_group_scores(df, weights)
+    # Only the requested ticker's own row is returned -- the peers were
+    # only fetched to give it something real to be scored against.
+    return df[df["Ticker"] == cleaned].reset_index(drop=True), window_meta
 
 
-def _score_series(series: pd.Series, lower_is_better: bool) -> pd.Series:
-    numeric = pd.to_numeric(series, errors="coerce")
-    if numeric.dropna().empty:
-        return pd.Series([0.0] * len(series), index=series.index)
-
-    min_val = numeric.min()
-    max_val = numeric.max()
-    if pd.isna(min_val) or pd.isna(max_val) or min_val == max_val:
-        base = pd.Series([1.0] * len(series), index=series.index)
-    else:
-        base = (numeric - min_val) / (max_val - min_val)
-
-    if lower_is_better:
-        base = 1 - base
-
-    return base.fillna(base.mean() if not pd.isna(base.mean()) else 0.0)
-
-
-def rank_index_funds(goal: str, category: str) -> pd.DataFrame:
-    df = get_index_fund_table().copy()
-    if df.empty:
-        return df
-
-    if category != "All":
-        df = df[df["Category"] == category].copy()
-
-    if df.empty:
-        return df
-
-    df["expense_ratio"] = df["Expense Ratio %"]
-    df["return_1y"] = df["1Y Return %"]
-    df["return_3y_annualized"] = df["3Y Annualized %"]
-    df["volatility_1y"] = df["1Y Volatility %"]
-    df["max_drawdown_3y"] = df["3Y Max Drawdown %"]
-    df["assets_billions"] = df["Assets ($B)"]
-    df["return_30d"] = df["Return 30D %"]
-    df["return_60d"] = df["Return 60D %"]
-    df["return_90d"] = df["Return 90D %"]
-
-    weights = GOAL_WEIGHTS[goal]
-    score = pd.Series([0.0] * len(df), index=df.index)
-
-    for metric, weight in weights.items():
-        score += _score_series(df[metric], metric in LOWER_IS_BETTER) * weight
-
-    df["Score"] = (score * 100).round(1)
-    return df.sort_values(["Score", "1Y Return %", "Assets ($B)"], ascending=[False, False, False]).reset_index(drop=True)
-
-
-def score_fund_ticker(goal: str, ticker_symbol: str) -> pd.DataFrame:
-    df = get_single_fund_table(ticker_symbol).copy()
-    if df.empty:
-        return df
-
-    df["expense_ratio"] = df["Expense Ratio %"]
-    df["return_1y"] = df["1Y Return %"]
-    df["return_3y_annualized"] = df["3Y Annualized %"]
-    df["volatility_1y"] = df["1Y Volatility %"]
-    df["max_drawdown_3y"] = df["3Y Max Drawdown %"]
-    df["assets_billions"] = df["Assets ($B)"]
-    df["return_30d"] = df["Return 30D %"]
-    df["return_60d"] = df["Return 60D %"]
-    df["return_90d"] = df["Return 90D %"]
-
-    weights = GOAL_WEIGHTS[goal]
-    score = pd.Series([0.0] * len(df), index=df.index)
-    for metric, weight in weights.items():
-        score += _score_series(df[metric], metric in LOWER_IS_BETTER) * weight
-
-    df["Score"] = (score * 100).round(1)
-    return df.reset_index(drop=True)
+@ttl_cache(maxsize=8, ttl_seconds=86400)
+def get_index_fund_table() -> pd.DataFrame:
+    """Kept for any other caller expecting the old flat, unscored table
+    shape (e.g. momentum.py's /top-performers, which only reads Ticker/
+    Name/Price/return columns, never Score) -- rebuilt from the same
+    5Y-windowed row-builder as everything else in this module, so it's one
+    consistent source of truth rather than a second, divergent fetch path."""
+    df, _ = rank_index_funds("Balanced Core", "All", "5y")
+    return df

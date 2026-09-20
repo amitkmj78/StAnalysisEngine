@@ -40,11 +40,11 @@ if mode == "Rank curated funds":
         ["All", "US Large Blend", "US Total Market", "US Growth", "US Small Cap", "International", "Bond"],
     )
     with st.spinner("Ranking index funds..."):
-        ranked = rank_index_funds(goal, category)
+        ranked, _ = rank_index_funds(goal, category)
 else:
     fund_ticker = st.text_input("Fund ticker", value="VOO").strip().upper()
     with st.spinner("Scoring fund..."):
-        ranked = score_fund_ticker(goal, fund_ticker)
+        ranked, _ = score_fund_ticker(goal, fund_ticker)
 
 if ranked.empty:
     st.warning("No fund data was available for that selection right now. Try another ticker or try again in a moment.")

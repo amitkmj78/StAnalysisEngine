@@ -156,7 +156,7 @@ def get_million_plan_picks(
 ) -> list[StrategyPick]:
     picks: list[StrategyPick] = []
 
-    ranked_funds = rank_index_funds(fund_goal, fund_category)
+    ranked_funds, _ = rank_index_funds(fund_goal, fund_category)
     if not ranked_funds.empty:
         for idx, (_, winner) in enumerate(ranked_funds.head(top_n).iterrows(), start=1):
             picks.append(
@@ -214,7 +214,7 @@ def get_diverse_strategy_picks(
     stock_n = max(top_n, -(-MIN_STOCK_PICKS // len(STOCK_GOAL_WEIGHTS)))
 
     for fund_goal in FUND_GOAL_WEIGHTS:
-        ranked_funds = rank_index_funds(fund_goal, fund_category)
+        ranked_funds, _ = rank_index_funds(fund_goal, fund_category)
         if ranked_funds.empty:
             continue
         for idx, (_, winner) in enumerate(ranked_funds.head(fund_n).iterrows(), start=1):

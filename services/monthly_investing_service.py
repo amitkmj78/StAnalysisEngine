@@ -21,7 +21,7 @@ class Recommendation:
 
 def get_best_monthly_pick(asset_type: str, goal: str, category_or_universe: str) -> Recommendation | None:
     if asset_type == "Fund":
-        ranked = rank_index_funds(goal, category_or_universe)
+        ranked, _ = rank_index_funds(goal, category_or_universe)
         if ranked.empty:
             return None
         winner = ranked.iloc[0]

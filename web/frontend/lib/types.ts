@@ -206,6 +206,19 @@ export interface CurrentPriceResponse {
 }
 
 // Index Fund Finder
+export interface ScoreBreakdownMetric {
+  key: string;
+  label: string;
+  unit: string;
+  raw_value: number | null;
+  weight: number;
+}
+
+export interface ScoreBreakdownBucket {
+  sub_score: number;
+  metrics: ScoreBreakdownMetric[];
+}
+
 export interface FundRankRow {
   Ticker: string;
   Fund: string;
@@ -213,15 +226,39 @@ export interface FundRankRow {
   Category: string;
   Price: number;
   Score: number;
-  [key: string]: string | number | null;
+  _breakdown?: Record<string, ScoreBreakdownBucket>;
+  [key: string]: string | number | null | undefined | Record<string, ScoreBreakdownBucket>;
 }
 
-export interface FundRankResponse {
+export interface FundWindowMeta {
+  window: string;
+  start: string | null;
+  end: string | null;
+  error: string | null;
+}
+
+export interface FundRankResponse extends FundWindowMeta {
   results: FundRankRow[];
 }
 
-export interface FundScoreResponse {
+export interface FundScoreResponse extends FundWindowMeta {
   result: FundRankRow | null;
+}
+
+export interface FundGoalWeight {
+  metric: string;
+  label: string;
+  weight: number | null;
+  lower_is_better: boolean;
+}
+
+export interface FundGoal {
+  name: string;
+  weights: FundGoalWeight[];
+}
+
+export interface FundGoalsResponse {
+  goals: FundGoal[];
 }
 
 export interface FundReturnSince {

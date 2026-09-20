@@ -27,6 +27,7 @@ import type {
   EntryHistory,
   EntryPlan,
   EntryScanRow,
+  FundGoalsResponse,
   FundRankResponse,
   FundReturnSince,
   FundScoreResponse,
@@ -246,15 +247,17 @@ export function deleteScreen(screenId: number) {
 
 // Index Fund Finder
 export function getFundGoals() {
-  return apiFetch<{ goals: string[] }>("/api/v1/index-fund/goals");
+  return apiFetch<FundGoalsResponse>("/api/v1/index-fund/goals");
 }
 
 export function getFundCategories() {
   return apiFetch<{ categories: string[] }>("/api/v1/index-fund/categories");
 }
 
-export function getFundRanking(goal: string, category: string) {
-  return apiFetch<FundRankResponse>("/api/v1/index-fund/rank", { goal, category });
+export function getFundRanking(goal: string, category: string, windowParam: string, customWeights?: Record<string, number>) {
+  const params: Record<string, string> = { goal, category, window: windowParam };
+  if (customWeights) params.weights = JSON.stringify(customWeights);
+  return apiFetch<FundRankResponse>("/api/v1/index-fund/rank", params);
 }
 
 export function getFundsByInception(minYears: number, category: string) {
@@ -264,8 +267,10 @@ export function getFundsByInception(minYears: number, category: string) {
   });
 }
 
-export function getFundScore(goal: string, ticker: string) {
-  return apiFetch<FundScoreResponse>("/api/v1/index-fund/score", { goal, ticker });
+export function getFundScore(goal: string, ticker: string, windowParam: string, customWeights?: Record<string, number>) {
+  const params: Record<string, string> = { goal, ticker, window: windowParam };
+  if (customWeights) params.weights = JSON.stringify(customWeights);
+  return apiFetch<FundScoreResponse>("/api/v1/index-fund/score", params);
 }
 
 export function getFundReturnSince(ticker: string, since: string) {

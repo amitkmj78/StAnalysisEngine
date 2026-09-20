@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -5,7 +6,17 @@ from starlette.concurrency import run_in_threadpool
 
 from services.data_service import get_latest_price
 from services.fund_comparison_service import price_near_date, rank_funds_by_inception
-from services.index_fund_service import GOAL_WEIGHTS, rank_index_funds, score_fund_ticker
+from services.index_fund_service import (
+    CUSTOM_WEIGHTABLE_METRICS,
+    GOAL_WEIGHTS,
+    InvalidCustomWeights,
+    LOWER_IS_BETTER,
+    METRIC_LABELS,
+    VALID_WINDOWS,
+    normalize_custom_weights,
+    rank_index_funds,
+    score_fund_ticker,
+)
 
 from web.backend.auth import verify_bearer_token
 from web.backend.rate_limit import enforce_daily_quota, limiter
@@ -41,13 +52,74 @@ FUND_CATEGORIES = [
 
 
 def _validate_goal(goal: str) -> None:
-    if goal not in GOAL_WEIGHTS:
-        raise HTTPException(422, f"goal must be one of {sorted(GOAL_WEIGHTS.keys())}")
+    if goal not in GOAL_WEIGHTS and goal != "Custom":
+        raise HTTPException(422, f"goal must be one of {sorted(GOAL_WEIGHTS.keys())} or 'Custom'")
+
+
+def _validate_window(window: str) -> None:
+    if window not in VALID_WINDOWS:
+        raise HTTPException(422, f"window must be one of {sorted(VALID_WINDOWS)}")
+
+
+def _parse_custom_weights(goal: str, weights_json: str | None) -> dict[str, float] | None:
+    """Only consulted when goal == "Custom". Parses the JSON query param and
+    delegates validation/normalization to services.index_fund_service's
+    normalize_custom_weights (kept dependency-free there so it can be unit
+    tested without pulling in FastAPI/slowapi) -- this function's only job
+    is translating that into an HTTP 422."""
+    if goal != "Custom":
+        return None
+    if not weights_json:
+        raise HTTPException(422, "weights is required when goal is 'Custom'.")
+    try:
+        raw = json.loads(weights_json)
+    except (TypeError, ValueError):
+        raise HTTPException(422, "weights must be valid JSON.")
+    if not isinstance(raw, dict):
+        raise HTTPException(422, "weights must be a JSON object of metric -> weight.")
+    try:
+        return normalize_custom_weights(raw)
+    except InvalidCustomWeights as exc:
+        raise HTTPException(422, str(exc))
 
 
 @router.get("/goals")
 async def goals():
-    return {"goals": list(GOAL_WEIGHTS.keys())}
+    """Each goal's real weights, with display labels -- so the frontend can
+    show them inline (FS-4) without a second endpoint. The four presets'
+    weights are fixed; "Custom" carries the full weightable-metric list
+    instead, for the slider UI to build itself from."""
+    return {
+        "goals": [
+            {
+                "name": name,
+                "weights": [
+                    {
+                        "metric": metric,
+                        "label": METRIC_LABELS.get(metric, metric),
+                        "weight": weight,
+                        "lower_is_better": metric in LOWER_IS_BETTER,
+                    }
+                    for metric, weight in weights.items()
+                ],
+            }
+            for name, weights in GOAL_WEIGHTS.items()
+        ]
+        + [
+            {
+                "name": "Custom",
+                "weights": [
+                    {
+                        "metric": metric,
+                        "label": METRIC_LABELS.get(metric, metric),
+                        "weight": None,
+                        "lower_is_better": metric in LOWER_IS_BETTER,
+                    }
+                    for metric in CUSTOM_WEIGHTABLE_METRICS
+                ],
+            }
+        ]
+    }
 
 
 @router.get("/categories")
@@ -55,16 +127,29 @@ async def categories():
     return {"categories": FUND_CATEGORIES}
 
 
+@router.get("/windows")
+async def windows():
+    return {"windows": sorted(VALID_WINDOWS, key=lambda w: (w != "max_common", w))}
+
+
 @router.get("/rank")
 @limiter.limit("10/minute")
-async def rank(request: Request, goal: str = Query(...), category: str = Query("All")):
+async def rank(
+    request: Request,
+    goal: str = Query(...),
+    category: str = Query("All"),
+    window: str = Query("5y"),
+    weights: str | None = Query(None, description="JSON metric->weight, required when goal='Custom'"),
+):
     await enforce_daily_quota(request, "index-fund/rank")
     _validate_goal(goal)
+    _validate_window(window)
     if category not in FUND_CATEGORIES:
         raise HTTPException(422, f"category must be one of {FUND_CATEGORIES}")
+    custom_weights = _parse_custom_weights(goal, weights)
 
-    df = await run_in_threadpool(rank_index_funds, goal, category)
-    return {"results": records_safe(df)}
+    df, window_meta = await run_in_threadpool(rank_index_funds, goal, category, window, custom_weights)
+    return {"results": records_safe(df), **window_meta}
 
 
 @router.get("/rank-by-inception")
@@ -121,11 +206,19 @@ async def return_since(request: Request, ticker: str = Query(..., min_length=1),
 
 @router.get("/score")
 @limiter.limit("20/minute")
-async def score(request: Request, goal: str = Query(...), ticker: str = Query(..., min_length=1)):
+async def score(
+    request: Request,
+    goal: str = Query(...),
+    ticker: str = Query(..., min_length=1),
+    window: str = Query("5y"),
+    weights: str | None = Query(None, description="JSON metric->weight, required when goal='Custom'"),
+):
     await enforce_daily_quota(request, "index-fund/score")
     _validate_goal(goal)
+    _validate_window(window)
     ticker = ticker.strip().upper()
+    custom_weights = _parse_custom_weights(goal, weights)
 
-    df = await run_in_threadpool(score_fund_ticker, goal, ticker)
+    df, window_meta = await run_in_threadpool(score_fund_ticker, goal, ticker, window, custom_weights)
     records = records_safe(df)
-    return {"result": records[0] if records else None}
+    return {"result": records[0] if records else None, **window_meta}

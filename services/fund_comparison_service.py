@@ -12,7 +12,7 @@ def get_top_fund(goal: str = "Balanced Core", category: str = "All") -> Optional
     """Whichever fund currently ranks #1 for the given goal/category — the
     same ranking already shown on /index-fund and /strategies, reused here
     as the benchmark for "top-performing fund"."""
-    df = rank_index_funds(goal, category)
+    df, _ = rank_index_funds(goal, category)
     if df.empty:
         return None
     winner = df.iloc[0]
