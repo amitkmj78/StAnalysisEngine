@@ -325,7 +325,7 @@ export default function StrategiesPage() {
 
           <Field label={mode === "achievable_amount" ? "Target amount (solved)" : "Target amount"}>
             <input
-              type="number" min={1} max={100000000} step={10000}
+              type="number" min={1} max={100000000} step="any"
               value={targetAmount}
               onChange={(e) => setTargetAmount(Number(e.target.value))}
               disabled={mode === "achievable_amount"}
@@ -351,7 +351,7 @@ export default function StrategiesPage() {
 
           <Field label="Starting capital">
             <input
-              type="number" min={0} max={10000000} step={1000}
+              type="number" min={0} max={10000000} step="any"
               value={startingCapital}
               onChange={(e) => {
                 setStartingCapital(Number(e.target.value));
