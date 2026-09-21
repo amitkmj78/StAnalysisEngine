@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
-import PlanChart from "@/components/strategies/PlanChart";
 import {
   ApiError,
   deleteStrategyPlan,
@@ -13,7 +12,14 @@ import {
   getStrategyPlans,
   saveStrategyPlan,
 } from "@/lib/api";
-import type { SavedStrategyPlan, StrategiesSummaryResponse, StrategyPickRow } from "@/lib/types";
+import type {
+  AccountType,
+  DollarsMode,
+  SavedStrategyPlan,
+  SolveMode,
+  StrategiesSummaryResponse,
+  StrategyPickRow,
+} from "@/lib/types";
 
 const KPI_INFO: Record<string, ColumnInfo> = {
   historic_return: {
@@ -24,23 +30,51 @@ const KPI_INFO: Record<string, ColumnInfo> = {
       "Past performance like this does not guarantee future results, especially for a single stock rather than a diversified fund.",
     ],
   },
-  monthly_needed: {
-    title: "Monthly Needed",
-    body: [
-      "The monthly contribution required to reach your target amount by your target year, assuming this pick's historic annualized return holds steady for the entire period, compounding monthly.",
-      "It uses the same annuity math as the 'What It Takes' table above, just plugging in this specific pick's own historic return instead of a hypothetical return case.",
-      "This is best read as 'what it would have taken if the past continued exactly' — not a promise about what it will actually take.",
-    ],
-  },
-  projected_value: {
-    title: "Projected Value",
-    body: [
-      "The total portfolio value you'd end up with after contributing the 'Monthly Needed' amount every month for the full time horizon, assuming this pick's historic annualized return holds the whole time.",
-      "It compounds the monthly contributions at that return rate — it does not account for taxes, fees, dividends, or the return rate changing year to year.",
-      "The further a pick's historic return is from a realistic long-run average, the less reliable this number is as an actual forecast.",
-    ],
-  },
 };
+
+const SOLVE_MODE_LABELS: Record<SolveMode, string> = {
+  required_return: "Required return",
+  required_contribution: "Required contribution",
+  time_to_goal: "Time to goal",
+  achievable_amount: "Achievable amount",
+};
+
+// Mirrors services/million_plan_service.py's FUND_CATEGORY_RISK_TIER --
+// small, fixed vocabulary (this page's own coarse 7-category list, not the
+// Fund Screener's finer-grained one) -- kept here so the horizon-conflict
+// warning can update live as the user changes Years/Category, before they
+// click "Build Plan" (the backend's own check runs again after, as
+// confirmation/fallback).
+const FUND_CATEGORY_RISK_TIER: Record<string, "cash_short" | "growth" | null> = {
+  All: null,
+  Bond: "cash_short",
+  "US Large Blend": "growth",
+  "US Total Market": "growth",
+  "US Growth": "growth",
+  "US Small Cap": "growth",
+  International: "growth",
+};
+
+function horizonConflictWarnings(years: number, fundCategory: string): string[] {
+  const warnings: string[] = [];
+  const tier = FUND_CATEGORY_RISK_TIER[fundCategory];
+  if (years < 3) {
+    if (tier === "growth") {
+      warnings.push(
+        `A ${years}-year horizon calls for cash and short-duration bonds -- "${fundCategory}" is an equity category and carries meaningfully more risk than this timeframe usually allows for.`,
+      );
+    }
+    warnings.push(`Individual stock picks are equity risk, which is generally not appropriate for a ${years}-year horizon.`);
+  } else if (years < 7) {
+    if (tier === "growth") {
+      warnings.push(
+        `A ${years}-year horizon calls for a conservative mix with equity capped -- "${fundCategory}" is a full growth category; consider a more conservative source or capping how much of the plan it drives.`,
+      );
+    }
+    warnings.push(`Individual stock picks are equity risk; at a ${years}-year horizon, consider limiting how much of the plan relies on them.`);
+  }
+  return warnings;
+}
 
 function scoreInfo(pick: StrategyPickRow): ColumnInfo {
   const rows = pick.score_basis.map((f) => {
@@ -58,14 +92,27 @@ function scoreInfo(pick: StrategyPickRow): ColumnInfo {
   };
 }
 
+function fmtMoney(v: number | null | undefined, opts: Intl.NumberFormatOptions = {}) {
+  if (v === null || v === undefined) return "N/A";
+  return `$${v.toLocaleString(undefined, { maximumFractionDigits: 0, ...opts })}`;
+}
+
 export default function StrategiesPage() {
   const [fundCategories, setFundCategories] = useState<string[]>([]);
   const [stockUniverses, setStockUniverses] = useState<string[]>([]);
+  const [accountTypes, setAccountTypes] = useState<AccountType[]>(["Taxable", "Traditional", "Roth"]);
+  const [taxDragByAccount, setTaxDragByAccount] = useState<Record<string, number>>({ Taxable: 0.5, Traditional: 0, Roth: 0 });
 
+  const [mode, setMode] = useState<SolveMode>("required_return");
   const [targetAmount, setTargetAmount] = useState(1_000_000);
+  const [dollarsMode, setDollarsMode] = useState<DollarsMode>("today");
+  const [inflationPct, setInflationPct] = useState(2.5);
   const [years, setYears] = useState(5);
   const [startingCapital, setStartingCapital] = useState(0);
-  const [customReturn, setCustomReturn] = useState(10);
+  const [monthlyContribution, setMonthlyContribution] = useState(500);
+  const [annualIncreasePct, setAnnualIncreasePct] = useState(0);
+  const [annualReturnPct, setAnnualReturnPct] = useState(8);
+  const [accountType, setAccountType] = useState<AccountType>("Taxable");
   const [topN, setTopN] = useState(1);
   const [fundCategory, setFundCategory] = useState("All");
   const [stockUniverse, setStockUniverse] = useState("All");
@@ -99,10 +146,13 @@ export default function StrategiesPage() {
       .then((res) => {
         setFundCategories(res.fund_categories);
         setStockUniverses(res.stock_universes);
+        setAccountTypes(res.account_types);
+        setTaxDragByAccount(res.tax_drag_pct_by_account);
         setFundCategory(res.fund_categories[0] ?? "All");
         setStockUniverse(res.stock_universes[0] ?? "All");
         setTargetAmount(res.defaults.target_amount);
         setYears(res.defaults.years);
+        setInflationPct(res.defaults.inflation_pct);
       })
       .catch(() => {});
 
@@ -118,17 +168,24 @@ export default function StrategiesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const preflightHorizonWarnings = useMemo(() => horizonConflictWarnings(years, fundCategory), [years, fundCategory]);
+
   async function handleSavePlan() {
+    if (!data) return;
     setSaving(true);
     setSaveError(null);
     setSaveMessage(null);
     try {
       await saveStrategyPlan({
         name: planName.trim() || undefined,
-        target_amount: targetAmount,
-        years,
+        target_amount: data.plan.target_future_dollars,
+        years: data.plan.years,
         starting_capital: startingCapital,
-        annual_return_pct: customReturn,
+        annual_return_pct: data.plan.gross_return_pct ?? 0,
+        monthly_contribution: data.plan.monthly_contribution,
+        annual_contribution_increase_pct: annualIncreasePct,
+        account_type: accountType,
+        inflation_pct: inflationPct,
       });
       setPlanName("");
       setSaveMessage("Goal saved — see it below under My Goals.");
@@ -157,18 +214,23 @@ export default function StrategiesPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await getStrategiesSummary({
-        target_amount: String(targetAmount),
-        years: String(years),
+      const params: Record<string, string> = {
+        mode,
+        dollars_mode: dollarsMode,
         starting_capital: String(startingCapital),
-        min_return: "6",
-        max_return: "15",
-        return_step: "2",
-        custom_return: String(customReturn),
+        annual_contribution_increase_pct: String(annualIncreasePct),
+        inflation_pct: String(inflationPct),
+        account_type: accountType,
         fund_category: fundCategory,
         stock_universe: stockUniverse,
         top_n: String(topN),
-      });
+      };
+      if (mode !== "achievable_amount") params.target_amount = String(targetAmount);
+      if (mode !== "time_to_goal") params.years = String(years);
+      if (mode !== "required_contribution") params.monthly_contribution = String(monthlyContribution);
+      if (mode !== "required_return") params.annual_return_pct = String(annualReturnPct);
+
+      const res = await getStrategiesSummary(params);
       setData(res);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
@@ -178,11 +240,13 @@ export default function StrategiesPage() {
     }
   }
 
+  const plan = data?.plan ?? null;
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <h1 className="text-2xl font-semibold text-slate-900">Strategies</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Build a target-based investing strategy and see the best fund and stock candidates that can help build it.
+        Build a feasible plan — pick what to solve for, see whether it's realistic, and get the candidates behind it.
       </p>
 
       {plansError && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{plansError}</p>}
@@ -196,53 +260,52 @@ export default function StrategiesPage() {
             today — it assumes the contribution was made, not a verified ledger of it.
           </p>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {plans.map((plan) => (
-              <div key={plan.id} className="rounded-lg border border-slate-200 bg-white p-4">
+            {plans.map((p) => (
+              <div key={p.id} className="rounded-lg border border-slate-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-slate-900">
-                      {plan.name || `$${plan.target_amount.toLocaleString()} in ${plan.years}y`}
+                      {p.name || `$${p.target_amount.toLocaleString()} in ${p.years}y`}
                     </p>
                     <p className="text-xs text-slate-500">
-                      ${plan.monthly_contribution.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo at{" "}
-                      {plan.annual_return_pct.toFixed(1)}% · saved {new Date(plan.created_at).toLocaleDateString()}
+                      ${p.monthly_contribution.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo at{" "}
+                      {p.annual_return_pct.toFixed(1)}% · {p.account_type}
+                      {p.annual_contribution_increase_pct > 0 && ` · +${p.annual_contribution_increase_pct}%/yr contribution step-up`}
+                      {" · saved "}
+                      {new Date(p.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      plan.progress.on_track ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                      p.progress.on_track ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
                     }`}
                   >
-                    {plan.progress.on_track ? "On track" : "Behind pace"}
+                    {p.progress.on_track ? "On track" : "Behind pace"}
                   </span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <p className="text-xs text-slate-500">Expected by now</p>
-                    <p className="font-medium text-slate-800">
-                      ${plan.progress.expected_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </p>
+                    <p className="font-medium text-slate-800">{fmtMoney(p.progress.expected_value)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Your portfolio now</p>
-                    <p className="font-medium text-slate-800">
-                      ${plan.progress.actual_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </p>
+                    <p className="font-medium text-slate-800">{fmtMoney(p.progress.actual_value)}</p>
                   </div>
                 </div>
-                <p className={`mt-2 text-xs font-medium ${plan.progress.on_track ? "text-emerald-600" : "text-red-600"}`}>
-                  {plan.progress.diff >= 0 ? "+" : ""}
-                  ${plan.progress.diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  {plan.progress.diff_pct !== null && ` (${plan.progress.diff_pct >= 0 ? "+" : ""}${plan.progress.diff_pct.toFixed(1)}%)`}
+                <p className={`mt-2 text-xs font-medium ${p.progress.on_track ? "text-emerald-600" : "text-red-600"}`}>
+                  {p.progress.diff >= 0 ? "+" : ""}
+                  {fmtMoney(p.progress.diff)}
+                  {p.progress.diff_pct !== null && ` (${p.progress.diff_pct >= 0 ? "+" : ""}${p.progress.diff_pct.toFixed(1)}%)`}
                   {" "}
-                  vs. plan · {plan.progress.months_elapsed} mo in
+                  vs. plan · {p.progress.months_elapsed} mo in
                 </p>
                 <button
-                  onClick={() => handleDeletePlan(plan.id)}
-                  disabled={deletingId === plan.id}
+                  onClick={() => handleDeletePlan(p.id)}
+                  disabled={deletingId === p.id}
                   className="mt-3 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
                 >
-                  {deletingId === plan.id ? "Removing…" : "Remove"}
+                  {deletingId === p.id ? "Removing…" : "Remove"}
                 </button>
               </div>
             ))}
@@ -250,193 +313,272 @@ export default function StrategiesPage() {
         </div>
       )}
 
-      <form onSubmit={runPlan} className="mt-6 flex flex-wrap items-end gap-3">
-        <Field label="Target amount">
-          <input type="number" min={50000} max={10000000} step={50000} value={targetAmount} onChange={(e) => setTargetAmount(Number(e.target.value))} className="input w-32" />
-        </Field>
-        <Field label="Years to goal">
-          <input type="number" min={1} max={20} value={years} onChange={(e) => setYears(Number(e.target.value))} className="input w-20" />
-        </Field>
-        <Field label="Starting capital">
-          <input
-            type="number"
-            min={0}
-            max={10000000}
-            step={1000}
-            value={startingCapital}
-            onChange={(e) => {
-              setStartingCapital(Number(e.target.value));
-              setStartingCapitalTouched(true);
-            }}
-            className="input w-28"
-          />
-        </Field>
-        <Field label="Custom return %">
-          <input type="number" min={4} max={20} value={customReturn} onChange={(e) => setCustomReturn(Number(e.target.value))} className="input w-20" />
-        </Field>
-        <Field label="Picks per strategy">
-          <input type="number" min={1} max={5} value={topN} onChange={(e) => setTopN(Number(e.target.value))} className="input w-16" />
-        </Field>
-        <Field label="Fund category source">
-          <select value={fundCategory} onChange={(e) => setFundCategory(e.target.value)} className="input">
-            {fundCategories.map((c) => (
-              <option key={c} value={c}>{c}</option>
+      <form onSubmit={runPlan} className="mt-6 flex flex-col gap-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Solve for">
+            <select value={mode} onChange={(e) => setMode(e.target.value as SolveMode)} className="input">
+              {(Object.keys(SOLVE_MODE_LABELS) as SolveMode[]).map((m) => (
+                <option key={m} value={m}>{SOLVE_MODE_LABELS[m]}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label={mode === "achievable_amount" ? "Target amount (solved)" : "Target amount"}>
+            <input
+              type="number" min={1} max={100000000} step={10000}
+              value={targetAmount}
+              onChange={(e) => setTargetAmount(Number(e.target.value))}
+              disabled={mode === "achievable_amount"}
+              className="input w-32 disabled:bg-slate-50 disabled:text-slate-400"
+            />
+          </Field>
+          <Field label="In">
+            <select value={dollarsMode} onChange={(e) => setDollarsMode(e.target.value as DollarsMode)} className="input" disabled={mode === "achievable_amount"}>
+              <option value="today">Today&apos;s dollars</option>
+              <option value="future">Future dollars</option>
+            </select>
+          </Field>
+
+          <Field label={mode === "time_to_goal" ? "Years to goal (solved)" : "Years to goal"}>
+            <input
+              type="number" min={1} max={20}
+              value={years}
+              onChange={(e) => setYears(Number(e.target.value))}
+              disabled={mode === "time_to_goal"}
+              className="input w-20 disabled:bg-slate-50 disabled:text-slate-400"
+            />
+          </Field>
+
+          <Field label="Starting capital">
+            <input
+              type="number" min={0} max={10000000} step={1000}
+              value={startingCapital}
+              onChange={(e) => {
+                setStartingCapital(Number(e.target.value));
+                setStartingCapitalTouched(true);
+              }}
+              className="input w-28"
+            />
+          </Field>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label={mode === "required_contribution" ? "Monthly contribution (solved)" : "Monthly contribution"}>
+            <input
+              type="number" min={0} max={1000000} step={50}
+              value={monthlyContribution}
+              onChange={(e) => setMonthlyContribution(Number(e.target.value))}
+              disabled={mode === "required_contribution"}
+              className="input w-28 disabled:bg-slate-50 disabled:text-slate-400"
+            />
+          </Field>
+          <Field label="Annual contribution increase %">
+            <input
+              type="number" min={0} max={20} step={0.5}
+              value={annualIncreasePct}
+              onChange={(e) => setAnnualIncreasePct(Number(e.target.value))}
+              className="input w-20"
+            />
+          </Field>
+          <Field label={mode === "required_return" ? "Annual return % (solved)" : "Annual return %"}>
+            <input
+              type="number" min={-20} max={50} step={0.5}
+              value={annualReturnPct}
+              onChange={(e) => setAnnualReturnPct(Number(e.target.value))}
+              disabled={mode === "required_return"}
+              className="input w-24 disabled:bg-slate-50 disabled:text-slate-400"
+            />
+          </Field>
+          <Field label="Inflation %">
+            <input type="number" min={0} max={15} step={0.1} value={inflationPct} onChange={(e) => setInflationPct(Number(e.target.value))} className="input w-20" />
+          </Field>
+          <Field label="Account type">
+            <select value={accountType} onChange={(e) => setAccountType(e.target.value as AccountType)} className="input">
+              {accountTypes.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <p className="text-xs text-slate-500">
+          {accountType} accounts assume a {(taxDragByAccount[accountType] ?? 0).toFixed(1)}%/year tax drag on returns during
+          accumulation{(taxDragByAccount[accountType] ?? 0) === 0 ? " (tax-advantaged, no drag modeled)." : " (dividend/turnover taxation)."}
+        </p>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Picks per strategy">
+            <input type="number" min={1} max={5} value={topN} onChange={(e) => setTopN(Number(e.target.value))} className="input w-16" />
+          </Field>
+          <Field label="Fund category source">
+            <select value={fundCategory} onChange={(e) => setFundCategory(e.target.value)} className="input">
+              {fundCategories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Stock universe source">
+            <select value={stockUniverse} onChange={(e) => setStockUniverse(e.target.value)} className="input">
+              {stockUniverses.map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          </Field>
+          <button type="submit" disabled={loading} className="btn-primary">
+            {loading ? "Building…" : "Build Plan"}
+          </button>
+        </div>
+
+        {preflightHorizonWarnings.length > 0 && (
+          <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {preflightHorizonWarnings.map((w) => (
+              <p key={w}>{w}</p>
             ))}
-          </select>
-        </Field>
-        <Field label="Stock universe source">
-          <select value={stockUniverse} onChange={(e) => setStockUniverse(e.target.value)} className="input">
-            {stockUniverses.map((u) => (
-              <option key={u} value={u}>{u}</option>
-            ))}
-          </select>
-        </Field>
-        <button type="submit" disabled={loading} className="btn-primary">
-          {loading ? "Building…" : "Build Plan"}
-        </button>
+          </div>
+        )}
       </form>
 
       {loading && <p className="mt-4 text-sm text-slate-500">Building your plan…</p>}
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      {data && !loading && (
+      {plan && !loading && (
         <div className="mt-6 flex flex-col gap-6">
           <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="text-lg font-semibold text-slate-900">What It Takes</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              To target <strong>${targetAmount.toLocaleString()}</strong> in <strong>{years} years</strong>, the
-              required monthly contribution depends heavily on return assumptions and starting capital.
+            <h2 className="text-lg font-semibold text-slate-900">{plan.solved_field_label}</h2>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">
+              {plan.mode === "required_return"
+                ? plan.solved_value !== null ? `${plan.solved_value.toFixed(1)}%` : "Not reachable"
+                : plan.mode === "required_contribution"
+                ? fmtMoney(plan.solved_value) + "/mo"
+                : plan.mode === "time_to_goal"
+                ? plan.solved_value !== null ? `${plan.solved_value.toFixed(1)} years` : "Not within 60 years"
+                : fmtMoney(plan.solved_value)}
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              Target: {fmtMoney(plan.target_today_dollars)} in today&apos;s dollars ·{" "}
+              {fmtMoney(plan.target_future_dollars)} in future dollars (at {plan.years.toFixed(1)}y, {plan.inflation_pct}% inflation)
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <MetricTile label="Target" value={`$${targetAmount.toLocaleString()}`} />
-            <MetricTile label="Time Horizon" value={`${years} years`} />
-            <MetricTile label={`Needed at ${customReturn}%`} value={`$${data.custom_monthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo`} />
-          </div>
+          {plan.feasibility_level === "warning" && (
+            <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">{plan.feasibility_message}</div>
+          )}
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <p className="text-sm font-medium text-slate-700">Save this goal to track your progress over time</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Saves the {customReturn}% case above — target ${targetAmount.toLocaleString()} in {years} years,
-              ${data.custom_monthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo — and starts
-              comparing it against your real portfolio value every time you visit.
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <input
-                type="text"
-                placeholder="Optional name, e.g. Retirement"
-                value={planName}
-                onChange={(e) => setPlanName(e.target.value)}
-                className="input w-56"
-                maxLength={100}
-              />
-              <button
-                type="button"
-                onClick={handleSavePlan}
-                disabled={saving}
-                className="btn-primary"
-              >
-                {saving ? "Saving…" : "Save This Goal"}
-              </button>
-            </div>
-            {saveMessage && <p className="mt-2 text-xs text-emerald-700">{saveMessage}</p>}
-            {saveError && <p className="mt-2 text-xs text-red-600">{saveError}</p>}
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                  <th className="px-3 py-2">Strategy</th>
-                  <th className="px-3 py-2">Annual Return %</th>
-                  <th className="px-3 py-2">Required Monthly</th>
-                  <th className="px-3 py-2">Total Contributions</th>
-                  <th className="px-3 py-2">Projected Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.plan_table.map((row) => (
-                  <tr key={row.Strategy} className="border-b border-slate-100 last:border-0">
-                    <td className="px-3 py-2 text-slate-700">{row.Strategy}</td>
-                    <td className="px-3 py-2 text-slate-700">{row["Annual Return %"].toFixed(1)}%</td>
-                    <td className="px-3 py-2 text-slate-700">${row["Required Monthly Invest"].toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                    <td className="px-3 py-2 text-slate-700">${row["Total Contributions"].toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                    <td className="px-3 py-2 text-slate-700">${row["Projected Value"].toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {data.plan_table.length > 0 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <PlanChart targetAmount={targetAmount} years={years} planTable={data.plan_table} />
+          {plan.feasibility_level === "blocked" && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+              <p className="text-sm font-medium text-red-800">{plan.feasibility_message}</p>
+              {plan.fixes && (
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {plan.fixes.map((fix) => (
+                    <div key={fix.type} className="rounded-md border border-red-200 bg-white p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-red-700">{fix.label}</p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {fix.type === "more_time" && (fix.years_needed != null ? `${fix.years_needed} years instead of ${plan.years.toFixed(1)}` : "N/A")}
+                        {fix.type === "more_contribution" &&
+                          (fix.monthly_contribution_needed != null
+                            ? `${fmtMoney(fix.monthly_contribution_needed)}/mo instead of ${fmtMoney(plan.monthly_contribution)}/mo`
+                            : "N/A")}
+                        {fix.type === "lower_target" && `${fmtMoney(fix.achievable_target_future_dollars)} instead of ${fmtMoney(plan.target_future_dollars)}`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Best Builders Right Now</h2>
-            <p className="mt-1 text-sm text-slate-500">Built live from the current top-ranked fund and stock results.</p>
-          </div>
-
-          {data.picks.length === 0 ? (
-            <p className="text-sm text-slate-500">No ranked picks were available right now.</p>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {data.picks.map((pick) => {
-                const historicMetrics = pick.score_basis.filter((f) => f.metric.toLowerCase().includes("return") && f.value !== null);
-                return (
-                  <div key={`${pick.label}-${pick.ticker}`} className="rounded-lg border border-slate-200 bg-white p-5">
-                    <h3 className="font-semibold text-slate-900">{pick.label}</h3>
-                    <p className="text-sm text-slate-700">{pick.ticker} — {pick.name}</p>
-                    <p className="mt-1 text-sm text-slate-600">Type: {pick.asset_type}</p>
-
-                    <KpiLine
-                      label="Ranking score"
-                      value={`${pick.score.toFixed(1)}/100`}
-                      onInfoClick={() => setActiveKpiInfo(scoreInfo(pick))}
-                    />
-                    <KpiLine
-                      label="Historic annualized return"
-                      value={pick.annual_return_pct !== null ? `${pick.annual_return_pct.toFixed(2)}%` : "N/A"}
-                      onInfoClick={() => setActiveKpiInfo(KPI_INFO.historic_return)}
-                    />
-                    <KpiLine
-                      label="Monthly needed"
-                      value={pick.implied_monthly !== null ? `$${pick.implied_monthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo` : "N/A"}
-                      onInfoClick={() => setActiveKpiInfo(KPI_INFO.monthly_needed)}
-                    />
-                    <KpiLine
-                      label="Projected value"
-                      value={pick.projected_value !== null ? `$${pick.projected_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "N/A"}
-                      onInfoClick={() => setActiveKpiInfo(KPI_INFO.projected_value)}
-                    />
-
-                    {historicMetrics.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
-                        {historicMetrics.map((f) => (
-                          <span
-                            key={f.metric}
-                            className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-600"
-                            title={`${f.metric}: weighted ${f.weight_pct}% of the ranking score`}
-                          >
-                            {f.metric}: {f.value !== null ? f.value.toFixed(2) : "N/A"}{f.unit ? f.unit : ""}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+          {plan.horizon_warnings.length > 0 && (
+            <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {plan.horizon_warnings.map((w) => (
+                <p key={w}>{w}</p>
+              ))}
             </div>
+          )}
+
+          {plan.feasibility_level !== "blocked" && (
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <p className="text-sm font-medium text-slate-700">Save this goal to track your progress over time</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Saves this plan — target {fmtMoney(plan.target_future_dollars)} in {plan.years.toFixed(1)} years,{" "}
+                {fmtMoney(plan.monthly_contribution)}/mo at {plan.gross_return_pct?.toFixed(1)}% — and starts comparing it
+                against your real portfolio value every time you visit.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Optional name, e.g. Retirement"
+                  value={planName}
+                  onChange={(e) => setPlanName(e.target.value)}
+                  className="input w-56"
+                  maxLength={100}
+                />
+                <button type="button" onClick={handleSavePlan} disabled={saving} className="btn-primary">
+                  {saving ? "Saving…" : "Save This Goal"}
+                </button>
+              </div>
+              {saveMessage && <p className="mt-2 text-xs text-emerald-700">{saveMessage}</p>}
+              {saveError && <p className="mt-2 text-xs text-red-600">{saveError}</p>}
+            </div>
+          )}
+
+          {plan.feasibility_level !== "blocked" && (
+            <>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Best Builders Right Now</h2>
+                <p className="mt-1 text-sm text-slate-500">Built live from the current top-ranked fund and stock results.</p>
+              </div>
+
+              {!data?.picks || data.picks.length === 0 ? (
+                <p className="text-sm text-slate-500">No ranked picks were available right now.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {data.picks.map((pick) => {
+                    const historicMetrics = pick.score_basis.filter((f) => f.metric.toLowerCase().includes("return") && f.value !== null);
+                    return (
+                      <div key={`${pick.label}-${pick.ticker}`} className="rounded-lg border border-slate-200 bg-white p-5">
+                        <h3 className="font-semibold text-slate-900">{pick.label}</h3>
+                        <p className="text-sm text-slate-700">{pick.ticker} — {pick.name}</p>
+                        <p className="mt-1 text-sm text-slate-600">Type: {pick.asset_type}</p>
+
+                        <KpiLine
+                          label="Ranking score"
+                          value={`${pick.score.toFixed(1)}/100`}
+                          onInfoClick={() => setActiveKpiInfo(scoreInfo(pick))}
+                        />
+                        <KpiLine
+                          label="Historic annualized return"
+                          value={pick.annual_return_pct !== null ? `${pick.annual_return_pct.toFixed(2)}%` : "N/A"}
+                          onInfoClick={() => setActiveKpiInfo(KPI_INFO.historic_return)}
+                        />
+
+                        {historicMetrics.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
+                            {historicMetrics.map((f) => (
+                              <span
+                                key={f.metric}
+                                className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-600"
+                                title={`${f.metric}: weighted ${f.weight_pct}% of the ranking score`}
+                              >
+                                {f.metric}: {f.value !== null ? f.value.toFixed(2) : "N/A"}{f.unit ? f.unit : ""}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
 
           <div className="rounded-lg border border-slate-200 bg-white p-5">
             <h3 className="font-semibold text-slate-900">Final Note</h3>
             <p className="mt-2 text-sm text-slate-600">
-              This page is a planning calculator, not a promise. It uses simplified compounding math and current
-              ranking outputs, and does not account for taxes, slippage, dividends, or changing market regimes.
+              This page is a planning calculator, not a promise. Projections are hypothetical and not predictive of
+              actual results; past performance is not indicative of future results. It uses simplified compounding
+              math and current ranking outputs, and does not account for fees, slippage, dividends, or changing
+              market regimes beyond the stated {accountType} tax-drag assumption. Not investment advice.
             </p>
           </div>
         </div>
@@ -470,15 +612,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex flex-col gap-1">
       <label className="text-xs font-medium text-slate-500">{label}</label>
       {children}
-    </div>
-  );
-}
-
-function MetricTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );
 }

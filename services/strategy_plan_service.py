@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from .monthly_investing_service import project_future_value_periods
+from .million_plan_service import _future_value
 
 AVG_DAYS_PER_MONTH = 365.25 / 12
 
@@ -22,18 +22,26 @@ def compute_plan_progress(
     annual_return_pct: float,
     months_elapsed: int,
     current_portfolio_value: float,
+    annual_increase_pct: float = 0.0,
 ) -> dict:
     """
-    Expected value if the plan's fixed monthly_contribution had been
-    invested every month since creation at annual_return_pct, compared
-    against the user's actual live portfolio value. This is a proxy, not
-    a ledger — it assumes the contribution was actually made each month,
-    which the app has no way to verify without a full contribution log.
+    Expected value if the plan's monthly_contribution (stepping up by
+    annual_increase_pct once every 12 months, 0 for plans saved before that
+    option existed) had been invested every month since creation at
+    annual_return_pct, compared against the user's actual live portfolio
+    value. This is a proxy, not a ledger — it assumes the contribution was
+    actually made each month, which the app has no way to verify without a
+    full contribution log.
+
+    Uses million_plan_service._future_value as its compounding primitive
+    (annuity-due: contribute, then grow, each month) instead of a separately
+    -compounded starting-capital term -- mathematically identical to the
+    previous two-term calculation when annual_increase_pct is 0 (folding a
+    constant starting balance into the same contribute-then-grow loop
+    distributes no differently than compounding it on its own), so existing
+    saved plans' progress numbers are unaffected by this change.
     """
-    monthly_rate = annual_return_pct / 100 / 12
-    contributions_fv = project_future_value_periods(monthly_contribution, months_elapsed, annual_return_pct) or 0.0
-    starting_fv = starting_capital * ((1 + monthly_rate) ** months_elapsed)
-    expected_value = contributions_fv + starting_fv
+    expected_value = _future_value(starting_capital, monthly_contribution, annual_increase_pct, annual_return_pct, months_elapsed)
 
     diff = current_portfolio_value - expected_value
     diff_pct = (diff / expected_value * 100.0) if expected_value else None

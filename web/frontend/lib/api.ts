@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  AccountType,
   AdminActivityRow,
   AdminIntegration,
   AdminIntegrationTestResult,
@@ -76,6 +77,7 @@ import type {
   SavedScreen,
   SavedStrategyPlan,
   SignalOutcomesResponse,
+  SolveMode,
   StockRankResponse,
   StockScoreResponse,
   StrategiesSummaryResponse,
@@ -395,7 +397,10 @@ export function getStrategiesOptions() {
     fund_categories: string[];
     stock_goals: string[];
     stock_universes: string[];
-    defaults: { target_amount: number; years: number };
+    solve_modes: SolveMode[];
+    account_types: AccountType[];
+    tax_drag_pct_by_account: Record<string, number>;
+    defaults: { target_amount: number; years: number; inflation_pct: number };
   }>("/api/v1/strategies/options");
 }
 
@@ -409,6 +414,10 @@ export function saveStrategyPlan(body: {
   years: number;
   starting_capital: number;
   annual_return_pct: number;
+  monthly_contribution: number;
+  annual_contribution_increase_pct: number;
+  account_type: AccountType;
+  inflation_pct: number;
 }) {
   return apiSend<SavedStrategyPlan>("/api/v1/strategies/plans", "POST", body);
 }

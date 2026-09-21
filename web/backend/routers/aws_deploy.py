@@ -580,21 +580,28 @@ create policy portfolio_drop_alerts_isolation on portfolio_drop_alerts
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
--- Saved goals from the Strategies calculator. monthly_contribution is the
--- server-computed required-monthly at save time (locked in, not
--- recomputed later) — progress tracking compounds this same fixed
--- contribution forward from created_at and compares it against the
--- user's live portfolio value, so "ahead/behind pace" means "vs. what
--- you'd have if you'd contributed this amount every month since saving."
+-- Saved goals from the Strategies calculator. monthly_contribution/
+-- annual_return_pct are whatever the plan resolved to when saved (the
+-- solved figure for the active mode, or the given input for the others),
+-- locked in at that point, not recomputed later -- progress tracking
+-- compounds this same fixed contribution (stepping up by
+-- annual_contribution_increase_pct once every 12 months) forward from
+-- created_at and compares it against the user's live portfolio value, so
+-- "ahead/behind pace" means "vs. what you'd have if you'd contributed this
+-- amount every month since saving." account_type/inflation_pct are stored
+-- for display only (what assumptions this goal was saved under).
 create table if not exists strategy_plans (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,
   name text,
   target_amount real not null,
-  years integer not null,
+  years real not null,
   starting_capital real not null,
   annual_return_pct real not null,
   monthly_contribution real not null,
+  annual_contribution_increase_pct real not null default 0,
+  account_type text not null default 'Taxable',
+  inflation_pct real not null default 2.5,
   created_at timestamptz not null default now()
 );
 create index if not exists strategy_plans_user_idx on strategy_plans(user_id, created_at desc);

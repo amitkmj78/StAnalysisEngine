@@ -433,23 +433,47 @@ export interface StrategyPickRow {
   annual_return_pct: number | null;
   score: number;
   asset_type: string;
-  implied_monthly: number | null;
-  projected_value: number | null;
   score_basis: ScoreFactor[];
 }
 
-export interface StrategyPlanRow {
-  Strategy: string;
-  "Annual Return %": number;
-  "Required Monthly Invest": number;
-  "Total Contributions": number;
-  "Projected Value": number;
+export type SolveMode = "required_return" | "required_contribution" | "time_to_goal" | "achievable_amount";
+export type DollarsMode = "today" | "future";
+export type AccountType = "Taxable" | "Traditional" | "Roth";
+export type FeasibilityLevel = "ok" | "warning" | "blocked";
+
+export interface GoalPlanFix {
+  type: "more_time" | "more_contribution" | "lower_target";
+  label: string;
+  years_needed?: number | null;
+  monthly_contribution_needed?: number | null;
+  achievable_target_future_dollars?: number;
+  achievable_target_today_dollars?: number;
+}
+
+export interface GoalPlan {
+  mode: SolveMode;
+  target_today_dollars: number;
+  target_future_dollars: number;
+  years: number;
+  starting_capital: number;
+  monthly_contribution: number;
+  annual_contribution_increase_pct: number;
+  account_type: AccountType;
+  tax_drag_pct: number;
+  inflation_pct: number;
+  solved_value: number | null;
+  solved_field_label: string;
+  gross_return_pct: number | null;
+  net_return_pct: number | null;
+  feasibility_level: FeasibilityLevel;
+  feasibility_message: string | null;
+  fixes: GoalPlanFix[] | null;
+  horizon_warnings: string[];
 }
 
 export interface StrategiesSummaryResponse {
-  plan_table: StrategyPlanRow[];
-  custom_monthly: number;
-  picks: StrategyPickRow[];
+  plan: GoalPlan;
+  picks: StrategyPickRow[] | null;
 }
 
 export interface StrategyPlanProgress {
@@ -469,6 +493,9 @@ export interface SavedStrategyPlan {
   starting_capital: number;
   annual_return_pct: number;
   monthly_contribution: number;
+  annual_contribution_increase_pct: number;
+  account_type: AccountType;
+  inflation_pct: number;
   created_at: string;
   progress: StrategyPlanProgress;
 }
