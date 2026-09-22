@@ -549,6 +549,7 @@ export interface Portfolio {
   name: string;
   created_at: string;
   margin_balance: number;
+  cash_balance: number;
   position_count: number;
 }
 
@@ -587,6 +588,7 @@ export interface PortfolioSummary {
   total_positions: number;
   total_value: number;
   total_pnl_pct: number;
+  cash_balance: number;
 }
 
 export interface PortfolioInsight {
@@ -684,6 +686,7 @@ export interface PortfolioPerformance {
   total_day_gain: number | null;
   total_day_gain_pct: number | null;
   margin_balance: number;
+  cash_balance: number;
   net_equity: number;
 }
 

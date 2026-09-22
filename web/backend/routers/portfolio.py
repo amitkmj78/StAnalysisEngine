@@ -279,11 +279,11 @@ async def list_portfolios(request: Request):
     async with user_conn(user_id) as conn:
         records = await conn.fetch(
             """
-            SELECT p.id, p.name, p.created_at, p.margin_balance, count(pp.id) AS position_count
+            SELECT p.id, p.name, p.created_at, p.margin_balance, p.cash_balance, count(pp.id) AS position_count
             FROM portfolios p
             LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = p.user_id
             WHERE p.user_id = $1::uuid AND p.is_active
-            GROUP BY p.id, p.name, p.created_at, p.margin_balance
+            GROUP BY p.id, p.name, p.created_at, p.margin_balance, p.cash_balance
             ORDER BY p.created_at ASC
             """,
             user_id,
@@ -304,7 +304,7 @@ async def create_portfolio(request: Request, body: CreatePortfolioRequest):
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
         record = await conn.fetchrow(
-            "INSERT INTO portfolios (user_id, name) VALUES ($1::uuid, $2) RETURNING id, name, created_at, margin_balance",
+            "INSERT INTO portfolios (user_id, name) VALUES ($1::uuid, $2) RETURNING id, name, created_at, margin_balance, cash_balance",
             user_id, name,
         )
     return {**_record_to_dict(record), "position_count": 0}
@@ -356,6 +356,35 @@ async def set_portfolio_margin(request: Request, portfolio_id: int, body: SetMar
     if row is None:
         raise HTTPException(404, "Portfolio not found.")
     return {"id": row["id"], "margin_balance": row["margin_balance"]}
+
+
+class SetCashRequest(BaseModel):
+    cash_balance: float
+
+
+@router.put("/{portfolio_id}/cash")
+@limiter.limit("20/minute")
+async def set_portfolio_cash(request: Request, portfolio_id: int, body: SetCashRequest):
+    """Records uninvested cash sitting in this portfolio (0 = none). An
+    asset the user edits directly, not derived from anything else — Total
+    Value and Net Equity (see /summary, /performance) add this on top of
+    position market value, but it's deliberately excluded from gain-vs-cost
+    and benchmark-comparison return percentages, since idle cash has no
+    cost basis and including it would understate the real return on what's
+    actually invested."""
+    await enforce_daily_quota(request, "portfolio/cash")
+    if body.cash_balance < 0:
+        raise HTTPException(422, "Cash balance can't be negative.")
+
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "UPDATE portfolios SET cash_balance = $1 WHERE id = $2 AND user_id = $3::uuid AND is_active RETURNING id, cash_balance",
+            body.cash_balance, portfolio_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Portfolio not found.")
+    return {"id": row["id"], "cash_balance": row["cash_balance"]}
 
 
 class ManualPositionIn(BaseModel):
@@ -624,13 +653,25 @@ async def portfolio_summary(request: Request, portfolio_id: Optional[int] = None
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
         resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        portfolio_row = await conn.fetchrow(
+            "SELECT cash_balance FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            resolved_portfolio_id, user_id,
+        )
         records = await conn.fetch(
             "SELECT * FROM portfolio_strategies WHERE portfolio_id = $1", resolved_portfolio_id
         )
 
+    # Cash is added on top of summarize_portfolio's own total_value (pure
+    # market value of positions) here in the router, not inside that
+    # function -- deliberately excluded from total_pnl_pct, which stays a
+    # position-only weighted return, same reasoning as /performance below.
+    cash_balance = portfolio_row["cash_balance"] if portfolio_row else 0.0
     rows = [_record_to_dict(r) for r in records]
     if not rows:
-        return {"summary": summarize_portfolio(pd.DataFrame())}
+        summary = summarize_portfolio(pd.DataFrame())
+        summary["total_value"] += cash_balance
+        summary["cash_balance"] = cash_balance
+        return {"summary": summary}
 
     df = pd.DataFrame(rows).rename(
         columns={
@@ -639,7 +680,10 @@ async def portfolio_summary(request: Request, portfolio_id: Optional[int] = None
             "unrealized_pnl_pct": "Unrealized_PnL_%",
         }
     )
-    return {"summary": summarize_portfolio(df)}
+    summary = summarize_portfolio(df)
+    summary["total_value"] += cash_balance
+    summary["cash_balance"] = cash_balance
+    return {"summary": summary}
 
 
 _EASTERN = ZoneInfo("America/New_York")
@@ -1263,7 +1307,7 @@ async def portfolio_performance(request: Request, lookback_days: int = 30, portf
     async with user_conn(user_id) as conn:
         resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
         portfolio_row = await conn.fetchrow(
-            "SELECT margin_balance FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            "SELECT margin_balance, cash_balance FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
             resolved_portfolio_id, user_id,
         )
         records = await conn.fetch(
@@ -1272,6 +1316,7 @@ async def portfolio_performance(request: Request, lookback_days: int = 30, portf
         )
 
     margin_balance = portfolio_row["margin_balance"] if portfolio_row else 0.0
+    cash_balance = portfolio_row["cash_balance"] if portfolio_row else 0.0
     positions = [
         {"ticker": r["ticker"], "shares": r["shares"], "avg_cost": r["avg_cost"], "acquired_at": r["acquired_at"]}
         for r in records
@@ -1280,7 +1325,7 @@ async def portfolio_performance(request: Request, lookback_days: int = 30, portf
         return {
             "lookback_days": lookback_days,
             "rows": [],
-            "total_value_now": 0.0,
+            "total_value_now": cash_balance,
             "total_value_30d_ago": 0.0,
             "value_diff": 0.0,
             "value_diff_pct": None,
@@ -1290,15 +1335,24 @@ async def portfolio_performance(request: Request, lookback_days: int = 30, portf
             "total_day_gain": None,
             "total_day_gain_pct": None,
             "margin_balance": margin_balance,
-            "net_equity": -margin_balance,
+            "cash_balance": cash_balance,
+            "net_equity": cash_balance - margin_balance,
         }
 
     result = await run_in_threadpool(compute_portfolio_performance, positions, lookback_days)
-    # Net Equity is deliberately computed here, not in
-    # compute_portfolio_performance: margin_balance is a portfolio-level
-    # liability from the `portfolios` table, unrelated to any individual
-    # position's own price/gain math that service already owns.
+    # Margin/cash are deliberately folded in here, not inside
+    # compute_portfolio_performance: both are portfolio-level fields from
+    # the `portfolios` table, unrelated to any individual position's own
+    # price/gain math that service already owns. Cash is added to the
+    # headline total_value_now (and therefore net_equity), but NOT to
+    # total_gain_vs_cost/total_gain_vs_cost_pct/value_diff_pct above --
+    # those stay position-only, since idle cash has no cost basis and
+    # including it would understate the real return on what's actually
+    # invested (this also keeps /benchmark's return comparison, which
+    # reads total_gain_vs_cost_pct, cash-free without needing its own change).
+    result["total_value_now"] += cash_balance
     result["margin_balance"] = margin_balance
+    result["cash_balance"] = cash_balance
     result["net_equity"] = result["total_value_now"] - margin_balance
     return result
 

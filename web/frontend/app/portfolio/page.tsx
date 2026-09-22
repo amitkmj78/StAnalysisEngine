@@ -15,6 +15,7 @@ import {
   getPortfolioSummary,
   movePortfolioPosition,
   refreshPortfolio,
+  setPortfolioCash,
   setPortfolioMargin,
 } from "@/lib/api";
 import { isAdmin } from "@/lib/admin";
@@ -193,14 +194,21 @@ export default function PortfolioPage() {
   const [marginSaving, setMarginSaving] = useState(false);
   const [marginSaved, setMarginSaved] = useState(false);
   const [marginError, setMarginError] = useState<string | null>(null);
+  const [cashInput, setCashInput] = useState("");
+  const [cashSaving, setCashSaving] = useState(false);
+  const [cashSaved, setCashSaved] = useState(false);
+  const [cashError, setCashError] = useState<string | null>(null);
   const currentPortfolio = allPortfolios.find((p) => p.id === selectedPortfolioId) ?? null;
 
   useEffect(() => {
     setMarginInput(currentPortfolio ? String(currentPortfolio.margin_balance) : "");
     setMarginSaved(false);
     setMarginError(null);
+    setCashInput(currentPortfolio ? String(currentPortfolio.cash_balance) : "");
+    setCashSaved(false);
+    setCashError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPortfolio?.id, currentPortfolio?.margin_balance]);
+  }, [currentPortfolio?.id, currentPortfolio?.margin_balance, currentPortfolio?.cash_balance]);
 
   async function saveMargin() {
     if (selectedPortfolioId === null) return;
@@ -221,6 +229,30 @@ export default function PortfolioPage() {
       setMarginError(err instanceof ApiError ? err.message : "Could not save margin balance.");
     } finally {
       setMarginSaving(false);
+    }
+  }
+
+  async function saveCash() {
+    if (selectedPortfolioId === null) return;
+    const value = Number(cashInput);
+    if (!Number.isFinite(value) || value < 0) {
+      setCashError("Enter a non-negative number.");
+      return;
+    }
+    setCashSaving(true);
+    setCashError(null);
+    setCashSaved(false);
+    try {
+      await setPortfolioCash(selectedPortfolioId, value);
+      setAllPortfolios((prev) => prev.map((p) => (p.id === selectedPortfolioId ? { ...p, cash_balance: value } : p)));
+      // Unlike margin, cash also feeds /summary's total_value (not just
+      // /performance), so both need refreshing to stay in sync.
+      await Promise.all([refreshPerformance(false), refreshSummary()]);
+      setCashSaved(true);
+    } catch (err) {
+      setCashError(err instanceof ApiError ? err.message : "Could not save cash balance.");
+    } finally {
+      setCashSaving(false);
     }
   }
 
@@ -286,6 +318,19 @@ export default function PortfolioPage() {
       setPerformanceError(err instanceof ApiError ? err.message : "Could not load 30-day performance.");
     } finally {
       if (showLoading && latestPortfolioIdRef.current === requestedId) setPerformanceLoading(false);
+    }
+  }
+
+  async function refreshSummary() {
+    const requestedId = selectedPortfolioId;
+    try {
+      const res = await getPortfolioSummary(requestedId ?? undefined);
+      if (latestPortfolioIdRef.current !== requestedId) return;
+      setSummary(res.summary);
+    } catch {
+      // Non-fatal here -- refresh() already surfaces a load error on first
+      // load; a cash-save-triggered refresh failing silently just leaves
+      // the summary tile one save behind until the next full refresh.
     }
   }
 
@@ -628,6 +673,23 @@ export default function PortfolioPage() {
             </button>
             {marginSaved && <span className={`text-xs font-medium ${PF.good}`}>Saved</span>}
             {marginError && <span className={`text-xs font-medium ${PF.bad}`}>{marginError}</span>}
+
+            <Field label="Available cash (uninvested)">
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={cashInput}
+                onChange={(e) => setCashInput(e.target.value)}
+                className="w-44 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm text-[#1f2420]"
+                style={MONO_FONT}
+              />
+            </Field>
+            <button type="button" onClick={saveCash} disabled={cashSaving} className={`${PF.btn} disabled:opacity-50`}>
+              {cashSaving ? "Saving…" : "Save"}
+            </button>
+            {cashSaved && <span className={`text-xs font-medium ${PF.good}`}>Saved</span>}
+            {cashError && <span className={`text-xs font-medium ${PF.bad}`}>{cashError}</span>}
           </div>
         )}
 
@@ -689,6 +751,9 @@ export default function PortfolioPage() {
               <Chip label="Positions" value={String(summary.total_positions)} />
               <Chip label="Unrealized PnL" value={`${summary.total_pnl_pct.toFixed(2)}%`} tone={summary.total_pnl_pct} />
               {performance && <Chip label="Total Paid" value={`$${performance.total_cost_basis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />}
+              {performance && performance.cash_balance > 0 && (
+                <Chip label="Cash" value={`$${performance.cash_balance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
+              )}
               {performance && performance.margin_balance > 0 && (
                 <Chip
                   label="Net Equity"

@@ -513,6 +513,12 @@ export function setPortfolioMargin(portfolioId: number, marginBalance: number) {
   });
 }
 
+export function setPortfolioCash(portfolioId: number, cashBalance: number) {
+  return apiSend<{ id: number; cash_balance: number }>(`/api/v1/portfolio/${portfolioId}/cash`, "PUT", {
+    cash_balance: cashBalance,
+  });
+}
+
 export function submitManualPositions(
   positions: ManualPositionInput[],
   riskProfile: string,

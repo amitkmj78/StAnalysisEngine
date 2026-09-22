@@ -510,6 +510,14 @@ alter table portfolios add column if not exists drop_alerts_enabled boolean not 
 -- walk away with after paying the loan back. User-edited directly, not
 -- derived from anything else in this schema.
 alter table portfolios add column if not exists margin_balance real not null default 0;
+-- Uninvested cash sitting in this portfolio (0 = none). An asset, the
+-- mirror image of margin_balance above -- added on top of position market
+-- value for Total Value and Net Equity, but deliberately excluded from
+-- gain-vs-cost/benchmark-comparison return percentages (idle cash has no
+-- cost basis; including it would understate the real return on what's
+-- actually invested). User-edited directly, not derived from anything
+-- else in this schema.
+alter table portfolios add column if not exists cash_balance real not null default 0;
 
 create table if not exists portfolio_positions (
   id bigint generated always as identity primary key,
