@@ -5,7 +5,7 @@ from typing import Optional
 import pandas as pd
 
 from .data_service import get_stock_data
-from .index_fund_service import MAX_PARALLEL_FETCHES, get_index_fund_table, rank_index_funds
+from .index_fund_service import MAX_PARALLEL_FETCHES, get_index_fund_table, rank_funds_overall, rank_index_funds
 
 
 def get_top_fund(goal: str = "Balanced Core", category: str = "All") -> Optional[dict]:
@@ -13,6 +13,7 @@ def get_top_fund(goal: str = "Balanced Core", category: str = "All") -> Optional
     same ranking already shown on /index-fund and /strategies, reused here
     as the benchmark for "top-performing fund"."""
     df, _ = rank_index_funds(goal, category)
+    df = rank_funds_overall(df)
     if df.empty:
         return None
     winner = df.iloc[0]

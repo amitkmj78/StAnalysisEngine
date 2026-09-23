@@ -1,6 +1,6 @@
 import streamlit as st
 
-from services.index_fund_service import rank_index_funds, score_fund_ticker
+from services.index_fund_service import rank_funds_overall, rank_index_funds, score_fund_ticker
 from services.ui_service import apply_app_shell
 
 
@@ -41,10 +41,12 @@ if mode == "Rank curated funds":
     )
     with st.spinner("Ranking index funds..."):
         ranked, _ = rank_index_funds(goal, category)
+        ranked = rank_funds_overall(ranked)
 else:
     fund_ticker = st.text_input("Fund ticker", value="VOO").strip().upper()
     with st.spinner("Scoring fund..."):
         ranked, _ = score_fund_ticker(goal, fund_ticker)
+        ranked = rank_funds_overall(ranked)
 
 if ranked.empty:
     st.warning("No fund data was available for that selection right now. Try another ticker or try again in a moment.")

@@ -15,6 +15,7 @@ import {
 import type {
   AccountType,
   DollarsMode,
+  ReturnAssumptionRow,
   SavedStrategyPlan,
   SolveMode,
   StrategiesSummaryResponse,
@@ -95,6 +96,13 @@ function scoreInfo(pick: StrategyPickRow): ColumnInfo {
 function fmtMoney(v: number | null | undefined, opts: Intl.NumberFormatOptions = {}) {
   if (v === null || v === undefined) return "N/A";
   return `$${v.toLocaleString(undefined, { maximumFractionDigits: 0, ...opts })}`;
+}
+
+// Rounds a solved value for display in a disabled input -- the raw API
+// figure can carry many decimals (e.g. years=14.625, contribution=537.99),
+// which is precise but not what a "solved" field should visually show.
+function round2(v: number) {
+  return Math.round(v * 100) / 100;
 }
 
 export default function StrategiesPage() {
@@ -326,7 +334,11 @@ export default function StrategiesPage() {
           <Field label={mode === "achievable_amount" ? "Target amount (solved)" : "Target amount"}>
             <input
               type="number" min={1} max={100000000} step="any"
-              value={targetAmount}
+              value={
+                mode === "achievable_amount" && plan
+                  ? round2(dollarsMode === "today" ? plan.target_today_dollars : plan.target_future_dollars)
+                  : targetAmount
+              }
               onChange={(e) => setTargetAmount(Number(e.target.value))}
               disabled={mode === "achievable_amount"}
               className="input w-32 disabled:bg-slate-50 disabled:text-slate-400"
@@ -342,7 +354,7 @@ export default function StrategiesPage() {
           <Field label={mode === "time_to_goal" ? "Years to goal (solved)" : "Years to goal"}>
             <input
               type="number" min={1} max={20}
-              value={years}
+              value={mode === "time_to_goal" && plan ? round2(plan.years) : years}
               onChange={(e) => setYears(Number(e.target.value))}
               disabled={mode === "time_to_goal"}
               className="input w-20 disabled:bg-slate-50 disabled:text-slate-400"
@@ -366,7 +378,7 @@ export default function StrategiesPage() {
           <Field label={mode === "required_contribution" ? "Monthly contribution (solved)" : "Monthly contribution"}>
             <input
               type="number" min={0} max={1000000} step={50}
-              value={monthlyContribution}
+              value={mode === "required_contribution" && plan ? round2(plan.monthly_contribution) : monthlyContribution}
               onChange={(e) => setMonthlyContribution(Number(e.target.value))}
               disabled={mode === "required_contribution"}
               className="input w-28 disabled:bg-slate-50 disabled:text-slate-400"
@@ -383,7 +395,7 @@ export default function StrategiesPage() {
           <Field label={mode === "required_return" ? "Annual return % (solved)" : "Annual return %"}>
             <input
               type="number" min={-20} max={50} step={0.5}
-              value={annualReturnPct}
+              value={mode === "required_return" && plan && plan.gross_return_pct !== null ? round2(plan.gross_return_pct) : annualReturnPct}
               onChange={(e) => setAnnualReturnPct(Number(e.target.value))}
               disabled={mode === "required_return"}
               className="input w-24 disabled:bg-slate-50 disabled:text-slate-400"
@@ -461,7 +473,10 @@ export default function StrategiesPage() {
           </div>
 
           {plan.feasibility_level === "warning" && (
-            <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">{plan.feasibility_message}</div>
+            <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p>{plan.feasibility_message}</p>
+              {plan.return_assumption_table && <ReturnAssumptionTable rows={plan.return_assumption_table} tone="amber" />}
+            </div>
           )}
 
           {plan.feasibility_level === "blocked" && (
@@ -484,6 +499,7 @@ export default function StrategiesPage() {
                   ))}
                 </div>
               )}
+              {plan.return_assumption_table && <ReturnAssumptionTable rows={plan.return_assumption_table} tone="red" />}
             </div>
           )}
 
@@ -533,7 +549,14 @@ export default function StrategiesPage() {
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {data.picks.map((pick) => {
-                    const historicMetrics = pick.score_basis.filter((f) => f.metric.toLowerCase().includes("return") && f.value !== null);
+                    // Every metric this pick's own goal actually weights --
+                    // e.g. "Lowest Cost" surfaces expense ratio, "Most
+                    // Stable" surfaces volatility/max drawdown, not just
+                    // return figures. "3-Year Annualized Return" is
+                    // excluded here since the dedicated KpiLine below
+                    // already shows that exact number -- showing it twice
+                    // was the reported duplicate.
+                    const weightedMetrics = pick.score_basis.filter((f) => f.value !== null && f.metric !== "3-Year Annualized Return");
                     return (
                       <div key={`${pick.label}-${pick.ticker}`} className="rounded-lg border border-slate-200 bg-white p-5">
                         <h3 className="font-semibold text-slate-900">{pick.label}</h3>
@@ -546,14 +569,14 @@ export default function StrategiesPage() {
                           onInfoClick={() => setActiveKpiInfo(scoreInfo(pick))}
                         />
                         <KpiLine
-                          label="Historic annualized return"
+                          label="3-year annualized return"
                           value={pick.annual_return_pct !== null ? `${pick.annual_return_pct.toFixed(2)}%` : "N/A"}
                           onInfoClick={() => setActiveKpiInfo(KPI_INFO.historic_return)}
                         />
 
-                        {historicMetrics.length > 0 && (
+                        {weightedMetrics.length > 0 && (
                           <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
-                            {historicMetrics.map((f) => (
+                            {weightedMetrics.map((f) => (
                               <span
                                 key={f.metric}
                                 className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-600"
@@ -585,6 +608,33 @@ export default function StrategiesPage() {
       )}
 
       {activeKpiInfo && <InfoModal info={activeKpiInfo} onClose={() => setActiveKpiInfo(null)} />}
+    </div>
+  );
+}
+
+function ReturnAssumptionTable({ rows, tone }: { rows: ReturnAssumptionRow[]; tone: "amber" | "red" }) {
+  const borderColor = tone === "amber" ? "border-amber-200" : "border-red-200";
+  const headColor = tone === "amber" ? "text-amber-700" : "text-red-700";
+  return (
+    <div className={`mt-3 overflow-hidden rounded-md border ${borderColor} bg-white`}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className={`border-b ${borderColor} text-left text-xs font-semibold uppercase tracking-wide ${headColor}`}>
+            <th className="px-3 py-1.5">If the real return is</th>
+            <th className="px-3 py-1.5 text-right">Monthly contribution needed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.annual_return_pct} className={`border-b ${borderColor} text-slate-700 last:border-0`}>
+              <td className="px-3 py-1.5">{row.annual_return_pct.toFixed(0)}%</td>
+              <td className="px-3 py-1.5 text-right">
+                {row.monthly_contribution_needed != null ? `${fmtMoney(row.monthly_contribution_needed)}/mo` : "N/A"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

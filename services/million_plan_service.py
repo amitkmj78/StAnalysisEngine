@@ -9,7 +9,7 @@ from services.index_fund_service import GOAL_WEIGHTS as FUND_GOAL_WEIGHTS
 from services.index_fund_service import LOWER_IS_BETTER as FUND_LOWER_IS_BETTER
 from services.index_fund_service import METRIC_LABELS as FUND_METRIC_LABELS
 from services.index_fund_service import METRIC_UNITS as FUND_METRIC_UNITS
-from services.index_fund_service import rank_index_funds
+from services.index_fund_service import rank_funds_overall, rank_index_funds
 from services.monthly_investing_service import project_future_value
 from services.stock_finder_service import GOAL_WEIGHTS as STOCK_GOAL_WEIGHTS
 from services.stock_finder_service import LOWER_IS_BETTER as STOCK_LOWER_IS_BETTER
@@ -157,6 +157,7 @@ def get_million_plan_picks(
     picks: list[StrategyPick] = []
 
     ranked_funds, _ = rank_index_funds(fund_goal, fund_category)
+    ranked_funds = rank_funds_overall(ranked_funds)
     if not ranked_funds.empty:
         for idx, (_, winner) in enumerate(ranked_funds.head(top_n).iterrows(), start=1):
             picks.append(
@@ -187,10 +188,6 @@ def get_million_plan_picks(
     return picks
 
 
-MIN_FUND_PICKS = 10
-MIN_STOCK_PICKS = 10
-
-
 def get_diverse_strategy_picks(
     fund_category: str,
     stock_universe: str,
@@ -204,21 +201,21 @@ def get_diverse_strategy_picks(
     Same underlying ranking functions, just called across the full goal
     space instead of a single selection.
 
-    Regardless of top_n, at least MIN_FUND_PICKS funds and MIN_STOCK_PICKS
-    stocks are always returned (spread evenly across each goal) so the
-    list has real breadth to browse, not just one pick per philosophy.
+    top_n is honored literally (this used to silently force a higher
+    minimum "for breadth," which meant the Strategies page's own "Picks
+    per strategy" control had no effect -- a real, reported bug. If more
+    breadth is wanted later, it should be a separate, visible control, not
+    a silent floor on this one).
     """
     picks: list[StrategyPick] = []
 
-    fund_n = max(top_n, -(-MIN_FUND_PICKS // len(FUND_GOAL_WEIGHTS)))
-    stock_n = max(top_n, -(-MIN_STOCK_PICKS // len(STOCK_GOAL_WEIGHTS)))
-
     for fund_goal in FUND_GOAL_WEIGHTS:
         ranked_funds, _ = rank_index_funds(fund_goal, fund_category)
+        ranked_funds = rank_funds_overall(ranked_funds)
         if ranked_funds.empty:
             continue
-        for idx, (_, winner) in enumerate(ranked_funds.head(fund_n).iterrows(), start=1):
-            suffix = f" #{idx}" if fund_n > 1 else ""
+        for idx, (_, winner) in enumerate(ranked_funds.head(top_n).iterrows(), start=1):
+            suffix = f" #{idx}" if top_n > 1 else ""
             picks.append(
                 StrategyPick(
                     label=f"{fund_goal}{suffix}",
@@ -237,8 +234,8 @@ def get_diverse_strategy_picks(
         ranked_stocks = rank_stocks(stock_goal, stock_universe)
         if ranked_stocks.empty:
             continue
-        for idx, (_, winner) in enumerate(ranked_stocks.head(stock_n).iterrows(), start=1):
-            suffix = f" #{idx}" if stock_n > 1 else ""
+        for idx, (_, winner) in enumerate(ranked_stocks.head(top_n).iterrows(), start=1):
+            suffix = f" #{idx}" if top_n > 1 else ""
             picks.append(
                 StrategyPick(
                     label=f"{stock_goal} Stock{suffix}",
@@ -312,8 +309,18 @@ def _future_value(
     exactly the kind of subtle-bug risk a shared primitive avoids. months is
     bounded low enough by every caller (<=720, i.e. 60 years) that the loop
     cost is negligible even inside a bisection search.
+
+    monthly_rate is the geometric root of annual_return_pct, not
+    annual_return_pct/12: dividing by 12 treats the input as a nominal/APR
+    rate, which compounds to MORE than the stated annual return once
+    applied monthly (a stated 14.5%/12 compounds to ~15.5% effective) --
+    silently erasing an assumption like a tax-drag adjustment in the
+    process. (1+r)**(1/12)-1 is the rate that actually compounds to
+    exactly annual_return_pct over 12 months, matching how "annual return"
+    is meant here and everywhere else on this page (the effective rate,
+    the way people actually mean "the S&P returns ~10%/year").
     """
-    monthly_rate = annual_return_pct / 100 / 12
+    monthly_rate = (1 + annual_return_pct / 100) ** (1 / 12) - 1
     balance = starting_capital
     contribution = monthly_contribution
     for month in range(months):
@@ -452,6 +459,29 @@ def check_horizon_conflict(years: float, fund_category: str, include_stock_picks
     return warnings
 
 
+# Shown as a companion table whenever the plan is in the warning/blocked
+# feasibility band, so the message isn't just "that's unrealistic" -- it's
+# "here's what it actually costs at return assumptions people would
+# consider reasonable."
+RETURN_ASSUMPTION_TABLE_PCTS = [6.0, 8.0, 10.0, 12.0]
+
+
+def _return_assumption_table(
+    target_future: float, years: float, starting_capital: float, annual_increase_pct: float, tax_drag_pct: float
+) -> list[dict]:
+    rows = []
+    for gross_pct in RETURN_ASSUMPTION_TABLE_PCTS:
+        net_pct = gross_pct - tax_drag_pct
+        contribution = solve_required_contribution(target_future, years, starting_capital, net_pct, annual_increase_pct)
+        rows.append(
+            {
+                "annual_return_pct": gross_pct,
+                "monthly_contribution_needed": round(contribution, 2) if contribution is not None else None,
+            }
+        )
+    return rows
+
+
 @dataclass(frozen=True)
 class GoalPlanResult:
     mode: str
@@ -471,6 +501,7 @@ class GoalPlanResult:
     feasibility_level: str
     feasibility_message: Optional[str]
     fixes: Optional[list[dict]]
+    return_assumption_table: Optional[list[dict]]
     horizon_warnings: list[str]
 
 
@@ -571,6 +602,19 @@ def compute_goal_plan(
     # solve_required_return couldn't reach the target even at 50% -- that's
     # not "ok", it's the single worst case this gate exists to catch, so it
     # blocks exactly like an explicit >15% figure does.
+    # years/monthly_contribution can themselves be unresolved by this point
+    # (e.g. mode="time_to_goal" failed to converge even at 60 years, or
+    # mode="required_contribution" never had a given contribution to begin
+    # with) -- these safe fallbacks are shared by the "blocked" three-fixes
+    # computation and the warning/blocked return-assumption table below,
+    # rather than crashing either on a None.
+    years_for_fixes = years if years else 30.0
+    contribution_for_fixes = (
+        monthly_contribution
+        if monthly_contribution is not None
+        else (solved_value if mode == "required_contribution" and solved_value is not None else 0.0)
+    )
+
     if gross_return_pct is None or gross_return_pct > FEASIBILITY_BLOCK_THRESHOLD_PCT:
         feasibility_level = "blocked"
         feasibility_message = (
@@ -580,17 +624,6 @@ def compute_goal_plan(
                 f"This plan needs a {gross_return_pct:.1f}% annual return, which is not a realistic assumption to plan "
                 "around. Here's what would have to change instead:"
             )
-        )
-        # years/monthly_contribution can themselves be unresolved here (e.g.
-        # mode="time_to_goal" failed to converge even at 60 years, or
-        # mode="required_contribution" never had a given contribution to
-        # begin with) -- fall back to a sane default horizon/contribution
-        # rather than crash the three fixes on a None.
-        years_for_fixes = years if years else 30.0
-        contribution_for_fixes = (
-            monthly_contribution
-            if monthly_contribution is not None
-            else (solved_value if mode == "required_contribution" and solved_value is not None else 0.0)
         )
         fix_years = solve_time_to_goal(
             target_future, starting_capital, contribution_for_fixes, FEASIBILITY_WARN_THRESHOLD_PCT - tax_drag_pct, annual_contribution_increase_pct
@@ -619,6 +652,9 @@ def compute_goal_plan(
                 "achievable_target_today_dollars": round(fix_target_future / inflation_factor, 2) if inflation_factor else round(fix_target_future, 2),
             },
         ]
+        return_assumption_table = _return_assumption_table(
+            target_future, years_for_fixes, starting_capital, annual_contribution_increase_pct, tax_drag_pct
+        )
     elif gross_return_pct > FEASIBILITY_WARN_THRESHOLD_PCT:
         feasibility_level = "warning"
         feasibility_message = (
@@ -626,10 +662,14 @@ def compute_goal_plan(
             "achievable at this contribution level -- treat it as a stretch goal, not a plan."
         )
         fixes = None
+        return_assumption_table = _return_assumption_table(
+            target_future, years_for_fixes, starting_capital, annual_contribution_increase_pct, tax_drag_pct
+        )
     else:
         feasibility_level = "ok"
         feasibility_message = None
         fixes = None
+        return_assumption_table = None
 
     horizon_warnings = check_horizon_conflict(years or 0, fund_category, include_stock_picks) if years else []
 
@@ -653,5 +693,6 @@ def compute_goal_plan(
         feasibility_level=feasibility_level,
         feasibility_message=feasibility_message,
         fixes=fixes,
+        return_assumption_table=return_assumption_table,
         horizon_warnings=horizon_warnings,
     )

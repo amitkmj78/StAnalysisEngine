@@ -6,7 +6,7 @@ import pandas as pd
 import yfinance as yf
 
 from services.cache_utils import ttl_cache
-from services.index_fund_service import rank_index_funds
+from services.index_fund_service import rank_funds_overall, rank_index_funds
 from services.stock_finder_service import rank_stocks
 
 
@@ -22,6 +22,7 @@ class Recommendation:
 def get_best_monthly_pick(asset_type: str, goal: str, category_or_universe: str) -> Recommendation | None:
     if asset_type == "Fund":
         ranked, _ = rank_index_funds(goal, category_or_universe)
+        ranked = rank_funds_overall(ranked)
         if ranked.empty:
             return None
         winner = ranked.iloc[0]

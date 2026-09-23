@@ -75,7 +75,7 @@ def _universe_tickers(universe_key: str) -> List[str]:
     return STOCK_UNIVERSES.get(universe_key, [])
 
 
-LOWER_IS_BETTER = {"volatility_6m", "max_drawdown_1y", "forward_pe"}
+LOWER_IS_BETTER = {"volatility_6m", "max_drawdown_1y", "max_drawdown_3y", "forward_pe"}
 
 METRIC_LABELS: Dict[str, str] = {
     "return_1m": "1-Month Return",
@@ -88,6 +88,8 @@ METRIC_LABELS: Dict[str, str] = {
     "volume_strength": "Volume Strength",
     "volatility_6m": "6-Month Volatility",
     "max_drawdown_1y": "1-Year Max Drawdown",
+    "max_drawdown_3y": "3-Year Max Drawdown",
+    "sharpe_3y": "3-Year Sharpe Ratio",
     "forward_pe": "Forward P/E",
     "revenue_growth": "Revenue Growth",
     "earnings_growth": "Earnings Growth",
@@ -104,6 +106,8 @@ METRIC_UNITS: Dict[str, str] = {
     "volume_strength": "%",
     "volatility_6m": "%",
     "max_drawdown_1y": "%",
+    "max_drawdown_3y": "%",
+    "sharpe_3y": "",
     "forward_pe": "x",
     "revenue_growth": "%",
     "earnings_growth": "%",
@@ -119,14 +123,22 @@ GOAL_WEIGHTS: Dict[str, Dict[str, float]] = {
         "volume_strength": 0.10,
         "volatility_6m": 0.05,
     },
+    # Reweighted away from recent-momentum windows (return_6m dropped
+    # entirely, return_1y cut to a light residual) toward what "long term"
+    # is actually supposed to mean: the full-history return and risk-
+    # adjusted return (sharpe_3y), full-history drawdown rather than just
+    # the trailing year, and the existing valuation/quality metrics --
+    # previously 60% of this score was some flavor of recent price
+    # momentum, which is what "Short Term" already measures; MRNA/AMD
+    # showing up in both lists was a direct symptom of that overlap.
     "Long Term": {
-        "return_1y": 0.28,
-        "return_6m": 0.12,
-        "return_3y_annualized": 0.20,
-        "revenue_growth": 0.12,
+        "return_3y_annualized": 0.25,
+        "sharpe_3y": 0.25,
+        "max_drawdown_3y": 0.15,
+        "revenue_growth": 0.10,
         "earnings_growth": 0.10,
-        "forward_pe": 0.08,
-        "max_drawdown_1y": 0.10,
+        "forward_pe": 0.10,
+        "return_1y": 0.05,
     },
 }
 
@@ -141,14 +153,31 @@ def _pct_return(close: pd.Series, lookback: int) -> float | None:
     return (end / start - 1.0) * 100
 
 
-def _annualized_return(close: pd.Series, trading_days: int = 252) -> float | None:
+def _annualized_return(close: pd.Series, trading_days: int = 252, min_years: float = 2.9) -> float | None:
+    """
+    Compound annual growth rate over `close`'s full span. Requires at
+    least ~min_years of real trading history before annualizing at all --
+    without this, a short window gets raised to a large power (1/years),
+    which is exactly how a recently-spun-off/IPO'd ticker with only a few
+    months of real history can show a "3-year annualized return" in the
+    thousands of percent. Same "not enough data yet -> None" convention
+    _pct_return already uses below, not a new pattern.
+
+    Also sanity-bounded: an annualized figure this extreme is far more
+    likely a computation artifact (or a non-repeatable one-off event) than
+    a reliable signal worth ranking #1 on, so it's flagged out (None)
+    rather than silently trusted and fed into scoring.
+    """
     if close.empty or len(close) < 2:
         return None
     years = len(close) / trading_days
-    if years <= 0:
+    if years < min_years:
         return None
     total_return = float(close.iloc[-1]) / float(close.iloc[0])
-    return (total_return ** (1 / years) - 1.0) * 100
+    annualized = (total_return ** (1 / years) - 1.0) * 100
+    if annualized > 200 or annualized < -95:
+        return None
+    return annualized
 
 
 def _max_drawdown(close: pd.Series) -> float | None:
@@ -223,6 +252,7 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
         return_60d = _pct_return(close, 60)
         return_90d = _pct_return(close, 90)
         max_drawdown_1y = _max_drawdown(close.tail(252))
+        max_drawdown_3y = _max_drawdown(close)
 
         daily_returns_6m = close.tail(126).pct_change().dropna()
         volatility_6m = (
@@ -230,6 +260,18 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
             if not daily_returns_6m.empty
             else None
         )
+
+        # Risk-adjusted return over the fund's/stock's full available
+        # history (up to 3y), risk-free rate treated as 0% -- same
+        # simplifying convention services/momentum_backtest_service.py
+        # already uses, not a new assumption. None (not a fake 0) when
+        # there's too little history or zero volatility to divide by.
+        daily_returns_3y = close.pct_change().dropna()
+        if return_3y_annualized is not None and not daily_returns_3y.empty:
+            volatility_3y = float(daily_returns_3y.std() * np.sqrt(252) * 100)
+            sharpe_3y = (return_3y_annualized / volatility_3y) if volatility_3y else None
+        else:
+            sharpe_3y = None
 
         try:
             rsi = float(ta.momentum.RSIIndicator(close, window=14).rsi().iloc[-1])
@@ -279,6 +321,8 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
             "Volume Strength %": volume_strength,
             "6M Volatility %": volatility_6m,
             "1Y Max Drawdown %": max_drawdown_1y,
+            "3Y Max Drawdown %": max_drawdown_3y,
+            "3Y Sharpe": sharpe_3y,
         }
     except Exception:
         return None
@@ -326,6 +370,8 @@ def rank_stocks(goal: str, universe_key: str) -> pd.DataFrame:
     df["volume_strength"] = df["Volume Strength %"]
     df["volatility_6m"] = df["6M Volatility %"]
     df["max_drawdown_1y"] = df["1Y Max Drawdown %"]
+    df["max_drawdown_3y"] = df["3Y Max Drawdown %"]
+    df["sharpe_3y"] = df["3Y Sharpe"]
     df["forward_pe"] = df["Forward PE"]
     df["revenue_growth"] = df["Revenue Growth %"]
     df["earnings_growth"] = df["Earnings Growth %"]
@@ -424,6 +470,8 @@ def score_stock_ticker(goal: str, ticker_symbol: str) -> pd.DataFrame:
     df["volume_strength"] = df["Volume Strength %"]
     df["volatility_6m"] = df["6M Volatility %"]
     df["max_drawdown_1y"] = df["1Y Max Drawdown %"]
+    df["max_drawdown_3y"] = df["3Y Max Drawdown %"]
+    df["sharpe_3y"] = df["3Y Sharpe"]
     df["forward_pe"] = df["Forward PE"]
     df["revenue_growth"] = df["Revenue Growth %"]
     df["earnings_growth"] = df["Earnings Growth %"]

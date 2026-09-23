@@ -16,6 +16,7 @@ from services.index_fund_service import (
     _window_bounds,
     _zscore_series,
     normalize_custom_weights,
+    rank_funds_overall,
 )
 
 
@@ -217,3 +218,44 @@ def test_normalize_custom_weights_rejects_empty_input():
 def test_normalize_custom_weights_rejects_negative_weight():
     with pytest.raises(InvalidCustomWeights):
         normalize_custom_weights({"return_1y": -1})
+
+
+# ---------------------------------------------------------------------------
+# rank_funds_overall -- regression test for a real, reported bug: callers
+# that want "the best fund(s) overall" (get_top_fund, get_diverse_strategy_
+# picks, etc.) were taking .head(n)/.iloc[0] directly off rank_index_funds's
+# own Category-then-Score sorted output, so they silently returned whichever
+# category sorted alphabetically first -- not the best-scoring funds. A fund
+# with a peer-group Score of 0.0 (the correct result for a single-member
+# category with no peers to compare against) was observed ranking #1 for
+# every goal, ahead of a fund scoring 70+, purely because its category name
+# came first alphabetically.
+# ---------------------------------------------------------------------------
+
+
+def test_rank_funds_overall_reorders_category_first_sort_by_score():
+    # Mirrors rank_index_funds's own Category-then-Score sort: category "A"
+    # sorts first alphabetically but only has a low-scoring fund, while
+    # category "B" (sorted second) has the genuinely best-scoring fund.
+    df = pd.DataFrame(
+        {
+            "Ticker": ["ALOW", "BHIGH", "BMID"],
+            "Category": ["A", "B", "B"],
+            "Score": [5.0, 90.0, 40.0],
+            "1Y Return %": [1.0, 2.0, 3.0],
+            "Assets ($B)": [1.0, 2.0, 3.0],
+        }
+    ).sort_values(["Category", "Score"], ascending=[True, False]).reset_index(drop=True)
+
+    # Before the fix, a naive .iloc[0] on the Category-first-sorted df
+    # would return ALOW (Score 5.0) simply because "A" < "B".
+    assert df.iloc[0]["Ticker"] == "ALOW"
+
+    overall = rank_funds_overall(df)
+    assert overall.iloc[0]["Ticker"] == "BHIGH"
+    assert list(overall["Ticker"]) == ["BHIGH", "BMID", "ALOW"]
+
+
+def test_rank_funds_overall_empty_df_is_a_noop():
+    df = pd.DataFrame()
+    assert rank_funds_overall(df).empty

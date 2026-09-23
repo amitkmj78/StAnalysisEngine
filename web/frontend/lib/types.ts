@@ -468,7 +468,13 @@ export interface GoalPlan {
   feasibility_level: FeasibilityLevel;
   feasibility_message: string | null;
   fixes: GoalPlanFix[] | null;
+  return_assumption_table: ReturnAssumptionRow[] | null;
   horizon_warnings: string[];
+}
+
+export interface ReturnAssumptionRow {
+  annual_return_pct: number;
+  monthly_contribution_needed: number | null;
 }
 
 export interface StrategiesSummaryResponse {

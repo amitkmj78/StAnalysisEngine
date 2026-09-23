@@ -467,7 +467,12 @@ def _build_fund_row(fund: IndexFundCandidate, raw: FundRawData, start: pd.Timest
     # rather than silently omitted, so the gap is visible, not hidden.
     turnover_pct = _coerce_percent(info.get("annualHoldingsTurnover"))
 
-    name = info.get("shortName") or info.get("longName") or fund.name
+    # longName first, not shortName: Yahoo's own shortName field is
+    # genuinely truncated at the source for several sector SPDRs (e.g. XLY
+    # comes back as "Consumer Discretio") -- longName is the real full
+    # name, and our own curated INDEX_FUND_UNIVERSE name is a reliable
+    # second fallback; shortName (when neither of those exist) is last.
+    name = info.get("longName") or fund.name or info.get("shortName")
     category = info.get("category") or fund.category
 
     inception_ts = info.get("fundInceptionDate")
@@ -634,6 +639,26 @@ def rank_index_funds(goal: str, category: str, window: str = "5y", custom_weight
     df = _apply_peer_group_scores(df, weights)
     df = df.sort_values(["Category", "Score", "1Y Return %", "Assets ($B)"], ascending=[True, False, False, False]).reset_index(drop=True)
     return df, window_meta
+
+
+def rank_funds_overall(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    rank_index_funds's own return is sorted Category-first (so a category=
+    "All" caller can group its display by category, per FS-3) -- Score is
+    only a secondary tiebreaker *within* whichever category happens to sort
+    alphabetically first. A caller that wants "the single best fund" or
+    "the top N funds overall" (get_top_fund, get_diverse_strategy_picks, the
+    legacy Streamlit page, etc.) must re-sort by Score first, or it silently
+    returns whichever category's funds come first alphabetically -- not the
+    best-scoring ones. This was a real, live bug: two funds with a
+    peer-group Score of 0.0 (the correct z-score result for a single-member
+    category, which has no peers to compare against) were still being
+    returned as the "top picks" for every goal, because their category name
+    sorted before every other category's.
+    """
+    if df.empty:
+        return df
+    return df.sort_values(["Score", "1Y Return %", "Assets ($B)"], ascending=[False, False, False]).reset_index(drop=True)
 
 
 def score_fund_ticker(goal: str, ticker_symbol: str, window: str = "5y", custom_weights: Optional[Dict[str, float]] = None) -> tuple[pd.DataFrame, dict]:

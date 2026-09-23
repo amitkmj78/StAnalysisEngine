@@ -40,11 +40,23 @@ def test_future_value_zero_months_is_just_starting_capital():
 
 
 def test_future_value_matches_textbook_annuity_due_growth():
-    # $1000/mo for 12 months at 12%/yr (1%/mo), annuity-due (contribute then
-    # grow): FV = 1000 * [((1.01)^12 - 1) / 0.01] * 1.01
+    # $1000/mo for 12 months at a 12%/yr EFFECTIVE annual return, annuity
+    # -due (contribute then grow). monthly_rate is the geometric root of
+    # 12% (not 12%/12=1%) -- 1% nominal-per-month compounds to ~12.68%
+    # effective over a year, which would silently overstate the stated
+    # annual return; this pins the fixed, correct convention.
     fv = _future_value(0, 1000, 0, 12.0, 12)
-    expected = 1000 * (((1.01) ** 12 - 1) / 0.01) * 1.01
+    monthly_rate = (1.12) ** (1 / 12) - 1
+    expected = 1000 * (((1 + monthly_rate) ** 12 - 1) / monthly_rate) * (1 + monthly_rate)
     assert fv == pytest.approx(expected, rel=1e-9)
+
+
+def test_future_value_effective_annual_rate_is_exact_over_one_year():
+    # $1 with no contributions, 12 months at 12% -- must become exactly
+    # $1.12, proving "annual return %" means the true effective annual
+    # rate, not a nominal/APR rate that over-compounds when applied monthly.
+    fv = _future_value(1.0, 0, 0, 12.0, 12)
+    assert fv == pytest.approx(1.12, rel=1e-9)
 
 
 def test_future_value_contribution_steps_up_annually():
