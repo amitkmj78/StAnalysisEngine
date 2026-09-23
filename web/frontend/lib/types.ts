@@ -470,11 +470,36 @@ export interface GoalPlan {
   fixes: GoalPlanFix[] | null;
   return_assumption_table: ReturnAssumptionRow[] | null;
   horizon_warnings: string[];
+  monte_carlo: MonteCarloResult | null;
 }
 
 export interface ReturnAssumptionRow {
   annual_return_pct: number;
   monthly_contribution_needed: number | null;
+}
+
+export interface MonteCarloPercentileBand {
+  year: number;
+  p10: number;
+  p50: number;
+  p90: number;
+}
+
+export interface MonteCarloAssumptions {
+  return_distribution_method: string;
+  num_paths: number;
+  sequence_of_returns_modeled: boolean;
+  rebalancing_frequency: string;
+  sleeve_correlation_model: string;
+}
+
+export interface MonteCarloResult {
+  probability_of_success_pct: number | null;
+  median_ending_balance: number;
+  p10_ending_balance: number;
+  p90_ending_balance: number;
+  percentile_bands: MonteCarloPercentileBand[];
+  assumptions: MonteCarloAssumptions;
 }
 
 export interface StrategiesSummaryResponse {

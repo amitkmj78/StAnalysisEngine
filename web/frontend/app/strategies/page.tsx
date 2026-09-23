@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import MonteCarloChart from "@/components/strategies/MonteCarloChart";
 import {
   ApiError,
   deleteStrategyPlan,
@@ -15,6 +16,7 @@ import {
 import type {
   AccountType,
   DollarsMode,
+  GoalPlan,
   ReturnAssumptionRow,
   SavedStrategyPlan,
   SolveMode,
@@ -472,6 +474,8 @@ export default function StrategiesPage() {
             </p>
           </div>
 
+          <MonteCarloPanel plan={plan} />
+
           {plan.feasibility_level === "warning" && (
             <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <p>{plan.feasibility_message}</p>
@@ -635,6 +639,82 @@ function ReturnAssumptionTable({ rows, tone }: { rows: ReturnAssumptionRow[]; to
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+const PROB_TONE_CLASSES: Record<"emerald" | "amber" | "red", string> = {
+  emerald: "text-emerald-600",
+  amber: "text-amber-600",
+  red: "text-red-600",
+};
+
+function MonteCarloPanel({ plan }: { plan: GoalPlan }) {
+  const mc = plan.monte_carlo;
+  if (!mc) return null;
+  const prob = mc.probability_of_success_pct;
+  const tone: "emerald" | "amber" | "red" | null = prob === null ? null : prob >= 70 ? "emerald" : prob >= 40 ? "amber" : "red";
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-5">
+      <h2 className="text-lg font-semibold text-slate-900">Probability of Success</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        {mc.assumptions.num_paths.toLocaleString()} randomly sampled possible futures, built from real historical
+        market returns — not just the one average-return number above.
+      </p>
+
+      {prob !== null && tone !== null ? (
+        <>
+          <p className={`mt-3 text-4xl font-semibold ${PROB_TONE_CLASSES[tone]}`}>{prob.toFixed(1)}%</p>
+          <p className="mt-1 text-sm text-slate-600">
+            of simulated paths reached {fmtMoney(plan.target_future_dollars)} or more by year {plan.years.toFixed(1)}.
+          </p>
+        </>
+      ) : (
+        <p className="mt-3 text-sm text-slate-600">
+          This mode has no fixed target to hit, so there&apos;s no single probability to show — the spread below is
+          the range of likely ending balances instead.
+        </p>
+      )}
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">10th percentile</p>
+          <p className="mt-1 text-lg font-semibold text-slate-800">{fmtMoney(mc.p10_ending_balance)}</p>
+          <p className="mt-1 text-xs text-slate-500">A rough outcome — 90% of simulations did better.</p>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Median</p>
+          <p className="mt-1 text-lg font-semibold text-slate-800">{fmtMoney(mc.median_ending_balance)}</p>
+          <p className="mt-1 text-xs text-slate-500">The middle outcome — half did better, half worse.</p>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">90th percentile</p>
+          <p className="mt-1 text-lg font-semibold text-slate-800">{fmtMoney(mc.p90_ending_balance)}</p>
+          <p className="mt-1 text-xs text-slate-500">A strong outcome — only 10% of simulations did better.</p>
+        </div>
+      </div>
+
+      {mc.percentile_bands.length > 0 && (
+        <div className="mt-4">
+          <MonteCarloChart result={mc} startingCapital={plan.starting_capital} />
+        </div>
+      )}
+
+      <details className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+        <summary className="cursor-pointer font-medium text-slate-700">Simulation assumptions</summary>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>{mc.assumptions.return_distribution_method}.</li>
+          <li>{mc.assumptions.num_paths.toLocaleString()} simulated paths.</li>
+          <li>
+            {mc.assumptions.sequence_of_returns_modeled
+              ? "Sequence-of-returns risk is modeled — the order returns arrive in varies per simulated path, not just the long-run average."
+              : "Sequence-of-returns risk is not modeled."}
+          </li>
+          <li>Rebalancing: {mc.assumptions.rebalancing_frequency}.</li>
+          <li>Correlation across holdings: {mc.assumptions.sleeve_correlation_model}.</li>
+        </ul>
+      </details>
     </div>
   );
 }

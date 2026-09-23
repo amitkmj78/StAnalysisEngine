@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
+import numpy as np
 import pandas as pd
 
 from services.index_fund_service import GOAL_WEIGHTS as FUND_GOAL_WEIGHTS
 from services.index_fund_service import LOWER_IS_BETTER as FUND_LOWER_IS_BETTER
 from services.index_fund_service import METRIC_LABELS as FUND_METRIC_LABELS
 from services.index_fund_service import METRIC_UNITS as FUND_METRIC_UNITS
-from services.index_fund_service import rank_funds_overall, rank_index_funds
+from services.index_fund_service import _get_raw_fund_data, rank_funds_overall, rank_index_funds
 from services.monthly_investing_service import project_future_value
 from services.stock_finder_service import GOAL_WEIGHTS as STOCK_GOAL_WEIGHTS
 from services.stock_finder_service import LOWER_IS_BETTER as STOCK_LOWER_IS_BETTER
@@ -482,6 +484,138 @@ def _return_assumption_table(
     return rows
 
 
+MONTE_CARLO_NUM_PATHS = 2000
+
+
+def _spy_monthly_return_pool() -> np.ndarray:
+    """
+    Real historical monthly total returns (dividends reinvested, since
+    the underlying price series is fetched with auto_adjust=True) for
+    SPY, back to 1993 -- the Monte Carlo's bootstrap sample pool.
+    Preserves real fat-tail/skew equity return behavior that a normal
+    distribution would understate (and which would overstate success
+    probability if used instead). Reuses index_fund_service's already
+    24h-cached raw price data -- SPY is already fetched there for every
+    Fund Screener and Strategies picks call, so this is zero new network
+    calls, not a new fetch.
+    """
+    raw = _get_raw_fund_data()
+    spy = raw.get("SPY")
+    if spy is None or spy.prices.empty:
+        return np.array([])
+    monthly = spy.prices.resample("ME").last()
+    return monthly.pct_change().dropna().to_numpy()
+
+
+def run_monte_carlo(
+    starting_capital: float,
+    monthly_contribution: float,
+    annual_increase_pct: float,
+    net_annual_return_pct: float,
+    months: int,
+    target_future: Optional[float],
+    num_paths: int = MONTE_CARLO_NUM_PATHS,
+    pool: Optional[np.ndarray] = None,
+) -> Optional[dict]:
+    """
+    Simulates num_paths possible futures by bootstrapping monthly returns
+    from SPY's real historical distribution (re-centered so its mean
+    matches net_annual_return_pct's geometric monthly rate -- preserving
+    SPY's real historical volatility/skew shape while keeping the
+    simulation's average outcome consistent with the return already shown
+    elsewhere on the plan, rather than silently substituting SPY's own
+    ~12%/yr historical average regardless of what the plan assumes).
+    Applies the same contribute-then-grow, contribution-steps-up-annually
+    mechanics as _future_value, but independently per path -- the ORDER
+    returns arrive in varies per path, so sequence-of-returns risk is
+    modeled by construction, not bolted on afterward.
+
+    pool overrides the SPY bootstrap pool (skips _spy_monthly_return_pool
+    and its network-backed fetch entirely) -- for tests, so the core
+    simulation math can be verified with a synthetic, hand-checkable
+    return distribution instead of live market data.
+
+    Vectorized with numpy across paths: draws a (num_paths, months)
+    matrix of returns up front, then a single Python loop over months
+    operating on the whole path-vector of balances at once. A pure
+    per-path Python loop would be up to ~1.4M iterations (2000 paths x
+    720 months for a 60-year plan) -- slow enough to matter inside a
+    synchronous API call.
+
+    Deterministically seeded from the plan's own inputs (rounded, hashed)
+    so identical requests return identical results -- a page that shows
+    a different probability on every refresh for the same inputs would
+    read as broken, not as "real randomness."
+
+    Returns None (not a fake result) if the SPY bootstrap pool is
+    unavailable, or if there are no months to simulate -- the caller
+    must treat this as "simulation unavailable," not silently omit the
+    probability while still showing everything else as normal.
+    """
+    if months <= 0:
+        return None
+    if pool is None:
+        pool = _spy_monthly_return_pool()
+    if pool.size == 0:
+        return None
+
+    seed_input = (
+        f"{starting_capital:.2f}|{monthly_contribution:.2f}|{annual_increase_pct:.4f}|"
+        f"{net_annual_return_pct:.4f}|{months}"
+    )
+    seed = int(hashlib.sha256(seed_input.encode()).hexdigest()[:8], 16)
+    rng = np.random.default_rng(seed)
+
+    pool_mean = pool.mean()
+    assumed_monthly_rate = (1 + net_annual_return_pct / 100) ** (1 / 12) - 1
+    shifted_pool = pool + (assumed_monthly_rate - pool_mean)
+
+    draws = rng.choice(shifted_pool, size=(num_paths, months), replace=True)
+
+    balances = np.full(num_paths, starting_capital, dtype=float)
+    contribution = monthly_contribution
+    percentile_bands: list[dict] = []
+    for month in range(months):
+        if month > 0 and month % 12 == 0:
+            contribution *= 1 + annual_increase_pct / 100
+        balances = (balances + contribution) * (1 + draws[:, month])
+        if (month + 1) % 12 == 0:
+            percentile_bands.append(
+                {
+                    "year": (month + 1) // 12,
+                    "p10": round(float(np.percentile(balances, 10)), 2),
+                    "p50": round(float(np.percentile(balances, 50)), 2),
+                    "p90": round(float(np.percentile(balances, 90)), 2),
+                }
+            )
+
+    probability_of_success_pct = (
+        round(float((balances >= target_future).mean() * 100), 1) if target_future is not None else None
+    )
+
+    return {
+        "probability_of_success_pct": probability_of_success_pct,
+        "median_ending_balance": round(float(np.percentile(balances, 50)), 2),
+        "p10_ending_balance": round(float(np.percentile(balances, 10)), 2),
+        "p90_ending_balance": round(float(np.percentile(balances, 90)), 2),
+        "percentile_bands": percentile_bands,
+        "assumptions": {
+            "return_distribution_method": (
+                "Historical bootstrap: SPY real monthly total returns since 1993, re-centered to this "
+                "plan's assumed annual return"
+            ),
+            "num_paths": num_paths,
+            "sequence_of_returns_modeled": True,
+            "rebalancing_frequency": (
+                "Not applicable -- single blended-return assumption, not yet a multi-asset allocation"
+            ),
+            "sleeve_correlation_model": (
+                "Not applicable -- single blended-return assumption, not yet a multi-asset allocation"
+            ),
+        },
+    }
+
+
 @dataclass(frozen=True)
 class GoalPlanResult:
     mode: str
@@ -503,6 +637,7 @@ class GoalPlanResult:
     fixes: Optional[list[dict]]
     return_assumption_table: Optional[list[dict]]
     horizon_warnings: list[str]
+    monte_carlo: Optional[dict]
 
 
 _SOLVED_FIELD_LABELS = {
@@ -673,6 +808,29 @@ def compute_goal_plan(
 
     horizon_warnings = check_horizon_conflict(years or 0, fund_category, include_stock_picks) if years else []
 
+    # Runs regardless of feasibility level (a low probability on an
+    # already-flagged-unrealistic plan is reinforcing evidence, not
+    # something to hide) -- but only when there's an actual net return to
+    # center the simulation on (None in required_return mode when even a
+    # 50% return couldn't reach the target; nothing sensible to simulate
+    # around in that case). achievable_amount mode has no user-specified
+    # target to judge success against -- target_future there is the
+    # SOLVED ending balance, not a goal, so probability_of_success_pct
+    # stays None for that mode specifically rather than measuring "did we
+    # beat our own average case" (which is circular).
+    monte_carlo = (
+        run_monte_carlo(
+            starting_capital=starting_capital,
+            monthly_contribution=contribution_for_fixes,
+            annual_increase_pct=annual_contribution_increase_pct,
+            net_annual_return_pct=net_return_pct,
+            months=round(years_for_fixes * 12),
+            target_future=target_future if mode != "achievable_amount" else None,
+        )
+        if net_return_pct is not None
+        else None
+    )
+
     return GoalPlanResult(
         mode=mode,
         target_today_dollars=round(target_today, 2),
@@ -695,4 +853,5 @@ def compute_goal_plan(
         fixes=fixes,
         return_assumption_table=return_assumption_table,
         horizon_warnings=horizon_warnings,
+        monte_carlo=monte_carlo,
     )
