@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StAnalysisEngine Feature Reference</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #f3f4f7;
+    --surface: #ffffff;
+    --surface-2: #eceef3;
+    --ink: #14171f;
+    --muted: #5a6170;
+    --faint: #8b909c;
+    --line: #e1e4ea;
+    --accent: #7a1723;
+    --accent-ink: #ffffff;
+    --accent-tint: #fbe9ea;
+    --good: #1f7a4d;
+    --bad: #b3261e;
+    --code-bg: #eef0f4;
+    --shadow: 0 1px 2px rgba(20, 23, 31, 0.04), 0 8px 24px rgba(20, 23, 31, 0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161c;
+      --surface: #1b1e26;
+      --surface-2: #22252f;
+      --ink: #edeef3;
+      --muted: #a4aab8;
+      --faint: #767c8a;
+      --line: #2b2f3a;
+      --accent: #e2596a;
+      --accent-ink: #1c0b0e;
+      --accent-tint: #2c1a1e;
+      --good: #4fbf83;
+      --bad: #ef6a63;
+      --code-bg: #20232d;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161c;
+    --surface: #1b1e26;
+    --surface-2: #22252f;
+    --ink: #edeef3;
+    --muted: #a4aab8;
+    --faint: #767c8a;
+    --line: #2b2f3a;
+    --accent: #e2596a;
+    --accent-ink: #1c0b0e;
+    --accent-tint: #2c1a1e;
+    --good: #4fbf83;
+    --bad: #ef6a63;
+    --code-bg: #20232d;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+  }
+  ::selection { background: var(--accent-tint); color: var(--ink); }
+
+  h1, h2, h3 { font-family: "Fraunces", Georgia, serif; text-wrap: balance; color: var(--ink); }
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+  a { color: inherit; }
+
+  .shell {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+  }
+
+  .stamp-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    border-radius: 3px;
+    transform: rotate(-1.2deg);
+  }
+  .stamp svg { width: 14px; height: 14px; flex: none; }
+  .doc-meta {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    color: var(--faint);
+    text-align: right;
+  }
+
+  header.masthead {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 32px;
+    margin-bottom: 8px;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+  h1.title {
+    font-size: clamp(32px, 5vw, 46px);
+    font-weight: 600;
+    line-height: 1.08;
+    margin: 0 0 14px;
+  }
+  .dek {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  .clause {
+    margin: 32px 0 48px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    padding: 18px 22px;
+    box-shadow: var(--shadow);
+  }
+  .clause p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .clause p + p { margin-top: 10px; }
+  .clause strong { color: var(--ink); }
+
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 22px 24px;
+    margin-bottom: 56px;
+    box-shadow: var(--shadow);
+  }
+  nav.toc h2 {
+    font-size: 12.5px;
+    font-family: "IBM Plex Mono", monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 14px;
+    font-weight: 600;
+  }
+  nav.toc ol {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 28px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    counter-reset: toc;
+  }
+  nav.toc li { counter-increment: toc; }
+  nav.toc a {
+    display: flex;
+    gap: 10px;
+    text-decoration: none;
+    font-size: 14.5px;
+    color: var(--ink);
+    padding: 5px 0;
+    border-bottom: 1px dashed transparent;
+  }
+  nav.toc a:hover { border-bottom-color: var(--faint); }
+  nav.toc a::before {
+    content: counter(toc, decimal-leading-zero);
+    font-family: "IBM Plex Mono", monospace;
+    color: var(--faint);
+    font-size: 12.5px;
+    padding-top: 2px;
+  }
+  @media (max-width: 620px) {
+    nav.toc ol { grid-template-columns: 1fr; }
+  }
+
+  section.feature {
+    padding: 40px 0;
+    border-bottom: 1px solid var(--line);
+    scroll-margin-top: 20px;
+  }
+  section.feature:last-of-type { border-bottom: none; }
+
+  .feature-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 6px;
+  }
+  .feature-num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  h2.feature-title {
+    font-size: 23px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .feature-intro {
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 68ch;
+    margin: 10px 0 22px;
+  }
+
+  .cap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .cap {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+  .cap h3 {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 14.5px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+  .cap p {
+    margin: 0;
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .cap code {
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 12.5px;
+    color: var(--ink);
+  }
+
+  .tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 20px; }
+  .tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 10px;
+  }
+
+  .metric-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 18px 0 4px;
+  }
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 14px;
+    min-width: 140px;
+  }
+  .metric .k {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--faint);
+  }
+  .metric .v {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 16px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+  .metric .v.good { color: var(--good); }
+  .metric .v.bad { color: var(--bad); }
+
+  footer.doc-footer {
+    margin-top: 56px;
+    padding-top: 28px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    color: var(--faint);
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .stamp { transition: transform 0.2s ease; }
+    .stamp:hover { transform: rotate(0deg); }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="stamp-bar">
+    <span class="stamp">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg>
+      Internal &nbsp;·&nbsp; Confidential
+    </span>
+    <div class="doc-meta">v1.0 &nbsp;·&nbsp; Prepared September 2026<br>Distribution: internal only</div>
+  </div>
+
+  <header class="masthead">
+    <p class="eyebrow">Platform reference</p>
+    <h1 class="title">StAnalysisEngine — Full Feature Reference</h1>
+    <p class="dek">
+      Everything the platform does today, in one place: portfolio management, quant forecasting,
+      screening, backtesting, research, and the admin tooling that keeps it running.
+    </p>
+  </header>
+
+  <div class="clause">
+    <p><strong>Confidentiality notice.</strong> This document describes internal, proprietary
+      functionality of the StAnalysisEngine platform, including model methodology, data-provider
+      arrangements, and infrastructure design. It is intended solely for internal personnel with a
+      legitimate need to know.</p>
+    <p>Do not forward, publish, or share this document outside the organization without prior
+      authorization. If you received this in error, please delete it and notify the sender.</p>
+  </div>
+
+  <nav class="toc" aria-label="Table of contents">
+    <h2>In this document</h2>
+    <ol>
+      <li><a href="#portfolio">Portfolio management</a></li>
+      <li><a href="#forecast">AI price forecasting</a></li>
+      <li><a href="#quant-vs-analyst">Quant vs. analyst rating</a></li>
+      <li><a href="#screening">Stock &amp; fund screening</a></li>
+      <li><a href="#backtest">Momentum &amp; backtesting</a></li>
+      <li><a href="#research">Market news &amp; research</a></li>
+      <li><a href="#assistant">AI assistant</a></li>
+      <li><a href="#watchlist">Watchlist &amp; alerts</a></li>
+      <li><a href="#admin">Admin &amp; operations</a></li>
+      <li><a href="#security">Security &amp; access</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <section class="feature" id="portfolio">
+      <div class="feature-head"><span class="feature-num">01</span><h2 class="feature-title">Portfolio management</h2></div>
+      <p class="feature-intro">
+        Multiple named portfolios per user, built up from a Robinhood CSV import or manual entry,
+        priced live against the market rather than the last-saved snapshot.
+      </p>
+      <div class="tag-row">
+        <span class="tag">multi-portfolio</span><span class="tag">CSV import</span>
+        <span class="tag">live pricing</span><span class="tag">margin</span>
+      </div>
+      <div class="cap-grid">
+        <div class="cap"><h3>Multi-portfolio switching</h3><p>Create, rename, switch between, and soft-delete separate portfolios (e.g. "Retirement" vs. "Trading") without losing history on delete.</p></div>
+        <div class="cap"><h3>Robinhood CSV import</h3><p>Reconstructs open positions from raw activity history using an average-cost model, and extracts each position's real earliest-buy date from the file itself.</p></div>
+        <div class="cap"><h3>Manual entry with acquisition date</h3><p>Add a position by hand with an optional "date acquired" — defaults to today, but a real past date is honored and preserved across every later save.</p></div>
+        <div class="cap"><h3>Stable "held since" dates</h3><p>Every save (edit, refresh, CSV re-import) used to silently reset each position's acquisition date to today. Now carried forward permanently once set.</p></div>
+        <div class="cap"><h3>Live market value per position</h3><p>Shares × current price, computed fresh on every load — not the value at last save — shown to 3 decimal places per holding.</p></div>
+        <div class="cap"><h3>Today's Gain/Loss</h3><p>Standard day-P&amp;L: current price vs. yesterday's close, after-hours-aware when the market is in a pre/post session.</p></div>
+        <div class="cap"><h3>After-hours-aware pricing</h3><p>When Yahoo reports a pre- or post-market quote, portfolio value, gain/loss, and the price column all reflect it instead of the stale regular-session close.</p></div>
+        <div class="cap"><h3>30-day &amp; cost-basis comparison</h3><p>Every holding's value now vs. 30 days ago and vs. what was actually paid, independent of when the portfolio was last touched.</p></div>
+        <div class="cap"><h3>S&amp;P 500 benchmark comparison</h3><p>Portfolio return since creation and today's move, set directly against SPY — with a named, ranked list of the worst-performing holdings when trailing by a meaningful margin.</p></div>
+        <div class="cap"><h3>Sector-level concentration</h3><p>Flags not just single-ticker concentration but a whole sector overweight spread across several holdings.</p></div>
+        <div class="cap"><h3>Portfolio Review</h3><p>Deterministic flagging (SELL signal, concentration, sentiment/signal disagreement) synthesized into one readable summary — describes the data, never instructs a trade.</p></div>
+        <div class="cap"><h3>Margin balance &amp; Net Equity</h3><p>Record money borrowed against a portfolio; Net Equity (market value minus margin) appears automatically once margin is in use.</p></div>
+        <div class="cap"><h3>Build Diversified Index</h3><p>Generates an equal-weight, sector-diversified basket of individual stocks from the top scorers per sector, with an optional cap on total holding count (round-robin across sectors, not a flat cutoff).</p></div>
+        <div class="cap"><h3>Compare vs. Best Fund</h3><p>Sets a hand-built basket against the top-ranked comparable index fund.</p></div>
+        <div class="cap"><h3>Goal-Based Investing Plan</h3><p>Signal-weighted allocation solved against a target dollar goal and timeline.</p></div>
+        <div class="cap"><h3>Portfolio Strategies cards</h3><p>Short- and long-term plan per holding, blending the quant Signal with live sentiment so cards differentiate instead of reading identically across tickers. Collapsible for large portfolios.</p></div>
+      </div>
+    </section>
+
+    <section class="feature" id="forecast">
+      <div class="feature-head"><span class="feature-num">02</span><h2 class="feature-title">AI price forecasting</h2></div>
+      <p class="feature-intro">
+        A backtested quant forecast for one ticker at a time, shown next to how often the model has
+        actually beaten doing nothing — the platform's post-login landing page.
+      </p>
+      <div class="cap-grid">
+        <div class="cap"><h3>Multi-horizon forecast</h3><p>1-, 5-, and 10-day price projections with a confidence interval, plus a BUY/HOLD/SELL read derived from the same underlying number.</p></div>
+        <div class="cap"><h3>Safe Baseline Price Band</h3><p>Floor/ceiling and typical accumulation/distribution zones from historical behavior — a different, complementary methodology to the point forecast.</p></div>
+        <div class="cap"><h3>AI narrative context</h3><p>An LLM turns the model's own numbers into plain-English context — explains what the data shows, never invents a recommendation the model didn't produce.</p></div>
+        <div class="cap"><h3>Accuracy leaderboard</h3><p>Tracks how each saved forecast actually performed once its target date arrived.</p></div>
+        <div class="cap"><h3>Live market context on the landing page</h3><p>A scrolling market-news ticker and a "today's biggest winner/loser" widget, pulled from whichever portfolio was last open.</p></div>
+      </div>
+    </section>
+
+    <section class="feature" id="quant-vs-analyst">
+      <div class="feature-head"><span class="feature-num">03</span><h2 class="feature-title">Quant signal vs. analyst rating</h2></div>
+      <p class="feature-intro">
+        The model's own call next to real Wall Street analyst consensus — two independent reads,
+        shown side by side rather than blended into one score.
+      </p>
+      <div class="cap-grid">
+        <div class="cap"><h3>Side-by-side comparison table</h3><p>Quant BUY/HOLD/SELL and expected return against analyst buy-rating percentage and coverage count, for every captured ticker.</p></div>
+        <div class="cap"><h3>Signal history &amp; stability</h3><p>Tracks every signal flip over time, classifying each as a <strong>Chase</strong> (re-rating right after a big same-day move) or a <strong>Model shift</strong> (a genuine change in view).</p></div>
+        <div class="cap"><h3>Outcome-aware reasoning</h3><p>When a prediction and the actual price move disagree, generates context using the real move since the signal was captured — never claims causation it can't support.</p></div>
+        <div class="cap"><h3>Reachable from Portfolio</h3><p>Jump straight from any holding to its own quant-vs-analyst read, with a return link back.</p></div>
+      </div>
+    </section>
+
+    <section class="feature" id="screening">
+      <div class="feature-head"><span class="feature-num">04</span><h2 class="feature-title">Stock &amp; fund screening</h2></div>
+      <p class="feature-intro">Composite ranking across configurable universes, for both individual stocks and index funds.</p>
+      <div class="cap-grid">
+        <div class="cap"><h3>Stock Finder / Screener</h3><p>Weighted composite score across return, technical, and fundamental metrics, ranked within a chosen universe (S&amp;P 500, sector samples, or the full live index).</p></div>
+        <div class="cap"><h3>Live S&amp;P 500 membership</h3><p>The "All" and "S&amp;P 500" universes resolve against the real, current constituent list rather than a stale hardcoded sample.</p></div>
+        <div class="cap"><h3>Fund Screener</h3><p>Ranks existing index ETFs by category for investors who'd rather hold a fund than a hand-built basket.</p></div>
+        <div class="cap"><h3>Real analyst ratings on demand</h3><p>Live third-party consensus and price targets fetched per ticker, not part of the bulk scan.</p></div>
+      </div>
+    </section>
+
+    <section class="feature" id="backtest">
+      <div class="feature-head"><span class="feature-num">05</span><h2 class="feature-title">Momentum &amp; backtesting</h2></div>
+      <p class="feature-intro">
+        An honest, walk-forward test of the trailing-return ranking behind Top Performers — simulated
+        day by day, never peeking at what happened next.
+      </p>
+      <div class="metric-strip">
+        <div class="metric"><div class="k">Rebalance windows</div><div class="v">10 / 30 / 60 / 90d</div></div>
+        <div class="metric"><div class="k">Slippage</div><div class="v">5 bps</div></div>
+        <div class="metric"><div class="k">History span</div><div class="v">1–5 years</div></div>
+      </div>
+      <div class="cap-grid">
+        <div class="cap"><h3>Event-driven simulation</h3><p>A real day-by-day walk with explicit portfolio state, not a single bulk average — risk metrics are computed from the full daily equity curve.</p></div>
+        <div class="cap"><h3>Realistic trading costs</h3><p>Slippage and commission applied on every rebalance by default; a real (currently zero, long-only) borrow-cost formula wired into the return chain.</p></div>
+        <div class="cap"><h3>Equal-weight benchmark</h3><p>Every run is compared against simply owning the whole universe equally over the identical daily steps.</p></div>
+        <div class="cap"><h3>Capacity &amp; turnover estimates</h3><p>A conservative average-daily-volume ceiling on strategy size, plus average portfolio turnover per rebalance.</p></div>
+        <div class="cap"><h3>Persisted, re-fetchable runs</h3><p>Every backtest is saved with its full parameter set and retrievable later by id, exactly as it was computed.</p></div>
+        <div class="cap"><h3>Resilient to a large universe</h3><p>Downloads a 500+ ticker universe in paced batches, and excludes any constituent too newly listed to cover the requested window — so a recent spinoff can't silently shrink a multi-year test.</p></div>
+      </div>
+    </section>
+
+    <section class="feature" id="research">
+      <div class="feature-head"><span class="feature-num">06</span><h2 class="feature-title">Market news &amp; research</h2></div>
+      <p class="feature-intro">A self-hosted search index for curated finance sources, with licensed and free fallbacks.</p>
+      <div class="cap-grid">
+        <div class="cap"><h3>Scrolling market news ticker</h3><p>Broad market headlines from index/ETF bellwethers, shown on the Portfolio and Forecast pages; falls back to a plain web search when the primary feed is empty.</p></div>
+        <div class="cap"><h3>CrawlSearch — proprietary index</h3><p>A standalone crawler and full-text index over a curated list of finance/news domains, respecting robots.txt and per-domain rate limits.</p></div>
+        <div class="cap"><h3>On-demand crawl trigger</h3><p>Admins can start, watch live progress on, and stop a crawl across all or selected domains, without leaving the admin console.</p></div>
+        <div class="cap"><h3>Per-domain configuration</h3><p>Page caps, crawl depth, politeness delay, sitemap use, and include/exclude filters, editable live per domain.</p></div>
+        <div class="cap"><h3>Licensed &amp; free fallbacks</h3><p>Falls through to a licensed search API, then a free scraping-based source, so research never depends on a single provider.</p></div>
+      </div>
+    </section>
+
+    <section class="feature" id="assistant">
+      <div class="feature-head"><span class="feature-num">07</span><h2 class="feature-title">AI assistant</h2></div>
+      <p class="feature-intro">A conversational research agent that reasons over the platform's own live data.</p>
+      <div class="cap-grid">
+        <div class="cap"><h3>Meta-agent orchestration</h3><p>Routes a question to specialized basic, technical, and financial sub-agents and synthesizes their findings into one answer.</p></div>
+        <div class="cap"><h3>Consistent live pricing</h3><p>Every agent answers from the same reliable live-price pipeline the rest of the app uses, instead of raw, occasionally-stale data feeds.</p></div>
+        <div class="cap"><h3>Provider fallback</h3><p>Automatically retries on a second LLM provider if the first returns an empty or failed response.</p></div>
+      </div>
+    </section>
+
+    <section class="feature" id="watchlist">
+      <div class="feature-head"><span class="feature-num">08</span><h2 class="feature-title">Watchlist &amp; alerts</h2></div>
+      <p class="feature-intro">Price-level alerts that stay in sync with each holding's own plan.</p>
+      <div class="cap-grid">
+        <div class="cap"><h3>Auto-set watchlist alerts</h3><p>Saving a position sets an upside target and stop by default, straight from its own short-term plan.</p></div>
+        <div class="cap"><h3>Drop alerts</h3><p>Same-day drop detection per holding, with sentiment and quant-signal context folded into the notice.</p></div>
+        <div class="cap"><h3>Per-portfolio sensitivity</h3><p>Drop-alert scanning can be silenced for a specific buy-and-forget portfolio without affecting any other.</p></div>
+      </div>
+    </section>
+
+    <section class="feature" id="admin">
+      <div class="feature-head"><span class="feature-num">09</span><h2 class="feature-title">Admin &amp; operations</h2></div>
+      <p class="feature-intro">Operational tooling for keeping the platform, its data providers, and its users healthy.</p>
+      <div class="cap-grid">
+        <div class="cap"><h3>Integrations dashboard</h3><p>Lists every external dependency (LLM providers, market data, search) and runs a real live call on demand — configured and working are checked separately.</p></div>
+        <div class="cap"><h3>Price-provider switch</h3><p>Toggles the live-quote source between providers without a deploy.</p></div>
+        <div class="cap"><h3>User management</h3><p>Approval queue for new signups, deactivate/reactivate, force logout, and welcome email — plus last login date, time, and IP address per user.</p></div>
+        <div class="cap"><h3>Signal Stability panel</h3><p>Every recent signal flip across all tickers, with the classification (boundary noise, chase, or model shift) explained inline.</p></div>
+        <div class="cap"><h3>Activity log &amp; SQL runner</h3><p>Full audit trail of admin actions, plus a guarded read query console for ad-hoc investigation.</p></div>
+        <div class="cap"><h3>Database backup controls</h3><p>On-demand and scheduled backup management from the console.</p></div>
+        <div class="cap"><h3>Scheduler &amp; quota controls</h3><p>Enable/disable background jobs and per-endpoint daily usage caps without a code change.</p></div>
+      </div>
+    </section>
+
+    <section class="feature" id="security">
+      <div class="feature-head"><span class="feature-num">10</span><h2 class="feature-title">Security &amp; access control</h2></div>
+      <p class="feature-intro">Session handling and account safeguards for a multi-tenant, admin-gated platform.</p>
+      <div class="cap-grid">
+        <div class="cap"><h3>Admin-gated signup</h3><p>New accounts start pending; nothing is accessible until an administrator approves them.</p></div>
+        <div class="cap"><h3>Session-based auth</h3><p>HTTP-only session cookie, with a bearer-token fallback for direct API use.</p></div>
+        <div class="cap"><h3>Real-time revocation</h3><p>Deactivating a user or forcing a logout invalidates their already-open session within seconds, not just at next login.</p></div>
+        <div class="cap"><h3>Breach-checked passwords</h3><p>New and reset passwords are checked against known-breach data via a k-anonymity API — the password itself is never transmitted.</p></div>
+        <div class="cap"><h3>Accurate login provenance</h3><p>Last-login IP is captured from the real originating request, not an internal service hop.</p></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="doc-footer">
+    <span>StAnalysisEngine — Feature Reference · v1.0</span>
+    <span>Internal &amp; confidential — do not distribute</span>
+  </footer>
+
+</div>
+</body>
+</html>
