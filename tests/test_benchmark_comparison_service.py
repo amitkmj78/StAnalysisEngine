@@ -7,6 +7,7 @@ import pytest
 from services.benchmark_comparison_service import (
     UNDERPERFORM_THRESHOLD_PCT,
     compute_benchmark_comparison,
+    compute_benchmark_comparison_multi,
 )
 
 
@@ -107,3 +108,59 @@ def test_benchmark_today_pct_none_when_previous_close_unavailable():
         result = compute_benchmark_comparison([{"ticker": "AAA", "shares": 1.0}], datetime(2026, 1, 1))
 
     assert result["benchmark_today_pct"] is None
+
+
+def test_benchmark_ticker_defaults_to_spy():
+    with _patched(_mock_performance(5.0)):
+        result = compute_benchmark_comparison([{"ticker": "AAA", "shares": 1.0}], datetime(2026, 1, 1))
+    assert result["benchmark_ticker"] == "SPY"
+
+
+def test_benchmark_ticker_param_plumbs_through_to_rsp():
+    # Confirms the ticker argument actually reaches price_near_date/
+    # get_effective_price/get_previous_close, not just the response label
+    # -- distinct prices per call prove RSP's own price path is used.
+    def price_near_date_side_effect(ticker, when):
+        return 200.0 if ticker == "RSP" else 100.0
+
+    def effective_price_side_effect(ticker):
+        return 220.0 if ticker == "RSP" else 110.0
+
+    with patch(
+        "services.benchmark_comparison_service.compute_portfolio_performance", return_value=_mock_performance(5.0)
+    ), patch(
+        "services.benchmark_comparison_service.price_near_date", side_effect=price_near_date_side_effect
+    ), patch(
+        "services.benchmark_comparison_service.get_effective_price", side_effect=effective_price_side_effect
+    ), patch(
+        "services.benchmark_comparison_service.get_previous_close", return_value=None
+    ):
+        result = compute_benchmark_comparison(
+            [{"ticker": "AAA", "shares": 1.0}], datetime(2026, 1, 1), benchmark_ticker="RSP"
+        )
+
+    assert result["benchmark_ticker"] == "RSP"
+    assert result["benchmark_return_pct"] == pytest.approx((220.0 / 200.0 - 1.0) * 100.0)
+
+
+def test_compute_benchmark_comparison_multi_returns_both_and_they_differ():
+    def price_near_date_side_effect(ticker, when):
+        return 200.0 if ticker == "RSP" else 100.0
+
+    def effective_price_side_effect(ticker):
+        return 250.0 if ticker == "RSP" else 110.0  # RSP +25%, SPY +10% -- deliberately different
+
+    with patch(
+        "services.benchmark_comparison_service.compute_portfolio_performance", return_value=_mock_performance(5.0)
+    ), patch(
+        "services.benchmark_comparison_service.price_near_date", side_effect=price_near_date_side_effect
+    ), patch(
+        "services.benchmark_comparison_service.get_effective_price", side_effect=effective_price_side_effect
+    ), patch(
+        "services.benchmark_comparison_service.get_previous_close", return_value=None
+    ):
+        result = compute_benchmark_comparison_multi([{"ticker": "AAA", "shares": 1.0}], datetime(2026, 1, 1))
+
+    assert result["spy"]["benchmark_ticker"] == "SPY"
+    assert result["rsp"]["benchmark_ticker"] == "RSP"
+    assert result["spy"]["benchmark_return_pct"] != result["rsp"]["benchmark_return_pct"]

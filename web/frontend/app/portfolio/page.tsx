@@ -35,6 +35,7 @@ import TickerSearchInput from "@/components/TickerSearchInput";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import BenchmarkComparisonCard from "@/components/portfolio/BenchmarkComparisonCard";
 import GainVsPaidChart from "@/components/portfolio/GainVsPaidChart";
+import RebalanceAlertsPanel from "@/components/portfolio/RebalanceAlertsPanel";
 import MarketNewsTicker from "@/components/MarketNewsTicker";
 import PortfolioReviewCard from "@/components/portfolio/PortfolioReviewCard";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
@@ -631,13 +632,15 @@ export default function PortfolioPage() {
               Connect Brokerage
             </Link>
             <Link href="/portfolio/build-index" className={PF.btn}>
-              + Build Diversified Index
+              + Build Diversified Basket
             </Link>
             <Link href="/portfolio/compare" className={PF.btn}>
               Compare vs. Best Fund
             </Link>
           </div>
         </div>
+
+        <RebalanceAlertsPanel allPortfolios={allPortfolios} />
 
         {/* ---------- Goal plan + margin (utility row) ---------- */}
         <div className="mt-4 flex flex-wrap items-center gap-2">

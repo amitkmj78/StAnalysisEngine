@@ -519,6 +519,30 @@ alter table portfolios add column if not exists margin_balance real not null def
 -- else in this schema.
 alter table portfolios add column if not exists cash_balance real not null default 0;
 
+-- Diversified-basket generation metadata -- only populated for
+-- portfolios created via "Build a Diversified Basket"; NULL/default for
+-- every other portfolio, no behavior change for them.
+-- basket_target_weights is refreshed on every generation AND on every
+-- applied rebalance (see basket_rebalance_alerts below), so it always
+-- reflects "what the weights are supposed to be right now."
+alter table portfolios add column if not exists basket_universe text;
+alter table portfolios add column if not exists basket_goal text;
+alter table portfolios add column if not exists basket_score_as_of date;
+alter table portfolios add column if not exists basket_generation_inputs jsonb not null default '{}'::jsonb;
+alter table portfolios add column if not exists basket_target_weights jsonb not null default '{}'::jsonb;
+alter table portfolios add column if not exists rebalance_frequency text not null default 'none';
+alter table portfolios add column if not exists drift_threshold_pct real not null default 5.0;
+alter table portfolios add column if not exists last_rebalance_checked_at timestamptz;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'portfolios_rebalance_frequency_check'
+  ) then
+    alter table portfolios add constraint portfolios_rebalance_frequency_check
+      check (rebalance_frequency in ('none', 'monthly', 'quarterly')) not valid;
+  end if;
+end $$;
+
 create table if not exists portfolio_positions (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,
@@ -585,6 +609,43 @@ create index if not exists portfolio_drop_alerts_user_idx on portfolio_drop_aler
 alter table portfolio_drop_alerts enable row level security;
 drop policy if exists portfolio_drop_alerts_isolation on portfolio_drop_alerts;
 create policy portfolio_drop_alerts_isolation on portfolio_drop_alerts
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- Scheduled rebalance-check output for a diversified basket: a review-
+-- and-act alert, never auto-applied. One row per portfolio per
+-- check_date -- ON CONFLICT DO UPDATE refreshes it in place on a
+-- same-day re-run, same dedup shape as portfolio_drop_alerts above.
+create table if not exists basket_rebalance_alerts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  portfolio_id bigint not null references portfolios(id) on delete cascade,
+  check_date date not null,
+  score_as_of date not null,
+  drift_summary jsonb not null default '[]'::jsonb,
+  suggested_swaps jsonb not null default '[]'::jsonb,
+  target_weights jsonb not null default '{}'::jsonb,
+  max_drift_pct real not null,
+  status text not null default 'pending',
+  applied_at timestamptz,
+  seen_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
+  unique (portfolio_id, check_date)
+);
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'basket_rebalance_alerts_status_check'
+  ) then
+    alter table basket_rebalance_alerts add constraint basket_rebalance_alerts_status_check
+      check (status in ('pending', 'applied', 'dismissed')) not valid;
+  end if;
+end $$;
+create index if not exists basket_rebalance_alerts_user_idx on basket_rebalance_alerts(user_id, created_at desc);
+alter table basket_rebalance_alerts enable row level security;
+drop policy if exists basket_rebalance_alerts_isolation on basket_rebalance_alerts;
+create policy basket_rebalance_alerts_isolation on basket_rebalance_alerts
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
@@ -1180,6 +1241,7 @@ grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
 grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens, saved_portfolio_goals, portfolio_insights_snapshots, saved_monthly_plans to app_user;
 grant select, update on portfolio_drop_alerts to app_user;
+grant select, update on basket_rebalance_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
 grant select, insert on request_log to app_service;
 grant select, insert, update, delete on users to app_service;
@@ -1241,6 +1303,9 @@ grant select, insert on ticker_sentiment_snapshots to app_service;
 -- row in place (see web/backend/portfolio_alerts.py) rather than only
 -- ever inserting new ones.
 grant select, insert, update on portfolio_drop_alerts to app_service;
+-- Same refresh-in-place rationale as portfolio_drop_alerts above (see
+-- services/basket_rebalance_service.py's scan_baskets_for_rebalance).
+grant select, insert, update on basket_rebalance_alerts to app_service;
 
 -- Horizon 1 (docs/signal-licensing-whitelabel-requirements.md.pdf, RS-*):
 -- built and migrated so the code is ready, but gated off by

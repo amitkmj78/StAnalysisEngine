@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from services.price_provider import PRICE_PROVIDERS, set_price_provider
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
+    BASKET_REBALANCE_ENABLED_KEY,
     DAILY_QUOTA_DEFAULT,
     DAILY_QUOTA_KEY,
     DB_BACKUP_ENABLED_KEY,
@@ -20,6 +21,7 @@ from web.backend.app_settings import (
     PRICE_DATA_PROVIDER_DEFAULT,
     PRICE_DATA_PROVIDER_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
+    STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
     get_setting_float,
@@ -60,6 +62,10 @@ async def get_settings():
         "horizon1_subscriptions_enabled": await get_setting_bool(HORIZON1_SUBSCRIPTIONS_ENABLED_KEY, default=False),
         "free_tier_lag_days": await get_setting_int(FREE_TIER_LAG_DAYS_KEY, default=FREE_TIER_LAG_DAYS_DEFAULT),
         "price_data_provider": await get_setting_str(PRICE_DATA_PROVIDER_KEY, default=PRICE_DATA_PROVIDER_DEFAULT),
+        "basket_rebalance_enabled": await get_setting_bool(BASKET_REBALANCE_ENABLED_KEY, default=False),
+        "stock_finder_cache_prewarm_enabled": await get_setting_bool(
+            STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY, default=False
+        ),
     }
 
 
@@ -153,6 +159,36 @@ async def enable_portfolio_drop_alerts():
 async def disable_portfolio_drop_alerts():
     await set_setting_bool(PORTFOLIO_DROP_ALERTS_ENABLED_KEY, False)
     return {"portfolio_drop_alerts_enabled": False}
+
+
+@router.post("/basket-rebalance/enable")
+async def enable_basket_rebalance():
+    """Starts the monthly/quarterly re-rank + drift-check job on the next
+    scheduler tick — writes review-and-act alerts, never executes a
+    trade itself."""
+    await set_setting_bool(BASKET_REBALANCE_ENABLED_KEY, True)
+    return {"basket_rebalance_enabled": True}
+
+
+@router.post("/basket-rebalance/disable")
+async def disable_basket_rebalance():
+    await set_setting_bool(BASKET_REBALANCE_ENABLED_KEY, False)
+    return {"basket_rebalance_enabled": False}
+
+
+@router.post("/stock-finder-cache-prewarm/enable")
+async def enable_stock_finder_cache_prewarm():
+    """Starts a continuous ~50-minute-interval scan of the 'All'/S&P 500
+    universes purely to keep get_stock_finder_table's cache warm — a real,
+    ongoing increase in steady-state Yahoo Finance traffic."""
+    await set_setting_bool(STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY, True)
+    return {"stock_finder_cache_prewarm_enabled": True}
+
+
+@router.post("/stock-finder-cache-prewarm/disable")
+async def disable_stock_finder_cache_prewarm():
+    await set_setting_bool(STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY, False)
+    return {"stock_finder_cache_prewarm_enabled": False}
 
 
 class ThresholdUpdate(BaseModel):

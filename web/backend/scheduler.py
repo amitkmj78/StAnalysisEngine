@@ -6,11 +6,14 @@ from apscheduler.triggers.cron import CronTrigger
 from starlette.concurrency import run_in_threadpool
 
 from services.alert_engine_service import evaluate_alert
+from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.email_service import APP_URL, send_admin_alert_email, send_rankings_email
 from services.prediction_verification_service import verify_prediction
 from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE
+from services.stock_finder_service import SP500_UNIVERSE_NAME, get_stock_finder_table
 from web.backend.admin import ADMIN_EMAIL
 from web.backend.app_settings import (
+    BASKET_REBALANCE_ENABLED_KEY,
     DB_BACKUP_ENABLED_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
@@ -18,6 +21,7 @@ from web.backend.app_settings import (
     PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY,
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
+    STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
 )
@@ -97,6 +101,21 @@ BACKUP_MINUTE_ET = 0
 # human task someone has to remember — runs against the previous night's
 # backup, an hour after it completes.
 RESTORE_TEST_MONTHS = "1,4,7,10"
+# Diversified Basket rebalance checks: 'monthly'-frequency baskets are
+# checked every time this fires (the 1st of every month); 'quarterly'
+# ones only in the same 4 months as the DB restore-test above — reusing
+# this file's own month-gating idiom (CronTrigger's own month= field)
+# rather than per-portfolio due-date arithmetic against arbitrary
+# creation dates.
+BASKET_REBALANCE_HOUR_ET = 7
+BASKET_REBALANCE_MINUTE_ET = 0
+BASKET_REBALANCE_QUARTERLY_MONTHS = "1,4,7,10"
+# Keeps get_stock_finder_table's 1-hour TTL cache warm for the two
+# universes the Diversified Basket page's <3s generation goal actually
+# needs fast ("All", S&P 500) -- see services/stock_finder_service.py's
+# module docstring for the underlying cold-scan timing. Interval must
+# stay under that 3600s TTL or the cache still goes cold between runs.
+STOCK_FINDER_PREWARM_INTERVAL_MINUTES = 50
 RESTORE_TEST_DAY = 1
 RESTORE_TEST_HOUR_ET = 4
 RESTORE_TEST_MINUTE_ET = 0
@@ -192,6 +211,45 @@ async def _scan_portfolio_drops_job() -> None:
     inserted = await scan_portfolios_for_drops()
     if inserted:
         logger.info("Scheduler: inserted %d portfolio drop alerts", inserted)
+
+
+async def _check_basket_rebalances_monthly_job() -> None:
+    """Re-ranks each 'monthly'-frequency Diversified Basket's original
+    universe/goal, flags weight drift past its own threshold and any
+    holding that fell out of its sector's fresh top-N, and writes a
+    review-and-act alert -- never executes a trade itself. Off by
+    default, same admin-opt-in rationale as portfolio drop alerts."""
+    if not await get_setting_bool(BASKET_REBALANCE_ENABLED_KEY, default=False):
+        logger.info("Scheduler: basket_rebalance_enabled is disabled, skipping this run")
+        return
+    inserted = await scan_baskets_for_rebalance(rebalance_frequency_filter="monthly")
+    if inserted:
+        logger.info("Scheduler: inserted/refreshed %d monthly basket rebalance alerts", inserted)
+
+
+async def _check_basket_rebalances_quarterly_job() -> None:
+    """Same as the monthly job above, but for 'quarterly'-frequency
+    baskets — a separate job/trigger (month-restricted via CronTrigger)
+    rather than one job doing its own month arithmetic in Python."""
+    if not await get_setting_bool(BASKET_REBALANCE_ENABLED_KEY, default=False):
+        logger.info("Scheduler: basket_rebalance_enabled is disabled, skipping this run")
+        return
+    inserted = await scan_baskets_for_rebalance(rebalance_frequency_filter="quarterly")
+    if inserted:
+        logger.info("Scheduler: inserted/refreshed %d quarterly basket rebalance alerts", inserted)
+
+
+async def _prewarm_stock_finder_cache_job() -> None:
+    """Off by default: a real, continuous increase in steady-state Yahoo
+    Finance traffic (a full universe scan roughly every 50 minutes,
+    forever) purely to keep the Diversified Basket page's generation
+    fast in steady state -- a cost/rate-limit-exposure tradeoff an admin
+    should opt into deliberately."""
+    if not await get_setting_bool(STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY, default=False):
+        return
+    await run_in_threadpool(get_stock_finder_table, "All")
+    await run_in_threadpool(get_stock_finder_table, SP500_UNIVERSE_NAME)
+    logger.info("Scheduler: stock-finder cache prewarmed for 'All' and %r", SP500_UNIVERSE_NAME)
 
 
 async def _capture_pit_data_job() -> None:
@@ -592,6 +650,35 @@ def start_scheduler() -> AsyncIOScheduler:
         max_instances=1,
         misfire_grace_time=3600,
     )
+    _scheduler.add_job(
+        _check_basket_rebalances_monthly_job,
+        CronTrigger(day="1", hour=BASKET_REBALANCE_HOUR_ET, minute=BASKET_REBALANCE_MINUTE_ET, timezone="America/New_York"),
+        id="check_basket_rebalances_monthly",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _check_basket_rebalances_quarterly_job,
+        CronTrigger(
+            month=BASKET_REBALANCE_QUARTERLY_MONTHS, day="1",
+            hour=BASKET_REBALANCE_HOUR_ET, minute=BASKET_REBALANCE_MINUTE_ET,
+            timezone="America/New_York",
+        ),
+        id="check_basket_rebalances_quarterly",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _prewarm_stock_finder_cache_job,
+        "interval",
+        minutes=STOCK_FINDER_PREWARM_INTERVAL_MINUTES,
+        id="prewarm_stock_finder_cache",
+        next_run_time=datetime.now(),
+        coalesce=True,
+        max_instances=1,
+    )
     _scheduler.start()
     logger.info(
         "Background scheduler started (verify_saved_predictions every %d min, "
@@ -611,6 +698,12 @@ def start_scheduler() -> AsyncIOScheduler:
         NFR01_CHECK_HOUR_ET, NFR01_CHECK_MINUTE_ET, NFR02_CHECK_HOUR_ET, NFR02_CHECK_MINUTE_ET,
         BACKUP_HOUR_ET, BACKUP_MINUTE_ET, RESTORE_TEST_MONTHS, RESTORE_TEST_DAY,
         RESTORE_TEST_HOUR_ET, RESTORE_TEST_MINUTE_ET,
+    )
+    logger.info(
+        "Scheduler: basket rebalance checks monthly/quarterly %02d:%02d ET (quarterly months %s), "
+        "stock-finder cache prewarm every %d min",
+        BASKET_REBALANCE_HOUR_ET, BASKET_REBALANCE_MINUTE_ET, BASKET_REBALANCE_QUARTERLY_MONTHS,
+        STOCK_FINDER_PREWARM_INTERVAL_MINUTES,
     )
     return _scheduler
 

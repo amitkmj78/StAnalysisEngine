@@ -38,22 +38,25 @@ UNDERPERFORM_THRESHOLD_PCT = 2.0
 MAX_WORST_POSITIONS = 3
 
 
-def compute_benchmark_comparison(positions: list[dict], portfolio_created_at: datetime) -> dict:
+def compute_benchmark_comparison(
+    positions: list[dict], portfolio_created_at: datetime, benchmark_ticker: str = BENCHMARK_TICKER
+) -> dict:
     performance = compute_portfolio_performance(positions, lookback_days=30)
     portfolio_return_pct: Optional[float] = performance["total_gain_vs_cost_pct"]
 
-    benchmark_price_then = price_near_date(BENCHMARK_TICKER, portfolio_created_at)
-    benchmark_price_now = get_effective_price(BENCHMARK_TICKER)
+    benchmark_price_then = price_near_date(benchmark_ticker, portfolio_created_at)
+    benchmark_price_now = get_effective_price(benchmark_ticker)
 
     benchmark_return_pct: Optional[float] = None
     if benchmark_price_then and benchmark_price_now:
         benchmark_return_pct = (benchmark_price_now / benchmark_price_then - 1.0) * 100.0
 
-    # Today's S&P move on its own -- same day-P&L math as a portfolio
-    # position's own "Today" column (get_previous_close vs. the current
-    # effective price), so it's directly comparable to the portfolio's
-    # own Today's Gain/Loss tile, not just the since-inception figure above.
-    benchmark_prev_close = get_previous_close(BENCHMARK_TICKER)
+    # Today's benchmark move on its own -- same day-P&L math as a
+    # portfolio position's own "Today" column (get_previous_close vs. the
+    # current effective price), so it's directly comparable to the
+    # portfolio's own Today's Gain/Loss tile, not just the since-inception
+    # figure above.
+    benchmark_prev_close = get_previous_close(benchmark_ticker)
     benchmark_today_pct: Optional[float] = None
     if benchmark_prev_close and benchmark_price_now:
         benchmark_today_pct = (benchmark_price_now / benchmark_prev_close - 1.0) * 100.0
@@ -87,20 +90,20 @@ def compute_benchmark_comparison(positions: list[dict], portfolio_created_at: da
         if worst_positions:
             names = ", ".join(f"{p['ticker']} ({p['gain_vs_cost_pct']:.1f}%)" for p in worst_positions)
             suggestion = (
-                f"Trailing {BENCHMARK_TICKER} by {abs(gap_pct):.1f} percentage points since this portfolio "
+                f"Trailing {benchmark_ticker} by {abs(gap_pct):.1f} percentage points since this portfolio "
                 f"was created. Worst performers: {names} — trimming or replacing these does the most to close "
                 f"the gap, since they're pulling the total return down the most."
             )
         else:
             suggestion = (
-                f"Trailing {BENCHMARK_TICKER} by {abs(gap_pct):.1f} percentage points since this portfolio "
+                f"Trailing {benchmark_ticker} by {abs(gap_pct):.1f} percentage points since this portfolio "
                 f"was created, even though every position is individually profitable — this is about relative "
                 f"strength against the market, not a loss to cut. Consider whether more of the portfolio "
                 f"should be in broad-market exposure instead of stock-picking."
             )
 
     return {
-        "benchmark_ticker": BENCHMARK_TICKER,
+        "benchmark_ticker": benchmark_ticker,
         "portfolio_return_pct": portfolio_return_pct,
         "benchmark_return_pct": benchmark_return_pct,
         "benchmark_today_pct": benchmark_today_pct,
@@ -108,4 +111,14 @@ def compute_benchmark_comparison(positions: list[dict], portfolio_created_at: da
         "underperforming": underperforming,
         "worst_positions": worst_positions,
         "suggestion": suggestion,
+    }
+
+
+def compute_benchmark_comparison_multi(positions: list[dict], portfolio_created_at: datetime) -> dict:
+    """DI-08: the same comparison against both SPY and RSP (equal-weight
+    S&P 500) in one call -- RSP needs no special-casing, it's fetched
+    through the same generic price-data path as everything else."""
+    return {
+        "spy": compute_benchmark_comparison(positions, portfolio_created_at, "SPY"),
+        "rsp": compute_benchmark_comparison(positions, portfolio_created_at, "RSP"),
     }

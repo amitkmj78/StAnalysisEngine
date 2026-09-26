@@ -11,7 +11,9 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from services.acquired_at_utils import acquired_at_or_today, is_missing_date
-from services.benchmark_comparison_service import compute_benchmark_comparison
+from services.basket_rebalance_service import scan_baskets_for_rebalance
+from services.benchmark_comparison_service import compute_benchmark_comparison, compute_benchmark_comparison_multi
+from services.data_service import get_effective_price
 from services.goal_plan_service import (
     build_signal_weighted_allocation,
     get_annualized_returns,
@@ -40,6 +42,7 @@ from services.signal_publication_service import (
     rank_within_universe,
 )
 from services.stock_finder_service import STOCK_UNIVERSES
+from services.subscriber_events_service import log_event
 
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
@@ -385,6 +388,236 @@ async def set_portfolio_cash(request: Request, portfolio_id: int, body: SetCashR
     if row is None:
         raise HTTPException(404, "Portfolio not found.")
     return {"id": row["id"], "cash_balance": row["cash_balance"]}
+
+
+class SaveDiversifiedBasketRequest(BaseModel):
+    name: str
+    goal: str
+    universe: str
+    picks_per_sector: int
+    max_stocks: Optional[int] = None
+    total_amount: float
+    fractional_shares: bool = False
+    sector_weighting: str = "equal_dollar"
+    as_of_date: Optional[date] = None
+    holdings: List[dict]
+    rebalance_frequency: str = "none"
+    drift_threshold_pct: float = 5.0
+
+
+@router.post("/diversified-basket/save")
+@limiter.limit("10/minute")
+async def save_diversified_basket(request: Request, body: SaveDiversifiedBasketRequest):
+    """
+    Saves a "Build a Diversified Basket" preview as a brand-new portfolio
+    (DI-07) — always a new portfolio, never merged into an existing one,
+    so saving the same basket twice creates two separate portfolios by
+    design. Bypasses _merge_with_existing/_save_and_respond (both built
+    around merging into a possibly-nonempty portfolio) since a
+    freshly-created basket portfolio is always empty — a direct insert is
+    simpler and avoids dragging in that merge machinery's semantics
+    unnecessarily.
+    """
+    await enforce_daily_quota(request, "portfolio/diversified-basket/save")
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "Portfolio name is required.")
+    if not body.holdings:
+        raise HTTPException(422, "No holdings to save.")
+    if body.rebalance_frequency not in ("none", "monthly", "quarterly"):
+        raise HTTPException(422, "rebalance_frequency must be one of: none, monthly, quarterly")
+
+    user_id = request.state.user["id"]
+    target_weights = {h["Ticker"]: h["Weight_pct"] for h in body.holdings}
+    invested = sum(h["Amount"] for h in body.holdings)
+    leftover_cash = max(body.total_amount - invested, 0.0)
+
+    async with user_conn(user_id) as conn:
+        portfolio = await conn.fetchrow(
+            """
+            INSERT INTO portfolios (
+                user_id, name, cash_balance, basket_universe, basket_goal,
+                basket_score_as_of, basket_generation_inputs, basket_target_weights,
+                rebalance_frequency, drift_threshold_pct, last_rebalance_checked_at
+            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, now())
+            RETURNING id, name, created_at
+            """,
+            user_id, name, leftover_cash, body.universe, body.goal, body.as_of_date,
+            json.dumps({
+                "picks_per_sector": body.picks_per_sector, "max_stocks": body.max_stocks,
+                "total_amount": body.total_amount, "fractional_shares": body.fractional_shares,
+                "sector_weighting": body.sector_weighting,
+            }),
+            json.dumps(target_weights), body.rebalance_frequency, body.drift_threshold_pct,
+        )
+        for h in body.holdings:
+            await conn.execute(
+                """
+                INSERT INTO portfolio_positions (
+                    user_id, portfolio_id, ticker, name, shares, avg_cost, current_price, source, acquired_at
+                ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $6, 'DiversifiedBasket', current_date)
+                """,
+                user_id, portfolio["id"], h["Ticker"], h.get("Name", h["Ticker"]), h["Shares"], h["Price"],
+            )
+
+    await log_event(
+        user_id, "diversified_basket_saved", resource=str(portfolio["id"]),
+        metadata={
+            "universe": body.universe, "goal": body.goal,
+            "as_of_date": body.as_of_date.isoformat() if body.as_of_date else None,
+            "tickers": list(target_weights.keys()),
+        },
+    )
+    return {"id": portfolio["id"], "name": portfolio["name"], "created_at": portfolio["created_at"]}
+
+
+def _rebalance_alert_to_dict(record) -> dict:
+    row = {k: record[k] for k in record.keys()}
+    for col in ("drift_summary", "suggested_swaps", "target_weights"):
+        if isinstance(row.get(col), str):
+            row[col] = json.loads(row[col])
+    return row
+
+
+@router.get("/rebalance-alerts")
+async def list_rebalance_alerts(request: Request):
+    """Pending rebalance-check alerts for the current user's Diversified
+    Basket portfolios — review-and-act, never auto-applied (see
+    services/basket_rebalance_service.py). Unlike /drop-alerts, this is a
+    plain per-user endpoint (not admin-gated): every basket owner should
+    see their own alerts, not just an admin."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        records = await conn.fetch(
+            "SELECT * FROM basket_rebalance_alerts WHERE user_id = $1::uuid AND status = 'pending' ORDER BY created_at DESC",
+            user_id,
+        )
+    return {"alerts": [_rebalance_alert_to_dict(r) for r in records]}
+
+
+@router.post("/rebalance-alerts/{alert_id}/dismiss")
+async def dismiss_rebalance_alert(request: Request, alert_id: int):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE basket_rebalance_alerts SET status = 'dismissed', seen_at = now(), updated_at = now()
+            WHERE id = $1 AND user_id = $2::uuid AND status = 'pending' RETURNING id
+            """,
+            alert_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Rebalance alert not found.")
+    return {"ok": True}
+
+
+@router.post("/rebalance-alerts/{alert_id}/apply")
+@limiter.limit("10/minute")
+async def apply_rebalance_alert(request: Request, alert_id: int):
+    """
+    Executes the alert's suggested swaps: deletes each sold ticker's
+    position and inserts its replacement, sized at the alert's fresh
+    target weight applied to the portfolio's CURRENT total value (using
+    each stock's live price at apply time, not the stale alert-time
+    snapshot) — same whole-share/fractional convention the original
+    generation used. Then updates the portfolio's stored target weights
+    and score-as-of to the alert's fresh values. Never runs
+    automatically — only in direct response to this user action.
+    """
+    await enforce_daily_quota(request, "portfolio/rebalance-alerts/apply")
+    user_id = request.state.user["id"]
+
+    async with user_conn(user_id) as conn:
+        alert = await conn.fetchrow(
+            "SELECT * FROM basket_rebalance_alerts WHERE id = $1 AND user_id = $2::uuid AND status = 'pending'",
+            alert_id, user_id,
+        )
+        if alert is None:
+            raise HTTPException(404, "Rebalance alert not found.")
+        portfolio_id = alert["portfolio_id"]
+
+        portfolio_row = await conn.fetchrow(
+            "SELECT basket_generation_inputs FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            portfolio_id, user_id,
+        )
+        generation_inputs = (
+            json.loads(portfolio_row["basket_generation_inputs"])
+            if isinstance(portfolio_row["basket_generation_inputs"], str)
+            else (portfolio_row["basket_generation_inputs"] or {})
+        )
+        fractional_shares = bool(generation_inputs.get("fractional_shares", False))
+
+        suggested_swaps = (
+            json.loads(alert["suggested_swaps"]) if isinstance(alert["suggested_swaps"], str) else alert["suggested_swaps"]
+        )
+        target_weights = (
+            json.loads(alert["target_weights"]) if isinstance(alert["target_weights"], str) else alert["target_weights"]
+        )
+
+        held = await conn.fetch(
+            "SELECT ticker, shares FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, portfolio_id,
+        )
+        current_prices: dict[str, Optional[float]] = {}
+        for row in held:
+            current_prices[row["ticker"]] = await run_in_threadpool(get_effective_price, row["ticker"])
+        total_value = sum(
+            row["shares"] * current_prices[row["ticker"]]
+            for row in held
+            if current_prices.get(row["ticker"]) is not None
+        )
+
+        applied = 0
+        for swap in suggested_swaps:
+            sell_ticker = swap.get("sell_ticker")
+            buy_ticker = swap.get("buy_ticker")
+            if sell_ticker:
+                await conn.execute(
+                    "DELETE FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2 AND ticker = $3",
+                    user_id, portfolio_id, sell_ticker,
+                )
+            if buy_ticker and total_value:
+                price = current_prices.get(buy_ticker) or await run_in_threadpool(get_effective_price, buy_ticker)
+                weight_pct = target_weights.get(buy_ticker, 0.0)
+                if price and weight_pct:
+                    target_amount = total_value * (weight_pct / 100.0)
+                    shares = round(target_amount / price, 4) if fractional_shares else float(int(target_amount // price))
+                    if shares > 0:
+                        await conn.execute(
+                            """
+                            INSERT INTO portfolio_positions (
+                                user_id, portfolio_id, ticker, name, shares, avg_cost, current_price, source, acquired_at
+                            ) VALUES ($1::uuid, $2, $3, $3, $4, $5, $5, 'DiversifiedBasketRebalance', current_date)
+                            """,
+                            user_id, portfolio_id, buy_ticker, shares, price,
+                        )
+                        applied += 1
+
+        await conn.execute(
+            """
+            UPDATE portfolios SET basket_target_weights = $1::jsonb, basket_score_as_of = $2,
+                                   last_rebalance_checked_at = now()
+            WHERE id = $3 AND user_id = $4::uuid
+            """,
+            json.dumps(target_weights), alert["score_as_of"], portfolio_id, user_id,
+        )
+        await conn.execute(
+            "UPDATE basket_rebalance_alerts SET status = 'applied', applied_at = now(), updated_at = now() WHERE id = $1",
+            alert_id,
+        )
+
+    await log_event(
+        user_id, "rebalance_alert_applied", resource=str(portfolio_id),
+        metadata={"alert_id": alert_id, "swaps_applied": applied},
+    )
+    return {"ok": True, "swaps_applied": applied}
+
+
+@router.post("/rebalance-alerts/scan-now", dependencies=[Depends(require_admin)])
+async def scan_rebalance_alerts_now(rebalance_frequency: Optional[str] = None):
+    """Manual ops/testing trigger, mirroring POST /drop-alerts/scan-now."""
+    inserted = await scan_baskets_for_rebalance(rebalance_frequency_filter=rebalance_frequency)
+    return {"inserted": inserted}
 
 
 class ManualPositionIn(BaseModel):
@@ -1392,6 +1625,41 @@ async def portfolio_benchmark_comparison(request: Request, portfolio_id: Optiona
         return empty_response
 
     return await run_in_threadpool(compute_benchmark_comparison, positions, portfolio_row["created_at"])
+
+
+@router.get("/benchmark-multi")
+@limiter.limit("15/minute")
+async def portfolio_benchmark_comparison_multi(request: Request, portfolio_id: Optional[int] = None):
+    """Same comparison as GET /benchmark, but against both SPY and RSP
+    (equal-weight S&P 500) at once (DI-08) — a new, additive endpoint;
+    the existing single-benchmark /benchmark is untouched for its other
+    callers."""
+    await enforce_daily_quota(request, "portfolio/benchmark-multi")
+    user_id = request.state.user["id"]
+
+    async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        portfolio_row = await conn.fetchrow(
+            "SELECT created_at FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            resolved_portfolio_id, user_id,
+        )
+        records = await conn.fetch(
+            "SELECT ticker, shares, avg_cost FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
+        )
+
+    def _empty_side(ticker: str) -> dict:
+        return {
+            "benchmark_ticker": ticker, "portfolio_return_pct": None, "benchmark_return_pct": None,
+            "benchmark_today_pct": None, "gap_pct": None, "underperforming": False,
+            "worst_positions": [], "suggestion": None,
+        }
+
+    positions = [{"ticker": r["ticker"], "shares": r["shares"], "avg_cost": r["avg_cost"]} for r in records]
+    if not positions or portfolio_row is None:
+        return {"spy": _empty_side("SPY"), "rsp": _empty_side("RSP")}
+
+    return await run_in_threadpool(compute_benchmark_comparison_multi, positions, portfolio_row["created_at"])
 
 
 @router.get("/drop-alerts", dependencies=[Depends(require_admin)])

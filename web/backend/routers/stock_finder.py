@@ -2,16 +2,37 @@ import json
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from services.analyst_rating_service import get_analyst_rating_summary
-from services.stock_finder_service import STOCK_UNIVERSES, build_diversified_basket, rank_stocks, score_stock_ticker
+from services.stock_finder_service import (
+    SECTOR_WEIGHTING_MODES,
+    SP500_UNIVERSE_NAME,
+    STOCK_UNIVERSES,
+    build_diversified_basket,
+    generate_diversified_basket,
+    get_universe_sector_preview,
+    rank_stocks,
+    score_stock_ticker,
+)
+from services.subscriber_events_service import log_event
 
 from web.backend.auth import verify_bearer_token
 from web.backend.db import user_conn
 from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.utils import records_safe
+
+# One-line descriptions for the Build-a-Basket universe picker (DI-01).
+# "All" and S&P 500 are resolved live (Wikipedia fetch / union of every
+# universe below); the other two are small hardcoded samples, not the
+# real ETF's full holdings -- said plainly here rather than implied.
+UNIVERSE_DESCRIPTIONS: dict[str, str] = {
+    "All": "Every ticker across every universe below, deduplicated.",
+    SP500_UNIVERSE_NAME: "The full S&P 500, refreshed daily from a live constituent list.",
+    "US - Mega Cap (SPY sample)": "A small, hardcoded sample of the largest S&P 500 names — not the full SPY holdings list.",
+    "US - Tech Growth (QQQ sample)": "A small, hardcoded sample of large tech/growth names — not the full QQQ holdings list.",
+}
 
 router = APIRouter(
     prefix="/api/v1/stock-finder",
@@ -30,6 +51,20 @@ def _validate_goal(goal: str) -> None:
 @router.get("/universes")
 async def universes():
     return {"universes": list(STOCK_UNIVERSES.keys())}
+
+
+@router.get("/universes/detail")
+async def universes_detail():
+    """Per-universe description, live stock count, sector breakdown, and
+    as-of date (DI-01) for the Build-a-Basket page's picker -- a new,
+    additive endpoint; does NOT change /universes's plain string-list
+    contract, which the plain Stock Screener page and GoalPlan.tsx still
+    rely on."""
+    out = []
+    for key in STOCK_UNIVERSES:
+        preview = await run_in_threadpool(get_universe_sector_preview, key)
+        out.append({"key": key, "description": UNIVERSE_DESCRIPTIONS.get(key, ""), **preview})
+    return {"universes": out}
 
 
 @router.get("/rank")
@@ -75,7 +110,14 @@ async def diversified_basket(
     picks_per_sector: int = Query(2, ge=1, le=10),
     max_stocks: Optional[int] = Query(None, ge=1, le=100),
 ):
-    """A custom, sector-diversified basket of individual stocks — the
+    """DEPRECATED — kept only for backward compatibility with any existing
+    integration. See POST /diversified-basket/preview for the current
+    "Build a Diversified Basket" page, which adds exclusion-reason
+    tracking, sub-industry capping, whole-share/fractional sizing, a
+    sector summary, a risk preview, and a concentration warning that this
+    endpoint has none of.
+
+    A custom, sector-diversified basket of individual stocks — the
     picks_per_sector highest-Score tickers from each sector in the
     universe, optionally capped at max_stocks total (round-robin across
     sectors — see build_diversified_basket). Same cost profile as /rank
@@ -87,6 +129,53 @@ async def diversified_basket(
 
     df = await run_in_threadpool(build_diversified_basket, goal, universe, picks_per_sector, max_stocks)
     return {"results": records_safe(df)}
+
+
+class DiversifiedBasketRequest(BaseModel):
+    goal: str
+    universe: str
+    picks_per_sector: int = Field(2, ge=1, le=10)
+    max_stocks: Optional[int] = Field(None, ge=1, le=100)
+    total_amount: float = Field(10_000, ge=100, le=10_000_000)
+    fractional_shares: bool = False
+    sector_weighting: str = "equal_dollar"
+    excluded_tickers: list[str] = []
+
+
+@router.post("/diversified-basket/preview")
+@limiter.limit("10/minute")
+async def diversified_basket_preview(request: Request, body: DiversifiedBasketRequest):
+    """Full "Build a Diversified Basket" generation (DI-01 through DI-09,
+    plus sub-industry capping, sector-weighting choice, and a risk
+    preview) — see services.stock_finder_service.generate_diversified_basket
+    for the algorithm. Same cost profile as /rank, so the same tight quota."""
+    await enforce_daily_quota(request, "stock-finder/diversified-basket/preview")
+    _validate_goal(body.goal)
+    if body.universe not in STOCK_UNIVERSES:
+        raise HTTPException(422, f"universe must be one of {sorted(STOCK_UNIVERSES.keys())}")
+    if body.sector_weighting not in SECTOR_WEIGHTING_MODES:
+        raise HTTPException(422, f"sector_weighting must be one of {SECTOR_WEIGHTING_MODES}")
+
+    result = await run_in_threadpool(
+        generate_diversified_basket,
+        body.goal, body.universe, body.picks_per_sector, body.max_stocks, body.total_amount,
+        body.fractional_shares, body.sector_weighting, body.excluded_tickers,
+    )
+
+    # Every generation logged (inputs, as-of date, resulting tickers) for
+    # support/backtesting -- the non-functional requirement in the spec.
+    await log_event(
+        request.state.user["id"],
+        "diversified_basket_generated",
+        resource=body.universe,
+        metadata={
+            "goal": body.goal, "universe": body.universe, "picks_per_sector": body.picks_per_sector,
+            "max_stocks": body.max_stocks, "total_amount": body.total_amount,
+            "sector_weighting": body.sector_weighting, "fractional_shares": body.fractional_shares,
+            "as_of_date": result["as_of_date"], "tickers": [h["Ticker"] for h in result["holdings"]],
+        },
+    )
+    return result
 
 
 @router.get("/analyst")

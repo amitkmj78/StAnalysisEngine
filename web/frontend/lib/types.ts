@@ -739,6 +739,137 @@ export interface PortfolioBenchmarkComparison {
   suggestion: string | null;
 }
 
+export interface DualBenchmarkComparison {
+  spy: PortfolioBenchmarkComparison;
+  rsp: PortfolioBenchmarkComparison;
+}
+
+// Build a Diversified Basket
+export interface BasketHolding {
+  Ticker: string;
+  Name: string;
+  "GICS Sector": string;
+  Industry: string;
+  Score: number;
+  Price: number;
+  Shares: number;
+  Amount: number;
+  Weight_pct: number;
+}
+
+export interface BasketSectorSummary {
+  Sector: string;
+  Count: number;
+  Weight_pct: number;
+  Spy_Approx_Weight_pct: number;
+}
+
+export interface BasketExclusion {
+  ticker: string;
+  reason: string;
+}
+
+export interface BasketRiskPreview {
+  annualized_volatility_pct: number | null;
+  beta_to_spy: number | null;
+  max_drawdown_pct: number | null;
+  largest_single_stock_weight_pct: number | null;
+  largest_single_sector_weight_pct: number | null;
+  lookback: string;
+  excluded_from_risk: string[];
+}
+
+export interface BasketTotals {
+  invested: number;
+  leftover_cash: number;
+  holding_count: number;
+}
+
+export interface DiversifiedBasketPreview {
+  as_of_date: string;
+  holdings: BasketHolding[];
+  sector_summary: BasketSectorSummary[];
+  excluded: BasketExclusion[];
+  sector_notes: string[];
+  trim_notes: string[];
+  totals: BasketTotals;
+  warnings: string[];
+  concentration_warning: string | null;
+  risk_preview: BasketRiskPreview;
+}
+
+export type SectorWeighting = "equal_dollar" | "market_cap_by_sector";
+
+export interface DiversifiedBasketRequest {
+  goal: string;
+  universe: string;
+  picks_per_sector: number;
+  max_stocks: number | null;
+  total_amount: number;
+  fractional_shares: boolean;
+  sector_weighting: SectorWeighting;
+  excluded_tickers: string[];
+}
+
+export type RebalanceFrequency = "none" | "monthly" | "quarterly";
+
+export interface SaveDiversifiedBasketRequest {
+  name: string;
+  goal: string;
+  universe: string;
+  picks_per_sector: number;
+  max_stocks: number | null;
+  total_amount: number;
+  fractional_shares: boolean;
+  sector_weighting: SectorWeighting;
+  as_of_date: string | null;
+  holdings: BasketHolding[];
+  rebalance_frequency: RebalanceFrequency;
+  drift_threshold_pct: number;
+}
+
+export interface UniverseDetail {
+  key: string;
+  description: string;
+  stock_count: number;
+  sector_counts: Record<string, number>;
+  as_of_date: string | null;
+}
+
+export interface UniverseDetailResponse {
+  universes: UniverseDetail[];
+}
+
+export interface BasketRebalanceDriftRow {
+  ticker: string;
+  target_weight_pct: number;
+  current_weight_pct: number;
+  drift_pct: number;
+}
+
+export interface BasketRebalanceSwap {
+  sell_ticker: string;
+  buy_ticker: string | null;
+  buy_name: string | null;
+  reason: string;
+}
+
+export interface BasketRebalanceAlert {
+  id: number;
+  portfolio_id: number;
+  check_date: string;
+  score_as_of: string;
+  drift_summary: BasketRebalanceDriftRow[];
+  suggested_swaps: BasketRebalanceSwap[];
+  target_weights: Record<string, number>;
+  max_drift_pct: number;
+  status: "pending" | "applied" | "dismissed";
+  applied_at: string | null;
+  seen_at: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
 export interface ManualPositionInput {
   name: string;
   ticker: string;
@@ -850,6 +981,8 @@ export interface AdminSettings {
   horizon1_subscriptions_enabled: boolean;
   free_tier_lag_days: number;
   price_data_provider: "yahoo" | "alpaca";
+  basket_rebalance_enabled: boolean;
+  stock_finder_cache_prewarm_enabled: boolean;
 }
 
 export interface BackupRun {

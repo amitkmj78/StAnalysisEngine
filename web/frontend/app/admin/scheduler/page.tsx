@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import BasketRebalanceControls from "@/components/admin/BasketRebalanceControls";
 import DbBackupControls from "@/components/admin/DbBackupControls";
 import HorizonSubscriptionControls from "@/components/admin/HorizonSubscriptionControls";
 import PitPriceControls from "@/components/admin/PitPriceControls";
@@ -30,6 +31,7 @@ export default async function AdminSchedulerPage() {
         <HorizonSubscriptionControls />
         <PitPriceControls />
         <PortfolioDropAlertsControls />
+        <BasketRebalanceControls />
         <DbBackupControls />
       </div>
     </div>

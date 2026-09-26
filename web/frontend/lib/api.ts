@@ -15,6 +15,7 @@ import type {
   AuditLogResponse,
   BackupStatus,
   BaselineBand,
+  BasketRebalanceAlert,
   ChatAskResponse,
   ChatProvidersResponse,
   CrawlSearchDomainResetResult,
@@ -24,7 +25,10 @@ import type {
   CrawlSearchStatus,
   CurrentPriceResponse,
   DemandReport,
+  DiversifiedBasketPreview,
+  DiversifiedBasketRequest,
   DropAlertThreshold,
+  DualBenchmarkComparison,
   EntryHistory,
   EntryPlan,
   EntryScanRow,
@@ -69,6 +73,7 @@ import type {
   QuantSignalHistoryPoint,
   QuantSignalOutcomesResponse,
   QuantVsAnalystResponse,
+  SaveDiversifiedBasketRequest,
   SavedBaselineSnapshot,
   SavedGoal,
   SavedMonthlyPlan,
@@ -85,6 +90,7 @@ import type {
   TopPerformersResponse,
   Trade,
   TradeCreateInput,
+  UniverseDetailResponse,
   UniversesResponse,
   WatchlistAlert,
   WebSearchResponse,
@@ -221,6 +227,61 @@ export function getDiversifiedBasket(goal: string, universe: string, picksPerSec
   };
   if (maxStocks !== undefined) params.max_stocks = String(maxStocks);
   return apiFetch<StockRankResponse>("/api/v1/stock-finder/diversified-basket", params);
+}
+
+export function getStockUniverseDetails() {
+  return apiFetch<UniverseDetailResponse>("/api/v1/stock-finder/universes/detail");
+}
+
+export function previewDiversifiedBasket(body: DiversifiedBasketRequest) {
+  return apiSend<DiversifiedBasketPreview>("/api/v1/stock-finder/diversified-basket/preview", "POST", body);
+}
+
+export function saveDiversifiedBasket(body: SaveDiversifiedBasketRequest) {
+  return apiSend<{ id: number; name: string; created_at: string }>(
+    "/api/v1/portfolio/diversified-basket/save",
+    "POST",
+    body,
+  );
+}
+
+export function getBenchmarkMulti(portfolioId?: number) {
+  const params: Record<string, string> = {};
+  if (portfolioId !== undefined) params.portfolio_id = String(portfolioId);
+  return apiFetch<DualBenchmarkComparison>("/api/v1/portfolio/benchmark-multi", params);
+}
+
+export function getRebalanceAlerts() {
+  return apiFetch<{ alerts: BasketRebalanceAlert[] }>("/api/v1/portfolio/rebalance-alerts");
+}
+
+export function dismissRebalanceAlert(alertId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/portfolio/rebalance-alerts/${alertId}/dismiss`, "POST");
+}
+
+export function applyRebalanceAlert(alertId: number) {
+  return apiSend<{ ok: boolean; swaps_applied: number }>(`/api/v1/portfolio/rebalance-alerts/${alertId}/apply`, "POST");
+}
+
+export function enableBasketRebalance() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/basket-rebalance/enable", "POST");
+}
+
+export function disableBasketRebalance() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/basket-rebalance/disable", "POST");
+}
+
+export function scanRebalanceAlertsNow(rebalanceFrequency?: "monthly" | "quarterly") {
+  const suffix = rebalanceFrequency ? `?rebalance_frequency=${rebalanceFrequency}` : "";
+  return apiSend<{ inserted: number }>(`/api/v1/portfolio/rebalance-alerts/scan-now${suffix}`, "POST");
+}
+
+export function enableStockFinderCachePrewarm() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/stock-finder-cache-prewarm/enable", "POST");
+}
+
+export function disableStockFinderCachePrewarm() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/stock-finder-cache-prewarm/disable", "POST");
 }
 
 export function getAnalystRating(ticker: string) {

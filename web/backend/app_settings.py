@@ -73,6 +73,16 @@ FREE_TIER_LAG_DAYS_DEFAULT = 7
 # cache — see that module's docstring for why.
 PRICE_DATA_PROVIDER_KEY = "price_data_provider"
 PRICE_DATA_PROVIDER_DEFAULT = "yahoo"
+# Defaults OFF: re-ranks a whole universe per due basket (real yfinance
+# load) and writes user-visible content (a rebalance alert), same
+# opt-in rationale as PORTFOLIO_DROP_ALERTS_ENABLED_KEY.
+BASKET_REBALANCE_ENABLED_KEY = "basket_rebalance_enabled"
+# Defaults OFF: a continuous ~50-minute-interval scan of the "All"/S&P 500
+# stock-finder universes purely to keep get_stock_finder_table's cache
+# warm (see the Diversified Basket page's <3s generation goal) — a real,
+# ongoing increase in steady-state Yahoo Finance traffic an admin should
+# opt into deliberately, not something defaulted on silently.
+STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY = "stock_finder_cache_prewarm_enabled"
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

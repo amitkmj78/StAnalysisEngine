@@ -10,6 +10,7 @@ import pandas as pd
 import requests
 import ta
 
+from services.backtest_engine import max_drawdown_pct
 from services.cache_utils import ttl_cache
 from services.screener_service import INDEX_MAP
 from services.yfinance_cache import get_cached_history, get_cached_info
@@ -73,6 +74,32 @@ def _universe_tickers(universe_key: str) -> List[str]:
     if universe_key == "All":
         return sorted({t for group in INDEX_MAP.values() for t in group} | set(fetch_sp500_tickers()))
     return STOCK_UNIVERSES.get(universe_key, [])
+
+
+# Yahoo's own sector taxonomy is an 11-sector partition, same count as
+# GICS but with different names for 6 of them -- a rename, not new data.
+# The other 5 (Communication Services, Industrials, Energy, Real Estate,
+# Utilities) are already identical strings in both systems.
+GICS_SECTOR_RENAME: Dict[str, str] = {
+    "Technology": "Information Technology",
+    "Financial Services": "Financials",
+    "Consumer Cyclical": "Consumer Discretionary",
+    "Healthcare": "Health Care",
+    "Consumer Defensive": "Consumer Staples",
+    "Basic Materials": "Materials",
+}
+
+GICS_SECTORS_ORDER = [
+    "Information Technology", "Health Care", "Financials", "Consumer Discretionary",
+    "Communication Services", "Industrials", "Consumer Staples", "Energy",
+    "Utilities", "Real Estate", "Materials",
+]
+
+
+def _gics_sector(raw_sector: str | None) -> str:
+    if not raw_sector:
+        return "Unknown"
+    return GICS_SECTOR_RENAME.get(raw_sector, raw_sector)
 
 
 LOWER_IS_BETTER = {"volatility_6m", "max_drawdown_1y", "max_drawdown_3y", "forward_pe"}
@@ -297,6 +324,9 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
             "Ticker": ticker_symbol,
             "Name": info.get("shortName") or info.get("longName") or ticker_symbol,
             "Sector": info.get("sector") or "Unknown",
+            "GICS Sector": _gics_sector(info.get("sector")),
+            "Industry": info.get("industry") or "Unknown",
+            "Last Close Date": close.index[-1].date().isoformat(),
             "Price": latest_price,
             "Market Cap ($B)": (
                 float(info.get("marketCap")) / 1_000_000_000
@@ -385,10 +415,158 @@ def rank_stocks(goal: str, universe_key: str) -> pd.DataFrame:
     df["Score"] = (total_score * 100).round(1)
 
     secondary_sort = "3M Return %" if goal == "Short Term" else "1Y Return %"
+    # Ticker-alpha as the final tie-break makes basket selection fully
+    # deterministic (DI-02: "ties broken by market cap, then ticker") --
+    # Score is rounded to 1 decimal, so exact ties are common enough to
+    # matter for a top-N-per-sector cut.
     return (
-        df.sort_values(["Score", secondary_sort, "Market Cap ($B)"], ascending=[False, False, False])
+        df.sort_values(
+            ["Score", secondary_sort, "Market Cap ($B)", "Ticker"],
+            ascending=[False, False, False, True],
+        )
         .reset_index(drop=True)
     )
+
+
+def get_basket_candidates(goal: str, universe_key: str) -> tuple[pd.DataFrame, List[dict], str]:
+    """
+    Classifies every ticker in universe_key into eligible-for-the-basket
+    or excluded-with-a-reason (DI-03) -- unlike rank_stocks/
+    get_stock_finder_table, which silently drop what they can't build a
+    row for. Returns (eligible_df, exclusions, as_of_date) where
+    exclusions is [{"ticker": str, "reason": str}], one row per excluded
+    ticker, and as_of_date is the latest "Last Close Date" across every
+    ticker that produced a row at all (the "as-of date of ranking
+    scores" DI-01 shows next to Generate).
+    """
+    universe_tickers = _universe_tickers(universe_key)
+    ranked = rank_stocks(goal, universe_key)
+    exclusions: List[dict] = []
+
+    if ranked.empty:
+        return ranked, [
+            {"ticker": t, "reason": "no usable price history from data provider"} for t in universe_tickers
+        ], ""
+
+    as_of_date = ranked["Last Close Date"].max()
+
+    produced = set(ranked["Ticker"])
+    exclusions += [
+        {"ticker": t, "reason": "no usable price history from data provider (fetch failed, or fewer than 70 trading days of history)"}
+        for t in universe_tickers
+        if t not in produced
+    ]
+
+    keep = pd.Series(True, index=ranked.index)
+
+    # (a) no computable score at all for this goal: every weighted input is null.
+    weighted_cols = list(GOAL_WEIGHTS[goal].keys())
+    all_null = ranked[weighted_cols].isna().all(axis=1)
+    exclusions += [
+        {"ticker": t, "reason": "no computable score for this goal (all scoring inputs missing)"}
+        for t in ranked.loc[all_null, "Ticker"]
+    ]
+    keep &= ~all_null
+
+    # (b) same data-quality/outlier guard _annualized_return already applies
+    # (min_years=2.9, +-200%/-95% sanity bound) -- a data-quality signal,
+    # applied regardless of goal, not just when the goal happens to weight
+    # this metric.
+    insufficient_history = ranked["return_3y_annualized"].isna() & keep
+    exclusions += [
+        {"ticker": t, "reason": "insufficient price history (under ~2.9 years) or an implausible annualized return, flagged by the outlier guard"}
+        for t in ranked.loc[insufficient_history, "Ticker"]
+    ]
+    keep &= ~insufficient_history
+
+    # (c) stale price: last close more than ~5 trading days behind the
+    # universe's own as-of date. Approximated as 9 calendar days (covers
+    # weekends without a trading-calendar dependency) -- a pragmatic
+    # simplification, not exact trading-day arithmetic.
+    as_of_ts = pd.Timestamp(as_of_date)
+    stale = ((as_of_ts - pd.to_datetime(ranked["Last Close Date"])).dt.days > 9) & keep
+    exclusions += [
+        {"ticker": t, "reason": "no price in the last 5 trading days (stale, halted, or delisted)"}
+        for t in ranked.loc[stale, "Ticker"]
+    ]
+    keep &= ~stale
+
+    eligible = ranked.loc[keep].reset_index(drop=True)
+    return eligible, exclusions, as_of_date
+
+
+def _select_sector_picks(sector_df: pd.DataFrame, picks_per_sector: int) -> tuple[pd.DataFrame, Optional[str]]:
+    """
+    sector_df: one GICS sector's eligible rows, already Score/Market-Cap/
+    Ticker sorted descending (rank_stocks's own sort). Greedily takes each
+    row unless its Industry is already represented among rows already
+    picked for this sector (caps same-sub-industry correlation, e.g. two
+    chipmakers, to at most 1 per sector's top-N). If that first pass
+    yields fewer than picks_per_sector and eligible rows remain (all from
+    already-used industries), a second pass fills the rest ignoring the
+    industry cap -- DI-02's "take all if fewer eligible than N" always
+    wins over the industry cap; this never returns fewer than
+    min(picks_per_sector, len(sector_df)) purely from industry
+    concentration.
+    """
+    if sector_df.empty:
+        return sector_df, None
+
+    selected_idx: List[int] = []
+    used_industries: set = set()
+    for idx, row in sector_df.iterrows():
+        if len(selected_idx) >= picks_per_sector:
+            break
+        if row["Industry"] not in used_industries:
+            selected_idx.append(idx)
+            used_industries.add(row["Industry"])
+
+    relaxed = False
+    if len(selected_idx) < picks_per_sector:
+        for idx, _row in sector_df.iterrows():
+            if len(selected_idx) >= picks_per_sector:
+                break
+            if idx in selected_idx:
+                continue
+            selected_idx.append(idx)
+            relaxed = True
+
+    note = None
+    sector_name = sector_df["GICS Sector"].iloc[0]
+    if len(selected_idx) < picks_per_sector:
+        note = f"{sector_name}: only {len(selected_idx)} eligible stock{'s' if len(selected_idx) != 1 else ''}"
+    elif relaxed:
+        note = f"{sector_name}: fewer than {picks_per_sector} distinct sub-industries available, so one industry appears more than once"
+
+    return sector_df.loc[selected_idx], note
+
+
+def assemble_sector_picks(eligible: pd.DataFrame, picks_per_sector: int) -> tuple[pd.DataFrame, List[str]]:
+    """
+    Selects picks_per_sector tickers from each of the 11 GICS sectors
+    present in `eligible` (DI-02), via _select_sector_picks. Sectors with
+    zero eligible tickers are skipped and listed in a note; sectors that
+    had to relax the industry cap or take fewer than requested surface
+    their own note from _select_sector_picks.
+    """
+    notes: List[str] = []
+    picks_frames = []
+    for sector in GICS_SECTORS_ORDER:
+        sector_df = eligible[eligible["GICS Sector"] == sector]
+        if sector_df.empty:
+            continue
+        picked, note = _select_sector_picks(sector_df, picks_per_sector)
+        picks_frames.append(picked)
+        if note:
+            notes.append(note)
+
+    present_sectors = set(eligible["GICS Sector"].unique()) if not eligible.empty else set()
+    zero_sectors = [s for s in GICS_SECTORS_ORDER if s not in present_sectors]
+    if zero_sectors:
+        notes.append(f"0 eligible stocks, skipped: {', '.join(zero_sectors)}")
+
+    basket = pd.concat(picks_frames, ignore_index=True) if picks_frames else eligible.iloc[0:0]
+    return basket, notes
 
 
 def build_diversified_basket(
@@ -408,6 +586,11 @@ def build_diversified_basket(
     many sectors). The cap is applied by round-robin (see
     _trim_to_max_stocks), not a flat top-N re-sort, so it can't collapse
     the basket back down to one dominant sector.
+
+    Kept for backward compatibility (see GET /diversified-basket, now
+    docstring-deprecated in favor of generate_diversified_basket, which
+    adds exclusion-reason tracking, sub-industry capping, whole-share
+    sizing, and everything else the Diversified Basket page now needs).
     """
     ranked = rank_stocks(goal, universe_key)
     if ranked.empty:
@@ -422,37 +605,334 @@ def build_diversified_basket(
         .reset_index(drop=True)
     )
     if max_stocks is not None and max_stocks > 0 and len(basket) > max_stocks:
-        basket = _trim_to_max_stocks(basket, max_stocks)
+        basket, _notes = _trim_to_max_stocks(basket, max_stocks, sector_col="Sector")
     return basket
 
 
-def _trim_to_max_stocks(basket: pd.DataFrame, max_stocks: int) -> pd.DataFrame:
+def _trim_to_max_stocks(
+    basket: pd.DataFrame, max_stocks: int, sector_col: str = "GICS Sector"
+) -> tuple[pd.DataFrame, List[str]]:
     """
-    Round-robins one stock at a time across sectors — each sector's own
-    stocks already best-score-first — until max_stocks is reached, rather
-    than a flat top-N cut by Score. A flat cut could let one sector that
-    scored well across the board crowd out every other sector, defeating
-    the point of a "diversified" basket.
+    Round-robins one stock at a time across sectors (round 1 = every
+    sector's #1 pick, round 2 = every sector's #2 pick, ...) until
+    max_stocks is reached. Within a round, sectors are ordered by the
+    Score of the candidate about to be added in THAT round, descending
+    (tie-break: sector name ascending) -- not a fixed sector order. This
+    means a partial/cutoff round goes to the strongest remaining
+    candidates regardless of which sector they're in (DI-04), rather than
+    whichever sectors happen to sort first alphabetically always winning
+    the last few slots -- concretely: 11 sectors, 2 picks/sector, cap 15
+    -> all 11 sector leaders (round 1) plus the 4 highest-scoring #2
+    picks (round 2), not the 4 alphabetically-first sectors' #2 picks.
     """
     by_sector: Dict[str, List[int]] = {
-        sector: list(group.index) for sector, group in basket.groupby("Sector", sort=False)
+        sector: list(group.index) for sector, group in basket.groupby(sector_col, sort=False)
     }
-    sector_order = list(dict.fromkeys(basket["Sector"]))  # first-seen order, already Sector-sorted
-
+    all_sectors = set(by_sector.keys())
     selected: List[int] = []
+
     while len(selected) < max_stocks:
-        added_this_round = False
-        for sector in sector_order:
+        round_candidates = [(sector, queue[0]) for sector, queue in by_sector.items() if queue]
+        if not round_candidates:
+            break
+        round_candidates.sort(key=lambda sc: (-float(basket.loc[sc[1], "Score"]), sc[0]))
+        for sector, _idx in round_candidates:
             if len(selected) >= max_stocks:
                 break
-            queue = by_sector[sector]
-            if queue:
-                selected.append(queue.pop(0))
-                added_this_round = True
-        if not added_this_round:
-            break
+            selected.append(by_sector[sector].pop(0))
 
-    return basket.loc[selected].sort_values(["Sector", "Score"], ascending=[True, False]).reset_index(drop=True)
+    notes: List[str] = []
+    if max_stocks < len(all_sectors):
+        included_sectors = {basket.loc[i, sector_col] for i in selected}
+        left_out_sectors = sorted(all_sectors - included_sectors)
+        if left_out_sectors:
+            notes.append(
+                f"Max stocks ({max_stocks}) is fewer than the number of sectors — left out entirely: {', '.join(left_out_sectors)}"
+            )
+
+    trimmed = basket.loc[selected].sort_values([sector_col, "Score"], ascending=[True, False]).reset_index(drop=True)
+    return trimmed, notes
+
+
+SECTOR_WEIGHTING_MODES = ("equal_dollar", "market_cap_by_sector")
+
+
+def size_basket_positions(
+    basket: pd.DataFrame,
+    total_amount: float,
+    fractional_shares: bool = False,
+    sector_weighting: str = "equal_dollar",
+) -> tuple[pd.DataFrame, dict, List[str]]:
+    """
+    Adds Target $, Shares, Amount, Weight_pct to `basket` (DI-05, and the
+    sector-weighting enhancement).
+
+    sector_weighting:
+      - "equal_dollar" (default): target per position = total_amount / count.
+      - "market_cap_by_sector": each GICS sector's dollar allocation is
+        proportional to that sector's aggregate Market Cap ($B) share
+        WITHIN THIS BASKET's own selected tickers (the point is weighting
+        the picks actually held, not reintroducing the whole universe's
+        distribution), split equally across that sector's own picks.
+
+    Whole-share default: Shares = floor(Target $ / Price); leftover cash
+    is total_amount minus what actually got invested. fractional_shares=
+    True instead rounds Shares to 4 decimal places for an exact equal-
+    dollar split.
+
+    Returns (sized_df, totals, warnings). totals = {invested,
+    leftover_cash, holding_count}. warnings covers DI-05's "target per
+    position is below the price of a selected stock" case under
+    whole-share mode, naming every such stock and the three remedies.
+    """
+    if sector_weighting not in SECTOR_WEIGHTING_MODES:
+        raise ValueError(f"sector_weighting must be one of {SECTOR_WEIGHTING_MODES}")
+    if basket.empty:
+        return basket, {"invested": 0.0, "leftover_cash": total_amount, "holding_count": 0}, []
+
+    basket = basket.copy()
+    if sector_weighting == "equal_dollar":
+        basket["Target $"] = total_amount / len(basket)
+    else:
+        sector_cap = basket.groupby("GICS Sector")["Market Cap ($B)"].transform("sum")
+        total_cap = basket["Market Cap ($B)"].sum()
+        sector_count = basket.groupby("GICS Sector")["Ticker"].transform("count")
+        if not total_cap:
+            basket["Target $"] = total_amount / len(basket)
+        else:
+            basket["Target $"] = total_amount * (sector_cap / total_cap) / sector_count
+
+    if fractional_shares:
+        basket["Shares"] = (basket["Target $"] / basket["Price"]).round(4)
+    else:
+        basket["Shares"] = np.floor(basket["Target $"] / basket["Price"])
+
+    basket["Amount"] = basket["Shares"] * basket["Price"]
+    invested = float(basket["Amount"].sum())
+    leftover_cash = round(total_amount - invested, 2)
+    basket["Weight_pct"] = (basket["Amount"] / invested * 100) if invested else 0.0
+
+    warnings: List[str] = []
+    if not fractional_shares:
+        zero_share_rows = basket[basket["Shares"] <= 0]
+        if not zero_share_rows.empty:
+            names = ", ".join(f"{r.Ticker} (${r.Price:.2f})" for r in zero_share_rows.itertuples())
+            warnings.append(
+                f"Target per position is below the price of: {names}. "
+                f"Enable fractional shares, raise the total amount, or lower Max stocks."
+            )
+
+    totals = {
+        "invested": invested,
+        "leftover_cash": leftover_cash,
+        "holding_count": int((basket["Shares"] > 0).sum()),
+    }
+    return basket, totals, warnings
+
+
+@ttl_cache(maxsize=4, ttl_seconds=3600)
+def compute_sp500_sector_mix() -> Dict[str, float]:
+    """
+    Approximates "SPY's sector mix" as the aggregate market-cap share by
+    GICS sector across the full S&P 500 scan -- this app has no source
+    for SPY's real holdings/weights data. Every caller must label this as
+    an approximation, not real index data.
+    """
+    df = get_stock_finder_table(SP500_UNIVERSE_NAME).copy()
+    if df.empty:
+        return {}
+    df["GICS Sector"] = df["Sector"].map(_gics_sector)
+    by_sector = df.groupby("GICS Sector")["Market Cap ($B)"].sum(min_count=1).dropna()
+    total = by_sector.sum()
+    if not total:
+        return {}
+    return (by_sector / total * 100).round(2).to_dict()
+
+
+def check_concentration_warning(basket_sector_weights: Dict[str, float], universe_sector_count: int) -> Optional[str]:
+    """DI-09: warn (non-blocking) when a universe can't produce real
+    sector spread -- fewer than 5 sectors present, or any single sector
+    would take more than 40% of the basket."""
+    if universe_sector_count < 5:
+        return f"This universe only spans {universe_sector_count} sector(s); the basket will be less diversified."
+    if basket_sector_weights:
+        top_sector = max(basket_sector_weights, key=basket_sector_weights.get)
+        if basket_sector_weights[top_sector] > 40.0:
+            return f"This universe is concentrated in {top_sector}; the basket will be less diversified."
+    return None
+
+
+def get_universe_sector_preview(universe_key: str) -> dict:
+    """Cheap, cache-backed (reuses get_stock_finder_table's own TTL cache):
+    per-universe stock count + sector counts + as-of date, for DI-01's
+    per-universe description and DI-09's pre-generation concentration
+    check -- both render before the user clicks Generate, no extra
+    network cost beyond what's already cached."""
+    df = get_stock_finder_table(universe_key)
+    if df.empty:
+        return {"stock_count": 0, "sector_counts": {}, "as_of_date": None}
+    df = df.copy()
+    df["GICS Sector"] = df["Sector"].map(_gics_sector)
+    counts = df["GICS Sector"].value_counts().to_dict()
+    as_of = df["Last Close Date"].max() if "Last Close Date" in df else None
+    return {"stock_count": len(df), "sector_counts": counts, "as_of_date": as_of}
+
+
+def compute_basket_risk_preview(basket: pd.DataFrame, lookback: str = "1y") -> dict:
+    """
+    Approximates the basket's risk profile AS IF today's picks/weights
+    had been held, unchanged, for the whole lookback window -- a
+    retroactive application of today's membership to history, not a real
+    trade-by-trade backtest. Callers must disclose this.
+    """
+    if basket.empty:
+        return {
+            "annualized_volatility_pct": None, "beta_to_spy": None, "max_drawdown_pct": None,
+            "largest_single_stock_weight_pct": None, "largest_single_sector_weight_pct": None,
+            "lookback": lookback, "excluded_from_risk": [],
+        }
+
+    closes: Dict[str, pd.Series] = {}
+    for ticker in basket["Ticker"]:
+        hist = get_cached_history(ticker, lookback, auto_adjust=True)
+        if not hist.empty:
+            closes[ticker] = hist["Close"]
+    spy_hist = get_cached_history("SPY", lookback, auto_adjust=True)
+    spy_close = spy_hist["Close"] if not spy_hist.empty else pd.Series(dtype=float)
+
+    excluded_from_risk = [t for t in basket["Ticker"] if t not in closes]
+    if not closes or spy_close.empty:
+        return {
+            "annualized_volatility_pct": None, "beta_to_spy": None, "max_drawdown_pct": None,
+            "largest_single_stock_weight_pct": float(basket["Weight_pct"].max()) if "Weight_pct" in basket else None,
+            "largest_single_sector_weight_pct": (
+                float(basket.groupby("GICS Sector")["Weight_pct"].sum().max()) if "Weight_pct" in basket else None
+            ),
+            "lookback": lookback, "excluded_from_risk": excluded_from_risk,
+        }
+
+    price_df = pd.DataFrame({**closes, "__SPY__": spy_close}).dropna(how="any")
+    # A ticker with too little overlap against the common date range is
+    # dropped from THIS calculation only (not from the basket itself) --
+    # its dollar weight is renormalized across the remaining tickers.
+    kept_tickers = [t for t in closes if t in price_df.columns]
+    excluded_from_risk += [t for t in basket["Ticker"] if t not in kept_tickers and t not in excluded_from_risk]
+
+    returns_df = price_df[kept_tickers].pct_change().dropna()
+    spy_returns = price_df["__SPY__"].pct_change().dropna()
+    returns_df, spy_returns = returns_df.align(spy_returns, join="inner", axis=0)
+
+    weights = basket.set_index("Ticker").loc[kept_tickers, "Weight_pct"] / 100.0
+    weights = weights / weights.sum() if weights.sum() else weights
+
+    basket_returns = (returns_df * weights).sum(axis=1)
+
+    annualized_volatility_pct = float(basket_returns.std() * np.sqrt(252) * 100) if not basket_returns.empty else None
+    if basket_returns.var() and spy_returns.loc[basket_returns.index].var():
+        cov = np.cov(basket_returns, spy_returns.loc[basket_returns.index], ddof=1)
+        beta_to_spy = float(cov[0, 1] / cov[1, 1])
+    else:
+        beta_to_spy = None
+    drawdown = max_drawdown_pct((basket_returns * 100).tolist())
+
+    return {
+        "annualized_volatility_pct": annualized_volatility_pct,
+        "beta_to_spy": beta_to_spy,
+        "max_drawdown_pct": drawdown,
+        "largest_single_stock_weight_pct": float(basket["Weight_pct"].max()),
+        "largest_single_sector_weight_pct": float(basket.groupby("GICS Sector")["Weight_pct"].sum().max()),
+        "lookback": lookback,
+        "excluded_from_risk": excluded_from_risk,
+    }
+
+
+def replace_basket_ticker(eligible: pd.DataFrame, current_tickers: List[str], removed_ticker: str) -> Optional[dict]:
+    """DI-06: when the user removes a ticker, returns the next-ranked
+    eligible ticker's row from the SAME GICS sector that isn't already in
+    the basket, or None if that sector has nothing left."""
+    removed_rows = eligible[eligible["Ticker"] == removed_ticker]
+    if removed_rows.empty:
+        return None
+    sector = removed_rows.iloc[0]["GICS Sector"]
+    candidates = eligible[
+        (eligible["GICS Sector"] == sector) & (~eligible["Ticker"].isin(current_tickers))
+    ]
+    if candidates.empty:
+        return None
+    return candidates.iloc[0].to_dict()
+
+
+def generate_diversified_basket(
+    goal: str,
+    universe_key: str,
+    picks_per_sector: int,
+    max_stocks: Optional[int],
+    total_amount: float,
+    fractional_shares: bool = False,
+    sector_weighting: str = "equal_dollar",
+    excluded_tickers: Optional[List[str]] = None,
+) -> dict:
+    """
+    Full DI-01-DI-09 + risk-preview orchestration: eligibility/exclusions
+    -> per-sector selection (sub-industry capped) -> max-stocks trim ->
+    dollar sizing -> concentration warning -> risk preview. excluded_
+    tickers lets the caller regenerate with specific tickers removed
+    (DI-06's remove flow), without needing separate client-side logic
+    that could drift from this exact algorithm.
+    """
+    eligible, exclusions, as_of_date = get_basket_candidates(goal, universe_key)
+    if excluded_tickers:
+        eligible = eligible[~eligible["Ticker"].isin(excluded_tickers)].reset_index(drop=True)
+
+    if eligible.empty:
+        return {
+            "as_of_date": as_of_date, "holdings": [], "sector_summary": [], "excluded": exclusions,
+            "sector_notes": [], "trim_notes": [], "totals": {"invested": 0.0, "leftover_cash": total_amount, "holding_count": 0},
+            "warnings": [], "concentration_warning": None, "risk_preview": compute_basket_risk_preview(eligible),
+        }
+
+    basket, sector_notes = assemble_sector_picks(eligible, picks_per_sector)
+
+    trim_notes: List[str] = []
+    if max_stocks is not None and max_stocks > 0 and len(basket) > max_stocks:
+        basket, trim_notes = _trim_to_max_stocks(basket, max_stocks, sector_col="GICS Sector")
+
+    sized, totals, warnings = size_basket_positions(basket, total_amount, fractional_shares, sector_weighting)
+
+    spy_mix = compute_sp500_sector_mix()
+    sector_summary = []
+    basket_sector_weights: Dict[str, float] = {}
+    if not sized.empty:
+        grouped = sized.groupby("GICS Sector").agg(Count=("Ticker", "count"), Weight_pct=("Weight_pct", "sum"))
+        for sector, row in grouped.iterrows():
+            basket_sector_weights[sector] = float(row["Weight_pct"])
+            sector_summary.append({
+                "Sector": sector, "Count": int(row["Count"]), "Weight_pct": round(float(row["Weight_pct"]), 2),
+                "Spy_Approx_Weight_pct": round(spy_mix.get(sector, 0.0), 2),
+            })
+
+    universe_preview = get_universe_sector_preview(universe_key)
+    concentration_warning = check_concentration_warning(
+        basket_sector_weights, len(universe_preview.get("sector_counts", {}))
+    )
+
+    risk_preview = compute_basket_risk_preview(sized)
+
+    holdings_cols = ["Ticker", "Name", "GICS Sector", "Industry", "Score", "Price", "Shares", "Amount", "Weight_pct"]
+    holdings = sized[holdings_cols].round({"Score": 1, "Price": 2, "Shares": 4, "Amount": 2, "Weight_pct": 2}).to_dict("records")
+
+    return {
+        "as_of_date": as_of_date,
+        "holdings": holdings,
+        "sector_summary": sector_summary,
+        "excluded": exclusions,
+        "sector_notes": sector_notes,
+        "trim_notes": trim_notes,
+        "totals": totals,
+        "warnings": warnings,
+        "concentration_warning": concentration_warning,
+        "risk_preview": risk_preview,
+    }
 
 
 def score_stock_ticker(goal: str, ticker_symbol: str) -> pd.DataFrame:
