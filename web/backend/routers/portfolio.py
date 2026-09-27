@@ -1153,6 +1153,52 @@ COMPARE_WINDOWS = ["10D", "30D", "60D", "90D", "1Y"]
 COMPARE_SIGNAL_ACTION = {"BUY": "buy", "SELL": "trim", "HOLD": "hold"}
 
 
+async def _attach_stock_forecasts(stock_rows: list[dict]) -> None:
+    """
+    Fills in each top_stocks row's signal + expected_return_pct/
+    target_price from the already-captured pit_quant_signal snapshot --
+    same "one bulk query, not a live per-ticker model run" pattern
+    web/backend/routers/entry_strategy.py's _attach_quant_signals already
+    uses (that model run is real, expensive compute; this page shows up
+    to 10 stocks per load, so re-running it live here would meaningfully
+    add to the page's own cost). A ticker missing from today's capture
+    (outside the default capture universe, or a capture gap) just gets
+    nulls, mutated in place, rather than being dropped from the list.
+    Confidence is derived from the same signal-stability data used for
+    portfolio holdings (services.portfolio_compare_service.derive_confidence).
+    """
+    tickers = [r["ticker"] for r in stock_rows]
+    if not tickers:
+        return
+
+    async with service_conn() as conn:
+        as_of_date = await conn.fetchval("SELECT max(as_of_date) FROM pit_quant_signal")
+        rows = []
+        if as_of_date is not None:
+            rows = await conn.fetch(
+                """
+                SELECT ticker, signal, expected_return_pct, target_price
+                FROM pit_quant_signal
+                WHERE as_of_date = $1 AND ticker = ANY($2::text[])
+                """,
+                as_of_date, tickers,
+            )
+    by_ticker = {r["ticker"]: r for r in rows}
+
+    stability_results = await asyncio.gather(*(get_signal_stability_for_ticker(t) for t in tickers))
+    stability_by_ticker = dict(zip(tickers, stability_results))
+
+    for row in stock_rows:
+        q = by_ticker.get(row["ticker"])
+        row["expected_return_pct"] = float(q["expected_return_pct"]) if q and q["expected_return_pct"] is not None else None
+        row["target_price"] = float(q["target_price"]) if q and q["target_price"] is not None else None
+        row["signal"] = {
+            "action": COMPARE_SIGNAL_ACTION.get(q["signal"]) if q else None,
+            **derive_confidence(stability_by_ticker.get(row["ticker"])),
+            "as_of": str(as_of_date) if as_of_date else None,
+        }
+
+
 @router.get("/compare")
 @limiter.limit("10/minute")
 async def portfolio_compare(
@@ -1217,6 +1263,7 @@ async def portfolio_compare(
     top_funds = await run_in_threadpool(select_top_funds, goal, bounds)
     portfolio_tickers = {h.ticker for h in holdings}
     top_stocks = await run_in_threadpool(rank_stocks_by_window_return, window, "All", 10, portfolio_tickers)
+    await _attach_stock_forecasts(top_stocks)
 
     signal_by_ticker = {p["ticker"]: p for p in insights.get("positions", [])}
     stability_results = await asyncio.gather(*(get_signal_stability_for_ticker(h.ticker) for h in holdings))

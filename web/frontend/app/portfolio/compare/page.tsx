@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, getFundGoals, getPortfolioCompare } from "@/lib/api";
-import type { CompareHolding, CompareSignal, CompareTopStock, CompareWindowCode, FundGoal, PortfolioCompareResponse } from "@/lib/types";
+import { ApiError, getFundGoals, getPortfolioCompare, getPredictionSummary } from "@/lib/api";
+import type { CompareHolding, CompareSignal, CompareTopStock, CompareWindowCode, ForecastOut, FundGoal, PortfolioCompareResponse } from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import CompareGrowthChart, { COMPARE_COLORS } from "@/components/portfolio/CompareGrowthChart";
 import Sparkline from "@/components/portfolio/Sparkline";
+import StockForecastPanel from "@/components/portfolio/StockForecastPanel";
 import { useUrlState } from "@/lib/useUrlState";
 
 const WINDOWS: { code: CompareWindowCode; label: string }[] = [
@@ -81,11 +82,39 @@ export default function PortfolioComparePage() {
   const [refetching, setRefetching] = useState(false); // goal/window switch
   const [error, setError] = useState<string | null>(null);
 
+  // On-demand only, never fetched for all 10 stocks automatically -- a
+  // real multi-day forecast trains a model per ticker per horizon (the
+  // same expensive path the Predict page uses), so this only runs for
+  // whichever one stock the user actually expands.
+  const [expandedForecastTicker, setExpandedForecastTicker] = useState<string | null>(null);
+  const [forecastByTicker, setForecastByTicker] = useState<Record<string, ForecastOut | null>>({});
+  const [forecastLoading, setForecastLoading] = useState<string | null>(null);
+  const [forecastError, setForecastError] = useState<string | null>(null);
+
   useEffect(() => {
     getFundGoals()
       .then((res) => setGoals(res.goals.filter((g) => g.name !== "Custom")))
       .catch(() => {});
   }, []);
+
+  async function toggleForecast(ticker: string) {
+    if (expandedForecastTicker === ticker) {
+      setExpandedForecastTicker(null);
+      return;
+    }
+    setExpandedForecastTicker(ticker);
+    setForecastError(null);
+    if (forecastByTicker[ticker] !== undefined) return; // already fetched
+    setForecastLoading(ticker);
+    try {
+      const res = await getPredictionSummary(ticker, "1y", 10);
+      setForecastByTicker((prev) => ({ ...prev, [ticker]: res.forecast }));
+    } catch (err) {
+      setForecastError(err instanceof ApiError ? err.message : "Could not load a forecast for this stock.");
+    } finally {
+      setForecastLoading((cur) => (cur === ticker ? null : cur));
+    }
+  }
 
   async function load(isSwitch: boolean) {
     if (selectedPortfolioId === null) return;
@@ -373,23 +402,59 @@ export default function PortfolioComparePage() {
           <div>
             <h3 className="font-semibold text-slate-900">Best-Performing Stocks — {windowCode}</h3>
             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
-              {data.top_stocks.map((s: CompareTopStock) => (
-                <div key={s.ticker} className="rounded-lg border border-slate-200 bg-white p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-800">{s.ticker}</span>
-                    {s.owned && (
-                      <span className="rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                        You own
-                      </span>
+              {data.top_stocks.map((s: CompareTopStock) => {
+                const expanded = expandedForecastTicker === s.ticker;
+                return (
+                  <div
+                    key={s.ticker}
+                    className={`rounded-lg border border-slate-200 bg-white p-3 ${expanded ? "col-span-2 sm:col-span-5" : ""}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800">{s.ticker}</span>
+                      {s.owned && (
+                        <span className="rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                          You own
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-xs text-slate-500">{s.name}</p>
+                    <p className="text-xs text-slate-400">{s.sector}</p>
+                    <p className="mt-1 font-medium" style={{ color: pctColor(s.return_pct) }}>
+                      {fmtPct(s.return_pct)}
+                    </p>
+                    <div className="mt-2 border-t border-slate-100 pt-2">
+                      <SignalPill signal={s.signal} />
+                      {s.expected_return_pct !== null && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Forecast: <span style={{ color: pctColor(s.expected_return_pct) }}>{fmtPct(s.expected_return_pct)}</span>
+                          {s.target_price !== null && ` (target $${s.target_price.toFixed(2)})`}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleForecast(s.ticker)}
+                        className="mt-1 text-xs font-medium text-blue-700 hover:underline"
+                      >
+                        {expanded ? "Hide 10-day forecast" : "Show 10-day forecast"}
+                      </button>
+                    </div>
+                    {expanded && (
+                      <div className="mt-2 border-t border-slate-100 pt-2">
+                        {forecastLoading === s.ticker && <p className="text-xs text-slate-400">Loading forecast…</p>}
+                        {forecastError && forecastLoading !== s.ticker && (
+                          <p className="text-xs text-red-600">{forecastError}</p>
+                        )}
+                        {forecastLoading !== s.ticker && forecastByTicker[s.ticker] && (
+                          <StockForecastPanel ticker={s.ticker} forecast={forecastByTicker[s.ticker]!} />
+                        )}
+                        {forecastLoading !== s.ticker && forecastByTicker[s.ticker] === null && (
+                          <p className="text-xs text-slate-400">Not enough price history to forecast this stock.</p>
+                        )}
+                      </div>
                     )}
                   </div>
-                  <p className="truncate text-xs text-slate-500">{s.name}</p>
-                  <p className="text-xs text-slate-400">{s.sector}</p>
-                  <p className="mt-1 font-medium" style={{ color: pctColor(s.return_pct) }}>
-                    {fmtPct(s.return_pct)}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

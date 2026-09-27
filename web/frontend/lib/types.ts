@@ -946,6 +946,8 @@ export interface CompareTopStock {
   owned: boolean;
   spark: number[];
   signal: CompareSignal | null;
+  expected_return_pct: number | null;
+  target_price: number | null;
 }
 
 export interface CompareGapDriver {
