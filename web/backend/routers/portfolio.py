@@ -412,11 +412,14 @@ async def save_diversified_basket(request: Request, body: SaveDiversifiedBasketR
     Saves a "Build a Diversified Basket" preview as a brand-new portfolio
     (DI-07) — always a new portfolio, never merged into an existing one,
     so saving the same basket twice creates two separate portfolios by
-    design. Bypasses _merge_with_existing/_save_and_respond (both built
-    around merging into a possibly-nonempty portfolio) since a
-    freshly-created basket portfolio is always empty — a direct insert is
-    simpler and avoids dragging in that merge machinery's semantics
-    unnecessarily.
+    design. Goes through the same build_manual_positions + _save_and_respond
+    path every other "save these holdings" flow in this app uses (manual
+    entry, CSV import, refresh, move) — a portfolio's Holdings table
+    renders from `portfolio_strategies` (built via build_robinhood_
+    strategies), not directly from `portfolio_positions`, so an earlier
+    version of this endpoint that only inserted into portfolio_positions
+    left the new portfolio showing zero holdings on the Portfolio page
+    even though the positions existed in the database.
     """
     await enforce_daily_quota(request, "portfolio/diversified-basket/save")
     name = body.name.strip()
@@ -431,6 +434,14 @@ async def save_diversified_basket(request: Request, body: SaveDiversifiedBasketR
     target_weights = {h["Ticker"]: h["Weight_pct"] for h in body.holdings}
     invested = sum(h["Amount"] for h in body.holdings)
     leftover_cash = max(body.total_amount - invested, 0.0)
+
+    holdings_df = build_manual_positions(
+        names=[h.get("Name", h["Ticker"]) for h in body.holdings],
+        tickers=[h["Ticker"] for h in body.holdings],
+        shares=[h["Shares"] for h in body.holdings],
+        current_prices=[h["Price"] for h in body.holdings],
+        avg_costs=[h["Price"] for h in body.holdings],  # cost basis = price at creation, so gain-vs-cost starts at 0
+    )
 
     async with user_conn(user_id) as conn:
         portfolio = await conn.fetchrow(
@@ -450,15 +461,7 @@ async def save_diversified_basket(request: Request, body: SaveDiversifiedBasketR
             }),
             json.dumps(target_weights), body.rebalance_frequency, body.drift_threshold_pct,
         )
-        for h in body.holdings:
-            await conn.execute(
-                """
-                INSERT INTO portfolio_positions (
-                    user_id, portfolio_id, ticker, name, shares, avg_cost, current_price, source, acquired_at
-                ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $6, 'DiversifiedBasket', current_date)
-                """,
-                user_id, portfolio["id"], h["Ticker"], h.get("Name", h["Ticker"]), h["Shares"], h["Price"],
-            )
+        await _save_and_respond(conn, user_id, portfolio["id"], holdings_df, "Balanced", 5, "DiversifiedBasket")
 
     await log_event(
         user_id, "diversified_basket_saved", resource=str(portfolio["id"]),
