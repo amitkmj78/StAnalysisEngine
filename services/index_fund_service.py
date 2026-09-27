@@ -151,6 +151,21 @@ GOAL_WEIGHTS: Dict[str, Dict[str, float]] = {
     },
 }
 
+# One-line description per preset goal, generated FROM the real weights
+# above (not hand-copied) so it can never drift out of sync the way the
+# old frontend-only copy in compare/page.tsx's GOAL_INFO did -- that text
+# claimed "Best Growth: 1Y return 50%, 3Y annualized 35%..." when the
+# real weights are return_30d/60d/90d + return_1y + volatility_1y, a
+# stale/wrong description nobody had updated since Best Growth's weights
+# were reworked. Single-sourced here; both /index-fund/goals and
+# /portfolio/compare read this same dict.
+GOAL_DESCRIPTIONS: Dict[str, str] = {
+    "Balanced Core": "A well-rounded blend — 1Y return 35%, 3Y annualized 25%, expense ratio 20%, 1Y volatility 10%, 3Y max drawdown 10%.",
+    "Lowest Cost": "Minimizing fees above almost everything else — expense ratio 65%, 3Y annualized 20%, 1Y volatility 10%, fund assets 5%.",
+    "Best Growth": "Chasing recent momentum, not long-run return — 30D return 30%, 60D return 25%, 90D return 20%, 1Y return 15%, 1Y volatility 10%.",
+    "Most Stable": "Minimizing swings and drawdowns — 1Y volatility 45%, 3Y max drawdown 30%, expense ratio 15%, 3Y annualized 10%.",
+}
+
 # Metrics a "Custom" goal's sliders may weight -- broader than the four
 # presets above (adds the new window-based/liquidity metrics), but every
 # preset above only ever uses a subset of this same set, so scoring logic

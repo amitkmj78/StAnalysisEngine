@@ -10,6 +10,8 @@ import pandas as pd
 import pytest
 
 from services.index_fund_service import (
+    GOAL_DESCRIPTIONS,
+    GOAL_WEIGHTS,
     InvalidCustomWeights,
     _apply_peer_group_scores,
     _stats_for_window,
@@ -259,3 +261,14 @@ def test_rank_funds_overall_reorders_category_first_sort_by_score():
 def test_rank_funds_overall_empty_df_is_a_noop():
     df = pd.DataFrame()
     assert rank_funds_overall(df).empty
+
+
+# ---------------------------------------------------------------------------
+# GOAL_DESCRIPTIONS -- catches drift if a preset goal is ever added/renamed
+# without a matching one-line description (used by /index-fund/goals and
+# the /portfolio/compare endpoint).
+# ---------------------------------------------------------------------------
+
+
+def test_goal_descriptions_cover_every_preset_goal():
+    assert set(GOAL_DESCRIPTIONS) == set(GOAL_WEIGHTS)

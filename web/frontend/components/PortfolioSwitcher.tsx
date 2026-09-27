@@ -15,6 +15,7 @@ export default function PortfolioSwitcher({
   onPortfoliosChange,
   reloadSignal,
   extraMenuItems,
+  initialPreferId,
 }: {
   selectedPortfolioId: number | null;
   onChange: (portfolioId: number) => void;
@@ -30,6 +31,11 @@ export default function PortfolioSwitcher({
    * each being its own always-visible button — keeps the toolbar down to
    * one primary action plus a single menu for everything less-frequent. */
   extraMenuItems?: { label: string; href: string }[];
+  /** Wins over the last-selected-in-localStorage portfolio on first load
+   * only (e.g. a `?p=` id from a bookmarked/shared URL) -- lets a page
+   * restore a specific portfolio from its own URL state without fighting
+   * this component's own localStorage-remembered selection. */
+  initialPreferId?: number;
 }) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +87,7 @@ export default function PortfolioSwitcher({
   }
 
   useEffect(() => {
-    load();
+    load(initialPreferId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -1,737 +1,433 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 
-import {
-  ApiError,
-  getFundGoals,
-  getFundRanking,
-  getFundReturnSince,
-  getPortfolio1yForecast,
-  getPortfolioInsights,
-  getPortfolioPerformance,
-  getPortfolioSentiment,
-  getPortfolioSummary,
-  refreshPortfolioInsights,
-} from "@/lib/api";
-import type {
-  FundGoal,
-  FundRankRow,
-  FundReturnSince,
-  Portfolio,
-  PortfolioInsight,
-  PortfolioPerformance,
-  PortfolioSummary,
-  TickerSentiment,
-} from "@/lib/types";
+import { ApiError, getFundGoals, getPortfolioCompare } from "@/lib/api";
+import type { CompareHolding, CompareSignal, CompareTopStock, CompareWindowCode, FundGoal, PortfolioCompareResponse } from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
-import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import CompareGrowthChart, { COMPARE_COLORS } from "@/components/portfolio/CompareGrowthChart";
+import Sparkline from "@/components/portfolio/Sparkline";
+import { useUrlState } from "@/lib/useUrlState";
 
-const GOAL_INFO: ColumnInfo = {
-  title: "What do these goals mean?",
-  body: [
-    "Each goal describes what the fund's Score weighs — not a rule about what kind of fund can win. A single-sector fund can still top \"Balanced Core\" if it scores well on that blend, even though the fund itself isn't diversified.",
-    "Balanced Core: a well-rounded blend — 1Y return 35%, 3Y annualized 25%, expense ratio 20%, 1Y volatility 10%, 3Y max drawdown 10%.",
-    "Lowest Cost: minimizing fees above almost everything else — expense ratio 65%, 3Y annualized 20%, 1Y volatility 10%, fund assets 5%.",
-    "Best Growth: chasing the highest returns — 1Y return 50%, 3Y annualized 35%, 1Y volatility 10%, expense ratio 5%.",
-    "Most Stable: minimizing swings and drawdowns — 1Y volatility 45%, 3Y max drawdown 30%, expense ratio 15%, 3Y annualized 10%.",
-  ],
-};
+const WINDOWS: { code: CompareWindowCode; label: string }[] = [
+  { code: "10D", label: "10D" },
+  { code: "30D", label: "30D" },
+  { code: "60D", label: "60D" },
+  { code: "90D", label: "90D" },
+  { code: "1Y", label: "1Y" },
+];
+
+const DEFAULT_GOAL = "Balanced Core";
+const DEFAULT_WINDOW = "90D";
 
 function fmtPct(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
-  return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+  return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 }
 
-function pctClass(v: number | null | undefined): string {
-  if (v === null || v === undefined) return "text-slate-500";
-  return v >= 0 ? "text-emerald-600" : "text-red-600";
+function pctColor(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "#6b7280";
+  return v >= 0 ? COMPARE_COLORS.gain : COMPARE_COLORS.loss;
 }
 
-function daysSince(isoDate: string): number {
-  return Math.max(0, Math.round((Date.now() - new Date(isoDate).getTime()) / (1000 * 60 * 60 * 24)));
+function fmtDate(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function fmtDuration(days: number): string {
-  if (days < 30) return `${days} day${days === 1 ? "" : "s"}`;
-  if (days < 365) return `${Math.round(days / 30)} month${Math.round(days / 30) === 1 ? "" : "s"}`;
-  const years = Math.floor(days / 365);
-  const months = Math.round((days % 365) / 30);
-  return months > 0 ? `${years}y ${months}mo` : `${years} year${years === 1 ? "" : "s"}`;
+function isStale(asOf: string | null): boolean {
+  if (!asOf) return false;
+  const days = (Date.now() - new Date(asOf + "T00:00:00").getTime()) / 86400000;
+  return days > 7; // ~5 trading days
 }
 
-const SIGNAL_BADGE_CLASS: Record<string, string> = {
-  BUY: "bg-emerald-50 text-emerald-700",
-  SELL: "bg-red-50 text-red-700",
-  HOLD: "bg-slate-100 text-slate-600",
-};
-
-const SENTIMENT_BADGE_CLASS: Record<string, string> = {
-  Bullish: "bg-emerald-50 text-emerald-700",
-  Bearish: "bg-red-50 text-red-700",
-  Neutral: "bg-slate-100 text-slate-600",
-};
-
-const MATCHED_WINDOWS = [
-  { label: "30 Days", days: 30 },
-  { label: "6 Months", days: 182 },
-  { label: "1 Year", days: 365 },
-];
-
-interface MatchedWindow {
-  label: string;
-  days: number;
-  portfolioPct: number | null;
-  fundPct: number | null;
+function SignalPill({ signal }: { signal: CompareSignal | null | undefined }) {
+  if (!signal || !signal.action) {
+    return <span className="text-xs text-slate-400">No current signal</span>;
+  }
+  const color =
+    signal.action === "buy" ? COMPARE_COLORS.buy : signal.action === "trim" ? COMPARE_COLORS.trim : COMPARE_COLORS.hold;
+  const label = signal.action === "buy" ? "Buy" : signal.action === "trim" ? "Trim" : "Hold";
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+      style={{ backgroundColor: color }}
+      title={`Confidence: ${signal.label}${isStale(signal.as_of) ? " (stale)" : ""}`}
+    >
+      {label}
+      {isStale(signal.as_of) && <span className="opacity-80">·stale</span>}
+    </span>
+  );
 }
 
-interface PositionReturns {
-  d30: number | null;
-  m6: number | null;
-  y1: number | null;
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />;
 }
 
-function windowKey(days: number): keyof PositionReturns {
-  if (days <= 30) return "d30";
-  if (days <= 182) return "m6";
-  return "y1";
-}
+export default function PortfolioComparePage() {
+  const [{ p: portfolioParam, goal, window: windowCode }, setUrlState] = useUrlState({
+    p: "",
+    goal: DEFAULT_GOAL,
+    window: DEFAULT_WINDOW,
+  });
 
-export default function ComparePage() {
-  const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
-  const [allPortfolios, setAllPortfolios] = useState<Portfolio[]>([]);
-  const [goal, setGoal] = useState("Balanced Core");
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(
+    portfolioParam ? Number(portfolioParam) : null,
+  );
   const [goals, setGoals] = useState<FundGoal[]>([]);
 
-  const [summary, setSummary] = useState<PortfolioSummary | null>(null);
-  const [performance, setPerformance] = useState<PortfolioPerformance | null>(null);
-  const [insights, setInsights] = useState<PortfolioInsight[]>([]);
-  const [insightsAsOfDate, setInsightsAsOfDate] = useState<string | null>(null);
-  const [insightsUpdatedAt, setInsightsUpdatedAt] = useState<string | null>(null);
-  const [refreshingInsights, setRefreshingInsights] = useState(false);
-  const [refreshInsightsError, setRefreshInsightsError] = useState<string | null>(null);
-  const [sentiment, setSentiment] = useState<Record<string, TickerSentiment>>({});
-  const [sentimentLoading, setSentimentLoading] = useState(false);
-  const [topFunds, setTopFunds] = useState<FundRankRow[]>([]);
-
-  const [fundSince, setFundSince] = useState<FundReturnSince | null>(null);
-  const [fundSinceError, setFundSinceError] = useState<string | null>(null);
-
-  const [inceptionReturn, setInceptionReturn] = useState<FundReturnSince | null>(null);
-  const [matchedWindows, setMatchedWindows] = useState<MatchedWindow[]>([]);
-  const [matchedWindowsLoading, setMatchedWindowsLoading] = useState(false);
-  const [positionReturns, setPositionReturns] = useState<Record<string, PositionReturns>>({});
-  const [forecasts1y, setForecasts1y] = useState<
-    Record<string, { status: "loading" } | { status: "error" } | { status: "ok"; pct: number | null }>
-  >({});
-
-  async function loadForecast1y(ticker: string) {
-    setForecasts1y((prev) => ({ ...prev, [ticker]: { status: "loading" } }));
-    try {
-      const res = await getPortfolio1yForecast(ticker);
-      setForecasts1y((prev) => ({ ...prev, [ticker]: { status: "ok", pct: res.expected_return_pct } }));
-    } catch {
-      setForecasts1y((prev) => ({ ...prev, [ticker]: { status: "error" } }));
-    }
-  }
-
-  async function handleRefreshInsights() {
-    setRefreshingInsights(true);
-    setRefreshInsightsError(null);
-    try {
-      const res = await refreshPortfolioInsights(selectedPortfolioId ?? undefined);
-      setInsights(res.positions);
-      setInsightsAsOfDate(res.as_of_date ?? null);
-      setInsightsUpdatedAt(res.updated_at ?? null);
-    } catch (err) {
-      setRefreshInsightsError(err instanceof ApiError ? err.message : "Could not refresh signals.");
-    } finally {
-      setRefreshingInsights(false);
-    }
-  }
-
-  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<PortfolioCompareResponse | null>(null);
+  const [loading, setLoading] = useState(true); // first load only
+  const [refetching, setRefetching] = useState(false); // goal/window switch
   const [error, setError] = useState<string | null>(null);
-  const [showGoalInfo, setShowGoalInfo] = useState(false);
 
   useEffect(() => {
     getFundGoals()
-      .then((res) => setGoals(res.goals))
-      .catch(() => {
-        // Non-fatal: fall back to "Balanced Core" already in state.
-      });
+      .then((res) => setGoals(res.goals.filter((g) => g.name !== "Custom")))
+      .catch(() => {});
   }, []);
 
-  useEffect(() => {
+  async function load(isSwitch: boolean) {
     if (selectedPortfolioId === null) return;
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPortfolioId, goal]);
-
-  // Separate from load() deliberately: sentiment is shared/cached across
-  // every user by ticker, but the first request each day for an
-  // uncached ticker still runs a real LLM call, so it shouldn't block the
-  // rest of this page's (fast) render — signals show first, sentiment
-  // fills in once ready.
-  useEffect(() => {
-    if (selectedPortfolioId === null) return;
-    let cancelled = false;
-    setSentimentLoading(true);
-    getPortfolioSentiment(selectedPortfolioId ?? undefined)
-      .then((res) => {
-        if (!cancelled) setSentiment(res.sentiment);
-      })
-      .catch(() => {
-        if (!cancelled) setSentiment({});
-      })
-      .finally(() => {
-        if (!cancelled) setSentimentLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedPortfolioId]);
-
-  async function load() {
-    setLoading(true);
+    if (isSwitch) setRefetching(true);
+    else setLoading(true);
     setError(null);
-    setFundSince(null);
-    setFundSinceError(null);
-    setForecasts1y({});
-    setRefreshInsightsError(null);
     try {
-      const [summaryRes, performanceRes, insightsRes, fundRes] = await Promise.all([
-        getPortfolioSummary(selectedPortfolioId ?? undefined),
-        getPortfolioPerformance(30, selectedPortfolioId ?? undefined),
-        getPortfolioInsights(selectedPortfolioId ?? undefined),
-        getFundRanking(goal, "All", "5y"),
-      ]);
-      setSummary(summaryRes.summary);
-      setPerformance(performanceRes);
-      setInsights(insightsRes.positions);
-      setInsightsAsOfDate(insightsRes.as_of_date ?? null);
-      setInsightsUpdatedAt(insightsRes.updated_at ?? null);
-      setTopFunds(fundRes.results.slice(0, 5));
+      const res = await getPortfolioCompare(goal, windowCode, selectedPortfolioId);
+      setData(res);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load this comparison.");
+      setError(err instanceof ApiError ? err.message : "Couldn't load the comparison.");
     } finally {
       setLoading(false);
+      setRefetching(false);
     }
   }
 
-  const selectedPortfolio = useMemo(
-    () => allPortfolios.find((p) => p.id === selectedPortfolioId) ?? null,
-    [allPortfolios, selectedPortfolioId],
-  );
-  const daysHeld = useMemo(() => {
-    if (!selectedPortfolio) return null;
-    const created = new Date(selectedPortfolio.created_at);
-    return Math.max(1, Math.round((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24)));
-  }, [selectedPortfolio]);
-
-  const topFund = topFunds[0] ?? null;
-
-  // Once we know how long this portfolio has actually existed, fetch the
-  // top fund's real point-in-time return over that identical window —
-  // "what if you'd put this money there instead, starting the same day" —
-  // rather than the fixed 30d/1Y/3Y windows the ranking table shows.
   useEffect(() => {
-    if (!topFund || !selectedPortfolio) return;
-    const sinceDate = selectedPortfolio.created_at.slice(0, 10);
-    let cancelled = false;
-    setFundSinceError(null);
-    getFundReturnSince(topFund.Ticker, sinceDate)
-      .then((res) => {
-        if (!cancelled) setFundSince(res);
-      })
-      .catch((err) => {
-        if (!cancelled) setFundSinceError(err instanceof ApiError ? err.message : "Could not load the fund's return over this period.");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [topFund, selectedPortfolio]);
+    load(data !== null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPortfolioId, goal, windowCode]);
 
-  // The fund's total return from its actual inception date to now — not
-  // duration-matched to anything, just "how has this fund done over its
-  // whole real life."
-  useEffect(() => {
-    const inceptionDate = topFund?.["Inception Date"] as string | null | undefined;
-    if (!topFund || !inceptionDate) {
-      setInceptionReturn(null);
-      return;
-    }
-    let cancelled = false;
-    getFundReturnSince(topFund.Ticker, inceptionDate)
-      .then((res) => {
-        if (!cancelled) setInceptionReturn(res);
-      })
-      .catch(() => {
-        if (!cancelled) setInceptionReturn(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [topFund]);
+  function handlePortfolioChange(id: number) {
+    setSelectedPortfolioId(id);
+    setUrlState({ p: String(id) });
+  }
 
-  // Your portfolio's real trailing performance next to the top fund's real
-  // point-in-time return, over identical 30-day/6-month/1-year windows —
-  // fixed, matched horizons, unlike "Since You Started" above which tracks
-  // however long this specific portfolio has actually existed.
-  useEffect(() => {
-    if (!topFund) {
-      setMatchedWindows([]);
-      setPositionReturns({});
-      return;
-    }
-    let cancelled = false;
-    setMatchedWindowsLoading(true);
-    setMatchedWindows(MATCHED_WINDOWS.map((w) => ({ ...w, portfolioPct: null, fundPct: null })));
-
-    Promise.all(
-      MATCHED_WINDOWS.map(async (w) => {
-        const sinceDate = new Date(Date.now() - w.days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const [perf, fundRet] = await Promise.all([
-          getPortfolioPerformance(w.days, selectedPortfolioId ?? undefined).catch(() => null),
-          getFundReturnSince(topFund.Ticker, sinceDate).catch(() => null),
-        ]);
-        return {
-          ...w,
-          portfolioPct: perf?.value_diff_pct ?? null,
-          fundPct: fundRet?.return_pct ?? null,
-          rows: perf?.rows ?? [],
-        };
-      }),
-    ).then((results) => {
-      if (cancelled) return;
-      setMatchedWindows(results.map(({ rows, ...w }) => w));
-
-      // Same per-position rows the portfolio-level 30d/6mo/1yr figures above
-      // are built from — each position's own real trailing return at each
-      // window, not a single "expected return" number from the prediction
-      // model (that stays in the Signal column, which already has its own
-      // ~10-day horizon).
-      const byTicker: Record<string, PositionReturns> = {};
-      for (const w of results) {
-        const key = windowKey(w.days);
-        for (const row of w.rows) {
-          byTicker[row.ticker] = byTicker[row.ticker] ?? { d30: null, m6: null, y1: null };
-          byTicker[row.ticker][key] = row.diff_pct;
-        }
-      }
-      setPositionReturns(byTicker);
-    }).finally(() => {
-      if (!cancelled) setMatchedWindowsLoading(false);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [topFund, selectedPortfolioId]);
-
-  const signalCounts = useMemo(() => {
-    const c = { BUY: 0, SELL: 0, HOLD: 0 };
-    for (const p of insights) {
-      if (p.signal === "BUY" || p.signal === "SELL" || p.signal === "HOLD") c[p.signal]++;
-    }
-    return c;
-  }, [insights]);
-
-  const concentrated = useMemo(() => insights.filter((p) => p.concentrated), [insights]);
+  const dimmed = refetching ? "opacity-50 transition-opacity" : "transition-opacity";
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Portfolio vs. Best Fund</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Portfolio vs. Top Picks</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Your portfolio&apos;s real performance and current signals, next to the Fund Screener&apos;s
-            top-ranked picks for the goal you choose — two different things, not a claim that one should
-            replace the other.
+            How your portfolio has actually done against the S&amp;P 500 and the top-ranked fund for a goal,
+            over a window you pick.
           </p>
         </div>
-        <Link href="/portfolio" className="text-sm font-medium text-slate-600 hover:underline">
-          ← Back to Portfolio
-        </Link>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-end gap-3">
+      <div className="mt-6">
         <PortfolioSwitcher
           selectedPortfolioId={selectedPortfolioId}
-          onChange={setSelectedPortfolioId}
-          onPortfoliosChange={setAllPortfolios}
+          onChange={handlePortfolioChange}
+          initialPreferId={portfolioParam ? Number(portfolioParam) : undefined}
         />
-        <Field label="Compare against goal">
-          <div className="flex items-center gap-1.5">
-            <select value={goal} onChange={(e) => setGoal(e.target.value)} className="input">
-              {goals
-                .filter((g) => g.name !== "Custom")
-                .map((g) => (
-                  <option key={g.name} value={g.name}>{g.name}</option>
-                ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => setShowGoalInfo(true)}
-              title="What do these goals mean?"
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 text-xs font-normal text-slate-400 hover:border-slate-500 hover:text-slate-700"
-            >
-              i
-            </button>
-          </div>
-        </Field>
       </div>
 
-      {showGoalInfo && <InfoModal info={GOAL_INFO} onClose={() => setShowGoalInfo(false)} />}
-
-      {loading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
-      {error && <p className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-
-      {!loading && summary && performance && (
-        <>
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <h2 className="text-sm font-semibold text-slate-900">Your Portfolio</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                {summary.total_positions} position{summary.total_positions === 1 ? "" : "s"} · $
-                {summary.total_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                {daysHeld !== null && ` · held ${fmtDuration(daysHeld)}`}
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <Metric label="30-Day Change" value={fmtPct(performance.value_diff_pct)} valueClass={pctClass(performance.value_diff_pct)} />
-                <Metric label="Gain vs. Cost" value={fmtPct(performance.total_gain_vs_cost_pct)} valueClass={pctClass(performance.total_gain_vs_cost_pct)} />
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              {topFund ? (
-                <>
-                  <h2 className="text-sm font-semibold text-slate-900">
-                    Top Fund for &quot;{goal}&quot;: {topFund.Ticker}
-                  </h2>
-                  <p className="mt-1 text-xs text-slate-500">{topFund.Fund} · Score {topFund.Score}/100</p>
-                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    <Metric label="1Y Return" value={fmtPct(topFund["1Y Return %"] as number)} valueClass={pctClass(topFund["1Y Return %"] as number)} />
-                    <Metric label="3Y Annualized" value={fmtPct(topFund["3Y Annualized %"] as number)} valueClass={pctClass(topFund["3Y Annualized %"] as number)} />
-                    <Metric label="Expense Ratio" value={topFund["Expense Ratio %"] != null ? `${(topFund["Expense Ratio %"] as number).toFixed(2)}%` : "—"} />
-                    <Metric
-                      label="Time Since Inception"
-                      value={topFund["Inception Date"] ? fmtDuration(daysSince(topFund["Inception Date"] as string)) : "unknown"}
-                    />
-                    <Metric
-                      label="% Since Inception"
-                      value={topFund["Inception Date"] ? (inceptionReturn ? fmtPct(inceptionReturn.return_pct) : "…") : "unknown"}
-                      valueClass={inceptionReturn ? pctClass(inceptionReturn.return_pct) : undefined}
-                    />
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-slate-500">No fund data for this goal yet.</p>
+      {/* Goal picker */}
+      <div className="mt-6">
+        <p className="text-xs font-medium text-slate-500">Goal</p>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          {goals.map((g) => (
+            <button
+              key={g.name}
+              type="button"
+              onClick={() => setUrlState({ goal: g.name })}
+              className={`min-h-[44px] rounded-lg border px-3 py-2 text-left text-sm ${
+                goal === g.name ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"
+              }`}
+            >
+              <div className="font-medium">{g.name}</div>
+              {g.description && (
+                <div className={`mt-0.5 text-xs ${goal === g.name ? "text-slate-200" : "text-slate-500"}`}>
+                  {g.description}
+                </div>
               )}
-            </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Window picker */}
+      <div className="mt-4">
+        <p className="text-xs font-medium text-slate-500">Window</p>
+        <div className="mt-2 grid grid-cols-5 gap-2 sm:flex">
+          {WINDOWS.map((w) => (
+            <button
+              key={w.code}
+              type="button"
+              onClick={() => setUrlState({ window: w.code })}
+              className={`min-h-[44px] rounded-lg border px-4 py-2 text-sm font-medium ${
+                windowCode === w.code ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"
+              }`}
+            >
+              {w.label}
+            </button>
+          ))}
+          {refetching && <span className="ml-2 self-center text-xs text-slate-400">Updating…</span>}
+        </div>
+      </div>
+
+      {/* Loading skeleton (first load only) */}
+      {loading && !data && (
+        <div className="mt-8 flex flex-col gap-4">
+          <SkeletonBlock className="h-6 w-2/3" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <SkeletonBlock className="h-24" />
+            <SkeletonBlock className="h-24" />
+            <SkeletonBlock className="h-24" />
           </div>
+          <SkeletonBlock className="h-72" />
+          <SkeletonBlock className="h-64" />
+        </div>
+      )}
 
-          {topFund && daysHeld !== null && selectedPortfolio && (
-            <div className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
-              <h2 className="text-sm font-semibold text-slate-900">
-                Since You Started ({fmtDuration(daysHeld)})
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Your portfolio&apos;s gain vs. cost isn&apos;t tied to one exact start date — different
-                positions were added at different times. This is the real point-in-time comparison instead:
-                what {topFund.Ticker} actually returned over the exact same window your portfolio has existed.
-              </p>
-              {fundSinceError && <p className="mt-2 text-xs text-red-600">{fundSinceError}</p>}
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <Metric
-                  label="Your Gain vs. Cost"
-                  value={fmtPct(performance.total_gain_vs_cost_pct)}
-                  valueClass={pctClass(performance.total_gain_vs_cost_pct)}
+      {error && (
+        <div className="mt-8 rounded-lg border border-red-200 bg-red-50 p-5 text-center">
+          <p className="text-sm text-red-700">Couldn&apos;t load the comparison. Try again.</p>
+          <button
+            type="button"
+            onClick={() => load(false)}
+            className="mt-3 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && data && (
+        <div className={`mt-8 flex flex-col gap-6 ${dimmed}`}>
+          <p className="text-xs text-slate-500">Prices as of {fmtDate(data.as_of)} close</p>
+
+          <p className="text-lg text-slate-800">{data.headline}</p>
+
+          {data.portfolio.holdings_count === 0 ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600">
+              Add holdings to compare.{" "}
+              <a href="/portfolio" className="underline">
+                Go to Portfolio
+              </a>
+            </div>
+          ) : (
+            <>
+              {/* Summary cards */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <SummaryCard
+                  title="Your portfolio"
+                  color={COMPARE_COLORS.portfolio}
+                  returnPct={data.portfolio.return_pct}
+                  volatilityPct={data.portfolio.volatility_pct}
+                  extraLabel="Max drawdown"
+                  extraValue={fmtPct(data.portfolio.max_drawdown_pct)}
                 />
-                <Metric
-                  label={`${topFund.Ticker} Since ${new Date(selectedPortfolio.created_at).toLocaleDateString()}`}
-                  value={fundSince ? fmtPct(fundSince.return_pct) : "…"}
-                  valueClass={fundSince ? pctClass(fundSince.return_pct) : undefined}
+                <SummaryCard
+                  title={`S&P 500 (${data.benchmark.ticker})`}
+                  color={COMPARE_COLORS.benchmark}
+                  returnPct={data.benchmark.return_pct}
+                  volatilityPct={data.benchmark.volatility_pct}
+                  extraLabel="Expense ratio"
+                  extraValue={data.benchmark.expense_ratio_pct !== null ? `${data.benchmark.expense_ratio_pct.toFixed(2)}%` : "—"}
+                />
+                {data.top_funds[0] ? (
+                  <SummaryCard
+                    title={`Top ${data.goal.label} pick: ${data.top_funds[0].ticker}`}
+                    color={COMPARE_COLORS.topPick}
+                    returnPct={data.top_funds[0].return_pct}
+                    volatilityPct={data.top_funds[0].volatility_pct}
+                    extraLabel="Expense ratio"
+                    extraValue={data.top_funds[0].expense_ratio_pct !== null ? `${data.top_funds[0].expense_ratio_pct.toFixed(2)}%` : "—"}
+                  />
+                ) : (
+                  <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+                    No fund data for this goal yet.
+                  </div>
+                )}
+              </div>
+
+              {/* Growth chart */}
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <CompareGrowthChart
+                  portfolioSeries={data.portfolio.series}
+                  benchmarkSeries={data.benchmark.series}
+                  topFundSeries={data.top_funds[0]?.series ?? null}
+                  topFundTicker={data.top_funds[0]?.ticker ?? null}
                 />
               </div>
-            </div>
-          )}
 
-          {topFund && matchedWindows.length > 0 && (
-            <div className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
-              <h2 className="text-sm font-semibold text-slate-900">30 Days / 6 Months / 1 Year</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Your portfolio&apos;s real trailing performance next to what {topFund.Ticker} actually returned
-                over the same fixed windows — regardless of how long you&apos;ve personally held this portfolio.
-              </p>
-              <div className="mt-3 overflow-x-auto rounded-md border border-slate-200">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                      <th className="px-3 py-2">Window</th>
-                      <th className="px-3 py-2 text-right">Your Portfolio</th>
-                      <th className="px-3 py-2 text-right">{topFund.Ticker}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {matchedWindows.map((w) => (
-                      <tr key={w.label} className="border-b border-slate-100 last:border-0">
-                        <td className="px-3 py-2 font-medium text-slate-800">{w.label}</td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(w.portfolioPct)}`}>
-                          {matchedWindowsLoading && w.portfolioPct === null ? "…" : fmtPct(w.portfolioPct)}
-                        </td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(w.fundPct)}`}>
-                          {matchedWindowsLoading && w.fundPct === null ? "…" : fmtPct(w.fundPct)}
-                        </td>
-                      </tr>
+              {/* Gap drivers */}
+              {data.gap_drivers.length > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <h3 className="font-semibold text-slate-900">Where the gap comes from</h3>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {data.gap_drivers.map((d) => (
+                      <div key={d.ticker} className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-slate-700">
+                          {d.kind === "lead" ? "Leading: " : "Dragging: "}
+                          {d.ticker}
+                        </span>
+                        <span style={{ color: pctColor(d.contribution_pts) }} className="font-mono font-semibold">
+                          {d.contribution_pts >= 0 ? "+" : ""}
+                          {d.contribution_pts.toFixed(2)} pts
+                        </span>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+                  </div>
+                </div>
+              )}
 
-          {topFunds.length > 0 && (
-            <div className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
-              <h2 className="text-sm font-semibold text-slate-900">Top 5 Funds for &quot;{goal}&quot;</h2>
-              <div className="mt-3 overflow-x-auto rounded-md border border-slate-200">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                      <th className="px-3 py-2">Ticker</th>
-                      <th className="px-3 py-2">Fund</th>
-                      <th className="px-3 py-2 text-right">Score</th>
-                      <th className="px-3 py-2 text-right">1Y Return</th>
-                      <th className="px-3 py-2 text-right">3Y Annualized</th>
-                      <th className="px-3 py-2 text-right">Expense Ratio</th>
-                      <th className="px-3 py-2 text-right">Since Inception</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topFunds.map((f, i) => (
-                      <tr key={f.Ticker} className="border-b border-slate-100 last:border-0">
-                        <td className="px-3 py-2 font-medium text-slate-800">
-                          {i === 0 && <span className="mr-1.5 text-amber-500">#1</span>}
-                          {f.Ticker}
-                        </td>
-                        <td className="px-3 py-2 text-slate-600">{f.Fund}</td>
-                        <td className="px-3 py-2 text-right text-slate-600">{f.Score}</td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(f["1Y Return %"] as number)}`}>
-                          {fmtPct(f["1Y Return %"] as number)}
-                        </td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(f["3Y Annualized %"] as number)}`}>
-                          {fmtPct(f["3Y Annualized %"] as number)}
-                        </td>
-                        <td className="px-3 py-2 text-right text-slate-600">
-                          {f["Expense Ratio %"] != null ? `${(f["Expense Ratio %"] as number).toFixed(2)}%` : "—"}
-                        </td>
-                        <td className="px-3 py-2 text-right text-slate-600">
-                          {f["Inception Date"] ? fmtDuration(daysSince(f["Inception Date"] as string)) : "unknown"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
-            <div className="flex flex-wrap items-start justify-between gap-2">
+              {/* Holdings table */}
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">Current Signals Across Your Positions</h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {insightsAsOfDate ? (
-                    <>
-                      As of {insightsAsOfDate}
-                      {insightsUpdatedAt && ` · refreshed ${new Date(insightsUpdatedAt).toLocaleTimeString()}`} —
-                      saved once per day; refresh to recompute now.
-                    </>
-                  ) : (
-                    "Computing…"
-                  )}
-                </p>
+                <h3 className="font-semibold text-slate-900">Holdings</h3>
+                <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <th className="px-3 py-2">Ticker</th>
+                        <th className="px-3 py-2">Signal</th>
+                        <th className="px-3 py-2 text-right">Weight</th>
+                        <th className="px-3 py-2 text-right">Return</th>
+                        <th className="px-3 py-2 text-right">Contribution</th>
+                        <th className="px-3 py-2">Trend</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...data.holdings]
+                        .sort((a, b) => b.contribution_pts - a.contribution_pts)
+                        .map((h: CompareHolding) => (
+                          <tr key={h.ticker} className="border-b border-slate-100 last:border-0">
+                            <td className="px-3 py-2 font-medium text-slate-800">
+                              {h.ticker}
+                              {h.since && <div className="text-[11px] font-normal text-slate-400">Since {fmtDate(h.since)}</div>}
+                            </td>
+                            <td className="px-3 py-2">
+                              <SignalPill signal={h.signal} />
+                            </td>
+                            <td className="px-3 py-2 text-right text-slate-600">{h.weight_pct.toFixed(1)}%</td>
+                            <td className="px-3 py-2 text-right font-medium" style={{ color: pctColor(h.return_pct) }}>
+                              {fmtPct(h.return_pct)}
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium" style={{ color: pctColor(h.contribution_pts) }}>
+                              {h.contribution_pts >= 0 ? "+" : ""}
+                              {h.contribution_pts.toFixed(2)} pts
+                            </td>
+                            <td className="px-3 py-2">
+                              <Sparkline values={h.spark} color={pctColor(h.return_pct)} />
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={handleRefreshInsights}
-                disabled={refreshingInsights}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-              >
-                {refreshingInsights ? "Refreshing…" : "Refresh"}
-              </button>
-            </div>
-            {refreshInsightsError && <p className="mt-2 text-xs text-red-600">{refreshInsightsError}</p>}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${SIGNAL_BADGE_CLASS.BUY}`}>{signalCounts.BUY} BUY</span>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${SIGNAL_BADGE_CLASS.HOLD}`}>{signalCounts.HOLD} HOLD</span>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${SIGNAL_BADGE_CLASS.SELL}`}>{signalCounts.SELL} SELL</span>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">
-              10D/30D Forecast are the prediction model's expected return at those horizons — both within the
-              5-to-60-day range the model is actually backtested for. 30D/6M/1Y Trailing are each position's
-              real historical return over that window instead — not predicted.
-            </p>
-            <p className="mt-1 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              1Y Forecast is the same model pushed to a 252-day recursive forecast — far beyond the ~5-60 day
-              range it&apos;s actually backtested for, and compounding forecast error at every step. Shown
-              because it was asked for, not because it&apos;s reliable — treat 1Y Trailing as the trustworthy
-              number for that horizon.
-            </p>
+            </>
+          )}
 
-            {concentrated.length > 0 && (
-              <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                {concentrated.map((p) => `${p.ticker} (${p.weight_pct?.toFixed(0)}%)`).join(", ")}{" "}
-                {concentrated.length === 1 ? "makes up" : "make up"} a large enough share of this portfolio to
-                drive most of its swings — worth a deliberate decision, not an accident.
-              </p>
-            )}
-
-            <div className="mt-4 max-h-[24rem] overflow-auto rounded-md border border-slate-200">
+          {/* Top funds */}
+          <div>
+            <h3 className="font-semibold text-slate-900">Top-Ranked Funds — {data.goal.label}</h3>
+            <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                    <th className="px-3 py-2">Ticker</th>
-                    <th className="px-3 py-2 text-right">Weight</th>
-                    <th className="px-3 py-2">Signal</th>
-                    <th className="px-3 py-2" title="Today's real news/earnings sentiment reading — not a forecast">
-                      Sentiment
-                    </th>
-                    <th className="px-3 py-2 text-right">10D Forecast</th>
-                    <th className="px-3 py-2 text-right">30D Forecast</th>
-                    <th className="px-3 py-2 text-right" title="Unvalidated — far beyond the model's backtested range">
-                      1Y Forecast <span className="text-amber-500">*</span>
-                    </th>
-                    <th className="px-3 py-2 text-right">30D Trailing</th>
-                    <th className="px-3 py-2 text-right">6M Trailing</th>
-                    <th className="px-3 py-2 text-right">1Y Trailing</th>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <th className="px-3 py-2">#</th>
+                    <th className="px-3 py-2">Fund</th>
+                    <th className="px-3 py-2">Why it ranks here</th>
+                    <th className="px-3 py-2 text-right">Return</th>
+                    <th className="px-3 py-2 text-right">Expense Ratio</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[...insights]
-                    .sort((a, b) => (b.weight_pct ?? 0) - (a.weight_pct ?? 0))
-                    .map((p) => {
-                      const ret = positionReturns[p.ticker];
-                      return (
-                      <tr key={p.ticker} className="border-b border-slate-100 last:border-0">
-                        <td className="px-3 py-2 font-medium text-slate-800">
-                          {p.ticker}
-                          {p.concentrated && (
-                            <span
-                              title="A single position this large drives most of your portfolio's swings."
-                              className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
-                            >
-                              concentrated
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-right text-slate-600">
-                          {p.weight_pct !== null ? `${p.weight_pct.toFixed(1)}%` : "—"}
-                        </td>
-                        <td className="px-3 py-2">
-                          {p.signal ? (
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${SIGNAL_BADGE_CLASS[p.signal]}`}>
-                              {p.signal}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          {(() => {
-                            const s = sentiment[p.ticker];
-                            if (!s) {
-                              return (
-                                <span className="text-xs text-slate-400">
-                                  {sentimentLoading ? "…" : "—"}
-                                </span>
-                              );
-                            }
-                            if (!s.label) {
-                              return <span className="text-xs text-slate-400">unavailable</span>;
-                            }
-                            return (
-                              <span
-                                title={s.reasoning ?? undefined}
-                                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${SENTIMENT_BADGE_CLASS[s.label]}`}
-                              >
-                                {s.label}
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(p.expected_return_pct)}`}>
-                          {fmtPct(p.expected_return_pct)}
-                        </td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(p.expected_return_pct_30d)}`}>
-                          {fmtPct(p.expected_return_pct_30d)}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {(() => {
-                            const f1y = forecasts1y[p.ticker];
-                            if (!f1y) {
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => loadForecast1y(p.ticker)}
-                                  className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                                >
-                                  Load
-                                </button>
-                              );
-                            }
-                            if (f1y.status === "loading") return <span className="text-xs text-slate-400">…</span>;
-                            if (f1y.status === "error") {
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => loadForecast1y(p.ticker)}
-                                  className="text-xs font-medium text-red-600 hover:underline"
-                                >
-                                  Failed — retry
-                                </button>
-                              );
-                            }
-                            return <span className={`font-medium ${pctClass(f1y.pct)}`}>{fmtPct(f1y.pct)}</span>;
-                          })()}
-                        </td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(ret?.d30)}`}>
-                          {matchedWindowsLoading && !ret ? "…" : fmtPct(ret?.d30)}
-                        </td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(ret?.m6)}`}>
-                          {matchedWindowsLoading && !ret ? "…" : fmtPct(ret?.m6)}
-                        </td>
-                        <td className={`px-3 py-2 text-right font-medium ${pctClass(ret?.y1)}`}>
-                          {matchedWindowsLoading && !ret ? "…" : fmtPct(ret?.y1)}
-                        </td>
-                      </tr>
-                      );
-                    })}
+                  {data.top_funds.map((f) => (
+                    <tr key={f.ticker} className="border-b border-slate-100 last:border-0">
+                      <td className="px-3 py-2 text-slate-500">{f.rank}</td>
+                      <td className="px-3 py-2">
+                        <span className="font-medium text-slate-800">{f.ticker}</span>{" "}
+                        <span className="text-slate-500">{f.name}</span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-600">{f.reason}</td>
+                      <td className="px-3 py-2 text-right font-medium" style={{ color: pctColor(f.return_pct) }}>
+                        {fmtPct(f.return_pct)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-600">
+                        {f.expense_ratio_pct !== null ? `${f.expense_ratio_pct.toFixed(2)}%` : "—"}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
-        </>
+
+          {/* Top stocks */}
+          <div>
+            <h3 className="font-semibold text-slate-900">Best-Performing Stocks — {windowCode}</h3>
+            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
+              {data.top_stocks.map((s: CompareTopStock) => (
+                <div key={s.ticker} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-800">{s.ticker}</span>
+                    {s.owned && (
+                      <span className="rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        You own
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-slate-500">{s.name}</p>
+                  <p className="text-xs text-slate-400">{s.sector}</p>
+                  <p className="mt-1 font-medium" style={{ color: pctColor(s.return_pct) }}>
+                    {fmtPct(s.return_pct)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function SummaryCard({
+  title,
+  color,
+  returnPct,
+  volatilityPct,
+  extraLabel,
+  extraValue,
+}: {
+  title: string;
+  color: string;
+  returnPct: number | null;
+  volatilityPct: number | null;
+  extraLabel: string;
+  extraValue: string;
+}) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function Metric({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
-  return (
-    <div>
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className={`mt-0.5 text-lg font-semibold ${valueClass ?? "text-slate-900"}`}>{value}</p>
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+        <span className="text-sm font-medium text-slate-700">{title}</span>
+      </div>
+      <p className="mt-2 text-2xl font-semibold" style={{ color: pctColor(returnPct) }}>
+        {fmtPct(returnPct)}
+      </p>
+      <div className="mt-2 flex justify-between text-xs text-slate-500">
+        <span>Volatility {volatilityPct !== null ? `${volatilityPct.toFixed(1)}%` : "—"}</span>
+        <span>
+          {extraLabel} {extraValue}
+        </span>
+      </div>
     </div>
   );
 }

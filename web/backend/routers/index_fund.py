@@ -8,6 +8,7 @@ from services.data_service import get_latest_price
 from services.fund_comparison_service import price_near_date, rank_funds_by_inception
 from services.index_fund_service import (
     CUSTOM_WEIGHTABLE_METRICS,
+    GOAL_DESCRIPTIONS,
     GOAL_WEIGHTS,
     InvalidCustomWeights,
     LOWER_IS_BETTER,
@@ -93,6 +94,7 @@ async def goals():
         "goals": [
             {
                 "name": name,
+                "description": GOAL_DESCRIPTIONS.get(name),
                 "weights": [
                     {
                         "metric": metric,
@@ -108,6 +110,7 @@ async def goals():
         + [
             {
                 "name": "Custom",
+                "description": None,
                 "weights": [
                     {
                         "metric": metric,

@@ -11,7 +11,8 @@ price series.
 import pandas as pd
 import pytest
 
-from services.stock_finder_service import _annualized_return, _pct_return
+from services.stock_finder_service import _annualized_return, _pct_return, rank_stocks_by_window_return
+import services.stock_finder_service as sfs
 
 
 def _prices(values, start="2020-01-01", freq="B"):
@@ -70,3 +71,52 @@ def test_pct_return_unchanged_none_when_lookback_exceeds_history():
     # still works as before.
     close = _prices([100.0, 101.0, 102.0])
     assert _pct_return(close, 10) is None
+
+
+# ---------------------------------------------------------------------------
+# rank_stocks_by_window_return -- shared by /momentum/top-performers and the
+# /portfolio/compare endpoint's top_stocks, so both surfaces rank identically.
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_universe_df():
+    return pd.DataFrame([
+        {"Ticker": "AAA", "Name": "Alpha Co", "Sector": "Technology", "Return 90D %": 40.0, "1Y Return %": 10.0},
+        {"Ticker": "BBB", "Name": "Beta Co", "Sector": "Energy", "Return 90D %": 20.0, "1Y Return %": 90.0},
+        {"Ticker": "CCC", "Name": "Gamma Co", "Sector": "Technology", "Return 90D %": None, "1Y Return %": 5.0},
+    ])
+
+
+def test_rank_stocks_by_window_return_uses_correct_column(monkeypatch):
+    monkeypatch.setattr(sfs, "get_stock_finder_table", lambda universe_key: _synthetic_universe_df())
+
+    ranked_90d = rank_stocks_by_window_return("90D", "All", 10)
+    assert [r["ticker"] for r in ranked_90d] == ["AAA", "BBB"]  # CCC dropped (NaN on this column)
+
+    ranked_1y = rank_stocks_by_window_return("1Y", "All", 10)
+    assert [r["ticker"] for r in ranked_1y] == ["BBB", "AAA", "CCC"]  # sorted by 1Y Return %, not 90D
+
+
+def test_rank_stocks_by_window_return_owned_flag(monkeypatch):
+    monkeypatch.setattr(sfs, "get_stock_finder_table", lambda universe_key: _synthetic_universe_df())
+    ranked = rank_stocks_by_window_return("90D", "All", 10, owned_tickers={"AAA"})
+    owned = {r["ticker"]: r["owned"] for r in ranked}
+    assert owned["AAA"] is True
+    assert owned["BBB"] is False
+
+
+def test_rank_stocks_by_window_return_gics_sector_renamed(monkeypatch):
+    monkeypatch.setattr(sfs, "get_stock_finder_table", lambda universe_key: _synthetic_universe_df())
+    ranked = rank_stocks_by_window_return("90D", "All", 10)
+    assert ranked[0]["sector"] == "Information Technology"  # Technology -> GICS renamed
+
+
+def test_rank_stocks_by_window_return_unknown_window_raises(monkeypatch):
+    monkeypatch.setattr(sfs, "get_stock_finder_table", lambda universe_key: _synthetic_universe_df())
+    with pytest.raises(ValueError):
+        rank_stocks_by_window_return("7D", "All", 10)
+
+
+def test_rank_stocks_by_window_return_empty_universe(monkeypatch):
+    monkeypatch.setattr(sfs, "get_stock_finder_table", lambda universe_key: pd.DataFrame())
+    assert rank_stocks_by_window_return("90D", "All", 10) == []

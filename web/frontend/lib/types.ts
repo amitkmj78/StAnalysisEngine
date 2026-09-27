@@ -254,6 +254,7 @@ export interface FundGoalWeight {
 
 export interface FundGoal {
   name: string;
+  description: string | null;
   weights: FundGoalWeight[];
 }
 
@@ -885,6 +886,100 @@ export interface PortfolioSubmitResponse {
   strategies: PortfolioStrategyRow[];
   summary: PortfolioSummary;
   watchlist_alerts_created: number;
+}
+
+// Portfolio vs. Top Picks compare page
+export type CompareWindowCode = "10D" | "30D" | "60D" | "90D" | "1Y";
+export type CompareSignalAction = "buy" | "hold" | "trim" | null;
+export type CompareSignalLabel = "high" | "medium" | "low" | "unknown";
+
+export interface CompareWindow {
+  code: CompareWindowCode;
+  start: string;
+  end: string;
+  trading_days: number;
+}
+
+export interface CompareGoal {
+  code: string;
+  label: string;
+  description: string | null;
+}
+
+export interface CompareSignal {
+  action: CompareSignalAction;
+  label: CompareSignalLabel;
+  score: number | null;
+  as_of: string | null;
+}
+
+export type CompareSeriesPoint = [string, number];
+
+export interface CompareHolding {
+  ticker: string;
+  weight_pct: number;
+  return_pct: number | null;
+  contribution_pts: number;
+  spark: number[];
+  signal: CompareSignal;
+  since: string | null;
+}
+
+export interface CompareTopFund {
+  rank: number;
+  ticker: string;
+  name: string;
+  score: number;
+  reason: string;
+  return_pct: number | null;
+  expense_ratio_pct: number | null;
+  volatility_pct: number | null;
+  series: CompareSeriesPoint[] | null;
+}
+
+export interface CompareTopStock {
+  rank: number;
+  ticker: string;
+  name: string;
+  sector: string | null;
+  return_pct: number | null;
+  owned: boolean;
+  spark: number[];
+  signal: CompareSignal | null;
+}
+
+export interface CompareGapDriver {
+  ticker: string;
+  kind: "lead" | "drag";
+  contribution_pts: number;
+}
+
+export interface PortfolioCompareResponse {
+  as_of: string;
+  window: CompareWindow;
+  goal: CompareGoal;
+  portfolio: {
+    id: number;
+    name: string;
+    holdings_count: number;
+    return_pct: number | null;
+    volatility_pct: number | null;
+    max_drawdown_pct: number | null;
+    signals: { buy: number; hold: number; trim: number };
+    series: CompareSeriesPoint[];
+  };
+  benchmark: {
+    ticker: string;
+    return_pct: number | null;
+    volatility_pct: number | null;
+    expense_ratio_pct: number | null;
+    series: CompareSeriesPoint[];
+  };
+  top_funds: CompareTopFund[];
+  holdings: CompareHolding[];
+  gap_drivers: CompareGapDriver[];
+  top_stocks: CompareTopStock[];
+  headline: string;
 }
 
 // Plaid brokerage connection

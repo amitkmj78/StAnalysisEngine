@@ -11,7 +11,7 @@ from services.momentum_backtest_service import (
     DEFAULT_SLIPPAGE_BPS,
     backtest_momentum_ranking,
 )
-from services.stock_finder_service import STOCK_UNIVERSES, get_stock_finder_table
+from services.stock_finder_service import STOCK_UNIVERSES, _gics_sector, get_stock_finder_table
 
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn
@@ -23,7 +23,7 @@ router = APIRouter(
     dependencies=[Depends(verify_bearer_token)],
 )
 
-WINDOWS = {10, 30, 60, 90}
+WINDOWS = {10, 30, 60, 90, 365}
 FUND_CATEGORIES = ["All", "US Large Blend", "US Total Market", "US Growth", "US Small Cap", "International", "Bond"]
 
 
@@ -50,7 +50,7 @@ async def top_performers(
     if window not in WINDOWS:
         raise HTTPException(422, f"window must be one of {sorted(WINDOWS)}")
 
-    col = f"Return {window}D %"
+    col = "1Y Return %" if window == 365 else f"Return {window}D %"
 
     if asset_type == "Stock":
         if universe not in STOCK_UNIVERSES:
@@ -77,6 +77,9 @@ async def top_performers(
             "name": str(row[name_col]),
             "price": round(float(row["Price"]), 2) if "Price" in row and row["Price"] == row["Price"] else None,
             "return_pct": round(float(row[col]), 2),
+            # Stock-only: a fund's "Category" means something different
+            # from a stock's GICS sector, so it's never substituted here.
+            "sector": _gics_sector(row["Sector"]) if asset_type == "Stock" and "Sector" in row else None,
         }
         for _, row in ranked.iterrows()
     ]

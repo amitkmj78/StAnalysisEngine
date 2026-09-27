@@ -48,6 +48,7 @@ import type {
   SignalStabilityReport,
   Portfolio,
   PortfolioBenchmarkComparison,
+  PortfolioCompareResponse,
   PortfolioDropAlert,
   Portfolio1yForecast,
   PortfolioInsightsResponse,
@@ -717,6 +718,12 @@ export function getPortfolioBenchmarkComparison(portfolioId?: number) {
   const params: Record<string, string> = {};
   if (portfolioId !== undefined) params.portfolio_id = String(portfolioId);
   return apiFetch<PortfolioBenchmarkComparison>("/api/v1/portfolio/benchmark", params);
+}
+
+export function getPortfolioCompare(goal: string, window: string, portfolioId?: number) {
+  const params: Record<string, string> = { goal, window };
+  if (portfolioId !== undefined) params.portfolio_id = String(portfolioId);
+  return apiFetch<PortfolioCompareResponse>("/api/v1/portfolio/compare", params);
 }
 
 export function getPortfolioInsights(portfolioId?: number) {

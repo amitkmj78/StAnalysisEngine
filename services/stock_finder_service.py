@@ -376,6 +376,49 @@ def get_stock_finder_table(universe_key: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# Maps a compare-page/momentum window code to the already-computed
+# return column in get_stock_finder_table's output -- "1Y"/365 reuses the
+# existing "1Y Return %" column (there is no separate "Return 365D %"
+# column, and none is needed).
+WINDOW_RETURN_COLUMN = {
+    "10D": "Return 10D %", "30D": "Return 30D %", "60D": "Return 60D %", "90D": "Return 90D %", "1Y": "1Y Return %",
+}
+
+
+def rank_stocks_by_window_return(
+    window_code: str, universe_key: str, top_n: int, owned_tickers: Optional[set] = None
+) -> List[dict]:
+    """
+    Top-N stocks by trailing return over `window_code`, shared by
+    GET /momentum/top-performers (Stock asset_type) and the /portfolio/
+    compare endpoint's top_stocks -- one ranking, so the two surfaces
+    can't silently disagree. `owned` flags whichever tickers the caller's
+    own portfolio holds; spark/signal are left for the caller to fill in
+    (this function stays FastAPI/DB-free, no per-ticker signal lookups).
+    """
+    col = WINDOW_RETURN_COLUMN.get(window_code)
+    if col is None:
+        raise ValueError(f"window_code must be one of {sorted(WINDOW_RETURN_COLUMN)}")
+    df = get_stock_finder_table(universe_key)
+    if df.empty or col not in df.columns:
+        return []
+    owned_tickers = owned_tickers or set()
+    ranked = df.dropna(subset=[col]).sort_values(col, ascending=False).head(top_n).reset_index(drop=True)
+    return [
+        {
+            "rank": i + 1,
+            "ticker": row["Ticker"],
+            "name": row["Name"],
+            "sector": _gics_sector(row["Sector"]),
+            "return_pct": round(float(row[col]), 2),
+            "owned": row["Ticker"] in owned_tickers,
+            "spark": [],
+            "signal": None,
+        }
+        for i, row in ranked.iterrows()
+    ]
+
+
 @ttl_cache(maxsize=64, ttl_seconds=3600)
 def get_single_stock_table(ticker_symbol: str) -> pd.DataFrame:
     cleaned = ticker_symbol.strip().upper()

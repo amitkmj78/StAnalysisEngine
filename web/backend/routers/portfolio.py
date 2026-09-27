@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 from datetime import date, datetime
@@ -19,9 +20,20 @@ from services.goal_plan_service import (
     get_annualized_returns,
     solve_goal_plan,
 )
+from services.index_fund_service import GOAL_DESCRIPTIONS, GOAL_WEIGHTS
 from services.manual_positions import build_manual_positions
 from services.monthly_investing_service import get_best_monthly_pick
 from services.portfolio_alert_service import build_drop_analysis, get_price_and_prev_close
+from services.portfolio_compare_service import (
+    HoldingInput,
+    _series_stats,
+    build_headline,
+    build_portfolio_window_view,
+    derive_confidence,
+    resolve_window,
+    select_gap_drivers,
+    select_top_funds,
+)
 from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
 from services.positions_from_csv import positions_from_activity_csv
@@ -41,8 +53,9 @@ from services.signal_publication_service import (
     compute_predict_algo_comparison,
     rank_within_universe,
 )
-from services.stock_finder_service import STOCK_UNIVERSES
+from services.stock_finder_service import STOCK_UNIVERSES, rank_stocks_by_window_return
 from services.subscriber_events_service import log_event
+from services.yfinance_cache import get_cached_history, get_cached_info
 
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
@@ -52,6 +65,7 @@ from web.backend.app_settings import (
 )
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn, user_conn
+from web.backend.pit_prices import get_signal_stability_for_ticker
 from web.backend.llm_cache import cached_init_llms, ordered_llms
 from web.backend.portfolio_alerts import scan_portfolios_for_drops
 from web.backend.rate_limit import enforce_daily_quota, limiter
@@ -1132,6 +1146,126 @@ async def portfolio_insights_refresh(request: Request, portfolio_id: Optional[in
         updated_at = await _save_insights_snapshot(conn, user_id, resolved_portfolio_id, as_of, result)
 
     return {**result, "as_of_date": str(as_of), "updated_at": updated_at.isoformat()}
+
+
+COMPARE_WINDOWS = ["10D", "30D", "60D", "90D", "1Y"]
+COMPARE_SIGNAL_ACTION = {"BUY": "buy", "SELL": "trim", "HOLD": "hold"}
+
+
+@router.get("/compare")
+@limiter.limit("10/minute")
+async def portfolio_compare(
+    request: Request,
+    goal: str = Query(next(iter(GOAL_WEIGHTS))),
+    window: str = Query("90D"),
+    portfolio_id: Optional[int] = None,
+):
+    """
+    Single read-only call powering the "Portfolio vs. Top Picks" compare
+    page — every number on the page comes from this one response, so
+    switching goal or window is one request and everything (portfolio
+    figures, benchmark, top fund, gap drivers, headline) stays internally
+    consistent with everything else on the page. Stage 1: fully
+    live-computed on every call, same cost profile as the page's previous
+    7-endpoint client-side fan-out (no response caching yet).
+
+    No `overlap_pct` anywhere in this response — that needs real per-
+    stock fund constituent weights, which don't exist anywhere in this
+    app or its data sources; omitted rather than faked. Each holding's
+    `signal.confidence` is derived from existing signal-stability data
+    (see services.portfolio_compare_service.derive_confidence), not a
+    new model output.
+    """
+    await enforce_daily_quota(request, "portfolio/compare")
+    if goal not in GOAL_WEIGHTS:
+        raise HTTPException(422, f"goal must be one of {sorted(GOAL_WEIGHTS)}")
+    if window not in COMPARE_WINDOWS:
+        raise HTTPException(422, f"window must be one of {COMPARE_WINDOWS}")
+
+    user_id = request.state.user["id"]
+    as_of = _eastern_today()
+
+    async with user_conn(user_id) as conn:
+        resolved_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        portfolio_row = await conn.fetchrow(
+            "SELECT id, name, cash_balance FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            resolved_id, user_id,
+        )
+        records = await conn.fetch(
+            "SELECT ticker, shares, current_price, acquired_at FROM portfolio_positions "
+            "WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_id,
+        )
+        insights = await _get_or_compute_insights(conn, user_id, resolved_id, as_of)
+
+    holdings = [HoldingInput(r["ticker"], r["shares"], r["current_price"], r["acquired_at"]) for r in records]
+
+    try:
+        bounds = await run_in_threadpool(resolve_window, window)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+
+    portfolio_view = await run_in_threadpool(
+        build_portfolio_window_view, holdings, bounds, portfolio_row["cash_balance"] or 0.0
+    )
+
+    spy_hist = await run_in_threadpool(get_cached_history, "SPY", "2y", True)
+    spy_stats = _series_stats(spy_hist["Close"].dropna() if not spy_hist.empty else pd.Series(dtype=float), bounds.start, bounds.end)
+    spy_info = await run_in_threadpool(get_cached_info, "SPY")
+
+    top_funds = await run_in_threadpool(select_top_funds, goal, bounds)
+    portfolio_tickers = {h.ticker for h in holdings}
+    top_stocks = await run_in_threadpool(rank_stocks_by_window_return, window, "All", 10, portfolio_tickers)
+
+    signal_by_ticker = {p["ticker"]: p for p in insights.get("positions", [])}
+    stability_results = await asyncio.gather(*(get_signal_stability_for_ticker(h.ticker) for h in holdings))
+    stability_by_ticker = dict(zip((h.ticker for h in holdings), stability_results))
+
+    holdings_out = []
+    signal_counts = {"buy": 0, "hold": 0, "trim": 0}
+    for row in portfolio_view["holdings"]:
+        sig = signal_by_ticker.get(row["ticker"], {})
+        action = COMPARE_SIGNAL_ACTION.get(sig.get("signal"))
+        if action:
+            signal_counts[action] += 1
+        holdings_out.append({
+            **row,
+            "signal": {
+                "action": action,
+                **derive_confidence(stability_by_ticker.get(row["ticker"])),
+                "as_of": insights.get("as_of_date"),
+            },
+        })
+
+    top_fund = top_funds[0] if top_funds else None
+    headline = build_headline(
+        window, portfolio_view["return_pct"], spy_stats["return_pct"],
+        top_fund["ticker"] if top_fund else None, top_fund["return_pct"] if top_fund else None,
+    )
+
+    return {
+        "as_of": str(as_of),
+        "window": {
+            "code": bounds.code, "start": bounds.start.date().isoformat(),
+            "end": bounds.end.date().isoformat(), "trading_days": bounds.trading_days,
+        },
+        "goal": {"code": goal, "label": goal, "description": GOAL_DESCRIPTIONS.get(goal)},
+        "portfolio": {
+            "id": portfolio_row["id"], "name": portfolio_row["name"], "holdings_count": len(holdings),
+            "return_pct": portfolio_view["return_pct"], "volatility_pct": portfolio_view["volatility_pct"],
+            "max_drawdown_pct": portfolio_view["max_drawdown_pct"], "signals": signal_counts,
+            "series": portfolio_view["series"],
+        },
+        "benchmark": {
+            "ticker": "SPY", "return_pct": spy_stats["return_pct"], "volatility_pct": spy_stats["volatility_pct"],
+            "expense_ratio_pct": spy_info.get("netExpenseRatio"), "series": spy_stats["series"],
+        },
+        "top_funds": top_funds,
+        "holdings": holdings_out,
+        "gap_drivers": select_gap_drivers(portfolio_view["holdings"]),
+        "top_stocks": top_stocks,
+        "headline": headline,
+    }
 
 
 @router.get("/insights/forecast-1y")
