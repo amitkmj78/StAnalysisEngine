@@ -58,11 +58,29 @@ def resolve_window(window_code: str) -> WindowBounds:
     if window_code not in WINDOW_TRADING_DAYS:
         raise ValueError(f"window must be one of {sorted(WINDOW_TRADING_DAYS)}")
     n = WINDOW_TRADING_DAYS[window_code]
-    ref = get_cached_history(BENCHMARK_TICKER, "2y", auto_adjust=True)["Close"].dropna()
+    ref = _fetch_close(BENCHMARK_TICKER)
     if len(ref) <= n:
         raise ValueError("Not enough SPY history to resolve this window.")
     start, end = ref.index[-(n + 1)], ref.index[-1]
     return WindowBounds(window_code, start, end, n)
+
+
+def _fetch_close(ticker: str) -> pd.Series:
+    """
+    2y daily close, tz-NAIVE. yfinance returns a tz-aware DatetimeIndex
+    (e.g. America/New_York); acquired_at from the database is a plain
+    date with no tz, and pd.Timestamp(acquired_at) is naive -- comparing
+    a naive Timestamp against a tz-aware one raises TypeError. Every
+    price series this module touches goes through this one function so
+    that comparison is always naive-vs-naive.
+    """
+    hist = get_cached_history(ticker, "2y", auto_adjust=True)
+    if hist.empty:
+        return pd.Series(dtype=float)
+    close = hist["Close"].dropna()
+    if close.index.tz is not None:
+        close = close.tz_localize(None)
+    return close
 
 
 def _slice(prices: pd.Series, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
@@ -157,8 +175,7 @@ def build_portfolio_window_view(
     closes: dict[str, pd.Series] = {}
     excluded: list[str] = []
     for h in holdings:
-        hist = get_cached_history(h.ticker, "2y", auto_adjust=True)
-        s = hist["Close"].dropna() if not hist.empty else pd.Series(dtype=float)
+        s = _fetch_close(h.ticker)
         if s.empty:
             excluded.append(h.ticker)
         else:
@@ -314,8 +331,7 @@ def select_top_funds(goal: str, bounds: WindowBounds, top_n: int = 5) -> list[di
     out = []
     for i, row in ranked.iterrows():
         ticker = row["Ticker"]
-        hist = get_cached_history(ticker, "2y", auto_adjust=True)
-        stats = _series_stats(hist["Close"].dropna() if not hist.empty else pd.Series(dtype=float), bounds.start, bounds.end)
+        stats = _series_stats(_fetch_close(ticker), bounds.start, bounds.end)
         expense_ratio = row.get("Expense Ratio %")
         out.append({
             "rank": i + 1,

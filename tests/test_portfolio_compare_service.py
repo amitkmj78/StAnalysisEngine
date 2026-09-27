@@ -122,6 +122,39 @@ def test_cash_counts_as_zero_return_holding(monkeypatch):
     assert cash_row["weight_pct"] == pytest.approx(50.0)  # 1000 cash / (1000 AAA + 1000 cash)
 
 
+def test_tz_aware_price_history_does_not_crash(monkeypatch):
+    """
+    Regression test for a live bug: yfinance returns a tz-aware
+    DatetimeIndex (e.g. America/New_York), but acquired_at from the
+    database is a plain date -- pd.Timestamp(acquired_at) is tz-naive,
+    and comparing a naive Timestamp against a tz-aware one raises
+    TypeError: Cannot compare tz-naive and tz-aware timestamps. Confirmed
+    live on production (500 error on the very first real-portfolio
+    /compare call) before _fetch_close normalized every price series to
+    tz-naive.
+    """
+    idx = pd.date_range("2024-01-01", periods=40, freq="B", tz="America/New_York")
+    aaa = pd.Series(np.linspace(100, 110, 40), index=idx)
+
+    def fake_hist(ticker, period, auto_adjust=True):
+        return _hist_df(aaa)
+
+    monkeypatch.setattr(pcs, "get_cached_history", fake_hist)
+
+    bounds = resolve_window("30D")
+    assert bounds.start.tz is None and bounds.end.tz is None
+
+    # Well inside the resolved window (idx[-31]..idx[-1]), regardless of
+    # exact business-day arithmetic -- the point of this test is the
+    # tz-aware-vs-naive comparison not crashing, not the exact date math
+    # (already covered by test_holding_bought_inside_window_gets_since_date).
+    acquired = idx[-5].date()
+    holdings = [HoldingInput("AAA", 10, 100.0, acquired)]
+    view = build_portfolio_window_view(holdings, bounds)
+    assert view["holdings"][0]["since"] == acquired.isoformat()
+    assert view["return_pct"] is not None
+
+
 def test_holding_bought_inside_window_gets_since_date(monkeypatch):
     idx = pd.date_range("2024-01-01", periods=30, freq="B")
     # Deliberately different trajectories before/after day 10 so the

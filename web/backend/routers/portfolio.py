@@ -26,6 +26,7 @@ from services.monthly_investing_service import get_best_monthly_pick
 from services.portfolio_alert_service import build_drop_analysis, get_price_and_prev_close
 from services.portfolio_compare_service import (
     HoldingInput,
+    _fetch_close,
     _series_stats,
     build_headline,
     build_portfolio_window_view,
@@ -55,7 +56,7 @@ from services.signal_publication_service import (
 )
 from services.stock_finder_service import STOCK_UNIVERSES, rank_stocks_by_window_return
 from services.subscriber_events_service import log_event
-from services.yfinance_cache import get_cached_history, get_cached_info
+from services.yfinance_cache import get_cached_info
 
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
@@ -1209,8 +1210,8 @@ async def portfolio_compare(
         build_portfolio_window_view, holdings, bounds, portfolio_row["cash_balance"] or 0.0
     )
 
-    spy_hist = await run_in_threadpool(get_cached_history, "SPY", "2y", True)
-    spy_stats = _series_stats(spy_hist["Close"].dropna() if not spy_hist.empty else pd.Series(dtype=float), bounds.start, bounds.end)
+    spy_close = await run_in_threadpool(_fetch_close, "SPY")
+    spy_stats = _series_stats(spy_close, bounds.start, bounds.end)
     spy_info = await run_in_threadpool(get_cached_info, "SPY")
 
     top_funds = await run_in_threadpool(select_top_funds, goal, bounds)
