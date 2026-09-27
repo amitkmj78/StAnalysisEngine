@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { ApiError, createPortfolio, deletePortfolio, getPortfolios } from "@/lib/api";
 import type { Portfolio } from "@/lib/types";
+import { usePlaidConnect } from "@/lib/usePlaidConnect";
 
 const STORAGE_KEY = "stanalysisengine.selectedPortfolioId";
 
@@ -90,6 +91,17 @@ export default function PortfolioSwitcher({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadSignal]);
+
+  const [plaidMessage, setPlaidMessage] = useState<string | null>(null);
+  const { connect: connectBrokerage, connecting: plaidConnecting, error: plaidError } = usePlaidConnect((result) => {
+    localStorage.setItem(STORAGE_KEY, String(result.portfolioId));
+    setPlaidMessage(
+      result.syncOk
+        ? `Connected ${result.portfolioName} — imported ${result.positionsImported} position${result.positionsImported === 1 ? "" : "s"}.`
+        : `Connected ${result.portfolioName}, but the first sync didn't complete — try "Sync Now" from Linked Accounts in a moment.`,
+    );
+    load(result.portfolioId);
+  });
 
   function handleSelect(id: number) {
     localStorage.setItem(STORAGE_KEY, String(id));
@@ -192,6 +204,18 @@ export default function PortfolioSwitcher({
             >
               + New Portfolio
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                setPlaidMessage(null);
+                connectBrokerage();
+              }}
+              disabled={plaidConnecting}
+              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {plaidConnecting ? "Opening…" : "Connect Brokerage"}
+            </button>
             {extraMenuItems?.map((item) => (
               <Link
                 key={item.href}
@@ -249,6 +273,8 @@ export default function PortfolioSwitcher({
         </form>
       )}
       {deleteError && <p className="w-full text-xs text-red-600">{deleteError}</p>}
+      {plaidMessage && <p className="w-full text-xs text-emerald-700">{plaidMessage}</p>}
+      {plaidError && <p className="w-full text-xs text-red-600">{plaidError}</p>}
     </div>
   );
 }

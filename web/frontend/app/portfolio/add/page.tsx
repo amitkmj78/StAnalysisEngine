@@ -1,15 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { usePlaidLink } from "react-plaid-link";
 
 import {
   ApiError,
-  createPlaidLinkToken,
-  createPortfolio,
-  exchangePlaidPublicToken,
   getCurrentPrice,
   importPortfolioCsv,
   submitManualPositions,
@@ -17,6 +13,7 @@ import {
 import type { ManualPositionInput } from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
+import { usePlaidConnect } from "@/lib/usePlaidConnect";
 
 const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
 
@@ -42,8 +39,6 @@ export default function AddPositionsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [priceFetchingRow, setPriceFetchingRow] = useState<number | null>(null);
 
-  const [plaidLinkToken, setPlaidLinkToken] = useState<string | null>(null);
-  const [plaidConnecting, setPlaidConnecting] = useState(false);
   const [plaidPositionsImported, setPlaidPositionsImported] = useState<number | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
@@ -138,69 +133,10 @@ export default function AddPositionsPage() {
     }
   }
 
-  const { open: openPlaidLink, ready: plaidLinkReady } = usePlaidLink({
-    token: plaidLinkToken,
-    onSuccess: async (publicToken, metadata) => {
-      // Plaid's own type allows null here, but Link only calls onSuccess
-      // after a real successful connection -- there's no real flow where
-      // this fires with no token, just a defensive guard against the
-      // wider type.
-      if (!publicToken) return;
-      setSubmitting(true);
-      setError(null);
-      setPlaidPositionsImported(null);
-      setSaved(false);
-      try {
-        // A brokerage connection is its own account, not a handful of
-        // positions to fold into whatever portfolio happened to be
-        // selected -- give every connection a fresh, dedicated portfolio
-        // named after the institution, so it never lands mixed in with
-        // manual/CSV positions the user didn't intend to merge it with.
-        const institutionName = metadata.institution?.name ?? "Connected Brokerage";
-        const newPortfolio = await createPortfolio(institutionName);
-        const res = await exchangePlaidPublicToken(
-          publicToken,
-          newPortfolio.id,
-          metadata.institution?.institution_id ?? undefined,
-          metadata.institution?.name ?? undefined,
-        );
-        setPlaidPositionsImported(res.sync.positions_upserted);
-        setSaved(res.sync.status === "success");
-        if (res.sync.status === "login_required" || res.sync.status === "error") {
-          setError(
-            "Connected, but the first sync didn't complete. Try \"Sync Now\" from Linked Accounts in a moment.",
-          );
-        }
-      } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Could not finish connecting this account.");
-      } finally {
-        setSubmitting(false);
-        setPlaidLinkToken(null);
-      }
-    },
-    onExit: () => {
-      setPlaidConnecting(false);
-      setPlaidLinkToken(null);
-    },
+  const { connect: startPlaidConnect, connecting: plaidConnecting, error: plaidError } = usePlaidConnect((result) => {
+    setPlaidPositionsImported(result.positionsImported);
+    setSaved(result.syncOk);
   });
-
-  useEffect(() => {
-    if (plaidLinkToken && plaidLinkReady) {
-      openPlaidLink();
-    }
-  }, [plaidLinkToken, plaidLinkReady, openPlaidLink]);
-
-  async function startPlaidConnect() {
-    setError(null);
-    setPlaidConnecting(true);
-    try {
-      const res = await createPlaidLinkToken();
-      setPlaidLinkToken(res.link_token);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not start connecting a brokerage account.");
-      setPlaidConnecting(false);
-    }
-  }
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -354,7 +290,7 @@ export default function AddPositionsPage() {
         </div>
       )}
 
-      {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {(error || plaidError) && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error || plaidError}</p>}
       {watchlistNote && (
         <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
           {watchlistNote}{" "}

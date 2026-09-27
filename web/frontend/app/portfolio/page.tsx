@@ -624,7 +624,6 @@ export default function PortfolioPage() {
             onPortfoliosChange={setAllPortfolios}
             reloadSignal={portfolioReloadSignal}
             extraMenuItems={[
-              { label: "Connect Brokerage", href: "/portfolio/add?mode=plaid" },
               { label: "Build Diversified Basket", href: "/portfolio/build-index" },
               { label: "Compare vs. Best Fund", href: "/portfolio/compare" },
             ]}
