@@ -865,6 +865,7 @@ export default function PortfolioPage() {
                     <th className="px-4 py-3">Ticker</th>
                     <th className="px-4 py-3">Signal</th>
                     <th className="px-4 py-3 text-right">Shares</th>
+                    <th className="px-4 py-3 text-right">Avg Cost</th>
                     <th className="px-4 py-3 text-right">Price</th>
                     <th className="px-4 py-3 text-right">Value</th>
                     <th className="px-4 py-3 text-right">Today</th>
@@ -929,6 +930,9 @@ export default function PortfolioPage() {
                           <td className="px-4 py-3 text-right" style={MONO_FONT}>
                             {s.shares?.toFixed(2) ?? "—"}
                           </td>
+                          <td className="px-4 py-3 text-right text-[#857d6e]" style={MONO_FONT}>
+                            {s.avg_cost !== null && s.avg_cost !== undefined ? `$${s.avg_cost.toFixed(2)}` : "—"}
+                          </td>
                           <td className="px-4 py-3 text-right" style={MONO_FONT}>
                             {livePrice !== null && livePrice !== undefined ? `$${livePrice.toFixed(2)}` : "—"}
                             {perfRow?.used_extended_hours && perfRow.extended_hours && (
@@ -966,7 +970,7 @@ export default function PortfolioPage() {
 
                         {isExpanded && (
                           <tr className="border-b border-[#ede9df] bg-[#faf8f3] last:border-0">
-                            <td colSpan={7} className="px-4 py-5 pl-11">
+                            <td colSpan={8} className="px-4 py-5 pl-11">
                               {perfRow?.price_unavailable ? (
                                 <p className="text-sm text-[#a39b8b]">
                                   No market data found for this ticker — check it&apos;s a valid, publicly-traded
@@ -1005,9 +1009,6 @@ export default function PortfolioPage() {
                                           perfRow.diff_pct !== null ? ` (${perfRow.diff_pct >= 0 ? "+" : ""}${perfRow.diff_pct.toFixed(1)}%)` : ""
                                         }`
                                       : "—"}
-                                  </DetailStat>
-                                  <DetailStat label="Avg Cost Paid">
-                                    {s.avg_cost !== null && s.avg_cost !== undefined ? `$${s.avg_cost.toFixed(2)}` : "—"}
                                   </DetailStat>
                                   <DetailStat label="Look up">
                                     <div className="flex flex-col gap-0.5">
