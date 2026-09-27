@@ -623,19 +623,15 @@ export default function PortfolioPage() {
             onChange={setSelectedPortfolioId}
             onPortfoliosChange={setAllPortfolios}
             reloadSignal={portfolioReloadSignal}
+            extraMenuItems={[
+              { label: "Connect Brokerage", href: "/portfolio/add?mode=plaid" },
+              { label: "Build Diversified Basket", href: "/portfolio/build-index" },
+              { label: "Compare vs. Best Fund", href: "/portfolio/compare" },
+            ]}
           />
           <div className="flex flex-wrap gap-2">
             <Link href="/portfolio/add" className={PF.btn}>
               + Add Positions
-            </Link>
-            <Link href="/portfolio/add?mode=plaid" className={PF.btn}>
-              Connect Brokerage
-            </Link>
-            <Link href="/portfolio/build-index" className={PF.btn}>
-              + Build Diversified Basket
-            </Link>
-            <Link href="/portfolio/compare" className={PF.btn}>
-              Compare vs. Best Fund
             </Link>
           </div>
         </div>

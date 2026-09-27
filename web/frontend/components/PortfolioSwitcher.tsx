@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 import { ApiError, createPortfolio, deletePortfolio, getPortfolios } from "@/lib/api";
 import type { Portfolio } from "@/lib/types";
@@ -12,6 +13,7 @@ export default function PortfolioSwitcher({
   onChange,
   onPortfoliosChange,
   reloadSignal,
+  extraMenuItems,
 }: {
   selectedPortfolioId: number | null;
   onChange: (portfolioId: number) => void;
@@ -22,6 +24,11 @@ export default function PortfolioSwitcher({
   /** Bump this (e.g. after a move/delete changes position counts) to make
    * the switcher re-fetch without resetting the current selection. */
   reloadSignal?: number;
+  /** Extra links (e.g. "Connect Brokerage", "Compare vs. Best Fund") folded
+   * into the same "More" menu as New/Delete Portfolio below, instead of
+   * each being its own always-visible button — keeps the toolbar down to
+   * one primary action plus a single menu for everything less-frequent. */
+  extraMenuItems?: { label: string; href: string }[];
 }) {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +41,24 @@ export default function PortfolioSwitcher({
 
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    function onEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, []);
 
   async function load(preferId?: number) {
     setLoading(true);
@@ -136,17 +161,65 @@ export default function PortfolioSwitcher({
         </select>
       </div>
 
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={deleting || !selectedPortfolio || portfolios.length <= 1}
-        title={portfolios.length <= 1 ? "You need at least one portfolio — create another before deleting this one." : "Delete this portfolio"}
-        className="rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {deleting ? "Deleting…" : "Delete Portfolio"}
-      </button>
+      <div ref={menuRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-haspopup="true"
+          aria-expanded={menuOpen}
+          className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+        >
+          More
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className={`h-3.5 w-3.5 transition-transform ${menuOpen ? "rotate-180" : ""}`}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+        {menuOpen && (
+          <div className="absolute left-0 top-full z-20 mt-1 min-w-[13rem] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+            <button
+              type="button"
+              onClick={() => {
+                setCreating(true);
+                setMenuOpen(false);
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+            >
+              + New Portfolio
+            </button>
+            {extraMenuItems?.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMenuOpen(false)}
+                className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+              >
+                {item.label}
+              </Link>
+            ))}
+            <div className="my-1 border-t border-slate-100" />
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                handleDelete();
+              }}
+              disabled={deleting || !selectedPortfolio || portfolios.length <= 1}
+              title={portfolios.length <= 1 ? "You need at least one portfolio — create another before deleting this one." : "Delete this portfolio"}
+              className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {deleting ? "Deleting…" : "Delete Portfolio"}
+            </button>
+          </div>
+        )}
+      </div>
 
-      {creating ? (
+      {creating && (
         <form onSubmit={handleCreate} className="flex items-end gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">New portfolio name</label>
@@ -174,14 +247,6 @@ export default function PortfolioSwitcher({
           </button>
           {createError && <p className="w-full text-xs text-red-600">{createError}</p>}
         </form>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
-          + New Portfolio
-        </button>
       )}
       {deleteError && <p className="w-full text-xs text-red-600">{deleteError}</p>}
     </div>
