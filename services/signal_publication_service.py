@@ -13,7 +13,7 @@ from .pit_signal_service import merge_pit_and_live_scores, score_tickers_from_pi
 from .portfolio_compare_service import derive_confidence
 from .prediction_service import generate_trading_signal, predict_future_prices
 from .ranking_utils import rank_tickers_against_universe
-from .stock_finder_service import STOCK_UNIVERSES, get_stock_finder_table
+from .stock_finder_service import _universe_tickers, get_stock_finder_table
 from .stock_score_service import flip_count_from_signal_history
 from .yfinance_cache import get_cached_history
 
@@ -241,8 +241,18 @@ def evaluate_signal_outcomes_for_date(
     picks instead of a simulated walk-forward. Returns None if `horizon_days`
     trading days haven't actually elapsed since target_date yet — an
     outcome that isn't knowable yet is never guessed at or padded in.
+
+    Uses _universe_tickers (not the raw STOCK_UNIVERSES dict) — same fix,
+    same reason, as pit_price_service.py's capture_universe_closes and
+    pit_fundamentals_service.py's capture_universe_fundamentals: "All" and
+    "US - S&P 500" resolve their real ticker lists lazily (a live, cached
+    Wikipedia fetch), so STOCK_UNIVERSES itself holds only empty
+    placeholders for those two keys. Reading it directly here silently
+    returned zero tickers for every "All"-universe evaluation call, which
+    is why signal_outcomes had zero rows despite ~2 months of publication
+    history — found live while verifying Stage B, not introduced by it.
     """
-    tickers = list(STOCK_UNIVERSES.get(universe_id, []))
+    tickers = list(_universe_tickers(universe_id))
     if not tickers:
         return None
 
