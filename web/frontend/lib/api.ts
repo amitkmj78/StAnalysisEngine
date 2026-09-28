@@ -119,6 +119,24 @@ export class ApiError extends Error {
   }
 }
 
+// FastAPI's own 422s send `detail` as an array of {loc, msg, type} objects,
+// not a string -- passed straight into ApiError's message before, this
+// rendered as the literal text "[object Object]" anywhere a page showed
+// err.message (first surfaced by /momentum/backtest's top_n validation on
+// the track-record page's Hypothetical tab). Every raise HTTPException(...)
+// elsewhere in the app already sends a plain string, so this only changes
+// behavior for the structured-validation-error case.
+function formatErrorDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => (item && typeof item === "object" && "msg" in item ? String((item as { msg: unknown }).msg) : null))
+      .filter((m): m is string => m !== null);
+    if (messages.length) return messages.join("; ");
+  }
+  return fallback;
+}
+
 async function apiFetch<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(`${API_BASE}${path}`, window.location.origin);
   if (params) {
@@ -134,7 +152,7 @@ async function apiFetch<T>(path: string, params?: Record<string, string>): Promi
     let detail = `Request failed (${res.status})`;
     try {
       const body = await res.json();
-      detail = body.detail || detail;
+      detail = formatErrorDetail(body.detail, detail);
     } catch {
       // response wasn't JSON — keep the generic message
     }
@@ -515,7 +533,7 @@ async function apiSend<T>(
     let detail = `Request failed (${res.status})`;
     try {
       const errBody = await res.json();
-      detail = errBody.detail || detail;
+      detail = formatErrorDetail(errBody.detail, detail);
     } catch {
       // response wasn't JSON — keep the generic message
     }
@@ -536,7 +554,7 @@ async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
     let detail = `Request failed (${res.status})`;
     try {
       const errBody = await res.json();
-      detail = errBody.detail || detail;
+      detail = formatErrorDetail(errBody.detail, detail);
     } catch {
       // response wasn't JSON — keep the generic message
     }

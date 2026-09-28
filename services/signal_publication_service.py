@@ -546,6 +546,25 @@ def _select_non_overlapping_dates(outcome_rows: list[dict], horizon_days: int) -
     return dates[0::horizon_days] if dates else []
 
 
+def _period_end_labels(selected: list[datetime.date], horizon_days: int) -> list[datetime.date]:
+    """One end-of-period date per entry in `selected`, used so every point
+    in the two series below has a DISTINCT x-value -- labeling a period's
+    result with the same date it started on (its publication date)
+    produced two chart points sharing one x-value, which broke Plotly's
+    date axis in production. The next selected date is the real end of a
+    period; the final period (no next one yet) is approximated at
+    horizon_days trading days out (~1.4x calendar days, the same trading/
+    calendar-day ratio used elsewhere in this app, e.g.
+    evaluate_due_signal_outcomes' own due-date prefilter)."""
+    labels = []
+    for i, d in enumerate(selected):
+        if i + 1 < len(selected):
+            labels.append(selected[i + 1])
+        else:
+            labels.append(d + datetime.timedelta(days=int(horizon_days * 1.4) + 2))
+    return labels
+
+
 def build_model_portfolio_series(outcome_rows: list[dict], horizon_days: int) -> list[list]:
     """TRK-6: growth of $10,000 from equal-weight Buys, built from
     NON-OVERLAPPING evaluation windows only (see
@@ -561,31 +580,34 @@ def build_model_portfolio_series(outcome_rows: list[dict], horizon_days: int) ->
     if not selected:
         return []
 
+    end_labels = _period_end_labels(selected, horizon_days)
     value = MODEL_PORTFOLIO_REBASE_TO
     series = [[selected[0].isoformat(), round(value, 2)]]
-    for d in selected:
+    for d, end_label in zip(selected, end_labels):
         period_return_pct = sum(by_date[d]) / len(by_date[d])
         value *= 1 + period_return_pct / 100
-        series.append([d.isoformat(), round(value, 2)])
+        series.append([end_label.isoformat(), round(value, 2)])
     return series
 
 
 def build_spy_comparison_series(outcome_rows: list[dict], spy_return_by_date: dict, horizon_days: int) -> list[list]:
     """TRK-6: SPY's own growth-of-$10,000 curve over the SAME
     non-overlapping dates build_model_portfolio_series selects (via
-    _select_non_overlapping_dates), so the two series are directly
-    comparable point-for-point on one chart. A period whose SPY return
-    couldn't be resolved (compute_spy_returns_for_dates returned None)
-    is skipped -- the curve holds its last value rather than guessing."""
+    _select_non_overlapping_dates and _period_end_labels), so the two
+    series are directly comparable point-for-point on one chart. A period
+    whose SPY return couldn't be resolved (compute_spy_returns_for_dates
+    returned None) is skipped -- the curve holds its last value rather
+    than guessing."""
     selected = _select_non_overlapping_dates(outcome_rows, horizon_days)
     if not selected:
         return []
 
+    end_labels = _period_end_labels(selected, horizon_days)
     value = MODEL_PORTFOLIO_REBASE_TO
     series = [[selected[0].isoformat(), round(value, 2)]]
-    for d in selected:
+    for d, end_label in zip(selected, end_labels):
         spy_return_pct = spy_return_by_date.get(d)
         if spy_return_pct is not None:
             value *= 1 + spy_return_pct / 100
-        series.append([d.isoformat(), round(value, 2)])
+        series.append([end_label.isoformat(), round(value, 2)])
     return series

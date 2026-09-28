@@ -26,7 +26,10 @@ export default function HypotheticalTab({ data }: { data: PublishedSignalsRespon
   useEffect(() => {
     setBacktestLoading(true);
     setBacktestError(null);
-    getMomentumBacktest("Stock", data.universe_id, data.lookback_days, 25, 3, 30)
+    // top_n capped at 10 by the backtest endpoint itself (GET /momentum/backtest's
+    // own le=10 validation) -- narrower than the live record's top 25, called
+    // out in the panel copy below rather than silently claiming exact parity.
+    getMomentumBacktest("Stock", data.universe_id, data.lookback_days, 10, 3, 30)
       .then(setBacktest)
       .catch((err) => setBacktestError(err instanceof ApiError ? err.message : "Failed to load the backtest."))
       .finally(() => setBacktestLoading(false));
@@ -55,10 +58,11 @@ export default function HypotheticalTab({ data }: { data: PublishedSignalsRespon
       <div className="mt-6 rounded-lg border border-indigo-200 bg-indigo-50/40 p-5">
         <h2 className="font-semibold text-slate-900">Hypothetical Backtest</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          A walk-forward simulation of the same ranking rule shown on the Live tab, over {backtest?.years ?? 3}{" "}
-          years of history, rebalanced every {backtest?.horizon_days ?? 30} trading days, after estimated
-          trading costs. This is retroactive — it is NOT the live, out-of-sample record above, and it can look
-          better or worse than live results ever will.
+          A walk-forward simulation of the same ranking rule shown on the Live tab, holding the top{" "}
+          {backtest?.top_n ?? 10} picks (narrower than the Live tab&apos;s top 25 — the backtest endpoint caps
+          at 10) over {backtest?.years ?? 3} years of history, rebalanced every {backtest?.horizon_days ?? 30}{" "}
+          trading days, after estimated trading costs. This is retroactive — it is NOT the live, out-of-sample
+          record above, and it can look better or worse than live results ever will.
         </p>
 
         {backtestLoading && <p className="mt-3 text-sm text-slate-500">Loading…</p>}

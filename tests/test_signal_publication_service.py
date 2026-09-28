@@ -16,6 +16,7 @@ from services.signal_publication_service import (
     fetch_spy_close_series,
     worst_misses,
 )
+from services.signal_publication_service import _period_end_labels
 
 
 def _row(ticker="AAPL", target_date=date(2026, 1, 5), rank=1, realized=2.0, benchmark=1.0, model_version_hash="v1"):
@@ -175,7 +176,11 @@ def test_build_model_portfolio_series_starts_at_10000_and_compounds():
     ]
     series = build_model_portfolio_series(rows, horizon_days=1)
     assert series[0] == ["2026-01-01", 10000.0]
-    assert series[1] == ["2026-01-01", 11000.0]
+    # Only one selected date -> its result is labeled with an estimated
+    # period-end date, never the SAME date as the starting point (that
+    # duplicate-x-value bug broke the chart's date axis in production).
+    assert series[1][0] != "2026-01-01"
+    assert series[1][1] == 11000.0
 
 
 def test_build_model_portfolio_series_selects_non_overlapping_dates():
@@ -200,18 +205,43 @@ def test_build_spy_comparison_series_matches_model_portfolio_dates():
     model_dates = [p[0] for p in model_series]
     spy_dates = [p[0] for p in spy_series]
     assert model_dates == spy_dates
+    # Every point has a distinct date -- no two points share an x-value.
+    assert len(set(spy_dates)) == len(spy_dates)
     assert spy_series[0] == ["2026-01-01", 10000.0]
-    assert spy_series[1] == ["2026-01-01", 10500.0]
+    # First selected date is 2026-01-01; its period-end label is the NEXT
+    # selected date (2026-01-03), not the same date it started on.
+    assert spy_series[1] == ["2026-01-03", 10500.0]
 
 
 def test_build_spy_comparison_series_holds_value_when_spy_unresolved():
     rows = [_row(target_date=date(2026, 1, 1), realized=1.0, benchmark=0.0)]
     series = build_spy_comparison_series(rows, {}, horizon_days=1)
-    assert series == [["2026-01-01", 10000.0], ["2026-01-01", 10000.0]]
+    assert series[0] == ["2026-01-01", 10000.0]
+    assert series[1][0] != "2026-01-01"
+    assert series[1][1] == 10000.0
 
 
 def test_build_spy_comparison_series_empty_input():
     assert build_spy_comparison_series([], {}, horizon_days=10) == []
+
+
+def test_period_end_labels_uses_next_selected_date():
+    selected = [date(2026, 1, 1), date(2026, 1, 5), date(2026, 1, 9)]
+    labels = _period_end_labels(selected, horizon_days=2)
+    assert labels[0] == date(2026, 1, 5)
+    assert labels[1] == date(2026, 1, 9)
+
+
+def test_period_end_labels_estimates_final_period():
+    labels = _period_end_labels([date(2026, 1, 1)], horizon_days=10)
+    assert labels[0] > date(2026, 1, 1)
+
+
+def test_build_model_portfolio_series_never_repeats_a_date():
+    rows = [_row(target_date=date(2026, 1, 1 + i), realized=1.0, benchmark=0.0) for i in range(6)]
+    series = build_model_portfolio_series(rows, horizon_days=1)
+    dates = [p[0] for p in series]
+    assert len(set(dates)) == len(dates)
 
 
 def test_fetch_spy_close_series_strips_timezone_to_avoid_naive_vs_aware_crash():
