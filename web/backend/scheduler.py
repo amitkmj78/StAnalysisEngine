@@ -11,6 +11,7 @@ from services.email_service import APP_URL, send_admin_alert_email, send_ranking
 from services.prediction_verification_service import verify_prediction
 from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE
 from services.stock_finder_service import SP500_UNIVERSE_NAME, get_stock_finder_table
+from services.stock_score_capture_service import compute_and_persist_daily_scores
 from web.backend.admin import ADMIN_EMAIL
 from web.backend.app_settings import (
     BASKET_REBALANCE_ENABLED_KEY,
@@ -23,6 +24,7 @@ from web.backend.app_settings import (
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
     STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY,
+    STOCK_SCORE_COMPUTE_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
 )
@@ -69,6 +71,13 @@ PIT_CAPTURE_MINUTE_ET = 5
 # to stagger it separately.
 PIT_ANALYST_RATING_CAPTURE_HOUR_ET = 16
 PIT_ANALYST_RATING_CAPTURE_MINUTE_ET = 7
+# Phase 1 ("Trust") two-score system: runs after that day's prices/
+# fundamentals/universe membership are on record (16:05 ET above), well
+# before the unrelated 18:00 ET quant-signal capture -- these scores are
+# a rules-based composite of already-captured PIT data, not the GBM
+# quant signal, so they don't need to wait for it.
+STOCK_SCORE_COMPUTE_HOUR_ET = 16
+STOCK_SCORE_COMPUTE_MINUTE_ET = 15
 # Deliberately later in the evening, not alongside the 16:05/16:07 jobs
 # above — this one trains a model per ticker (~500 tickers), real CPU
 # load, kept separate so it doesn't stack with the network-bound captures
@@ -311,6 +320,22 @@ async def _capture_pit_data_job() -> None:
             "Scheduler: PIT capture — %d membership rows, %d price rows, %d fundamentals rows",
             membership_inserted, price_inserted, fundamentals_inserted,
         )
+
+
+async def _compute_stock_scores_job() -> None:
+    """Phase 1 ("Trust"): computes and persists today's short-term/
+    long-term composite scores for every ticker in the 'All' universe,
+    using whatever prices/fundamentals/membership _capture_pit_data_job
+    already landed for today (10 minutes earlier). Own flag, defaults ON
+    like the PIT captures it depends on -- internal accumulation, no
+    legal/compliance gate."""
+    if not await get_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, default=True):
+        logger.info("Scheduler: stock_score_compute is disabled, skipping this run")
+        return
+
+    inserted = await compute_and_persist_daily_scores()
+    if inserted:
+        logger.info("Scheduler: stock score capture — %d tickers newly scored", inserted)
 
 
 async def _capture_pit_analyst_ratings_job() -> None:
@@ -600,6 +625,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="capture_pit_analyst_ratings",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _compute_stock_scores_job,
+        CronTrigger(
+            hour=STOCK_SCORE_COMPUTE_HOUR_ET, minute=STOCK_SCORE_COMPUTE_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="compute_stock_scores",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

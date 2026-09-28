@@ -1079,6 +1079,12 @@ create table if not exists pit_fundamentals (
   source text not null default 'yfinance',
   unique (ticker, as_of_date)
 );
+-- Raw yfinance sector string, added alongside Phase 1's stock-score work
+-- so its capture (already fetching .info per ticker here) can supply
+-- sector labels without a second full-universe pass. Nullable/backfilled
+-- going forward only -- past rows keep sector=null, same as every other
+-- additive PIT column in this file.
+alter table pit_fundamentals add column if not exists sector text;
 create index if not exists pit_fundamentals_ticker_date_idx on pit_fundamentals(ticker, as_of_date desc);
 
 -- Point-in-time capture of the same Quant Signal shown on /predict and
@@ -1144,6 +1150,39 @@ create table if not exists pit_analyst_rating (
   unique (ticker, as_of_date)
 );
 create index if not exists pit_analyst_rating_ticker_date_idx on pit_analyst_rating(ticker, as_of_date desc);
+
+-- Phase 1 ("Trust") two-score system: one row per (as_of_date, universe_id,
+-- ticker), a rules-based composite (weighted percentile-rank of factors),
+-- NOT a trained ML model -- computed purely from pit_prices/pit_fundamentals/
+-- pit_universe_membership already on record for that day. Append-only like
+-- every other PIT-family table -- a day's score never changes once written.
+-- factor_detail carries each factor's raw value, percentile, contribution,
+-- and source ('pit'|'live', see services/stock_score_capture_service.py's
+-- hybrid fallback) so EXP-1/2/3's explanations never need to recompute
+-- anything. short_score/long_score already ARE the universe percentile;
+-- short_sector_percentile/long_sector_percentile are the separate
+-- sector-scoped recomputation SCR-3 needs.
+create table if not exists stock_scores (
+  id bigint generated always as identity primary key,
+  as_of_date date not null,
+  universe_id text not null,
+  ticker text not null,
+  short_score real,
+  short_signal text not null,
+  short_confidence_score real,
+  short_confidence_label text not null default 'unknown',
+  long_score real,
+  long_signal text not null,
+  long_confidence_score real,
+  long_confidence_label text not null default 'unknown',
+  sector_key text not null,
+  short_sector_percentile real,
+  long_sector_percentile real,
+  factor_detail jsonb not null,
+  computed_at_utc timestamptz not null default now(),
+  unique (as_of_date, universe_id, ticker)
+);
+create index if not exists stock_scores_ticker_date_idx on stock_scores(ticker, as_of_date desc);
 
 -- Shared, ticker-keyed (not user-scoped) LLM sentiment reading — one row
 -- per ticker per day, reused across every user/portfolio holding that
@@ -1388,6 +1427,8 @@ grant select on quant_signal_outcomes to app_user;
 grant select, insert on quant_signal_outcomes to app_service;
 grant select on pit_analyst_rating to app_user;
 grant select, insert on pit_analyst_rating to app_service;
+grant select on stock_scores to app_user;
+grant select, insert on stock_scores to app_service;
 grant select on ticker_sentiment_snapshots to app_user;
 grant select, insert on ticker_sentiment_snapshots to app_service;
 -- update needed: scan_portfolios_for_drops refreshes an already-alerted

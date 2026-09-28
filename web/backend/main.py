@@ -42,6 +42,7 @@ from web.backend.routers import (
     search,
     signals,
     stock_finder,
+    stock_scores,
     strategies,
     subscriptions,
     trade_journal,
@@ -101,6 +102,7 @@ app.include_router(admin_settings.router)
 app.include_router(admin_sql.router)
 app.include_router(admin_integrations.router)
 app.include_router(signals.router)
+app.include_router(stock_scores.router)
 app.include_router(pit_prices.router)
 app.include_router(db_backup.router)
 app.include_router(subscriptions.router)

@@ -108,6 +108,11 @@ PAPER_TRADING_PRICE_COLLAR_PCT_DEFAULT = 20.0
 # Empty by default — no symbols are restricted until an admin adds some.
 PAPER_TRADING_RESTRICTED_SYMBOLS_KEY = "paper_trading_restricted_symbols"
 PAPER_TRADING_RESTRICTED_SYMBOLS_DEFAULT = ""
+# Phase 1 ("Trust") two-score system (docs/stock-analysis-requirements.html,
+# SCR-1..4): defaults ON, same rationale as PIT_PRICE_CAPTURE_ENABLED_KEY --
+# internal data accumulation off the existing PIT stores, no legal/
+# compliance gate like publish_signals_enabled has.
+STOCK_SCORE_COMPUTE_ENABLED_KEY = "stock_score_compute_enabled"
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

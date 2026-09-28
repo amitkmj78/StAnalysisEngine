@@ -39,6 +39,12 @@ def capture_universe_fundamentals(universe_id: str = DEFAULT_UNIVERSE) -> list[d
                 "forward_pe": info.get("forwardPE"),
                 "revenue_growth_pct": _safe_percent(info.get("revenueGrowth")),
                 "earnings_growth_pct": _safe_percent(info.get("earningsGrowth")),
+                # Raw yfinance sector string, stored alongside the growth/
+                # value inputs already fetched here -- Phase 1's stock-score
+                # capture (services/stock_score_capture_service.py) reads
+                # this instead of paying for its own full-universe .info
+                # pass just for sector labels.
+                "sector": info.get("sector"),
                 "source": SOURCE,
             }
         )

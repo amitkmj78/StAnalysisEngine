@@ -34,6 +34,7 @@ from web.backend.app_settings import (
     PRICE_DATA_PROVIDER_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
     STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY,
+    STOCK_SCORE_COMPUTE_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
     get_setting_float,
@@ -95,6 +96,7 @@ async def get_settings():
         "paper_trading_restricted_symbols": await get_setting_str(
             PAPER_TRADING_RESTRICTED_SYMBOLS_KEY, default=PAPER_TRADING_RESTRICTED_SYMBOLS_DEFAULT
         ),
+        "stock_score_compute_enabled": await get_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, default=True),
     }
 
 
@@ -362,6 +364,18 @@ async def set_paper_trading_restricted_symbols(body: PaperTradingRestrictedSymbo
     order submission — no restart needed."""
     await set_setting_str(PAPER_TRADING_RESTRICTED_SYMBOLS_KEY, body.restricted_symbols)
     return {"paper_trading_restricted_symbols": body.restricted_symbols}
+
+
+@router.post("/stock-score-compute/enable")
+async def enable_stock_score_compute():
+    await set_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, True)
+    return {"stock_score_compute_enabled": True}
+
+
+@router.post("/stock-score-compute/disable")
+async def disable_stock_score_compute():
+    await set_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, False)
+    return {"stock_score_compute_enabled": False}
 
 
 class PriceDataProviderUpdate(BaseModel):
