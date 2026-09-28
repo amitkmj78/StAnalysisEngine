@@ -83,6 +83,31 @@ BASKET_REBALANCE_ENABLED_KEY = "basket_rebalance_enabled"
 # ongoing increase in steady-state Yahoo Finance traffic an admin should
 # opt into deliberately, not something defaulted on silently.
 STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY = "stock_finder_cache_prewarm_enabled"
+# Defaults OFF: deploying the paper-trading code must not itself start
+# accepting order submissions or scheduler polling — an explicit admin
+# opt-in does, same rationale as PORTFOLIO_DROP_ALERTS_ENABLED_KEY.
+PAPER_TRADING_ENABLED_KEY = "paper_trading_enabled"
+# TRD-35 kill switch. Defaults OFF (= not engaged, submits allowed).
+# Checked synchronously at the top of the order-submit endpoint, so
+# engaging it blocks new submits immediately — not on the next poll cycle.
+PAPER_TRADING_KILL_SWITCH_KEY = "paper_trading_kill_switch"
+# TRD-16 per-order value limit, admin-tunable without a deploy.
+PAPER_TRADING_MAX_ORDER_VALUE_KEY = "paper_trading_max_order_value"
+PAPER_TRADING_MAX_ORDER_VALUE_DEFAULT = 10_000.0
+# TRD-16 max % of portfolio equity in one order.
+PAPER_TRADING_MAX_PORTFOLIO_PCT_KEY = "paper_trading_max_portfolio_pct"
+PAPER_TRADING_MAX_PORTFOLIO_PCT_DEFAULT = 25.0
+# TRD-16 max orders per user per day.
+PAPER_TRADING_MAX_ORDERS_PER_DAY_KEY = "paper_trading_max_orders_per_day"
+PAPER_TRADING_MAX_ORDERS_PER_DAY_DEFAULT = 20
+# TRD-17 price-collar warning threshold, as a percent deviation from last
+# trade price, for limit orders only.
+PAPER_TRADING_PRICE_COLLAR_PCT_KEY = "paper_trading_price_collar_pct"
+PAPER_TRADING_PRICE_COLLAR_PCT_DEFAULT = 20.0
+# TRD-19 restricted-symbol blocklist, comma-separated tickers, admin-set.
+# Empty by default — no symbols are restricted until an admin adds some.
+PAPER_TRADING_RESTRICTED_SYMBOLS_KEY = "paper_trading_restricted_symbols"
+PAPER_TRADING_RESTRICTED_SYMBOLS_DEFAULT = ""
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

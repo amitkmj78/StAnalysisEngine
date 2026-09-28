@@ -11,6 +11,18 @@ from web.backend.app_settings import (
     FREE_TIER_LAG_DAYS_DEFAULT,
     FREE_TIER_LAG_DAYS_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
+    PAPER_TRADING_ENABLED_KEY,
+    PAPER_TRADING_KILL_SWITCH_KEY,
+    PAPER_TRADING_MAX_ORDER_VALUE_DEFAULT,
+    PAPER_TRADING_MAX_ORDER_VALUE_KEY,
+    PAPER_TRADING_MAX_ORDERS_PER_DAY_DEFAULT,
+    PAPER_TRADING_MAX_ORDERS_PER_DAY_KEY,
+    PAPER_TRADING_MAX_PORTFOLIO_PCT_DEFAULT,
+    PAPER_TRADING_MAX_PORTFOLIO_PCT_KEY,
+    PAPER_TRADING_PRICE_COLLAR_PCT_DEFAULT,
+    PAPER_TRADING_PRICE_COLLAR_PCT_KEY,
+    PAPER_TRADING_RESTRICTED_SYMBOLS_DEFAULT,
+    PAPER_TRADING_RESTRICTED_SYMBOLS_KEY,
     PASSWORD_POLICY_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
@@ -65,6 +77,23 @@ async def get_settings():
         "basket_rebalance_enabled": await get_setting_bool(BASKET_REBALANCE_ENABLED_KEY, default=False),
         "stock_finder_cache_prewarm_enabled": await get_setting_bool(
             STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY, default=False
+        ),
+        "paper_trading_enabled": await get_setting_bool(PAPER_TRADING_ENABLED_KEY, default=False),
+        "paper_trading_kill_switch": await get_setting_bool(PAPER_TRADING_KILL_SWITCH_KEY, default=False),
+        "paper_trading_max_order_value": await get_setting_float(
+            PAPER_TRADING_MAX_ORDER_VALUE_KEY, default=PAPER_TRADING_MAX_ORDER_VALUE_DEFAULT
+        ),
+        "paper_trading_max_portfolio_pct": await get_setting_float(
+            PAPER_TRADING_MAX_PORTFOLIO_PCT_KEY, default=PAPER_TRADING_MAX_PORTFOLIO_PCT_DEFAULT
+        ),
+        "paper_trading_max_orders_per_day": await get_setting_int(
+            PAPER_TRADING_MAX_ORDERS_PER_DAY_KEY, default=PAPER_TRADING_MAX_ORDERS_PER_DAY_DEFAULT
+        ),
+        "paper_trading_price_collar_pct": await get_setting_float(
+            PAPER_TRADING_PRICE_COLLAR_PCT_KEY, default=PAPER_TRADING_PRICE_COLLAR_PCT_DEFAULT
+        ),
+        "paper_trading_restricted_symbols": await get_setting_str(
+            PAPER_TRADING_RESTRICTED_SYMBOLS_KEY, default=PAPER_TRADING_RESTRICTED_SYMBOLS_DEFAULT
         ),
     }
 
@@ -251,6 +280,88 @@ class FreeTierLagDaysUpdate(BaseModel):
 async def set_free_tier_lag_days(body: FreeTierLagDaysUpdate):
     await set_setting_int(FREE_TIER_LAG_DAYS_KEY, body.free_tier_lag_days)
     return {"free_tier_lag_days": body.free_tier_lag_days}
+
+
+@router.post("/paper-trading/enable")
+async def enable_paper_trading():
+    """Starts accepting paper order submissions and the two scheduler
+    polling/sync jobs on their next tick — no real money is ever involved
+    (Alpaca paper endpoint only), but this is the real go-live switch for
+    the feature."""
+    await set_setting_bool(PAPER_TRADING_ENABLED_KEY, True)
+    return {"paper_trading_enabled": True}
+
+
+@router.post("/paper-trading/disable")
+async def disable_paper_trading():
+    await set_setting_bool(PAPER_TRADING_ENABLED_KEY, False)
+    return {"paper_trading_enabled": False}
+
+
+@router.post("/paper-trading-kill-switch/enable")
+async def enable_paper_trading_kill_switch():
+    """TRD-35: blocks every new paper order submission synchronously, on
+    the very next request — not delayed to a scheduler tick."""
+    await set_setting_bool(PAPER_TRADING_KILL_SWITCH_KEY, True)
+    return {"paper_trading_kill_switch": True}
+
+
+@router.post("/paper-trading-kill-switch/disable")
+async def disable_paper_trading_kill_switch():
+    await set_setting_bool(PAPER_TRADING_KILL_SWITCH_KEY, False)
+    return {"paper_trading_kill_switch": False}
+
+
+class PaperTradingMaxOrderValueUpdate(BaseModel):
+    max_order_value: float = Field(gt=0, le=10_000_000)
+
+
+@router.post("/paper-trading/max-order-value")
+async def set_paper_trading_max_order_value(body: PaperTradingMaxOrderValueUpdate):
+    await set_setting_float(PAPER_TRADING_MAX_ORDER_VALUE_KEY, body.max_order_value)
+    return {"paper_trading_max_order_value": body.max_order_value}
+
+
+class PaperTradingMaxPortfolioPctUpdate(BaseModel):
+    max_portfolio_pct: float = Field(gt=0, le=100)
+
+
+@router.post("/paper-trading/max-portfolio-pct")
+async def set_paper_trading_max_portfolio_pct(body: PaperTradingMaxPortfolioPctUpdate):
+    await set_setting_float(PAPER_TRADING_MAX_PORTFOLIO_PCT_KEY, body.max_portfolio_pct)
+    return {"paper_trading_max_portfolio_pct": body.max_portfolio_pct}
+
+
+class PaperTradingMaxOrdersPerDayUpdate(BaseModel):
+    max_orders_per_day: int = Field(gt=0, le=10_000)
+
+
+@router.post("/paper-trading/max-orders-per-day")
+async def set_paper_trading_max_orders_per_day(body: PaperTradingMaxOrdersPerDayUpdate):
+    await set_setting_int(PAPER_TRADING_MAX_ORDERS_PER_DAY_KEY, body.max_orders_per_day)
+    return {"paper_trading_max_orders_per_day": body.max_orders_per_day}
+
+
+class PaperTradingPriceCollarPctUpdate(BaseModel):
+    price_collar_pct: float = Field(gt=0, le=1000)
+
+
+@router.post("/paper-trading/price-collar-pct")
+async def set_paper_trading_price_collar_pct(body: PaperTradingPriceCollarPctUpdate):
+    await set_setting_float(PAPER_TRADING_PRICE_COLLAR_PCT_KEY, body.price_collar_pct)
+    return {"paper_trading_price_collar_pct": body.price_collar_pct}
+
+
+class PaperTradingRestrictedSymbolsUpdate(BaseModel):
+    restricted_symbols: str = ""
+
+
+@router.post("/paper-trading/restricted-symbols")
+async def set_paper_trading_restricted_symbols(body: PaperTradingRestrictedSymbolsUpdate):
+    """Comma-separated tickers, e.g. 'GME,AMC'. Applies to the very next
+    order submission — no restart needed."""
+    await set_setting_str(PAPER_TRADING_RESTRICTED_SYMBOLS_KEY, body.restricted_symbols)
+    return {"paper_trading_restricted_symbols": body.restricted_symbols}
 
 
 class PriceDataProviderUpdate(BaseModel):

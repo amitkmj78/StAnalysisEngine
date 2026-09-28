@@ -1222,6 +1222,91 @@ create policy plaid_sync_log_isolation on plaid_sync_log
 alter table portfolio_positions add column if not exists plaid_item_id bigint references plaid_items(id) on delete cascade;
 alter table portfolio_strategies add column if not exists plaid_item_id bigint references plaid_items(id) on delete cascade;
 
+-- Paper trading (Alpaca): one paper-trading link per user (Alpaca issues
+-- one paper account per API key pair, unlike plaid_items' one-row-per-
+-- institution shape). api_key_id is not secret (Alpaca shows it in
+-- plaintext in its own dashboard) so it's stored in the clear for
+-- display; only the secret key is Fernet-encrypted via the same
+-- web/backend/crypto_utils.py helper used for Plaid access tokens.
+create table if not exists alpaca_paper_accounts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  portfolio_id bigint not null references portfolios(id) on delete cascade,
+  api_key_id text not null,
+  api_secret_key_encrypted bytea not null,
+  alpaca_account_id text,
+  account_number text,
+  status text not null default 'active',
+  last_sync_at timestamptz,
+  last_sync_error text,
+  disclosure_accepted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists alpaca_paper_accounts_user_idx on alpaca_paper_accounts(user_id);
+alter table alpaca_paper_accounts enable row level security;
+drop policy if exists alpaca_paper_accounts_isolation on alpaca_paper_accounts;
+create policy alpaca_paper_accounts_isolation on alpaca_paper_accounts
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- One row per order ticket, inserted at SUBMITTING status BEFORE the
+-- Alpaca call so an ambiguous network failure can be resolved by
+-- re-querying Alpaca for client_order_id rather than blind-retried.
+-- Alpaca dedupes on client_order_id natively -- no separate app-level
+-- idempotency table needed.
+create table if not exists paper_orders (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  alpaca_paper_account_id bigint not null references alpaca_paper_accounts(id) on delete cascade,
+  client_order_id uuid not null unique,
+  alpaca_order_id text,
+  ticker text not null,
+  side text not null,
+  order_type text not null,
+  time_in_force text not null,
+  qty real,
+  limit_price real,
+  status text not null default 'DRAFT',
+  filled_qty real not null default 0,
+  filled_avg_price real,
+  reject_reason text,
+  submitted_at timestamptz,
+  last_polled_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists paper_orders_user_idx on paper_orders(user_id, created_at desc);
+create index if not exists paper_orders_open_idx on paper_orders(status) where status in ('OPEN','SUBMITTING','PARTIALLY_FILLED');
+alter table paper_orders enable row level security;
+drop policy if exists paper_orders_isolation on paper_orders;
+create policy paper_orders_isolation on paper_orders
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- Append-only audit trail: every ticket snapshot, check result, submit
+-- attempt, broker response and user action. No app role is ever granted
+-- update/delete on this table -- insert-only by grant, not just convention.
+create table if not exists paper_order_audit_log (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  paper_order_id bigint references paper_orders(id) on delete cascade,
+  event_type text not null,
+  detail jsonb not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists paper_order_audit_log_order_idx on paper_order_audit_log(paper_order_id, created_at);
+create index if not exists paper_order_audit_log_user_idx on paper_order_audit_log(user_id, created_at desc);
+alter table paper_order_audit_log enable row level security;
+drop policy if exists paper_order_audit_log_isolation on paper_order_audit_log;
+create policy paper_order_audit_log_isolation on paper_order_audit_log
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- Reuses portfolio_positions AND portfolio_strategies -- mirrors
+-- plaid_item_id's pattern on BOTH tables, since the Holdings/Strategies
+-- UI reads from portfolio_strategies, not just portfolio_positions.
+alter table portfolio_positions add column if not exists alpaca_paper_account_id bigint references alpaca_paper_accounts(id) on delete cascade;
+alter table portfolio_strategies add column if not exists alpaca_paper_account_id bigint references alpaca_paper_accounts(id) on delete cascade;
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -1270,6 +1355,12 @@ grant select, insert, update, delete on plaid_items to app_user;
 grant select, update on plaid_items to app_service;
 grant select on plaid_sync_log to app_user;
 grant select, insert on plaid_sync_log to app_service;
+grant select, insert, update, delete on alpaca_paper_accounts to app_user;
+grant select, update on alpaca_paper_accounts to app_service;
+grant select, insert on paper_orders to app_user;
+grant select, update on paper_orders to app_service;
+grant select, insert on paper_order_audit_log to app_user;
+grant select, insert on paper_order_audit_log to app_service;
 -- update/delete: the admin per-user portfolio panel deactivates/reactivates
 -- (update) or permanently removes (delete) a specific portfolio, cross-user
 -- like the rest of admin_users.py.

@@ -16,6 +16,7 @@ from web.backend.app_settings import (
     BASKET_REBALANCE_ENABLED_KEY,
     DB_BACKUP_ENABLED_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
+    PAPER_TRADING_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
     PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY,
@@ -27,6 +28,7 @@ from web.backend.app_settings import (
 )
 from web.backend.db import service_conn
 from web.backend.db_backup import run_backup, run_restore_test
+from web.backend.paper_order_sync import poll_open_orders, sync_positions_and_cash
 from web.backend.pit_prices import (
     capture_and_persist_analyst_ratings,
     capture_and_persist_fundamentals,
@@ -50,6 +52,12 @@ ALERT_INTERVAL_MINUTES = 5
 # since a fresh drop triggers a sentiment search + LLM call, but still
 # needs to catch moves throughout the trading day, not just once at close.
 PORTFOLIO_DROP_INTERVAL_MINUTES = 15
+# NFR-1's 2s status-propagation target isn't met by polling -- this is the
+# accepted v1 gap (see services/alpaca_trading_client.py's module docstring
+# and the paper-trading plan doc). 10s keeps it close without hammering
+# Alpaca's rate limits across every linked paper account.
+PAPER_ORDER_POLL_INTERVAL_SECONDS = 10
+PAPER_POSITIONS_SYNC_INTERVAL_MINUTES = 5
 # TR-3 Phase 1: capture PIT closes shortly after market close, ahead of
 # publication — independent today (nothing consumes this yet), but future
 # phases that make publication/comparison PIT-aware will want the day's
@@ -211,6 +219,36 @@ async def _scan_portfolio_drops_job() -> None:
     inserted = await scan_portfolios_for_drops()
     if inserted:
         logger.info("Scheduler: inserted %d portfolio drop alerts", inserted)
+
+
+async def _poll_paper_orders_job() -> None:
+    """Reconciles every paper-trading account with an order still in a
+    SUBMITTING/OPEN/PARTIALLY_FILLED local status against Alpaca's own
+    view, and re-syncs that account's positions/cash whenever anything
+    changed. Off by default -- an admin must explicitly enable paper
+    trading before this starts making Alpaca API calls."""
+    if not await get_setting_bool(PAPER_TRADING_ENABLED_KEY, default=False):
+        return
+    async with service_conn() as conn:
+        has_open_orders = await conn.fetchval(
+            "SELECT exists(SELECT 1 FROM paper_orders WHERE status IN ('SUBMITTING','OPEN','PARTIALLY_FILLED'))"
+        )
+    if not has_open_orders:
+        return
+    changed = await poll_open_orders()
+    if changed:
+        logger.info("Scheduler: reconciled %d paper order status changes", changed)
+
+
+async def _sync_paper_positions_job() -> None:
+    """Periodic positions/cash sync for every linked paper-trading account
+    (TRD-26), independent of the order-status poller above so a fill that
+    happens between polls still gets picked up on a fixed cadence."""
+    if not await get_setting_bool(PAPER_TRADING_ENABLED_KEY, default=False):
+        return
+    synced = await sync_positions_and_cash()
+    if synced:
+        logger.info("Scheduler: synced %d paper-trading positions", synced)
 
 
 async def _check_basket_rebalances_monthly_job() -> None:
@@ -525,6 +563,22 @@ def start_scheduler() -> AsyncIOScheduler:
         minutes=PORTFOLIO_DROP_INTERVAL_MINUTES,
         id="scan_portfolio_drops",
         next_run_time=datetime.now(),
+        coalesce=True,
+        max_instances=1,
+    )
+    _scheduler.add_job(
+        _poll_paper_orders_job,
+        "interval",
+        seconds=PAPER_ORDER_POLL_INTERVAL_SECONDS,
+        id="poll_paper_orders",
+        coalesce=True,
+        max_instances=1,
+    )
+    _scheduler.add_job(
+        _sync_paper_positions_job,
+        "interval",
+        minutes=PAPER_POSITIONS_SYNC_INTERVAL_MINUTES,
+        id="sync_paper_positions",
         coalesce=True,
         max_instances=1,
     )

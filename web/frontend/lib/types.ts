@@ -614,6 +614,11 @@ export interface PortfolioStrategyRow {
   risk_profile: string;
   risk_factor: number;
   created_at: string;
+  // Non-null only for a position synced from a linked Alpaca paper-trading
+  // account (see web/backend/paper_order_sync.py) -- used to tag the row
+  // "Paper" in the Holdings table so it's never confused with a real
+  // manual/CSV/Plaid-synced holding.
+  alpaca_paper_account_id?: number | null;
 }
 
 export interface PortfolioSummary {
@@ -1007,6 +1012,61 @@ export interface PlaidSyncResult {
 export interface PlaidExchangeResponse {
   item: PlaidItem;
   sync: PlaidSyncResult;
+}
+
+// Paper trading (Alpaca), Stage 1: no real money, no live orders -- see
+// docs/live-trading-requirements.html and the paper-trading plan doc.
+export interface PaperAccount {
+  id: number;
+  portfolio_id: number;
+  api_key_id: string;
+  alpaca_account_id: string | null;
+  account_number: string | null;
+  status: "active" | "invalid_key" | "disabled";
+  last_sync_at: string | null;
+  last_sync_error: string | null;
+  disclosure_accepted_at: string | null;
+  created_at: string;
+}
+
+export interface PaperClock {
+  is_open: boolean;
+  next_open: string;
+  next_close: string;
+}
+
+export type PaperOrderStatus =
+  | "DRAFT"
+  | "SUBMITTING"
+  | "OPEN"
+  | "PARTIALLY_FILLED"
+  | "FILLED"
+  | "CANCELLED"
+  | "REJECTED"
+  | "UNKNOWN";
+
+export interface PaperOrder {
+  id: number;
+  alpaca_paper_account_id: number;
+  client_order_id: string;
+  alpaca_order_id: string | null;
+  ticker: string;
+  side: "buy" | "sell";
+  order_type: "market" | "limit";
+  time_in_force: "day" | "gtc";
+  qty: number;
+  limit_price: number | null;
+  status: PaperOrderStatus;
+  filled_qty: number;
+  filled_avg_price: number | null;
+  reject_reason: string | null;
+  submitted_at: string | null;
+  created_at: string;
+}
+
+export interface PaperOrderCheckFailure {
+  code: string;
+  message: string;
 }
 
 // Meta-Agent Chat

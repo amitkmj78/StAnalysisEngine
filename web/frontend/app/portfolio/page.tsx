@@ -626,6 +626,7 @@ export default function PortfolioPage() {
             extraMenuItems={[
               { label: "Build Diversified Basket", href: "/portfolio/build-index" },
               { label: "Compare vs. Best Fund", href: "/portfolio/compare" },
+              { label: "Paper Trading", href: "/portfolio/paper-trading" },
             ]}
           />
           <div className="flex flex-wrap gap-2">
@@ -895,6 +896,14 @@ export default function PortfolioPage() {
                             <div className="flex items-center gap-2">
                               <Chevron open={isExpanded} />
                               <span className="font-semibold">{s.ticker}</span>
+                              {s.alpaca_paper_account_id != null && (
+                                <span
+                                  title="Synced from your linked Alpaca paper-trading account — simulated, not real money."
+                                  className="rounded-full bg-[#e3ecff] px-1.5 py-0.5 text-[10px] font-bold text-[#1f4fd1]"
+                                >
+                                  Paper
+                                </span>
+                              )}
                               {insight?.concentrated && (
                                 <span
                                   title="A single position this large drives most of your portfolio's swings."

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { ApiError, getFundGoals, getPortfolioCompare, getPredictionSummary } from "@/lib/api";
 import type { CompareHolding, CompareSignal, CompareTopStock, CompareWindowCode, ForecastOut, FundGoal, PortfolioCompareResponse } from "@/lib/types";
@@ -42,18 +43,37 @@ function isStale(asOf: string | null): boolean {
   return days > 7; // ~5 trading days
 }
 
-function SignalPill({ signal }: { signal: CompareSignal | null | undefined }) {
+// TRD-12: opens a paper-trading ticket pre-filled with symbol + side ONLY
+// -- quantity is never pre-filled from the model, confidence/horizon are
+// shown on the ticket itself, not baked into the prefill.
+function SignalPill({ signal, ticker }: { signal: CompareSignal | null | undefined; ticker?: string }) {
+  const router = useRouter();
   if (!signal || !signal.action) {
     return <span className="text-xs text-slate-400">No current signal</span>;
   }
   const color =
     signal.action === "buy" ? COMPARE_COLORS.buy : signal.action === "trim" ? COMPARE_COLORS.trim : COMPARE_COLORS.hold;
   const label = signal.action === "buy" ? "Buy" : signal.action === "trim" ? "Trim" : "Hold";
+  const side = signal.action === "buy" ? "buy" : signal.action === "trim" ? "sell" : null;
+  const clickable = Boolean(ticker && side);
+
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+      role={clickable ? "button" : undefined}
+      onClick={
+        clickable
+          ? () => router.push(`/portfolio/paper-trading/ticket?ticker=${encodeURIComponent(ticker!)}&side=${side}`)
+          : undefined
+      }
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-white ${
+        clickable ? "cursor-pointer hover:opacity-90" : ""
+      }`}
       style={{ backgroundColor: color }}
-      title={`Confidence: ${signal.label}${isStale(signal.as_of) ? " (stale)" : ""}`}
+      title={
+        clickable
+          ? `Confidence: ${signal.label}${isStale(signal.as_of) ? " (stale)" : ""} — click to trade (paper)`
+          : `Confidence: ${signal.label}${isStale(signal.as_of) ? " (stale)" : ""}`
+      }
     >
       {label}
       {isStale(signal.as_of) && <span className="opacity-80">·stale</span>}
@@ -340,7 +360,7 @@ export default function PortfolioComparePage() {
                               {h.since && <div className="text-[11px] font-normal text-slate-400">Since {fmtDate(h.since)}</div>}
                             </td>
                             <td className="px-3 py-2">
-                              <SignalPill signal={h.signal} />
+                              <SignalPill signal={h.signal} ticker={h.ticker} />
                             </td>
                             <td className="px-3 py-2 text-right text-slate-600">{h.weight_pct.toFixed(1)}%</td>
                             <td className="px-3 py-2 text-right font-medium" style={{ color: pctColor(h.return_pct) }}>
@@ -423,7 +443,7 @@ export default function PortfolioComparePage() {
                       {fmtPct(s.return_pct)}
                     </p>
                     <div className="mt-2 border-t border-slate-100 pt-2">
-                      <SignalPill signal={s.signal} />
+                      <SignalPill signal={s.signal} ticker={s.ticker} />
                       {s.expected_return_pct !== null && (
                         <p className="mt-1 text-xs text-slate-500">
                           Forecast: <span style={{ color: pctColor(s.expected_return_pct) }}>{fmtPct(s.expected_return_pct)}</span>

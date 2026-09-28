@@ -62,6 +62,9 @@ import type {
   PlaidItem,
   PlaidLinkTokenResponse,
   PlaidSyncResult,
+  PaperAccount,
+  PaperClock,
+  PaperOrder,
   PortfolioSubmitResponse,
   PortfolioSummary,
   PredictAlgoComparisonResponse,
@@ -639,6 +642,52 @@ export function syncPlaidItem(itemId: number) {
 
 export function disconnectPlaidItem(itemId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/plaid/items/${itemId}`, "DELETE");
+}
+
+// Paper trading (Alpaca), Stage 1 -- no real money, no live orders.
+export function linkPaperAccount(apiKeyId: string, apiSecretKey: string, portfolioId?: number) {
+  return apiSend<{ account: PaperAccount; positions_synced: number }>("/api/v1/paper-trading/link", "POST", {
+    api_key_id: apiKeyId,
+    api_secret_key: apiSecretKey,
+    portfolio_id: portfolioId,
+  });
+}
+
+export function acceptPaperTradingDisclosure() {
+  return apiSend<{ account: PaperAccount }>("/api/v1/paper-trading/disclosure-accept", "POST");
+}
+
+export function getPaperAccount() {
+  return apiFetch<{ account: PaperAccount; live: Record<string, unknown> | null }>("/api/v1/paper-trading/account");
+}
+
+export function getPaperClock() {
+  return apiFetch<PaperClock>("/api/v1/paper-trading/clock");
+}
+
+export function unlinkPaperAccount() {
+  return apiSend<{ ok: boolean }>("/api/v1/paper-trading/link", "DELETE");
+}
+
+export function getPaperOrders() {
+  return apiFetch<{ orders: PaperOrder[] }>("/api/v1/paper-trading/orders");
+}
+
+export function getPaperOrder(orderId: number) {
+  return apiFetch<{ order: PaperOrder; audit_log: Record<string, unknown>[] }>(`/api/v1/paper-trading/orders/${orderId}`);
+}
+
+export interface SubmitPaperOrderRequest {
+  ticker: string;
+  side: "buy" | "sell";
+  order_type: "market" | "limit";
+  time_in_force: "day" | "gtc";
+  qty: number;
+  limit_price?: number;
+}
+
+export function submitPaperOrder(body: SubmitPaperOrderRequest) {
+  return apiSend<{ order: PaperOrder; note?: string }>("/api/v1/paper-trading/orders", "POST", body);
 }
 
 export function editPortfolioPosition(
