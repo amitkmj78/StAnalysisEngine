@@ -53,7 +53,9 @@ function ScoreCard({
         <span className="pb-1 text-sm text-slate-400">/ 100</span>
       </div>
       <p className="mt-1 text-xs text-slate-500">
-        {sectorPercentile !== null ? `Top ${(100 - sectorPercentile).toFixed(0)}% of ${sectorKey}` : `No sector rank yet — ${sectorKey}`}
+        {sectorPercentile !== null
+          ? `Top ${Math.max(1, Math.round(100 - sectorPercentile))}% of ${sectorKey}`
+          : `No sector rank yet — ${sectorKey}`}
       </p>
       <p className={`mt-1 text-xs font-medium ${confidenceClass(confidence.label)}`}>
         Confidence: {confidence.label}
