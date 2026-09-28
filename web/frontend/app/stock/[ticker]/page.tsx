@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 import {
@@ -39,10 +40,25 @@ function signalBadgeClass(signal: string): string {
   return "bg-slate-100 text-slate-600";
 }
 
+// Same three-way read as the badge, spent as a quiet left-edge stripe on
+// each card instead of a second loud color — status is visible at a
+// glance without competing with the badge itself.
+function signalAccentClass(signal: string): string {
+  if (signal === "Buy") return "border-l-emerald-400";
+  if (signal === "Trim") return "border-l-red-400";
+  return "border-l-slate-300";
+}
+
 function sentimentBadgeClass(label: string): string {
   if (label === "Bullish") return "bg-emerald-50 text-emerald-700";
   if (label === "Bearish") return "bg-red-50 text-red-700";
   return "bg-slate-100 text-slate-600";
+}
+
+function sentimentAccentClass(label: string): string {
+  if (label === "Bullish") return "border-l-emerald-400";
+  if (label === "Bearish") return "border-l-red-400";
+  return "border-l-slate-300";
 }
 
 function confidenceClass(label: string): string {
@@ -72,7 +88,7 @@ function ScoreCard({
   trend?: { weekly_series: [string, number][]; flagged: boolean; change_pts: number | null };
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className={`rounded-lg border border-l-4 border-slate-200 bg-white p-5 ${signalAccentClass(signal)}`}>
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
@@ -81,7 +97,9 @@ function ScoreCard({
         <span className={`rounded-full px-3 py-1 text-sm font-semibold ${signalBadgeClass(signal)}`}>{signal}</span>
       </div>
       <div className="mt-3 flex items-end gap-2">
-        <span className="text-4xl font-semibold text-slate-900">{score !== null ? score.toFixed(0) : "—"}</span>
+        <span className="text-4xl font-semibold tracking-tight text-slate-900">
+          {score !== null ? score.toFixed(0) : "—"}
+        </span>
         <span className="pb-1 text-sm text-slate-400">/ 100</span>
       </div>
       <p className="mt-1 text-xs text-slate-500">
@@ -234,25 +252,28 @@ export default function StockScorePage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Stock Detail</p>
-          <h1 className="text-2xl font-semibold text-slate-900">
-            {ticker}
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{ticker}</h1>
             {detail?.current_price !== null && detail?.current_price !== undefined && (
-              <span className="ml-3 text-lg font-normal text-slate-500">${detail.current_price.toFixed(2)}</span>
+              <span className="text-lg font-medium text-slate-500">${detail.current_price.toFixed(2)}</span>
             )}
-          </h1>
+          </div>
           {data && (
-            <p className="text-xs text-slate-500">
-              {data.sector_key} · as of {data.as_of_date}
-            </p>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                {data.sector_key}
+              </span>
+              <span className="text-xs text-slate-400">as of {data.as_of_date}</span>
+            </div>
           )}
         </div>
-        <form onSubmit={handleJump} className="flex gap-2">
+        <form onSubmit={handleJump} className="flex flex-wrap items-center gap-2">
           {holdings.length > 0 && (
             <select
               value=""
               onChange={(e) => e.target.value && handleSelectTicker(e.target.value)}
               aria-label="Jump to a stock you hold"
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
+              className="input"
             >
               <option value="">Your holdings…</option>
               {holdings.map((h) => (
@@ -267,12 +288,9 @@ export default function StockScorePage() {
             onChange={setJumpTicker}
             onSelect={handleSelectTicker}
             placeholder="Ticker or company name…"
-            className="w-56 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="input w-56"
           />
-          <button
-            type="submit"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-          >
+          <button type="submit" className="btn-primary">
             Go
           </button>
         </form>
@@ -317,29 +335,35 @@ export default function StockScorePage() {
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <div className="rounded-lg border border-l-4 border-slate-200 border-l-emerald-400 bg-white p-5">
               <h3 className="text-sm font-semibold text-slate-900">Top Drivers</h3>
               {data.explanations.drivers.length === 0 ? (
                 <p className="mt-2 text-xs text-slate-400">No positive drivers today.</p>
               ) : (
-                <ul className="mt-2 flex flex-col gap-1 text-sm text-emerald-700">
+                <ul className="mt-2 flex flex-col gap-1.5">
                   {data.explanations.drivers.map((d) => (
-                    <li key={d.factor}>
-                      +{d.contribution.toFixed(1)} pts — {d.factor}
+                    <li key={d.factor} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-slate-700">{d.factor}</span>
+                      <span className="shrink-0 font-mono text-xs font-semibold text-emerald-700">
+                        +{d.contribution.toFixed(1)}
+                      </span>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <div className="rounded-lg border border-l-4 border-slate-200 border-l-red-400 bg-white p-5">
               <h3 className="text-sm font-semibold text-slate-900">Top Drags</h3>
               {data.explanations.drags.length === 0 ? (
                 <p className="mt-2 text-xs text-slate-400">No negative drags today.</p>
               ) : (
-                <ul className="mt-2 flex flex-col gap-1 text-sm text-red-700">
+                <ul className="mt-2 flex flex-col gap-1.5">
                   {data.explanations.drags.map((d) => (
-                    <li key={d.factor}>
-                      {d.contribution.toFixed(1)} pts — {d.factor}
+                    <li key={d.factor} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-slate-700">{d.factor}</span>
+                      <span className="shrink-0 font-mono text-xs font-semibold text-red-700">
+                        {d.contribution.toFixed(1)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -348,10 +372,13 @@ export default function StockScorePage() {
           </div>
 
           {weeklyChange?.change && (
-            <div className="mt-4 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
-              Since {weeklyChange.compared_to}: {weeklyChange.change.factor} moved the most (
-              {weeklyChange.change.delta_contribution >= 0 ? "+" : ""}
-              {weeklyChange.change.delta_contribution.toFixed(1)} pts contribution).
+            <div className="mt-4 flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+              <span className="font-medium">Since {weeklyChange.compared_to}:</span>
+              <span>
+                {weeklyChange.change.factor} moved the most (
+                {weeklyChange.change.delta_contribution >= 0 ? "+" : ""}
+                {weeklyChange.change.delta_contribution.toFixed(1)} pts contribution)
+              </span>
             </div>
           )}
 
@@ -364,7 +391,7 @@ export default function StockScorePage() {
               <li>{data.sentences.growth}</li>
               <li>{data.sentences.low_vol}</li>
             </ul>
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
               Rules-based composite scores from real, already-captured data — not a trained prediction model.
               Earnings-revisions/surprise and Quality factors aren&apos;t included yet (no data source for them exists).
             </p>
@@ -436,7 +463,11 @@ export default function StockScorePage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+      <div
+        className={`mt-6 rounded-lg border border-l-4 border-slate-200 bg-white p-5 ${
+          sentiment?.label ? sentimentAccentClass(sentiment.label) : "border-l-slate-200"
+        }`}
+      >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-900">News &amp; Sentiment</h3>
           {sentiment?.label && (
@@ -475,28 +506,36 @@ export default function StockScorePage() {
         <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Your Position</h3>
           {position?.owned ? (
-            <dl className="mt-2 grid grid-cols-2 gap-y-2 text-sm sm:grid-cols-4">
-              <dt className="text-slate-500">Shares</dt>
-              <dd className="text-right text-slate-900 sm:text-left">{position.shares}</dd>
-              <dt className="text-slate-500">Avg Cost</dt>
-              <dd className="text-right text-slate-900 sm:text-left">${position.avg_cost?.toFixed(2)}</dd>
-              <dt className="text-slate-500">Gain/Loss</dt>
-              <dd
-                className={`text-right sm:text-left ${
-                  (position.gain_loss_pct ?? 0) >= 0 ? "text-emerald-700" : "text-red-700"
-                }`}
-              >
-                {position.gain_loss_pct !== null && position.gain_loss_pct !== undefined
-                  ? `${position.gain_loss_pct >= 0 ? "+" : ""}${position.gain_loss_pct.toFixed(1)}%`
-                  : "—"}
-              </dd>
-              <dt className="text-slate-500">Portfolio Weight</dt>
-              <dd className="text-right text-slate-900 sm:text-left">
-                {position.weight_pct !== null && position.weight_pct !== undefined
-                  ? `${position.weight_pct.toFixed(1)}%`
-                  : "—"}
-              </dd>
-            </dl>
+            <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Shares</p>
+                <p className="mt-0.5 text-lg font-semibold text-slate-900">{position.shares}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Avg Cost</p>
+                <p className="mt-0.5 text-lg font-semibold text-slate-900">${position.avg_cost?.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Gain/Loss</p>
+                <p
+                  className={`mt-0.5 text-lg font-semibold ${
+                    (position.gain_loss_pct ?? 0) >= 0 ? "text-emerald-700" : "text-red-700"
+                  }`}
+                >
+                  {position.gain_loss_pct !== null && position.gain_loss_pct !== undefined
+                    ? `${position.gain_loss_pct >= 0 ? "+" : ""}${position.gain_loss_pct.toFixed(1)}%`
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Portfolio Weight</p>
+                <p className="mt-0.5 text-lg font-semibold text-slate-900">
+                  {position.weight_pct !== null && position.weight_pct !== undefined
+                    ? `${position.weight_pct.toFixed(1)}%`
+                    : "—"}
+                </p>
+              </div>
+            </div>
           ) : (
             <p className="mt-2 text-xs text-slate-400">You don&apos;t own {ticker} in this portfolio.</p>
           )}
@@ -508,12 +547,17 @@ export default function StockScorePage() {
           <h3 className="text-sm font-semibold text-slate-900">Signal History</h3>
           {signalHistory && signalHistory.history.length > 0 ? (
             <>
-              <ul className="mt-2 flex flex-col gap-1 text-xs text-slate-600">
+              <ul className="mt-2 flex flex-col divide-y divide-slate-100">
                 {signalHistory.history.slice(0, 8).map((h) => (
-                  <li key={h.as_of_date} className="flex justify-between">
-                    <span>{h.as_of_date}</span>
-                    <span>
-                      {h.short_signal} / {h.long_signal}
+                  <li key={h.as_of_date} className="flex items-center justify-between gap-2 py-1.5 text-xs">
+                    <span className="text-slate-500">{h.as_of_date}</span>
+                    <span className="flex gap-1.5">
+                      <span className={`rounded-full px-2 py-0.5 font-medium ${signalBadgeClass(h.short_signal)}`}>
+                        {h.short_signal}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 font-medium ${signalBadgeClass(h.long_signal)}`}>
+                        {h.long_signal}
+                      </span>
                     </span>
                   </li>
                 ))}
@@ -528,13 +572,19 @@ export default function StockScorePage() {
         <div className="rounded-lg border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Similar Stocks</h3>
           {peers && peers.peers.length > 0 ? (
-            <ul className="mt-2 flex flex-col gap-1 text-sm">
+            <ul className="mt-2 flex flex-col divide-y divide-slate-100">
               {peers.peers.map((p) => (
-                <li key={p.ticker} className="flex justify-between">
-                  <a href={`/stock/${p.ticker}`} className="text-blue-700 hover:underline">
-                    {p.ticker}
-                  </a>
-                  <span className="text-slate-500">${p.market_cap_b.toFixed(1)}B</span>
+                <li key={p.ticker}>
+                  <Link
+                    href={`/stock/${p.ticker}`}
+                    className="flex items-center justify-between gap-2 py-1.5 text-sm hover:text-blue-700"
+                  >
+                    <span>
+                      <span className="font-medium text-blue-700">{p.ticker}</span>
+                      {p.name && <span className="ml-1.5 text-xs text-slate-400">{p.name}</span>}
+                    </span>
+                    <span className="shrink-0 font-mono text-xs text-slate-500">${p.market_cap_b.toFixed(1)}B</span>
+                  </Link>
                 </li>
               ))}
             </ul>
