@@ -562,7 +562,11 @@ export default function StockScorePage() {
                   )}
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Shares</p>
-                    <p className="mt-0.5 text-lg font-semibold text-slate-900">{pos.shares}</p>
+                    <p className="mt-0.5 text-lg font-semibold text-slate-900">
+                      {pos.shares !== null && pos.shares !== undefined
+                        ? Number(pos.shares.toFixed(4)).toString()
+                        : "—"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Avg Cost</p>
