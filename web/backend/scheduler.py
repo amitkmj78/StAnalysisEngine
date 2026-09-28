@@ -9,7 +9,7 @@ from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.email_service import APP_URL, send_admin_alert_email, send_rankings_email
 from services.prediction_verification_service import verify_prediction
-from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE
+from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE, TRACK_RECORD_HORIZONS
 from services.stock_finder_service import SP500_UNIVERSE_NAME, get_stock_finder_table
 from services.stock_score_capture_service import compute_and_persist_daily_scores
 from web.backend.admin import ADMIN_EMAIL
@@ -402,13 +402,22 @@ async def _evaluate_signal_outcomes_job() -> None:
     """TR-4: check every published date old enough to have a knowable
     outcome and record it. Gated by the same flag as publication — if
     there's no live record (publishing is off), there's nothing to
-    evaluate."""
+    evaluate.
+
+    TRK-2 (docs/stock-analysis-requirements.html): track-record metrics
+    are grouped by horizon (10/30/60/90 days), so this now evaluates all
+    of TRACK_RECORD_HORIZONS each run, not just the 30-day default —
+    signal_outcomes' unique constraint already includes horizon_days, so
+    this is purely a matter of calling evaluate_due_signal_outcomes once
+    per horizon; each call is independently idempotent."""
     if not await get_setting_bool(PUBLISH_SIGNALS_ENABLED_KEY, default=False):
         logger.info("Scheduler: publish_daily_signals is disabled, skipping outcome evaluation")
         return
-    evaluated = await evaluate_due_signal_outcomes()
-    if evaluated:
-        logger.info("Scheduler: recorded %d signal outcomes", evaluated)
+    total = 0
+    for horizon_days in TRACK_RECORD_HORIZONS:
+        total += await evaluate_due_signal_outcomes(horizon_days=horizon_days)
+    if total:
+        logger.info("Scheduler: recorded %d signal outcomes across %d horizons", total, len(TRACK_RECORD_HORIZONS))
 
 
 async def _send_rankings_email_job() -> None:

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
@@ -9,8 +9,18 @@ from services.signal_publication_service import (
     DEFAULT_PREDICT_PERIOD,
     DEFAULT_UNIVERSE,
     PREDICT_COMPARE_HORIZONS,
+    attach_excess_vs_spy,
+    build_model_portfolio_series,
+    build_spy_comparison_series,
+    compute_avg_excess_vs_spy,
+    compute_calibration,
     compute_outcome_metrics,
+    compute_outcome_metrics_by_model_version,
     compute_predict_algo_comparison,
+    compute_spy_returns_for_dates,
+    confidence_for_outcome,
+    fetch_spy_close_series,
+    worst_misses,
 )
 from services.quant_signal_narrative_service import build_quant_signal_narrative
 from services.quant_signal_outcome_service import summarize_quant_signal_outcomes
@@ -435,6 +445,98 @@ async def list_signal_outcomes(
         "outcomes": [
             {**r, "target_date": str(r["target_date"])} for r in row_dicts
         ],
+    }
+
+
+@router.get("/track-record")
+@limiter.limit("60/minute")
+async def get_track_record(
+    request: Request,
+    universe_id: str = Query(DEFAULT_UNIVERSE),
+    lookback_days: int = Query(DEFAULT_LOOKBACK_DAYS),
+    horizon_days: int = Query(DEFAULT_HORIZON_DAYS),
+):
+    """
+    TRK-2/3/5/6 (docs/stock-analysis-requirements.html): the enhanced
+    public track record — average return, excess-vs-SPY, a model-version
+    breakdown, calibration, worst misses, and a model-portfolio-vs-SPY
+    growth chart — all built from the existing signal_outcomes/
+    published_signals record, same public/unauthenticated posture as
+    /outcomes and /published. Calibration's confidence is a PROXY
+    (pit_quant_signal's own stability, not this ranking's own — see
+    confidence_for_outcome's docstring), and worst_misses is Buy-side
+    only (this pipeline has no Trim/Sell concept) — both called out
+    explicitly in the response rather than silently presented as complete.
+    """
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT so.target_date, so.ticker, so.rank, so.entry_price, so.exit_price,
+                   so.realized_return_pct, so.benchmark_return_pct, so.beat_benchmark,
+                   ps.model_version_hash
+            FROM signal_outcomes so
+            LEFT JOIN published_signals ps
+              ON ps.target_date = so.target_date AND ps.universe_id = so.universe_id
+             AND ps.lookback_days = so.lookback_days AND ps.ticker = so.ticker AND ps.reason_code IS NULL
+            WHERE so.universe_id = $1 AND so.lookback_days = $2 AND so.horizon_days = $3
+            ORDER BY so.target_date ASC, so.rank ASC
+            """,
+            universe_id, lookback_days, horizon_days,
+        )
+    outcome_rows = [_record_to_dict(r) for r in rows]
+
+    empty_response = {
+        "universe_id": universe_id,
+        "lookback_days": lookback_days,
+        "horizon_days": horizon_days,
+        "metrics": compute_outcome_metrics([]),
+        "metrics_by_model_version": {},
+        "avg_excess_vs_spy_pct": None,
+        "calibration": compute_calibration([]),
+        "worst_misses": [],
+        "model_portfolio_series": [],
+        "spy_portfolio_series": [],
+        "trim_note": "No Trim signals are currently published against this record — worst misses shown are Buy-side only.",
+    }
+    if not outcome_rows:
+        return empty_response
+
+    target_dates = sorted({r["target_date"] for r in outcome_rows})
+
+    spy_close = await run_in_threadpool(fetch_spy_close_series)
+    spy_return_by_date = compute_spy_returns_for_dates(spy_close, target_dates, horizon_days)
+    with_excess = attach_excess_vs_spy(outcome_rows, spy_return_by_date)
+
+    tickers = sorted({r["ticker"] for r in outcome_rows})
+    async with service_conn() as conn:
+        signal_rows = await conn.fetch(
+            """
+            SELECT ticker, as_of_date, signal FROM pit_quant_signal
+            WHERE ticker = ANY($1::text[]) AND as_of_date BETWEEN $2 AND $3
+            ORDER BY ticker, as_of_date
+            """,
+            tickers, target_dates[0] - timedelta(days=35), target_dates[-1],
+        )
+    signal_history_by_ticker: dict[str, list[tuple]] = {}
+    for r in signal_rows:
+        signal_history_by_ticker.setdefault(r["ticker"], []).append((r["as_of_date"], r["signal"]))
+
+    with_confidence = []
+    for row in with_excess:
+        confidence = confidence_for_outcome(signal_history_by_ticker.get(row["ticker"], []), row["target_date"])
+        with_confidence.append({**row, "confidence_score": confidence["score"], "confidence_label": confidence["label"]})
+
+    return {
+        **empty_response,
+        "metrics": compute_outcome_metrics(outcome_rows),
+        "metrics_by_model_version": compute_outcome_metrics_by_model_version(outcome_rows),
+        "avg_excess_vs_spy_pct": compute_avg_excess_vs_spy(with_excess),
+        "calibration": compute_calibration(with_confidence),
+        "worst_misses": [
+            {**m, "target_date": str(m["target_date"])} for m in worst_misses(outcome_rows, top_n=10)
+        ],
+        "model_portfolio_series": build_model_portfolio_series(outcome_rows, horizon_days),
+        "spy_portfolio_series": build_spy_comparison_series(outcome_rows, spy_return_by_date, horizon_days),
     }
 
 

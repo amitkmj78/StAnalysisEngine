@@ -1,0 +1,212 @@
+from datetime import date
+
+import pandas as pd
+
+from services.signal_publication_service import (
+    attach_excess_vs_spy,
+    build_model_portfolio_series,
+    build_spy_comparison_series,
+    compute_avg_excess_vs_spy,
+    compute_calibration,
+    compute_outcome_metrics,
+    compute_outcome_metrics_by_model_version,
+    compute_spy_returns_for_dates,
+    confidence_for_outcome,
+    worst_misses,
+)
+
+
+def _row(ticker="AAPL", target_date=date(2026, 1, 5), rank=1, realized=2.0, benchmark=1.0, model_version_hash="v1"):
+    return {
+        "ticker": ticker,
+        "target_date": target_date,
+        "rank": rank,
+        "realized_return_pct": realized,
+        "benchmark_return_pct": benchmark,
+        "beat_benchmark": realized > benchmark,
+        "model_version_hash": model_version_hash,
+    }
+
+
+def test_compute_outcome_metrics_includes_avg_return_pct():
+    rows = [_row(realized=4.0, benchmark=1.0), _row(ticker="MSFT", realized=-2.0, benchmark=1.0)]
+    metrics = compute_outcome_metrics(rows)
+    assert metrics["avg_return_pct"] == 1.0
+
+
+def test_compute_outcome_metrics_empty_returns_none_avg():
+    metrics = compute_outcome_metrics([])
+    assert metrics["avg_return_pct"] is None
+
+
+def test_compute_outcome_metrics_by_model_version_groups_separately():
+    rows = [
+        _row(model_version_hash="v1", realized=10.0, benchmark=0.0),
+        _row(ticker="MSFT", model_version_hash="v1", realized=6.0, benchmark=0.0),
+        _row(ticker="GOOG", model_version_hash="v2", realized=-4.0, benchmark=0.0),
+    ]
+    by_version = compute_outcome_metrics_by_model_version(rows)
+    assert set(by_version) == {"v1", "v2"}
+    assert by_version["v1"]["num_evaluated_picks"] == 2
+    assert by_version["v2"]["num_evaluated_picks"] == 1
+    assert by_version["v1"]["avg_return_pct"] == 8.0
+
+
+def test_compute_outcome_metrics_by_model_version_missing_hash_grouped_unknown():
+    rows = [_row(model_version_hash=None)]
+    by_version = compute_outcome_metrics_by_model_version(rows)
+    assert "unknown" in by_version
+
+
+def test_worst_misses_sorted_ascending_and_capped():
+    rows = [_row(ticker=t, realized=r, benchmark=0.0) for t, r in [("A", 5.0), ("B", -20.0), ("C", -1.0), ("D", -30.0)]]
+    misses = worst_misses(rows, top_n=2)
+    assert [m["ticker"] for m in misses] == ["D", "B"]
+
+
+def _spy_series(prices: list[float], start=date(2026, 1, 1)) -> pd.Series:
+    dates = pd.date_range(start=start, periods=len(prices), freq="B")
+    return pd.Series(prices, index=dates)
+
+
+def test_compute_spy_returns_for_dates_matches_known_return():
+    # 20 trading days, flat at 100 except day 10 jumps to 110.
+    prices = [100.0] * 20
+    prices[10] = 110.0
+    spy = _spy_series(prices)
+    target_date = spy.index[0].date()
+    result = compute_spy_returns_for_dates(spy, [target_date], horizon_days=10)
+    # entry = index 0 (100.0), exit = index 10 (110.0) -> +10%
+    assert result[target_date] == 10.0
+
+
+def test_compute_spy_returns_for_dates_none_when_window_not_elapsed():
+    prices = [100.0] * 5
+    spy = _spy_series(prices)
+    target_date = spy.index[0].date()
+    result = compute_spy_returns_for_dates(spy, [target_date], horizon_days=10)
+    assert result[target_date] is None
+
+
+def test_attach_and_average_excess_vs_spy():
+    rows = [_row(target_date=date(2026, 1, 5), realized=5.0), _row(ticker="MSFT", target_date=date(2026, 1, 6), realized=1.0)]
+    spy_by_date = {date(2026, 1, 5): 2.0, date(2026, 1, 6): 3.0}
+    with_excess = attach_excess_vs_spy(rows, spy_by_date)
+    assert with_excess[0]["excess_vs_spy_pct"] == 3.0
+    assert with_excess[1]["excess_vs_spy_pct"] == -2.0
+    assert compute_avg_excess_vs_spy(with_excess) == 0.5
+
+
+def test_attach_excess_vs_spy_none_when_spy_unresolved():
+    rows = [_row(target_date=date(2026, 1, 5), realized=5.0)]
+    with_excess = attach_excess_vs_spy(rows, {})
+    assert with_excess[0]["excess_vs_spy_pct"] is None
+    assert compute_avg_excess_vs_spy(with_excess) is None
+
+
+def test_confidence_for_outcome_never_uses_signal_after_target_date():
+    target_date = date(2026, 1, 20)
+    # Stable before target_date (no flips), but flips wildly right after --
+    # a bug that looked ahead would see those later flips and downgrade
+    # confidence; this must not happen.
+    history = [
+        (date(2026, 1, 1), "BUY"),
+        (date(2026, 1, 10), "BUY"),
+        (date(2026, 1, 20), "BUY"),
+        (date(2026, 1, 21), "SELL"),
+        (date(2026, 1, 22), "BUY"),
+        (date(2026, 1, 23), "SELL"),
+    ]
+    confidence = confidence_for_outcome(history, target_date, lookback_days=30)
+    assert confidence["label"] == "high"
+
+
+def test_confidence_for_outcome_reflects_instability_before_target_date():
+    target_date = date(2026, 1, 20)
+    history = [
+        (date(2026, 1, 1), "BUY"),
+        (date(2026, 1, 5), "SELL"),
+        (date(2026, 1, 10), "BUY"),
+        (date(2026, 1, 15), "SELL"),
+        (date(2026, 1, 20), "BUY"),
+    ]
+    confidence = confidence_for_outcome(history, target_date, lookback_days=30)
+    assert confidence["label"] == "low"
+
+
+def test_confidence_for_outcome_none_with_insufficient_window_history():
+    confidence = confidence_for_outcome([(date(2026, 1, 20), "BUY")], date(2026, 1, 20))
+    assert confidence == {"label": "unknown", "score": None}
+
+
+def test_compute_calibration_buckets_hit_rate_and_sample_size():
+    rows = [
+        {"beat_benchmark": True, "confidence_score": 95},
+        {"beat_benchmark": True, "confidence_score": 92},
+        {"beat_benchmark": False, "confidence_score": 91},
+        {"beat_benchmark": True, "confidence_score": 55},
+    ]
+    buckets = compute_calibration(rows)
+    top_bucket = next(b for b in buckets if b["bucket_label"] == "90-100%")
+    assert top_bucket["sample_size"] == 3
+    assert round(top_bucket["hit_rate_pct"], 1) == round(2 / 3 * 100, 1)
+    low_bucket = next(b for b in buckets if b["bucket_label"] == "50-60%")
+    assert low_bucket["sample_size"] == 1
+    assert low_bucket["hit_rate_pct"] == 100.0
+
+
+def test_compute_calibration_empty_bucket_reports_zero_sample():
+    buckets = compute_calibration([{"beat_benchmark": True, "confidence_score": 95}])
+    empty_bucket = next(b for b in buckets if b["bucket_label"] == "60-70%")
+    assert empty_bucket == {"bucket_label": "60-70%", "hit_rate_pct": None, "sample_size": 0}
+
+
+def test_compute_calibration_ignores_rows_with_no_confidence():
+    buckets = compute_calibration([{"beat_benchmark": True, "confidence_score": None}])
+    assert all(b["sample_size"] == 0 for b in buckets)
+
+
+def test_build_model_portfolio_series_starts_at_10000_and_compounds():
+    rows = [
+        _row(target_date=date(2026, 1, 1), realized=10.0, benchmark=0.0),
+        _row(ticker="MSFT", target_date=date(2026, 1, 1), realized=10.0, benchmark=0.0),
+    ]
+    series = build_model_portfolio_series(rows, horizon_days=1)
+    assert series[0] == ["2026-01-01", 10000.0]
+    assert series[1] == ["2026-01-01", 11000.0]
+
+
+def test_build_model_portfolio_series_selects_non_overlapping_dates():
+    # 5 published dates, horizon_days=2 -> only dates[0], dates[2], dates[4] used.
+    rows = []
+    for i, d in enumerate([date(2026, 1, 1 + i) for i in range(5)]):
+        rows.append(_row(target_date=d, realized=float(i), benchmark=0.0))
+    series = build_model_portfolio_series(rows, horizon_days=2)
+    # starting point + 3 selected dates = 4 points
+    assert len(series) == 4
+
+
+def test_build_model_portfolio_series_empty_input():
+    assert build_model_portfolio_series([], horizon_days=10) == []
+
+
+def test_build_spy_comparison_series_matches_model_portfolio_dates():
+    rows = [_row(target_date=date(2026, 1, 1 + i), realized=1.0, benchmark=0.0) for i in range(5)]
+    spy_by_date = {date(2026, 1, 1): 5.0, date(2026, 1, 3): -2.0, date(2026, 1, 5): 1.0}
+    model_series = build_model_portfolio_series(rows, horizon_days=2)
+    spy_series = build_spy_comparison_series(rows, spy_by_date, horizon_days=2)
+    model_dates = [p[0] for p in model_series]
+    spy_dates = [p[0] for p in spy_series]
+    assert model_dates == spy_dates
+    assert spy_series[0] == ["2026-01-01", 10000.0]
+    assert spy_series[1] == ["2026-01-01", 10500.0]
+
+
+def test_build_spy_comparison_series_holds_value_when_spy_unresolved():
+    rows = [_row(target_date=date(2026, 1, 1), realized=1.0, benchmark=0.0)]
+    series = build_spy_comparison_series(rows, {}, horizon_days=1)
+    assert series == [["2026-01-01", 10000.0], ["2026-01-01", 10000.0]]
+
+
+def test_build_spy_comparison_series_empty_input():
+    assert build_spy_comparison_series([], {}, horizon_days=10) == []

@@ -86,6 +86,7 @@ import type {
   SavedScreen,
   SavedStrategyPlan,
   SignalOutcomesResponse,
+  TrackRecordResponse,
   SolveMode,
   StockRankResponse,
   StockScoreResponse,
@@ -1233,8 +1234,12 @@ export function getPredictAlgoComparison(daysAhead = 30) {
   });
 }
 
-export function getSignalOutcomes() {
-  return apiFetch<SignalOutcomesResponse>("/api/v1/signals/outcomes");
+export function getSignalOutcomes(horizonDays = 30) {
+  return apiFetch<SignalOutcomesResponse>("/api/v1/signals/outcomes", { horizon_days: String(horizonDays) });
+}
+
+export function getTrackRecord(horizonDays = 30) {
+  return apiFetch<TrackRecordResponse>("/api/v1/signals/track-record", { horizon_days: String(horizonDays) });
 }
 
 export function comparePredictionsToFund(fundGoal = "Balanced Core", fundCategory = "All") {

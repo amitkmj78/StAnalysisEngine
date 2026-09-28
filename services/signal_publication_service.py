@@ -10,9 +10,12 @@ import yfinance as yf
 
 from .data_service import get_latest_price
 from .pit_signal_service import merge_pit_and_live_scores, score_tickers_from_pit
+from .portfolio_compare_service import derive_confidence
 from .prediction_service import generate_trading_signal, predict_future_prices
 from .ranking_utils import rank_tickers_against_universe
 from .stock_finder_service import STOCK_UNIVERSES, get_stock_finder_table
+from .stock_score_service import flip_count_from_signal_history
+from .yfinance_cache import get_cached_history
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,17 @@ PREDICT_COMPARE_HORIZONS = [1, 5, 10, 30]
 # on — symmetric with DEFAULT_LOOKBACK_DAYS, so "ranked by trailing 30d"
 # is checked against "realized over the following 30 trading days."
 DEFAULT_HORIZON_DAYS = 30
+# TRK-2 (docs/stock-analysis-requirements.html): track-record metrics are
+# grouped by horizon per the doc's section 4 ("grouped by horizon (10, 30,
+# 60, 90 days)") — signal_outcomes' schema already supports this (its
+# unique constraint includes horizon_days), so this is just which values
+# the nightly evaluation job and the track-record endpoint loop over.
+TRACK_RECORD_HORIZONS = [10, 30, 60, 90]
+# TRK-3: confidence buckets, half-open [low, high) except the last.
+CONFIDENCE_BUCKETS = [(50, 60), (60, 70), (70, 80), (80, 90), (90, 101)]
+# TRK-6: growth-of-$10,000 starting value, same convention as
+# portfolio_compare_service.REBASE_TO.
+MODEL_PORTFOLIO_REBASE_TO = 10_000.0
 
 
 @lru_cache(maxsize=1)
@@ -322,12 +336,16 @@ def compute_outcome_metrics(outcome_rows: list[dict]) -> dict:
             "num_evaluated_dates": 0,
             "num_evaluated_picks": 0,
             "hit_rate_pct": None,
+            "avg_return_pct": None,
             "information_coefficient": None,
             "quintile_spread_pct": None,
         }
 
     df = pd.DataFrame(outcome_rows)
     hit_rate_pct = round(float(df["beat_benchmark"].mean()) * 100, 1)
+    # TRK-2: mean realized return across every evaluated pick -- already
+    # stored per row, zero new capture needed.
+    avg_return_pct = round(float(df["realized_return_pct"].mean()), 2)
 
     ics = []
     spreads = []
@@ -352,6 +370,201 @@ def compute_outcome_metrics(outcome_rows: list[dict]) -> dict:
         "num_evaluated_dates": int(df["target_date"].nunique()),
         "num_evaluated_picks": int(len(df)),
         "hit_rate_pct": hit_rate_pct,
+        "avg_return_pct": avg_return_pct,
         "information_coefficient": round(sum(ics) / len(ics), 4) if ics else None,
         "quintile_spread_pct": round(sum(spreads) / len(spreads), 2) if spreads else None,
     }
+
+
+def compute_outcome_metrics_by_model_version(outcome_rows: list[dict]) -> dict[str, dict]:
+    """TRK-2: compute_outcome_metrics, grouped by each row's
+    model_version_hash (the caller joins this in from published_signals --
+    this module has no DB access of its own). A model-version change
+    starts a new record per the doc's own convention (section 4: "older
+    versions stay visible"), so versions are reported separately here,
+    never merged together."""
+    by_version: dict[str, list[dict]] = {}
+    for row in outcome_rows:
+        by_version.setdefault(row.get("model_version_hash") or "unknown", []).append(row)
+    return {version: compute_outcome_metrics(rows) for version, rows in by_version.items()}
+
+
+def worst_misses(outcome_rows: list[dict], top_n: int = 10) -> list[dict]:
+    """TRK-5: the largest losses among published picks, sorted ascending
+    by realized_return_pct. published_signals has no Trim/Sell side
+    (confirmed: no such concept exists anywhere in this publication
+    pipeline) -- this can only ever show the Buy-side half of TRK-5's
+    acceptance criterion ("largest losses on Buy signals and largest
+    gains on Trim signals"); callers must say so explicitly rather than
+    silently presenting this as the complete picture."""
+    return sorted(outcome_rows, key=lambda r: r["realized_return_pct"])[:top_n]
+
+
+def fetch_spy_close_series(period: str = "2y") -> pd.Series:
+    """Live SPY close history via the shared, cached yfinance wrapper
+    (services/yfinance_cache.py) -- not the raw yf.download this file uses
+    for the full universe elsewhere, since SPY alone is small, requested
+    on every /outcomes-style call, and worth deduping across users the
+    same way portfolio_compare_service.py already does for its own SPY
+    fetch."""
+    hist = get_cached_history("SPY", period, auto_adjust=True)
+    if hist.empty:
+        return pd.Series(dtype=float)
+    return hist["Close"].dropna()
+
+
+def compute_spy_returns_for_dates(
+    spy_close: pd.Series, target_dates: list[datetime.date], horizon_days: int
+) -> dict[datetime.date, Optional[float]]:
+    """TRK-2: SPY's own return over the IDENTICAL window each target_date's
+    picks were evaluated over -- entry = first SPY trading day on/after
+    target_date, exit = horizon_days trading days later. Mirrors
+    evaluate_signal_outcomes_for_date's own entry/exit walk exactly, so
+    "excess vs SPY" is a true apples-to-apples comparison, not just a
+    same-period approximation. None for a date SPY's own history can't
+    yet resolve (window not fully elapsed, or before SPY's history starts)."""
+    index = spy_close.index.sort_values()
+    result: dict[datetime.date, Optional[float]] = {}
+    for target_date in target_dates:
+        target_ts = pd.Timestamp(target_date)
+        on_or_after = index[index >= target_ts]
+        if on_or_after.empty:
+            result[target_date] = None
+            continue
+        entry_idx = index.get_loc(on_or_after[0])
+        exit_idx = entry_idx + horizon_days
+        if exit_idx >= len(index):
+            result[target_date] = None
+            continue
+        entry_price = float(spy_close.iloc[entry_idx])
+        exit_price = float(spy_close.iloc[exit_idx])
+        result[target_date] = round((exit_price / entry_price - 1.0) * 100, 4) if entry_price else None
+    return result
+
+
+def attach_excess_vs_spy(outcome_rows: list[dict], spy_return_by_date: dict) -> list[dict]:
+    """TRK-2: adds excess_vs_spy_pct to each row (None when SPY's own
+    window for that date couldn't be resolved) -- an ADDITIONAL
+    comparison alongside the existing equal-weight-universe
+    benchmark_return_pct, not a replacement for it."""
+    result = []
+    for row in outcome_rows:
+        spy_return = spy_return_by_date.get(row["target_date"])
+        excess = round(row["realized_return_pct"] - spy_return, 4) if spy_return is not None else None
+        result.append({**row, "excess_vs_spy_pct": excess})
+    return result
+
+
+def compute_avg_excess_vs_spy(outcome_rows_with_excess: list[dict]) -> Optional[float]:
+    values = [r["excess_vs_spy_pct"] for r in outcome_rows_with_excess if r.get("excess_vs_spy_pct") is not None]
+    return round(sum(values) / len(values), 2) if values else None
+
+
+def confidence_for_outcome(
+    ticker_signal_history: list[tuple], target_date: datetime.date, lookback_days: int = 30
+) -> dict:
+    """TRK-3: a confidence PROXY for one outcome row, derived from
+    pit_quant_signal's own flip-count stability as of target_date -- a
+    DIFFERENT signal than the momentum ranking being calibrated here,
+    reused only because it's the one signal-stability measure old enough
+    to retroactively score the full existing signal_outcomes history
+    against (Stage A's own two-score signal is too new to have any
+    history yet). Reuses flip_count_from_signal_history (services/
+    stock_score_service.py) and derive_confidence (services/
+    portfolio_compare_service.py) rather than duplicating either formula.
+
+    Never looks at a signal dated after target_date -- the same
+    lookahead-safety boundary every PIT computation in this app respects;
+    ticker_signal_history may contain later rows (the caller fetches one
+    shared window per ticker across many outcome rows), so this function
+    is what enforces the per-row cutoff.
+    """
+    window = [
+        (d, s) for d, s in ticker_signal_history
+        if d <= target_date and d > target_date - datetime.timedelta(days=lookback_days)
+    ]
+    stability = flip_count_from_signal_history(window)
+    return derive_confidence(stability)
+
+
+def compute_calibration(outcome_rows_with_confidence: list[dict]) -> list[dict]:
+    """TRK-3: for each confidence bucket, the actual hit rate + sample
+    size -- outcome_rows_with_confidence carries a `confidence_score`
+    (0-100, or None when there wasn't enough signal history yet) per row
+    from confidence_for_outcome above. Buckets with zero rows still
+    appear (hit_rate_pct=None, sample_size=0) so the UI can show "not
+    enough data yet" per bucket rather than silently omitting it."""
+    buckets = []
+    for low, high in CONFIDENCE_BUCKETS:
+        in_bucket = [
+            r for r in outcome_rows_with_confidence
+            if r.get("confidence_score") is not None and low <= r["confidence_score"] < high
+        ]
+        label = f"{low}-{min(high, 100)}%"
+        if not in_bucket:
+            buckets.append({"bucket_label": label, "hit_rate_pct": None, "sample_size": 0})
+            continue
+        hit_rate_pct = round(sum(1 for r in in_bucket if r["beat_benchmark"]) / len(in_bucket) * 100, 1)
+        buckets.append({"bucket_label": label, "hit_rate_pct": hit_rate_pct, "sample_size": len(in_bucket)})
+    return buckets
+
+
+def _select_non_overlapping_dates(outcome_rows: list[dict], horizon_days: int) -> list[datetime.date]:
+    """Shared by build_model_portfolio_series and build_spy_comparison_series
+    so both curves compound over the IDENTICAL set of dates and stay
+    directly comparable point-for-point. Publication is daily but each
+    pick's own evaluation window is horizon_days trading days long, so
+    naively chaining every published date's cohort would double-count the
+    same trading days many times over (each day's window overlaps
+    horizon_days-1 other days' windows). Taking every horizon_days-th
+    published date (by position in the sorted list of dates that
+    actually have outcomes, which are already trading days) guarantees
+    each selected cohort's window ends at or before the next one starts.
+    """
+    dates = sorted({row["target_date"] for row in outcome_rows})
+    return dates[0::horizon_days] if dates else []
+
+
+def build_model_portfolio_series(outcome_rows: list[dict], horizon_days: int) -> list[list]:
+    """TRK-6: growth of $10,000 from equal-weight Buys, built from
+    NON-OVERLAPPING evaluation windows only (see
+    _select_non_overlapping_dates). Trades data density for an honest,
+    non-overlapping compounding curve -- thin with only a few weeks of
+    publication history, deepens as more full periods accumulate.
+    Assumes zero trading costs; callers must label that.
+    """
+    by_date: dict[datetime.date, list[float]] = {}
+    for row in outcome_rows:
+        by_date.setdefault(row["target_date"], []).append(row["realized_return_pct"])
+    selected = _select_non_overlapping_dates(outcome_rows, horizon_days)
+    if not selected:
+        return []
+
+    value = MODEL_PORTFOLIO_REBASE_TO
+    series = [[selected[0].isoformat(), round(value, 2)]]
+    for d in selected:
+        period_return_pct = sum(by_date[d]) / len(by_date[d])
+        value *= 1 + period_return_pct / 100
+        series.append([d.isoformat(), round(value, 2)])
+    return series
+
+
+def build_spy_comparison_series(outcome_rows: list[dict], spy_return_by_date: dict, horizon_days: int) -> list[list]:
+    """TRK-6: SPY's own growth-of-$10,000 curve over the SAME
+    non-overlapping dates build_model_portfolio_series selects (via
+    _select_non_overlapping_dates), so the two series are directly
+    comparable point-for-point on one chart. A period whose SPY return
+    couldn't be resolved (compute_spy_returns_for_dates returned None)
+    is skipped -- the curve holds its last value rather than guessing."""
+    selected = _select_non_overlapping_dates(outcome_rows, horizon_days)
+    if not selected:
+        return []
+
+    value = MODEL_PORTFOLIO_REBASE_TO
+    series = [[selected[0].isoformat(), round(value, 2)]]
+    for d in selected:
+        spy_return_pct = spy_return_by_date.get(d)
+        if spy_return_pct is not None:
+            value *= 1 + spy_return_pct / 100
+        series.append([d.isoformat(), round(value, 2)])
+    return series

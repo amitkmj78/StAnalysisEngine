@@ -1475,9 +1475,53 @@ export interface SignalOutcomesResponse {
   num_evaluated_dates: number;
   num_evaluated_picks: number;
   hit_rate_pct: number | null;
+  avg_return_pct: number | null;
   information_coefficient: number | null;
   quintile_spread_pct: number | null;
   outcomes: SignalOutcomeRow[];
+}
+
+// TRK-2/3/5/6 (docs/stock-analysis-requirements.html) -- the enhanced
+// public track record, built from the same signal_outcomes record above.
+export interface TrackRecordMetrics {
+  num_evaluated_dates: number;
+  num_evaluated_picks: number;
+  hit_rate_pct: number | null;
+  avg_return_pct: number | null;
+  information_coefficient: number | null;
+  quintile_spread_pct: number | null;
+}
+
+export interface TrackRecordCalibrationBucket {
+  bucket_label: string;
+  hit_rate_pct: number | null;
+  sample_size: number;
+}
+
+export interface TrackRecordWorstMiss {
+  target_date: string;
+  ticker: string;
+  rank: number;
+  entry_price: number;
+  exit_price: number;
+  realized_return_pct: number;
+  benchmark_return_pct: number;
+  beat_benchmark: boolean;
+  model_version_hash: string | null;
+}
+
+export interface TrackRecordResponse {
+  universe_id: string;
+  lookback_days: number;
+  horizon_days: number;
+  metrics: TrackRecordMetrics;
+  metrics_by_model_version: Record<string, TrackRecordMetrics>;
+  avg_excess_vs_spy_pct: number | null;
+  calibration: TrackRecordCalibrationBucket[];
+  worst_misses: TrackRecordWorstMiss[];
+  model_portfolio_series: [string, number][];
+  spy_portfolio_series: [string, number][];
+  trim_note: string;
 }
 
 export interface PredictAlgoComparisonRow {
