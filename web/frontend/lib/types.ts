@@ -1196,6 +1196,12 @@ export interface StockPeersResponse {
   peers: StockPeer[];
 }
 
+export interface StockSentimentResponse {
+  ticker: string;
+  label: "Bullish" | "Neutral" | "Bearish" | null;
+  reasoning: string | null;
+}
+
 // Meta-Agent Chat
 export interface ChatProvidersResponse {
   providers: string[];

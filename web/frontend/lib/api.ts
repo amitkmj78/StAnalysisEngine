@@ -95,6 +95,7 @@ import type {
   StockPriceHistoryResponse,
   StockRankResponse,
   StockScoreResponse,
+  StockSentimentResponse,
   StockSignalHistoryResponse,
   StrategiesSummaryResponse,
   TickerSearchResult,
@@ -761,6 +762,12 @@ export function getStockSignalHistory(ticker: string, universeId = "All") {
 
 export function getStockPeers(ticker: string, universeId = "All") {
   return apiFetch<StockPeersResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/peers`, { universe_id: universeId });
+}
+
+// Real per-call web-search + LLM cost, so this is fetched on demand (a
+// button click) rather than bundled into the page's initial load.
+export function getStockSentiment(ticker: string) {
+  return apiFetch<StockSentimentResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/sentiment`);
 }
 
 export function editPortfolioPosition(

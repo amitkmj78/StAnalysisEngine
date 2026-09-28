@@ -9,6 +9,7 @@ import {
   getStockPeers,
   getStockPosition,
   getStockPriceHistory,
+  getStockSentiment,
   getStockSignalHistory,
   getTwoScore,
   getTwoScoreHistory,
@@ -20,6 +21,7 @@ import type {
   StockPositionResponse,
   StockPriceHistoryRange,
   StockPriceHistoryResponse,
+  StockSentimentResponse,
   StockSignalHistoryResponse,
   TwoScoreHistoryResponse,
   TwoScoreResponse,
@@ -31,6 +33,12 @@ import PriceHistoryChart from "@/components/stock-detail/PriceHistoryChart";
 function signalBadgeClass(signal: string): string {
   if (signal === "Buy") return "bg-emerald-50 text-emerald-700";
   if (signal === "Trim") return "bg-red-50 text-red-700";
+  return "bg-slate-100 text-slate-600";
+}
+
+function sentimentBadgeClass(label: string): string {
+  if (label === "Bullish") return "bg-emerald-50 text-emerald-700";
+  if (label === "Bearish") return "bg-red-50 text-red-700";
   return "bg-slate-100 text-slate-600";
 }
 
@@ -119,6 +127,12 @@ export default function StockScorePage() {
   const [priceHistory, setPriceHistory] = useState<StockPriceHistoryResponse | null>(null);
   const [priceLoading, setPriceLoading] = useState(true);
 
+  // On-demand only (real web-search + LLM cost per call) -- never fetched
+  // automatically with the rest of the page.
+  const [sentiment, setSentiment] = useState<StockSentimentResponse | null>(null);
+  const [sentimentLoading, setSentimentLoading] = useState(false);
+  const [sentimentError, setSentimentError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!ticker) return;
     setLoading(true);
@@ -147,6 +161,8 @@ export default function StockScorePage() {
     setDetail(null);
     setSignalHistory(null);
     setPeers(null);
+    setSentiment(null);
+    setSentimentError(null);
     getStockDetail(ticker).then(setDetail).catch(() => setDetail(null));
     getStockSignalHistory(ticker).then(setSignalHistory).catch(() => setSignalHistory(null));
     getStockPeers(ticker).then(setPeers).catch(() => setPeers(null));
@@ -176,6 +192,23 @@ export default function StockScorePage() {
     e.preventDefault();
     const t = jumpTicker.trim().toUpperCase();
     if (t) router.push(`/stock/${t}`);
+  }
+
+  function handleLoadSentiment() {
+    setSentimentLoading(true);
+    setSentimentError(null);
+    getStockSentiment(ticker)
+      .then(setSentiment)
+      .catch((err) => {
+        setSentimentError(
+          err instanceof ApiError && err.status === 401
+            ? "Sign in to load today's news and sentiment reading."
+            : err instanceof ApiError
+            ? err.message
+            : "Could not load news and sentiment right now.",
+        );
+      })
+      .finally(() => setSentimentLoading(false));
   }
 
   return (
@@ -367,6 +400,41 @@ export default function StockScorePage() {
             <p className="mt-2 text-xs text-slate-400">Loading…</p>
           )}
         </div>
+      </div>
+
+      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-900">News &amp; Sentiment</h3>
+          {sentiment?.label && (
+            <span className={`rounded-full px-3 py-1 text-sm font-semibold ${sentimentBadgeClass(sentiment.label)}`}>
+              {sentiment.label}
+            </span>
+          )}
+        </div>
+        {!sentiment && !sentimentLoading && (
+          <>
+            <p className="mt-2 text-xs text-slate-400">
+              Today&apos;s real news and earnings coverage for {ticker}, read live and summarized on demand (not
+              bundled into the page load, since it costs a real web search and AI call).
+            </p>
+            <button
+              onClick={handleLoadSentiment}
+              className="mt-3 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Load news &amp; sentiment
+            </button>
+          </>
+        )}
+        {sentimentLoading && <p className="mt-2 text-sm text-slate-500">Reading today&apos;s news…</p>}
+        {sentimentError && <p className="mt-2 text-sm text-red-700">{sentimentError}</p>}
+        {sentiment && !sentiment.label && (
+          <p className="mt-2 text-xs text-slate-400">
+            Couldn&apos;t form a clear sentiment reading for {ticker} from today&apos;s coverage.
+          </p>
+        )}
+        {sentiment?.label && sentiment.reasoning && (
+          <p className="mt-2 text-sm text-slate-700">{sentiment.reasoning}</p>
+        )}
       </div>
 
       {loggedIn && (

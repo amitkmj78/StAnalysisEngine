@@ -11,14 +11,17 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 
+from services.cache_utils import ttl_cache
 from services.data_service import get_latest_price
 from services.ranking_utils import compute_position_concentration
+from services.sentiment_service import score_ticker_sentiment
 from services.stock_detail_service import next_earnings_date, recent_dividends, select_peers
 from services.stock_finder_service import _gics_sector, get_stock_finder_table
 from services.yfinance_cache import get_cached_dividends, get_cached_earnings_dates, get_cached_history
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn, user_conn
-from web.backend.rate_limit import limiter
+from web.backend.llm_cache import cached_init_llms, ordered_llms
+from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.routers.portfolio import _resolve_portfolio_id
 
 router = APIRouter(prefix="/api/v1/stock", tags=["stock-detail"])
@@ -100,6 +103,33 @@ async def get_stock_price_history(request: Request, ticker: str, range: str = Qu
             for ts, row in history.iterrows()
         ],
     }
+
+
+@ttl_cache(maxsize=512, ttl_seconds=86400)
+def _cached_ticker_sentiment(ticker: str) -> dict:
+    """Keyed on ticker only (not the llms list -- unhashable) so this
+    caches per stock per day (NFR-6), independent of which LLM provider
+    happens to be configured when it's first requested."""
+    llm_openai, llm_groq, llm_claude, llm_ollama, labels = cached_init_llms()
+    if not labels:
+        return {"label": None, "reasoning": None}
+    llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
+    return score_ticker_sentiment(ticker, llms)
+
+
+@router.get("/{ticker}/sentiment", dependencies=[Depends(verify_bearer_token)])
+@limiter.limit("20/minute")
+async def get_stock_sentiment(request: Request, ticker: str):
+    """DET-1's news/sentiment section. Real per-call web-search + LLM
+    cost (services.sentiment_service.score_ticker_sentiment), so this is
+    deliberately a separate, on-demand, auth+quota-gated endpoint --
+    never bundled into GET /detail's main page load, the same
+    cheap-vs-expensive split /signals/quant-vs-analyst/narrative already
+    uses elsewhere in this app."""
+    await enforce_daily_quota(request, "stock/sentiment")
+    ticker = ticker.upper()
+    result = await run_in_threadpool(_cached_ticker_sentiment, ticker)
+    return {"ticker": ticker, "label": result["label"], "reasoning": result["reasoning"]}
 
 
 @router.get("/{ticker}/position", dependencies=[Depends(verify_bearer_token)])
