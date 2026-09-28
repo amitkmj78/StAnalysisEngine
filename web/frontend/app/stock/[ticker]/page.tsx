@@ -200,7 +200,7 @@ export default function StockScorePage() {
             value={jumpTicker}
             onChange={(e) => setJumpTicker(e.target.value.toUpperCase())}
             placeholder="Jump to ticker…"
-            className="w-32 rounded-md border border-slate-300 px-3 py-1.5 text-sm uppercase"
+            className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm uppercase"
           />
           <button
             type="submit"
