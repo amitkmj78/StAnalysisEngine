@@ -416,11 +416,22 @@ def fetch_spy_close_series(period: str = "2y") -> pd.Series:
     for the full universe elsewhere, since SPY alone is small, requested
     on every /outcomes-style call, and worth deduping across users the
     same way portfolio_compare_service.py already does for its own SPY
-    fetch."""
+    fetch.
+
+    tz-NAIVE on return: yfinance gives a tz-aware DatetimeIndex (e.g.
+    America/New_York), but compute_spy_returns_for_dates compares it
+    against plain datetime.date target_dates via pd.Timestamp(), which is
+    tz-naive -- comparing the two raises TypeError. Same trap, same fix,
+    as portfolio_compare_service.py's _fetch_close (confirmed live: this
+    crashed /signals/track-record with exactly that error on first
+    production use)."""
     hist = get_cached_history("SPY", period, auto_adjust=True)
     if hist.empty:
         return pd.Series(dtype=float)
-    return hist["Close"].dropna()
+    close = hist["Close"].dropna()
+    if close.index.tz is not None:
+        close = close.tz_localize(None)
+    return close
 
 
 def compute_spy_returns_for_dates(

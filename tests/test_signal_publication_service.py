@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -12,6 +13,7 @@ from services.signal_publication_service import (
     compute_outcome_metrics_by_model_version,
     compute_spy_returns_for_dates,
     confidence_for_outcome,
+    fetch_spy_close_series,
     worst_misses,
 )
 
@@ -210,3 +212,20 @@ def test_build_spy_comparison_series_holds_value_when_spy_unresolved():
 
 def test_build_spy_comparison_series_empty_input():
     assert build_spy_comparison_series([], {}, horizon_days=10) == []
+
+
+def test_fetch_spy_close_series_strips_timezone_to_avoid_naive_vs_aware_crash():
+    # Regression test: yfinance returns a tz-aware DatetimeIndex; comparing
+    # it against a plain datetime.date via pd.Timestamp() in
+    # compute_spy_returns_for_dates raised TypeError in production on the
+    # very first live call to /signals/track-record. fetch_spy_close_series
+    # must normalize to tz-naive before compute_spy_returns_for_dates ever
+    # sees it.
+    tz_aware_index = pd.date_range("2026-01-01", periods=5, freq="B", tz="America/New_York")
+    fake_hist = pd.DataFrame({"Close": [100.0, 101.0, 102.0, 103.0, 104.0]}, index=tz_aware_index)
+    with patch("services.signal_publication_service.get_cached_history", return_value=fake_hist):
+        close = fetch_spy_close_series()
+    assert close.index.tz is None
+    # Must not raise -- this is exactly what crashed before the fix.
+    result = compute_spy_returns_for_dates(close, [date(2026, 1, 1)], horizon_days=2)
+    assert result[date(2026, 1, 1)] is not None
