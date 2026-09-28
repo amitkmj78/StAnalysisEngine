@@ -88,8 +88,14 @@ import type {
   SignalOutcomesResponse,
   TrackRecordResponse,
   SolveMode,
+  StockDetailResponse,
+  StockPeersResponse,
+  StockPositionResponse,
+  StockPriceHistoryRange,
+  StockPriceHistoryResponse,
   StockRankResponse,
   StockScoreResponse,
+  StockSignalHistoryResponse,
   StrategiesSummaryResponse,
   TickerSearchResult,
   TopPerformersResponse,
@@ -727,6 +733,34 @@ export function getTwoScoreHistory(ticker: string, weeks = 12) {
 
 export function getTwoScoreWeeklyChange(ticker: string) {
   return apiFetch<TwoScoreWeeklyChangeResponse>(`/api/v1/stock-scores/${encodeURIComponent(ticker)}/weekly-change`);
+}
+
+// Stock detail page (DET-1..5). Scores/signals come from getTwoScore*
+// above -- these cover fundamentals, price history, position, signal
+// history, and peers only.
+export function getStockDetail(ticker: string) {
+  return apiFetch<StockDetailResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/detail`);
+}
+
+export function getStockPriceHistory(ticker: string, range: StockPriceHistoryRange = "1Y") {
+  return apiFetch<StockPriceHistoryResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/price-history`, { range });
+}
+
+export function getStockPosition(ticker: string, portfolioId?: number) {
+  return apiFetch<StockPositionResponse>(
+    `/api/v1/stock/${encodeURIComponent(ticker)}/position`,
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
+}
+
+export function getStockSignalHistory(ticker: string, universeId = "All") {
+  return apiFetch<StockSignalHistoryResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/signal-history`, {
+    universe_id: universeId,
+  });
+}
+
+export function getStockPeers(ticker: string, universeId = "All") {
+  return apiFetch<StockPeersResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/peers`, { universe_id: universeId });
 }
 
 export function editPortfolioPosition(

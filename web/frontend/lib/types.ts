@@ -1139,6 +1139,63 @@ export interface TwoScoreWeeklyChangeResponse {
   change: { factor: string; delta_contribution: number } | null;
 }
 
+// Stock detail page (docs/stock-analysis-requirements.html DET-1..5).
+// Scores/signals/explanations are deliberately NOT part of this response
+// family -- see TwoScore* above, the single source of truth for those.
+export interface StockDetailResponse {
+  ticker: string;
+  current_price: number | null;
+  sector: string | null;
+  fundamentals: {
+    forward_pe: number | null;
+    revenue_growth_pct: number | null;
+    earnings_growth_pct: number | null;
+    as_of_date: string | null;
+  };
+  next_earnings: { date: string; eps_estimate: number | null } | null;
+  recent_dividends: { date: string; amount: number }[];
+}
+
+export type StockPriceHistoryRange = "5D" | "1M" | "6M" | "1Y" | "5Y";
+
+export interface StockPriceHistoryResponse {
+  ticker: string;
+  range: StockPriceHistoryRange;
+  history: { date: string; close: number }[];
+}
+
+export interface StockPositionResponse {
+  owned: boolean;
+  shares?: number;
+  avg_cost?: number;
+  current_price?: number;
+  gain_loss_pct?: number | null;
+  weight_pct?: number | null;
+}
+
+export interface StockSignalHistoryResponse {
+  ticker: string;
+  history: {
+    as_of_date: string;
+    short_score: number | null;
+    short_signal: TwoScoreSignal;
+    long_score: number | null;
+    long_signal: TwoScoreSignal;
+  }[];
+  note: string;
+}
+
+export interface StockPeer {
+  ticker: string;
+  name: string | null;
+  market_cap_b: number;
+}
+
+export interface StockPeersResponse {
+  ticker: string;
+  peers: StockPeer[];
+}
+
 // Meta-Agent Chat
 export interface ChatProvidersResponse {
   providers: string[];

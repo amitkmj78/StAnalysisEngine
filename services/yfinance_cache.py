@@ -57,3 +57,31 @@ def get_cached_history(ticker: str, period: str, auto_adjust: bool | None = None
         return yf.Ticker(ticker).history(period=period, auto_adjust=auto_adjust)
 
     return fetch_with_backoff(_fetch).dropna()
+
+
+@ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
+def get_cached_earnings_dates(ticker: str) -> pd.DataFrame:
+    """Shared yf.Ticker(ticker).get_earnings_dates() -- genuinely new
+    plumbing (DET-1's earnings date): confirmed nothing in this app calls
+    this or .dividends anywhere today. Index is the earnings datetime;
+    upcoming (not-yet-reported) rows have NaN "Reported EPS"/"Surprise(%)"
+    -- callers pick the next one relative to now. Empty DataFrame (never
+    None) when yfinance has nothing, same fail-open convention as every
+    other function in this module."""
+    try:
+        result = fetch_with_backoff(lambda: yf.Ticker(ticker).get_earnings_dates(limit=8))
+        return result if result is not None else pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
+
+
+@ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
+def get_cached_dividends(ticker: str) -> pd.Series:
+    """Shared yf.Ticker(ticker).dividends -- see get_cached_earnings_dates
+    above for why this is new plumbing. Empty Series (never None) when
+    yfinance has nothing (e.g. a stock that's never paid one)."""
+    try:
+        result = fetch_with_backoff(lambda: yf.Ticker(ticker).dividends)
+        return result if result is not None else pd.Series(dtype=float)
+    except Exception:
+        return pd.Series(dtype=float)

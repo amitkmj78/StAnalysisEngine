@@ -3,9 +3,30 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { ApiError, getTwoScore, getTwoScoreHistory, getTwoScoreWeeklyChange } from "@/lib/api";
-import type { TwoScoreHistoryResponse, TwoScoreResponse, TwoScoreWeeklyChangeResponse } from "@/lib/types";
+import {
+  ApiError,
+  getStockDetail,
+  getStockPeers,
+  getStockPosition,
+  getStockPriceHistory,
+  getStockSignalHistory,
+  getTwoScore,
+  getTwoScoreHistory,
+  getTwoScoreWeeklyChange,
+} from "@/lib/api";
+import type {
+  StockDetailResponse,
+  StockPeersResponse,
+  StockPositionResponse,
+  StockPriceHistoryRange,
+  StockPriceHistoryResponse,
+  StockSignalHistoryResponse,
+  TwoScoreHistoryResponse,
+  TwoScoreResponse,
+  TwoScoreWeeklyChangeResponse,
+} from "@/lib/types";
 import Sparkline from "@/components/portfolio/Sparkline";
+import PriceHistoryChart from "@/components/stock-detail/PriceHistoryChart";
 
 function signalBadgeClass(signal: string): string {
   if (signal === "Buy") return "bg-emerald-50 text-emerald-700";
@@ -88,6 +109,16 @@ export default function StockScorePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [detail, setDetail] = useState<StockDetailResponse | null>(null);
+  const [position, setPosition] = useState<StockPositionResponse | null>(null);
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  const [signalHistory, setSignalHistory] = useState<StockSignalHistoryResponse | null>(null);
+  const [peers, setPeers] = useState<StockPeersResponse | null>(null);
+
+  const [priceRange, setPriceRange] = useState<StockPriceHistoryRange>("1Y");
+  const [priceHistory, setPriceHistory] = useState<StockPriceHistoryResponse | null>(null);
+  const [priceLoading, setPriceLoading] = useState(true);
+
   useEffect(() => {
     if (!ticker) return;
     setLoading(true);
@@ -111,6 +142,36 @@ export default function StockScorePage() {
       .finally(() => setLoading(false));
   }, [ticker]);
 
+  useEffect(() => {
+    if (!ticker) return;
+    setDetail(null);
+    setSignalHistory(null);
+    setPeers(null);
+    getStockDetail(ticker).then(setDetail).catch(() => setDetail(null));
+    getStockSignalHistory(ticker).then(setSignalHistory).catch(() => setSignalHistory(null));
+    getStockPeers(ticker).then(setPeers).catch(() => setPeers(null));
+    getStockPosition(ticker)
+      .then((pos) => {
+        setPosition(pos);
+        setLoggedIn(true);
+      })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) {
+          setLoggedIn(false);
+        }
+        setPosition(null);
+      });
+  }, [ticker]);
+
+  useEffect(() => {
+    if (!ticker) return;
+    setPriceLoading(true);
+    getStockPriceHistory(ticker, priceRange)
+      .then(setPriceHistory)
+      .catch(() => setPriceHistory(null))
+      .finally(() => setPriceLoading(false));
+  }, [ticker, priceRange]);
+
   function handleJump(e: React.FormEvent) {
     e.preventDefault();
     const t = jumpTicker.trim().toUpperCase();
@@ -118,11 +179,16 @@ export default function StockScorePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
+    <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Stock Score</p>
-          <h1 className="text-2xl font-semibold text-slate-900">{ticker}</h1>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Stock Detail</p>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            {ticker}
+            {detail?.current_price !== null && detail?.current_price !== undefined && (
+              <span className="ml-3 text-lg font-normal text-slate-500">${detail.current_price.toFixed(2)}</span>
+            )}
+          </h1>
           {data && (
             <p className="text-xs text-slate-500">
               {data.sector_key} · as of {data.as_of_date}
@@ -143,6 +209,16 @@ export default function StockScorePage() {
             Go
           </button>
         </form>
+      </div>
+
+      <div className="mt-6">
+        <PriceHistoryChart
+          ticker={ticker}
+          data={priceHistory}
+          range={priceRange}
+          onRangeChange={setPriceRange}
+          loading={priceLoading}
+        />
       </div>
 
       {loading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
@@ -228,6 +304,143 @@ export default function StockScorePage() {
           </div>
         </>
       )}
+
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-900">Key Stats</h3>
+          {detail ? (
+            <dl className="mt-2 grid grid-cols-2 gap-y-2 text-sm">
+              <dt className="text-slate-500">Sector</dt>
+              <dd className="text-right text-slate-900">{detail.sector ?? "—"}</dd>
+              <dt className="text-slate-500">Forward P/E</dt>
+              <dd className="text-right text-slate-900">
+                {detail.fundamentals.forward_pe !== null ? detail.fundamentals.forward_pe.toFixed(1) : "—"}
+              </dd>
+              <dt className="text-slate-500">Revenue Growth</dt>
+              <dd className="text-right text-slate-900">
+                {detail.fundamentals.revenue_growth_pct !== null
+                  ? `${detail.fundamentals.revenue_growth_pct.toFixed(1)}%`
+                  : "—"}
+              </dd>
+              <dt className="text-slate-500">Earnings Growth</dt>
+              <dd className="text-right text-slate-900">
+                {detail.fundamentals.earnings_growth_pct !== null
+                  ? `${detail.fundamentals.earnings_growth_pct.toFixed(1)}%`
+                  : "—"}
+              </dd>
+            </dl>
+          ) : (
+            <p className="mt-2 text-xs text-slate-400">No fundamentals on record for {ticker} yet.</p>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-900">Earnings &amp; Dividends</h3>
+          {detail ? (
+            <div className="mt-2 text-sm text-slate-700">
+              <p>
+                Next earnings:{" "}
+                {detail.next_earnings ? (
+                  <>
+                    {detail.next_earnings.date}
+                    {detail.next_earnings.eps_estimate !== null
+                      ? ` (est. EPS $${detail.next_earnings.eps_estimate.toFixed(2)})`
+                      : ""}
+                  </>
+                ) : (
+                  "none scheduled"
+                )}
+              </p>
+              {detail.recent_dividends.length > 0 ? (
+                <ul className="mt-2 flex flex-col gap-1 text-xs text-slate-500">
+                  {detail.recent_dividends.map((d) => (
+                    <li key={d.date}>
+                      {d.date}: ${d.amount.toFixed(4)}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-xs text-slate-400">No dividend history — {ticker} hasn&apos;t paid one.</p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-slate-400">Loading…</p>
+          )}
+        </div>
+      </div>
+
+      {loggedIn && (
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-900">Your Position</h3>
+          {position?.owned ? (
+            <dl className="mt-2 grid grid-cols-2 gap-y-2 text-sm sm:grid-cols-4">
+              <dt className="text-slate-500">Shares</dt>
+              <dd className="text-right text-slate-900 sm:text-left">{position.shares}</dd>
+              <dt className="text-slate-500">Avg Cost</dt>
+              <dd className="text-right text-slate-900 sm:text-left">${position.avg_cost?.toFixed(2)}</dd>
+              <dt className="text-slate-500">Gain/Loss</dt>
+              <dd
+                className={`text-right sm:text-left ${
+                  (position.gain_loss_pct ?? 0) >= 0 ? "text-emerald-700" : "text-red-700"
+                }`}
+              >
+                {position.gain_loss_pct !== null && position.gain_loss_pct !== undefined
+                  ? `${position.gain_loss_pct >= 0 ? "+" : ""}${position.gain_loss_pct.toFixed(1)}%`
+                  : "—"}
+              </dd>
+              <dt className="text-slate-500">Portfolio Weight</dt>
+              <dd className="text-right text-slate-900 sm:text-left">
+                {position.weight_pct !== null && position.weight_pct !== undefined
+                  ? `${position.weight_pct.toFixed(1)}%`
+                  : "—"}
+              </dd>
+            </dl>
+          ) : (
+            <p className="mt-2 text-xs text-slate-400">You don&apos;t own {ticker} in this portfolio.</p>
+          )}
+        </div>
+      )}
+
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-900">Signal History</h3>
+          {signalHistory && signalHistory.history.length > 0 ? (
+            <>
+              <ul className="mt-2 flex flex-col gap-1 text-xs text-slate-600">
+                {signalHistory.history.slice(0, 8).map((h) => (
+                  <li key={h.as_of_date} className="flex justify-between">
+                    <span>{h.as_of_date}</span>
+                    <span>
+                      {h.short_signal} / {h.long_signal}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-slate-400">{signalHistory.note}</p>
+            </>
+          ) : (
+            <p className="mt-2 text-xs text-slate-400">No signal history on record for {ticker} yet.</p>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-900">Similar Stocks</h3>
+          {peers && peers.peers.length > 0 ? (
+            <ul className="mt-2 flex flex-col gap-1 text-sm">
+              {peers.peers.map((p) => (
+                <li key={p.ticker} className="flex justify-between">
+                  <a href={`/stock/${p.ticker}`} className="text-blue-700 hover:underline">
+                    {p.ticker}
+                  </a>
+                  <span className="text-slate-500">${p.market_cap_b.toFixed(1)}B</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs text-slate-400">No same-sector peers found for {ticker}.</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
