@@ -407,6 +407,8 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
                 },
                 "growth": {
                     "raw": growth_raw[ticker],
+                    "raw_revenue": value_growth[ticker]["growth"]["raw_revenue"],
+                    "raw_earnings": value_growth[ticker]["growth"]["raw_earnings"],
                     "source": value_growth[ticker]["growth"]["source"],
                     "percentile": growth_pct[ticker],
                     "contribution": _factor_contribution(long_contributions, "growth"),
