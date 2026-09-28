@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 
 import {
   ApiError,
+  getPortfolioPositions,
   getStockDetail,
   getStockPeers,
   getStockPosition,
@@ -16,6 +17,7 @@ import {
   getTwoScoreWeeklyChange,
 } from "@/lib/api";
 import type {
+  PortfolioPosition,
   StockDetailResponse,
   StockPeersResponse,
   StockPositionResponse,
@@ -29,6 +31,7 @@ import type {
 } from "@/lib/types";
 import Sparkline from "@/components/portfolio/Sparkline";
 import PriceHistoryChart from "@/components/stock-detail/PriceHistoryChart";
+import TickerSearchInput from "@/components/TickerSearchInput";
 
 function signalBadgeClass(signal: string): string {
   if (signal === "Buy") return "bg-emerald-50 text-emerald-700";
@@ -111,6 +114,7 @@ export default function StockScorePage() {
   const ticker = (params.ticker as string)?.toUpperCase() ?? "";
 
   const [jumpTicker, setJumpTicker] = useState("");
+  const [holdings, setHoldings] = useState<PortfolioPosition[]>([]);
   const [data, setData] = useState<TwoScoreResponse | null>(null);
   const [history, setHistory] = useState<TwoScoreHistoryResponse | null>(null);
   const [weeklyChange, setWeeklyChange] = useState<TwoScoreWeeklyChangeResponse | null>(null);
@@ -132,6 +136,15 @@ export default function StockScorePage() {
   const [sentiment, setSentiment] = useState<StockSentimentResponse | null>(null);
   const [sentimentLoading, setSentimentLoading] = useState(false);
   const [sentimentError, setSentimentError] = useState<string | null>(null);
+
+  // The user's whole portfolio, not the current ticker's -- fetched once,
+  // not re-fetched on every ticker change. 401 (logged out) just leaves
+  // it empty; the picker below only renders when there's something to pick.
+  useEffect(() => {
+    getPortfolioPositions()
+      .then((res) => setHoldings(res.positions))
+      .catch(() => setHoldings([]));
+  }, []);
 
   useEffect(() => {
     if (!ticker) return;
@@ -194,6 +207,11 @@ export default function StockScorePage() {
     if (t) router.push(`/stock/${t}`);
   }
 
+  function handleSelectTicker(t: string) {
+    const clean = t.trim().toUpperCase();
+    if (clean) router.push(`/stock/${clean}`);
+  }
+
   function handleLoadSentiment() {
     setSentimentLoading(true);
     setSentimentError(null);
@@ -229,11 +247,27 @@ export default function StockScorePage() {
           )}
         </div>
         <form onSubmit={handleJump} className="flex gap-2">
-          <input
+          {holdings.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => e.target.value && handleSelectTicker(e.target.value)}
+              aria-label="Jump to a stock you hold"
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
+            >
+              <option value="">Your holdings…</option>
+              {holdings.map((h) => (
+                <option key={h.id} value={h.ticker}>
+                  {h.ticker} — {h.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <TickerSearchInput
             value={jumpTicker}
-            onChange={(e) => setJumpTicker(e.target.value.toUpperCase())}
-            placeholder="Jump to ticker…"
-            className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm uppercase"
+            onChange={setJumpTicker}
+            onSelect={handleSelectTicker}
+            placeholder="Ticker or company name…"
+            className="w-56 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
           />
           <button
             type="submit"
