@@ -1148,6 +1148,9 @@ export default function StockFinderPage() {
                                 <Link href={`/predict?ticker=${encodeURIComponent(t)}`} className={`${PF.btn} px-2 py-1 text-xs`}>
                                   Forecast
                                 </Link>
+                                <Link href={`/stock/${encodeURIComponent(t)}`} className={`${PF.btn} px-2 py-1 text-xs`}>
+                                  Score
+                                </Link>
                               </div>
                             </td>
                           </tr>

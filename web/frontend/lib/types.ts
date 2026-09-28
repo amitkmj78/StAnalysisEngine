@@ -1069,6 +1069,76 @@ export interface PaperOrderCheckFailure {
   message: string;
 }
 
+// Phase 1 ("Trust") two-score system -- docs/stock-analysis-requirements.html.
+// Named "TwoScore*" (not "Stock*") to avoid colliding with the pre-existing
+// Stock Finder StockScoreResponse/getStockScore(goal, ticker) above, a
+// different, unrelated concept.
+export type TwoScoreSignal = "Buy" | "Hold" | "Trim";
+
+export interface TwoScoreConfidence {
+  score: number | null;
+  label: "high" | "medium" | "low" | "unknown";
+}
+
+export interface TwoScoreFactor {
+  raw: number | null;
+  raw_revenue?: number | null;
+  raw_earnings?: number | null;
+  source: "pit" | "live";
+  percentile: number | null;
+  contribution: number | null;
+}
+
+export interface TwoScoreFactorDetail {
+  momentum: TwoScoreFactor;
+  reversal: TwoScoreFactor;
+  value: TwoScoreFactor;
+  growth: TwoScoreFactor;
+  low_vol: TwoScoreFactor;
+}
+
+export interface TwoScoreDriver {
+  factor: string;
+  contribution: number;
+}
+
+export interface TwoScoreResponse {
+  ticker: string;
+  as_of_date: string;
+  universe_id: string;
+  short_score: number | null;
+  short_signal: TwoScoreSignal;
+  short_confidence: TwoScoreConfidence;
+  long_score: number | null;
+  long_signal: TwoScoreSignal;
+  long_confidence: TwoScoreConfidence;
+  sector_key: string;
+  short_sector_percentile: number | null;
+  long_sector_percentile: number | null;
+  factor_detail: TwoScoreFactorDetail;
+  explanations: { drivers: TwoScoreDriver[]; drags: TwoScoreDriver[] };
+  sentences: { momentum: string; reversal: string; value: string; growth: string; low_vol: string };
+}
+
+export interface TwoScoreTrend {
+  weekly_series: [string, number][];
+  flagged: boolean;
+  change_pts: number | null;
+}
+
+export interface TwoScoreHistoryResponse {
+  ticker: string;
+  short_term: TwoScoreTrend;
+  long_term: TwoScoreTrend;
+}
+
+export interface TwoScoreWeeklyChangeResponse {
+  ticker: string;
+  as_of_date: string;
+  compared_to: string | null;
+  change: { factor: string; delta_contribution: number } | null;
+}
+
 // Meta-Agent Chat
 export interface ChatProvidersResponse {
   providers: string[];

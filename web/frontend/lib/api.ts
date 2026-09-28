@@ -94,6 +94,9 @@ import type {
   TopPerformersResponse,
   Trade,
   TradeCreateInput,
+  TwoScoreHistoryResponse,
+  TwoScoreResponse,
+  TwoScoreWeeklyChangeResponse,
   UniverseDetailResponse,
   UniversesResponse,
   WatchlistAlert,
@@ -688,6 +691,23 @@ export interface SubmitPaperOrderRequest {
 
 export function submitPaperOrder(body: SubmitPaperOrderRequest) {
   return apiSend<{ order: PaperOrder; note?: string }>("/api/v1/paper-trading/orders", "POST", body);
+}
+
+// Phase 1 ("Trust") two-score system. Named getTwoScore (not getStockScore
+// -- that name is already taken above by the unrelated Stock Finder
+// per-goal score lookup).
+export function getTwoScore(ticker: string) {
+  return apiFetch<TwoScoreResponse>(`/api/v1/stock-scores/${encodeURIComponent(ticker)}`);
+}
+
+export function getTwoScoreHistory(ticker: string, weeks = 12) {
+  return apiFetch<TwoScoreHistoryResponse>(`/api/v1/stock-scores/${encodeURIComponent(ticker)}/history`, {
+    weeks: String(weeks),
+  });
+}
+
+export function getTwoScoreWeeklyChange(ticker: string) {
+  return apiFetch<TwoScoreWeeklyChangeResponse>(`/api/v1/stock-scores/${encodeURIComponent(ticker)}/weekly-change`);
 }
 
 export function editPortfolioPosition(
