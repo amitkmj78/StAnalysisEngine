@@ -16,6 +16,7 @@ const NAV: NavEntry[] = [
       { href: "/predict", label: "Forecast" },
       { href: "/predictions", label: "Prediction History" },
       { href: "/stock-finder", label: "Stock Screener" },
+      { href: "/stock/AAPL", label: "Stock Detail" },
       { href: "/signal-comparison", label: "Quant vs Analyst" },
       { href: "/web-search", label: "Web Search" },
       { href: "/index-fund", label: "Fund Screener" },
@@ -123,9 +124,17 @@ export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin:
   const pathname = usePathname();
   const entries = isAdmin ? [...NAV, ADMIN_ENTRY] : NAV;
 
+  // "Stock Detail" links to a fixed default ticker (/stock/AAPL), but the
+  // route itself is dynamic (/stock/[ticker]) -- match on the /stock/
+  // prefix so the nav still highlights while browsing any other ticker.
+  function matchesNavItem(href: string): boolean {
+    if (href.startsWith("/stock/")) return pathname.startsWith("/stock/");
+    return pathname === href;
+  }
+
   function isActive(entry: NavEntry): boolean {
-    if (isGroup(entry)) return entry.items.some((i) => pathname === i.href);
-    return pathname === entry.href;
+    if (isGroup(entry)) return entry.items.some((i) => matchesNavItem(i.href));
+    return matchesNavItem(entry.href);
   }
 
   return (
