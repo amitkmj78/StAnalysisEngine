@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ApiError,
   getPortfolioPositions,
+  getPortfolios,
   getStockDetail,
   getStockPeers,
   getStockPosition,
@@ -18,6 +19,7 @@ import {
   getTwoScoreWeeklyChange,
 } from "@/lib/api";
 import type {
+  Portfolio,
   PortfolioPosition,
   StockDetailResponse,
   StockPeersResponse,
@@ -132,7 +134,8 @@ export default function StockScorePage() {
   const ticker = (params.ticker as string)?.toUpperCase() ?? "";
 
   const [jumpTicker, setJumpTicker] = useState("");
-  const [holdings, setHoldings] = useState<PortfolioPosition[]>([]);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [holdings, setHoldings] = useState<(PortfolioPosition & { portfolioName: string })[]>([]);
   const [data, setData] = useState<TwoScoreResponse | null>(null);
   const [history, setHistory] = useState<TwoScoreHistoryResponse | null>(null);
   const [weeklyChange, setWeeklyChange] = useState<TwoScoreWeeklyChangeResponse | null>(null);
@@ -140,7 +143,7 @@ export default function StockScorePage() {
   const [error, setError] = useState<string | null>(null);
 
   const [detail, setDetail] = useState<StockDetailResponse | null>(null);
-  const [position, setPosition] = useState<StockPositionResponse | null>(null);
+  const [ownedPositions, setOwnedPositions] = useState<(StockPositionResponse & { portfolioName: string })[]>([]);
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [signalHistory, setSignalHistory] = useState<StockSignalHistoryResponse | null>(null);
   const [peers, setPeers] = useState<StockPeersResponse | null>(null);
@@ -155,14 +158,43 @@ export default function StockScorePage() {
   const [sentimentLoading, setSentimentLoading] = useState(false);
   const [sentimentError, setSentimentError] = useState<string | null>(null);
 
-  // The user's whole portfolio, not the current ticker's -- fetched once,
-  // not re-fetched on every ticker change. 401 (logged out) just leaves
-  // it empty; the picker below only renders when there's something to pick.
+  // Every portfolio, fetched once -- both the holdings picker and "Your
+  // Position" below need the full list, not just GET /portfolio/positions'
+  // default (the oldest active portfolio only, when no portfolio_id is
+  // given). 401 (logged out) just leaves everything empty.
   useEffect(() => {
-    getPortfolioPositions()
-      .then((res) => setHoldings(res.positions))
-      .catch(() => setHoldings([]));
+    getPortfolios()
+      .then((res) => {
+        setPortfolios(res.portfolios);
+        setLoggedIn(true);
+      })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) setLoggedIn(false);
+        setPortfolios([]);
+      });
   }, []);
+
+  // One fetch per portfolio, merged -- runs once `portfolios` has loaded
+  // (and again if it changes), not tied to the currently-viewed ticker.
+  useEffect(() => {
+    if (portfolios.length === 0) {
+      setHoldings([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      portfolios.map((p) =>
+        getPortfolioPositions(p.id)
+          .then((r) => r.positions.map((pos) => ({ ...pos, portfolioName: p.name })))
+          .catch(() => []),
+      ),
+    ).then((perPortfolio) => {
+      if (!cancelled) setHoldings(perPortfolio.flat());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [portfolios]);
 
   useEffect(() => {
     if (!ticker) return;
@@ -197,18 +229,30 @@ export default function StockScorePage() {
     getStockDetail(ticker).then(setDetail).catch(() => setDetail(null));
     getStockSignalHistory(ticker).then(setSignalHistory).catch(() => setSignalHistory(null));
     getStockPeers(ticker).then(setPeers).catch(() => setPeers(null));
-    getStockPosition(ticker)
-      .then((pos) => {
-        setPosition(pos);
-        setLoggedIn(true);
-      })
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) {
-          setLoggedIn(false);
-        }
-        setPosition(null);
-      });
   }, [ticker]);
+
+  // Checked against every portfolio -- GET /stock/{ticker}/position with
+  // no portfolio_id only checks the oldest active one, so a stock held
+  // in a second or third portfolio would otherwise read as not owned.
+  useEffect(() => {
+    if (!ticker || portfolios.length === 0) {
+      setOwnedPositions([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      portfolios.map((p) =>
+        getStockPosition(ticker, p.id)
+          .then((pos) => (pos.owned ? [{ ...pos, portfolioName: p.name }] : []))
+          .catch(() => []),
+      ),
+    ).then((perPortfolio) => {
+      if (!cancelled) setOwnedPositions(perPortfolio.flat());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ticker, portfolios]);
 
   useEffect(() => {
     if (!ticker) return;
@@ -279,6 +323,7 @@ export default function StockScorePage() {
               {holdings.map((h) => (
                 <option key={h.id} value={h.ticker}>
                   {h.ticker} — {h.name}
+                  {portfolios.length > 1 ? ` (${h.portfolioName})` : ""}
                 </option>
               ))}
             </select>
@@ -505,39 +550,49 @@ export default function StockScorePage() {
       {loggedIn && (
         <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Your Position</h3>
-          {position?.owned ? (
-            <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Shares</p>
-                <p className="mt-0.5 text-lg font-semibold text-slate-900">{position.shares}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Avg Cost</p>
-                <p className="mt-0.5 text-lg font-semibold text-slate-900">${position.avg_cost?.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Gain/Loss</p>
-                <p
-                  className={`mt-0.5 text-lg font-semibold ${
-                    (position.gain_loss_pct ?? 0) >= 0 ? "text-emerald-700" : "text-red-700"
-                  }`}
-                >
-                  {position.gain_loss_pct !== null && position.gain_loss_pct !== undefined
-                    ? `${position.gain_loss_pct >= 0 ? "+" : ""}${position.gain_loss_pct.toFixed(1)}%`
-                    : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Portfolio Weight</p>
-                <p className="mt-0.5 text-lg font-semibold text-slate-900">
-                  {position.weight_pct !== null && position.weight_pct !== undefined
-                    ? `${position.weight_pct.toFixed(1)}%`
-                    : "—"}
-                </p>
-              </div>
+          {ownedPositions.length > 0 ? (
+            <div className="mt-3 flex flex-col divide-y divide-slate-100">
+              {ownedPositions.map((pos) => (
+                <div key={pos.portfolioName} className="grid grid-cols-2 gap-4 py-3 first:pt-0 last:pb-0 sm:grid-cols-5">
+                  {portfolios.length > 1 && (
+                    <div className="col-span-2 sm:col-span-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Portfolio</p>
+                      <p className="mt-0.5 text-sm font-semibold text-slate-900">{pos.portfolioName}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Shares</p>
+                    <p className="mt-0.5 text-lg font-semibold text-slate-900">{pos.shares}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Avg Cost</p>
+                    <p className="mt-0.5 text-lg font-semibold text-slate-900">${pos.avg_cost?.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Gain/Loss</p>
+                    <p
+                      className={`mt-0.5 text-lg font-semibold ${
+                        (pos.gain_loss_pct ?? 0) >= 0 ? "text-emerald-700" : "text-red-700"
+                      }`}
+                    >
+                      {pos.gain_loss_pct !== null && pos.gain_loss_pct !== undefined
+                        ? `${pos.gain_loss_pct >= 0 ? "+" : ""}${pos.gain_loss_pct.toFixed(1)}%`
+                        : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Portfolio Weight</p>
+                    <p className="mt-0.5 text-lg font-semibold text-slate-900">
+                      {pos.weight_pct !== null && pos.weight_pct !== undefined ? `${pos.weight_pct.toFixed(1)}%` : "—"}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
-            <p className="mt-2 text-xs text-slate-400">You don&apos;t own {ticker} in this portfolio.</p>
+            <p className="mt-2 text-xs text-slate-400">
+              You don&apos;t own {ticker} in {portfolios.length > 1 ? "any of your portfolios" : "this portfolio"}.
+            </p>
           )}
         </div>
       )}
