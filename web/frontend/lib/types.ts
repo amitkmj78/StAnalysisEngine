@@ -1156,7 +1156,7 @@ export interface StockDetailResponse {
   recent_dividends: { date: string; amount: number }[];
 }
 
-export type StockPriceHistoryRange = "5D" | "1M" | "6M" | "1Y" | "5Y";
+export type StockPriceHistoryRange = "1D" | "5D" | "1M" | "6M" | "1Y" | "5Y";
 
 export interface StockPriceHistoryResponse {
   ticker: string;

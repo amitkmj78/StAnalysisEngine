@@ -3,7 +3,7 @@
 import PlotlyChart from "@/components/PlotlyChart";
 import type { StockPriceHistoryRange, StockPriceHistoryResponse } from "@/lib/types";
 
-const RANGES: StockPriceHistoryRange[] = ["5D", "1M", "6M", "1Y", "5Y"];
+const RANGES: StockPriceHistoryRange[] = ["1D", "5D", "1M", "6M", "1Y", "5Y"];
 
 export default function PriceHistoryChart({
   ticker,
@@ -53,7 +53,10 @@ export default function PriceHistoryChart({
             },
           ]}
           layout={{
-            xaxis: { title: { text: "" } },
+            xaxis: {
+              title: { text: "" },
+              ...(range === "1D" ? { tickformat: "%-I:%M %p" } : {}),
+            },
             yaxis: { title: { text: "USD" } },
             paper_bgcolor: "#ffffff",
             plot_bgcolor: "#ffffff",

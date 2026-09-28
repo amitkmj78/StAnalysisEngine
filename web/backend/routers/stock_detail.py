@@ -26,17 +26,22 @@ from web.backend.routers.portfolio import _resolve_portfolio_id
 
 router = APIRouter(prefix="/api/v1/stock", tags=["stock-detail"])
 
-# DET-1's range buttons. No intraday charting exists anywhere in this app
-# today (every other chart is daily-bar), so "1D" is deliberately scoped
-# out for this first pass rather than adding new intraday/interval
-# plumbing -- 5D is the shortest range offered.
+# DET-1's range buttons.
 PRICE_HISTORY_RANGES = {
+    "1D": "1d",
     "5D": "5d",
     "1M": "1mo",
     "6M": "6mo",
     "1Y": "1y",
     "5Y": "5y",
 }
+
+# yfinance's default daily bar for period="1d" is a single row -- not a
+# chart. 5-minute bars, regular trading hours only (no prepost), is the
+# one genuinely new piece of plumbing here: no other chart in this app
+# is intraday.
+INTRADAY_RANGE = "1D"
+INTRADAY_INTERVAL = "5m"
 
 
 @router.get("/{ticker}/detail")
@@ -87,19 +92,24 @@ async def get_stock_price_history(request: Request, ticker: str, range: str = Qu
     other chart is forecast/prediction-derived, or PIT-store closes --
     which only go back to 2026-08-05, not enough for "5Y") -- this is
     genuinely new plumbing, wrapping the shared yfinance history cache
-    rather than a fresh fetch layer."""
+    rather than a fresh fetch layer. "1D" fetches 5-minute bars instead
+    of the usual daily bar (also new -- no chart in this app is intraday
+    anywhere else), so `date` carries a full timestamp for that range
+    instead of just a calendar date."""
     ticker = ticker.upper()
     range = range.upper()
     period = PRICE_HISTORY_RANGES.get(range)
     if period is None:
         raise HTTPException(status_code=400, detail=f"range must be one of {sorted(PRICE_HISTORY_RANGES)}")
 
-    history = await run_in_threadpool(get_cached_history, ticker, period, True)
+    intraday = range == INTRADAY_RANGE
+    interval = INTRADAY_INTERVAL if intraday else None
+    history = await run_in_threadpool(get_cached_history, ticker, period, True, interval)
     return {
         "ticker": ticker,
         "range": range,
         "history": [
-            {"date": ts.date().isoformat(), "close": round(float(row["Close"]), 2)}
+            {"date": ts.isoformat() if intraday else ts.date().isoformat(), "close": round(float(row["Close"]), 2)}
             for ts, row in history.iterrows()
         ],
     }

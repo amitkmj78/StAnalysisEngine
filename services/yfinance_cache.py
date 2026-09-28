@@ -37,24 +37,33 @@ def get_cached_info(ticker: str) -> dict:
 
 
 @ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
-def get_cached_history(ticker: str, period: str, auto_adjust: bool | None = None) -> pd.DataFrame:
+def get_cached_history(
+    ticker: str, period: str, auto_adjust: bool | None = None, interval: str | None = None
+) -> pd.DataFrame:
     """
     Shared yf.Ticker(ticker).history(period=period, ...). `auto_adjust`
     defaults to None (yfinance's own default) rather than True, so
     callers that never specified it keep their exact prior behavior —
-    pass True/False explicitly to match what you had before.
+    pass True/False explicitly to match what you had before. `interval`
+    defaults to None (yfinance's own daily-bar default) too -- pass e.g.
+    "5m" for intraday bars (added for DET-1's 1D chart range, the one
+    genuinely new piece of this: period="1d" with the default daily
+    interval returns a single row, not a chart).
 
-    Keyed on (ticker, period, auto_adjust) — doesn't dedupe across
-    different periods for the same ticker (e.g. "1y" vs "3y" are cached
-    separately even though "3y" contains "1y"), but that covers the
-    common case: most callers already ask for the same handful of
+    Keyed on (ticker, period, auto_adjust, interval) — doesn't dedupe
+    across different periods for the same ticker (e.g. "1y" vs "3y" are
+    cached separately even though "3y" contains "1y"), but that covers
+    the common case: most callers already ask for the same handful of
     period values.
     """
 
     def _fetch():
-        if auto_adjust is None:
-            return yf.Ticker(ticker).history(period=period)
-        return yf.Ticker(ticker).history(period=period, auto_adjust=auto_adjust)
+        kwargs = {}
+        if auto_adjust is not None:
+            kwargs["auto_adjust"] = auto_adjust
+        if interval is not None:
+            kwargs["interval"] = interval
+        return yf.Ticker(ticker).history(period=period, **kwargs)
 
     return fetch_with_backoff(_fetch).dropna()
 
