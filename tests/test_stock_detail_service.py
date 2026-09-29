@@ -142,6 +142,19 @@ def test_evaluate_signal_outcome_none_for_empty_series():
     assert evaluate_signal_outcome(date(2026, 1, 1), "Buy", pd.Series(dtype=float), horizon_days=1) is None
 
 
+def test_evaluate_signal_outcome_handles_tz_aware_index_without_crashing():
+    # Regression: yfinance's real history index is tz-aware
+    # (America/New_York); comparing it against a tz-naive pd.Timestamp
+    # raised TypeError in production even though synthetic tz-naive test
+    # data never caught it.
+    closes = pd.Series(
+        [100, 101, 102, 103, 104, 105],
+        index=pd.date_range("2026-01-01", periods=6, freq="B", tz="America/New_York"),
+    )
+    result = evaluate_signal_outcome(date(2026, 1, 1), "Buy", closes, horizon_days=3)
+    assert result["outcome"] == "hit"
+
+
 def test_evaluate_signal_history_matures_short_but_not_long_horizon():
     closes = _closes([100 + i for i in range(15)])  # 15 trading days, rising
     history = [

@@ -110,6 +110,13 @@ def evaluate_signal_outcome(as_of_date: date, signal: str, closes: pd.Series, ho
     if closes.empty:
         return None
     index = closes.index
+    if getattr(index, "tz", None) is not None:
+        # Same tz-aware-index normalization as next_earnings_date above --
+        # yfinance returns a tz-aware (America/New_York) index; comparing
+        # it against a tz-naive pd.Timestamp raises TypeError otherwise.
+        closes = closes.copy()
+        closes.index = index.tz_localize(None)
+        index = closes.index
     on_or_after = index[index >= pd.Timestamp(as_of_date)]
     if len(on_or_after) == 0:
         return None
