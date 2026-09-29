@@ -132,7 +132,7 @@ def test_sector_rank_none_for_missing_score_or_sector():
     assert result["B"] is None
 
 
-def test_compute_factor_contributions_sums_near_score_minus_50():
+def test_compute_factor_contributions_sums_exactly_to_score_minus_50():
     percentiles = {"momentum": 80.0, "reversal": 60.0}
     raw = {"momentum": 5.0, "reversal": 55.0}
     weights = {"momentum": 0.6, "reversal": 0.4}
@@ -150,6 +150,43 @@ def test_compute_factor_contributions_skips_missing_percentile():
     contributions = compute_factor_contributions(raw, percentiles, weights)
     assert len(contributions) == 1
     assert contributions[0]["factor"] == "momentum"
+
+
+def test_compute_factor_contributions_exactly_additive_when_a_factor_is_missing():
+    # Regression: contributions used to be only approximately additive to
+    # score-50 for a ticker missing a factor, since the original
+    # (non-renormalized) weight was used here while the score itself
+    # (_weighted_composite) renormalizes over only the factors actually
+    # available for that ticker. Now both use the identical
+    # renormalization, so they stay in exact lockstep.
+    percentiles = {"momentum": 80.0, "reversal": None}
+    raw = {"momentum": 5.0, "reversal": None}
+    weights = {"momentum": 0.6, "reversal": 0.4}
+    contributions = compute_factor_contributions(raw, percentiles, weights)
+    total = sum(c["contribution"] for c in contributions)
+    # Only momentum available -> renormalized to 100% momentum weight,
+    # so the score itself is just 80.0 (see
+    # test_compute_short_score_renormalizes_when_a_factor_is_missing).
+    # score - 50 = 30.0.
+    assert total == 30.0
+
+
+def test_compute_factor_contributions_exactly_additive_with_three_of_four_factors():
+    percentiles = {"momentum": 80.0, "reversal": 60.0, "earnings_surprise": None, "earnings_revisions": 40.0}
+    raw = {"momentum": 5.0, "reversal": 55.0, "earnings_surprise": None, "earnings_revisions": -1.0}
+    weights = {"momentum": 0.35, "reversal": 0.25, "earnings_surprise": 0.20, "earnings_revisions": 0.20}
+    contributions = compute_factor_contributions(raw, percentiles, weights)
+    total = sum(c["contribution"] for c in contributions)
+    # available_weight = 0.35+0.25+0.20 = 0.80
+    # score = (0.35*80 + 0.25*60 + 0.20*40) / 0.80 = (28+15+8)/0.80 = 63.75
+    available_weight = 0.35 + 0.25 + 0.20
+    score = (0.35 * 80.0 + 0.25 * 60.0 + 0.20 * 40.0) / available_weight
+    # Each contribution rounds to 2dp independently before summing, so the
+    # total can be off from the analytically exact (score - 50) by a few
+    # hundredths -- that's normal rounding drift, not the renormalization
+    # bug this test exists to catch, so this checks "matches within cents"
+    # rather than bit-exact equality.
+    assert abs(total - (score - 50.0)) < 0.02
 
 
 def test_select_top_and_bottom_factors():

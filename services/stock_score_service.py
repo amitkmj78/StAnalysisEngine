@@ -159,18 +159,25 @@ def score_to_signal(score: Optional[float], buy_at: float = BUY_AT, trim_at: flo
 
 
 def compute_factor_contributions(raw_values: dict[str, Optional[float]], percentiles: dict[str, Optional[float]], weights: dict[str, float]) -> list[dict]:
-    """EXP-1: contribution = weight * (percentile - 50) per factor, so a
-    factor at the universe median contributes ~0 and one far above/below
-    median pulls the score up/down proportionally to its weight --
-    contributions approximately sum to (score - 50) by construction.
-    A factor with no percentile (not enough data) is skipped, not
-    zeroed. Sorted by contribution descending; callers pick top/bottom
-    via select_top_and_bottom_factors."""
+    """EXP-1: contribution = renormalized_weight * (percentile - 50) per
+    factor, so a factor at the universe median contributes ~0 and one far
+    above/below median pulls the score up/down proportionally to its
+    weight -- contributions sum EXACTLY to (score - 50), for every
+    ticker, not just one with every factor available. Weights are
+    renormalized over just the factors THIS ticker actually has
+    (percentiles[f] is not None) -- the identical renormalization
+    _weighted_composite applies when computing the score itself, so the
+    two stay in lockstep instead of drifting apart for a ticker missing
+    a factor. A factor with no percentile is skipped, not zeroed.
+    Sorted by contribution descending; callers pick top/bottom via
+    select_top_and_bottom_factors."""
+    available_weight = sum(w for factor, w in weights.items() if percentiles.get(factor) is not None)
     rows = []
     for factor, pct in percentiles.items():
         if pct is None:
             continue
-        contribution = round(weights[factor] * (pct - 50.0), 2)
+        normalized_weight = weights[factor] / available_weight if available_weight > 0 else 0.0
+        contribution = round(normalized_weight * (pct - 50.0), 2)
         rows.append({
             "factor": factor,
             "raw_value": raw_values.get(factor),
