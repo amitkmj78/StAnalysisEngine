@@ -90,7 +90,11 @@ export default function FactorDrilldownModal({
                 },
               ]}
               layout={{
-                xaxis: { title: { text: "" } },
+                // Plotly auto-picks hour-level ticks for a short span
+                // (e.g. only 2 days on record so far) unless told this is
+                // a plain calendar-date axis -- forced explicitly so it
+                // reads "Sep 27" / "Sep 28" instead of "00:00" / "12:00".
+                xaxis: { title: { text: "" }, type: "date", tickformat: "%b %-d" },
                 yaxis: { title: { text: "" } },
                 paper_bgcolor: "#ffffff",
                 plot_bgcolor: "#ffffff",
