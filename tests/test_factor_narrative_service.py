@@ -1,10 +1,34 @@
 from services.factor_narrative_service import (
+    _ordinal,
     growth_sentence,
     low_vol_sentence,
     momentum_sentence,
     reversal_sentence,
     value_sentence,
 )
+
+
+def test_ordinal_suffixes():
+    # Regression: every sentence used to hardcode "th", so "53th
+    # percentile" / "21th percentile" / "1th percentile" were real,
+    # visible grammar bugs.
+    assert _ordinal(1) == "1st"
+    assert _ordinal(2) == "2nd"
+    assert _ordinal(3) == "3rd"
+    assert _ordinal(4) == "4th"
+    assert _ordinal(11) == "11th"
+    assert _ordinal(12) == "12th"
+    assert _ordinal(13) == "13th"
+    assert _ordinal(21) == "21st"
+    assert _ordinal(22) == "22nd"
+    assert _ordinal(23) == "23rd"
+    assert _ordinal(53) == "53rd"
+    assert _ordinal(100) == "100th"
+    assert _ordinal(111) == "111th"
+
+
+def test_momentum_sentence_uses_correct_ordinal_suffix():
+    assert "53rd percentile" in momentum_sentence(6.3, 30, 53.0)
 
 
 def test_momentum_sentence_with_real_numbers():
