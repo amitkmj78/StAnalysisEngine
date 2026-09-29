@@ -106,6 +106,20 @@ async def get_stock_score(request: Request, ticker: str, universe_id: str = Quer
         "sector_key": row["sector_key"],
         "short_sector_percentile": row["short_sector_percentile"],
         "long_sector_percentile": row["long_sector_percentile"],
+        # SCR-3: universe-wide percentile ("Top 8% of S&P 500") and
+        # sector rank+count ("top 3 of 22 in Semis") -- an ordinal
+        # position, not a percentage. None on rows captured before this
+        # was added, same as every other additive column on this table.
+        "short_universe_percentile": row["short_universe_percentile"],
+        "long_universe_percentile": row["long_universe_percentile"],
+        "short_sector_rank": (
+            {"rank": row["short_sector_rank"], "of": row["short_sector_count"]}
+            if row["short_sector_rank"] is not None else None
+        ),
+        "long_sector_rank": (
+            {"rank": row["long_sector_rank"], "of": row["long_sector_count"]}
+            if row["long_sector_rank"] is not None else None
+        ),
         "factor_detail": detail,
         "explanations": _build_drivers_and_drags(detail),
         "sentences": _build_sentences(detail),

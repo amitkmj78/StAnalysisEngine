@@ -50,6 +50,7 @@ from services.stock_score_service import (
     percentile_rank,
     score_to_signal,
     sector_percentile,
+    sector_rank,
 )
 from services.yfinance_cache import get_cached_earnings_dates, get_cached_eps_trend, get_cached_history, get_cached_info
 from web.backend.db import service_conn
@@ -449,6 +450,16 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
     long_scores = compute_long_score(value_pct, growth_pct, low_vol_pct, quality_pct)
     short_sector_pct = sector_percentile(short_scores, sector_map)
     long_sector_pct = sector_percentile(long_scores, sector_map)
+    # SCR-3: the composite score re-ranked against the whole universe --
+    # NOT the same number as the weighted-average-of-factor-percentiles
+    # that produced the score itself, since a weighted average of
+    # percentiles isn't guaranteed to itself be a valid percentile of the
+    # resulting composite. percentile_rank with no sector grouping IS a
+    # genuine universe-wide percentile, by construction.
+    short_universe_pct = percentile_rank(short_scores)
+    long_universe_pct = percentile_rank(long_scores)
+    short_sec_rank = sector_rank(short_scores, sector_map)
+    long_sec_rank = sector_rank(long_scores, sector_map)
 
     inserted = 0
     async with service_conn() as conn:
@@ -554,8 +565,10 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
                     as_of_date, universe_id, ticker,
                     short_score, short_signal, short_confidence_score, short_confidence_label,
                     long_score, long_signal, long_confidence_score, long_confidence_label,
-                    sector_key, short_sector_percentile, long_sector_percentile, factor_detail
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb)
+                    sector_key, short_sector_percentile, long_sector_percentile, factor_detail,
+                    short_universe_percentile, long_universe_percentile,
+                    short_sector_rank, short_sector_count, long_sector_rank, long_sector_count
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21)
                 ON CONFLICT (as_of_date, universe_id, ticker) DO NOTHING
                 """,
                 as_of_date_, universe_id, ticker,
@@ -564,6 +577,9 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
                 sector_map.get(ticker, "Unknown"),
                 short_sector_pct.get(ticker), long_sector_pct.get(ticker),
                 json.dumps(factor_detail, default=str),
+                short_universe_pct.get(ticker), long_universe_pct.get(ticker),
+                (short_sec_rank.get(ticker) or {}).get("rank"), (short_sec_rank.get(ticker) or {}).get("of"),
+                (long_sec_rank.get(ticker) or {}).get("rank"), (long_sec_rank.get(ticker) or {}).get("of"),
             )
             if result == "INSERT 0 1":
                 inserted += 1

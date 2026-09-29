@@ -9,6 +9,7 @@ from services.stock_score_service import (
     percentile_rank,
     score_to_signal,
     sector_percentile,
+    sector_rank,
     select_top_and_bottom_factors,
     weekly_change_explanation,
 )
@@ -93,6 +94,42 @@ def test_sector_percentile_scoped_per_sector():
     assert result["C"] > result["D"]
     # A and C are both the top of their own sector -> same percentile.
     assert result["A"] == result["C"]
+
+
+def test_sector_rank_orders_within_sector():
+    scores = {"A": 90.0, "B": 50.0, "C": 10.0}
+    sector_of = {"A": "Tech", "B": "Tech", "C": "Tech"}
+    result = sector_rank(scores, sector_of)
+    assert result["A"] == {"rank": 1, "of": 3}
+    assert result["B"] == {"rank": 2, "of": 3}
+    assert result["C"] == {"rank": 3, "of": 3}
+
+
+def test_sector_rank_ties_share_the_same_rank():
+    scores = {"A": 90.0, "B": 90.0, "C": 10.0}
+    sector_of = {"A": "Tech", "B": "Tech", "C": "Tech"}
+    result = sector_rank(scores, sector_of)
+    assert result["A"] == {"rank": 1, "of": 3}
+    assert result["B"] == {"rank": 1, "of": 3}
+    assert result["C"] == {"rank": 3, "of": 3}
+
+
+def test_sector_rank_scoped_per_sector_independently():
+    scores = {"A": 90.0, "B": 10.0, "C": 90.0, "D": 10.0}
+    sector_of = {"A": "Tech", "B": "Tech", "C": "Health", "D": "Health"}
+    result = sector_rank(scores, sector_of)
+    # A and C are both the top of their own (2-member) sector.
+    assert result["A"] == {"rank": 1, "of": 2}
+    assert result["C"] == {"rank": 1, "of": 2}
+    assert result["B"] == {"rank": 2, "of": 2}
+
+
+def test_sector_rank_none_for_missing_score_or_sector():
+    scores = {"A": 90.0, "B": None}
+    sector_of = {"A": None, "B": "Tech"}
+    result = sector_rank(scores, sector_of)
+    assert result["A"] is None
+    assert result["B"] is None
 
 
 def test_compute_factor_contributions_sums_near_score_minus_50():

@@ -1120,6 +1120,10 @@ export interface TwoScoreResponse {
   sector_key: string;
   short_sector_percentile: number | null;
   long_sector_percentile: number | null;
+  short_universe_percentile: number | null;
+  long_universe_percentile: number | null;
+  short_sector_rank: { rank: number; of: number } | null;
+  long_sector_rank: { rank: number; of: number } | null;
   factor_detail: TwoScoreFactorDetail;
   explanations: { drivers: TwoScoreDriver[]; drags: TwoScoreDriver[] };
   sentences: {

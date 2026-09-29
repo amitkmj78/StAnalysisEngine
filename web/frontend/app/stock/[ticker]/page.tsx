@@ -45,6 +45,12 @@ function signalBadgeClass(signal: string): string {
   return "bg-slate-100 text-slate-600";
 }
 
+// SCR-3: "Top 8% of S&P 500" -- a friendly name for the universe_id the
+// score was computed against, not the raw internal id.
+function universeLabel(universeId: string): string {
+  return universeId === "All" ? "S&P 500" : universeId;
+}
+
 // Same three-way read as the badge, spent as a quiet left-edge stripe on
 // each card instead of a second loud color — status is visible at a
 // glance without competing with the badge itself.
@@ -113,7 +119,9 @@ function ScoreCard({
   score,
   signal,
   confidence,
-  sectorPercentile,
+  universePercentile,
+  universeLabel,
+  sectorRank,
   sectorKey,
   trend,
 }: {
@@ -122,10 +130,21 @@ function ScoreCard({
   score: number | null;
   signal: string;
   confidence: { score: number | null; label: string };
-  sectorPercentile: number | null;
+  universePercentile: number | null;
+  universeLabel: string;
+  sectorRank: { rank: number; of: number } | null;
   sectorKey: string;
   trend?: { weekly_series: [string, number][]; flagged: boolean; change_pts: number | null };
 }) {
+  // SCR-3's exact target format: "Top 8% of S&P 500, top 3 of 22 in Semis".
+  const rankParts: string[] = [];
+  if (universePercentile !== null) {
+    rankParts.push(`Top ${Math.max(1, Math.round(100 - universePercentile))}% of ${universeLabel}`);
+  }
+  if (sectorRank !== null) {
+    rankParts.push(`top ${sectorRank.rank} of ${sectorRank.of} in ${sectorKey}`);
+  }
+
   return (
     <div className={`rounded-lg border border-l-4 border-slate-200 bg-white p-5 ${signalAccentClass(signal)}`}>
       <div className="flex items-center justify-between">
@@ -142,9 +161,7 @@ function ScoreCard({
         <span className="pb-1 text-sm text-slate-400">/ 100</span>
       </div>
       <p className="mt-1 text-xs text-slate-500">
-        {sectorPercentile !== null
-          ? `Top ${Math.max(1, Math.round(100 - sectorPercentile))}% of ${sectorKey}`
-          : `No sector rank yet — ${sectorKey}`}
+        {rankParts.length > 0 ? rankParts.join(", ") : `No rank yet — ${sectorKey}`}
       </p>
       <p className={`mt-1 text-xs font-medium ${confidenceClass(confidence.label)}`}>
         Confidence: {confidence.label}
@@ -422,7 +439,9 @@ export default function StockScorePage() {
               score={data.short_score}
               signal={data.short_signal}
               confidence={data.short_confidence}
-              sectorPercentile={data.short_sector_percentile}
+              universePercentile={data.short_universe_percentile}
+              universeLabel={universeLabel(data.universe_id)}
+              sectorRank={data.short_sector_rank}
               sectorKey={data.sector_key}
               trend={history?.short_term}
             />
@@ -432,7 +451,9 @@ export default function StockScorePage() {
               score={data.long_score}
               signal={data.long_signal}
               confidence={data.long_confidence}
-              sectorPercentile={data.long_sector_percentile}
+              universePercentile={data.long_universe_percentile}
+              universeLabel={universeLabel(data.universe_id)}
+              sectorRank={data.long_sector_rank}
               sectorKey={data.sector_key}
               trend={history?.long_term}
             />

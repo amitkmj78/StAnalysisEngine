@@ -1196,6 +1196,19 @@ create table if not exists stock_scores (
 );
 create index if not exists stock_scores_ticker_date_idx on stock_scores(ticker, as_of_date desc);
 
+-- SCR-3: universe-wide percentile ("Top 8% of S&P 500") alongside the
+-- existing sector percentile, plus sector rank+count ("top 3 of 22 in
+-- Semis") -- an ordinal position, not a percentage, computed by
+-- services/stock_score_service.py's sector_rank. Nullable/backfilled
+-- going forward only, same convention as every other additive column
+-- on this table.
+alter table stock_scores add column if not exists short_universe_percentile real;
+alter table stock_scores add column if not exists long_universe_percentile real;
+alter table stock_scores add column if not exists short_sector_rank int;
+alter table stock_scores add column if not exists short_sector_count int;
+alter table stock_scores add column if not exists long_sector_rank int;
+alter table stock_scores add column if not exists long_sector_count int;
+
 -- Shared, ticker-keyed (not user-scoped) LLM sentiment reading — one row
 -- per ticker per day, reused across every user/portfolio holding that
 -- ticker, same sharing rationale as the yfinance cache. This is a

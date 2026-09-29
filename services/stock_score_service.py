@@ -124,6 +124,30 @@ def sector_percentile(scores: dict[str, Optional[float]], sector_of: dict[str, s
     return result
 
 
+def sector_rank(scores: dict[str, Optional[float]], sector_of: dict[str, str]) -> dict[str, Optional[dict]]:
+    """SCR-3's "top 3 of 22 in Semis" -- an ordinal rank + sector size,
+    not a percentage. Same sector-grouping as sector_percentile above,
+    just different final math: pandas' rank(method="min", ascending=
+    False) so ties share the same (better) rank, the way a real
+    leaderboard displays a tie rather than arbitrarily breaking it."""
+    by_sector: dict[str, dict[str, float]] = {}
+    for ticker, score in scores.items():
+        if score is None:
+            continue
+        sector = sector_of.get(ticker)
+        if sector is None:
+            continue
+        by_sector.setdefault(sector, {})[ticker] = score
+    result: dict[str, Optional[dict]] = {t: None for t in scores}
+    for group in by_sector.values():
+        series = pd.Series(group)
+        ranks = series.rank(method="min", ascending=False)
+        total = len(series)
+        for ticker, rank in ranks.items():
+            result[ticker] = {"rank": int(rank), "of": total}
+    return result
+
+
 def score_to_signal(score: Optional[float], buy_at: float = BUY_AT, trim_at: float = TRIM_AT) -> str:
     if score is None:
         return "Hold"
