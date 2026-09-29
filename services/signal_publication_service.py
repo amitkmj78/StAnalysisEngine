@@ -52,6 +52,16 @@ CONFIDENCE_BUCKETS = [(50, 60), (60, 70), (70, 80), (80, 90), (90, 101)]
 # TRK-6: growth-of-$10,000 starting value, same convention as
 # portfolio_compare_service.REBASE_TO.
 MODEL_PORTFOLIO_REBASE_TO = 10_000.0
+# TRK-6's "after assumed trading costs" -- no specific bps figure is
+# given in the spec, so this is a reasoned default (like the two-score
+# system's own factor weights), not empirically derived or backtested.
+# 10 bps (0.10%) one-way is a commonly-cited retail slippage/spread
+# estimate for liquid large-cap US stocks -- this universe is S&P 500
+# constituents specifically -- on a modern zero-commission broker,
+# where spread/slippage (not commission) is the dominant real cost.
+# A full rebalance sells the entire outgoing cohort and buys the
+# entire incoming one, so this cost is charged twice per period.
+MODEL_PORTFOLIO_COST_BPS_ONE_WAY = 10.0
 
 
 @lru_cache(maxsize=1)
@@ -596,13 +606,25 @@ def _period_end_labels(selected: list[datetime.date], horizon_days: int) -> list
     return labels
 
 
-def build_model_portfolio_series(outcome_rows: list[dict], horizon_days: int) -> list[list]:
+def build_model_portfolio_series(
+    outcome_rows: list[dict], horizon_days: int, cost_bps_one_way: float = MODEL_PORTFOLIO_COST_BPS_ONE_WAY
+) -> list[list]:
     """TRK-6: growth of $10,000 from equal-weight Buys, built from
     NON-OVERLAPPING evaluation windows only (see
     _select_non_overlapping_dates). Trades data density for an honest,
     non-overlapping compounding curve -- thin with only a few weeks of
     publication history, deepens as more full periods accumulate.
-    Assumes zero trading costs; callers must label that.
+
+    "After assumed trading costs" (TRK-6's own acceptance criterion):
+    each period's raw equal-weight return is haircut by
+    2 * cost_bps_one_way (a full sell of the outgoing cohort plus a
+    full buy of the incoming one), applied AFTER compounding that
+    period's return so the deduction is proportional to the position
+    size actually being turned over, not the original $10,000. SPY's
+    own comparison curve (build_spy_comparison_series) deliberately
+    does NOT get this same per-period charge -- a real SPY buy-and-hold
+    benchmark isn't repeatedly bought and sold every period the way this
+    rebalanced picks portfolio is.
     """
     by_date: dict[datetime.date, list[float]] = {}
     for row in outcome_rows:
@@ -611,12 +633,13 @@ def build_model_portfolio_series(outcome_rows: list[dict], horizon_days: int) ->
     if not selected:
         return []
 
+    cost_fraction_per_period = 2 * cost_bps_one_way / 10_000
     end_labels = _period_end_labels(selected, horizon_days)
     value = MODEL_PORTFOLIO_REBASE_TO
     series = [[selected[0].isoformat(), round(value, 2)]]
     for d, end_label in zip(selected, end_labels):
         period_return_pct = sum(by_date[d]) / len(by_date[d])
-        value *= 1 + period_return_pct / 100
+        value *= (1 + period_return_pct / 100) * (1 - cost_fraction_per_period)
         series.append([end_label.isoformat(), round(value, 2)])
     return series
 

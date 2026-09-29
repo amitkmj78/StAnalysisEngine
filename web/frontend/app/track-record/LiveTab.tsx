@@ -337,8 +337,12 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                     <p className="mt-1 text-xs text-slate-500">
                       Equal-weight Buys, rebalanced at each non-overlapping {horizon}-day period (publication is
                       daily, but chaining every day would double-count overlapping windows — see the methodology
-                      note below). Assumes zero trading costs. Thin with only a few weeks of history; deepens
-                      over time.
+                      note below). After assumed trading costs: {trackRecord.model_portfolio_cost_bps_one_way} bps
+                      one-way ({trackRecord.model_portfolio_cost_bps_one_way * 2} bps round-trip per rebalance,
+                      selling the outgoing cohort and buying the incoming one) — a reasoned retail slippage/spread
+                      estimate for liquid S&amp;P 500 names, not backtested or empirically derived. SPY&apos;s own
+                      curve isn&apos;t charged this, since a real buy-and-hold benchmark isn&apos;t repeatedly
+                      traded the way this portfolio is. Thin with only a few weeks of history; deepens over time.
                     </p>
                     <PlotlyChart
                       data={[

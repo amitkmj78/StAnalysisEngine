@@ -1636,6 +1636,7 @@ export interface TrackRecordResponse {
   spy_portfolio_series: [string, number][];
   trim_note: string;
   signal_note: string;
+  model_portfolio_cost_bps_one_way: number;
 }
 
 export interface PredictAlgoComparisonRow {

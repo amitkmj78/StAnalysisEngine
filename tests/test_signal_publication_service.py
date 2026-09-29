@@ -199,13 +199,38 @@ def test_build_model_portfolio_series_starts_at_10000_and_compounds():
         _row(target_date=date(2026, 1, 1), realized=10.0, benchmark=0.0),
         _row(ticker="MSFT", target_date=date(2026, 1, 1), realized=10.0, benchmark=0.0),
     ]
-    series = build_model_portfolio_series(rows, horizon_days=1)
+    # cost_bps_one_way=0 isolates the raw compounding math from the cost
+    # deduction, which has its own dedicated test below.
+    series = build_model_portfolio_series(rows, horizon_days=1, cost_bps_one_way=0.0)
     assert series[0] == ["2026-01-01", 10000.0]
     # Only one selected date -> its result is labeled with an estimated
     # period-end date, never the SAME date as the starting point (that
     # duplicate-x-value bug broke the chart's date axis in production).
     assert series[1][0] != "2026-01-01"
     assert series[1][1] == 11000.0
+
+
+def test_build_model_portfolio_series_applies_trading_cost_each_period():
+    rows = [
+        _row(target_date=date(2026, 1, 1), realized=10.0, benchmark=0.0),
+        _row(ticker="MSFT", target_date=date(2026, 1, 1), realized=10.0, benchmark=0.0),
+    ]
+    # 100 bps one-way -> 200 bps (2%) round-trip haircut on the period's
+    # compounded value: 10000 * 1.10 * (1 - 0.02) = 10780.0.
+    series = build_model_portfolio_series(rows, horizon_days=1, cost_bps_one_way=100.0)
+    assert series[1][1] == 10780.0
+
+
+def test_build_model_portfolio_series_default_cost_is_nonzero():
+    # Regression: TRK-6 requires "after assumed trading costs" -- the
+    # default must actually deduct something, not silently stay at the
+    # old zero-cost behavior.
+    rows = [
+        _row(target_date=date(2026, 1, 1), realized=10.0, benchmark=0.0),
+        _row(ticker="MSFT", target_date=date(2026, 1, 1), realized=10.0, benchmark=0.0),
+    ]
+    series = build_model_portfolio_series(rows, horizon_days=1)
+    assert series[1][1] < 11000.0
 
 
 def test_build_model_portfolio_series_selects_non_overlapping_dates():

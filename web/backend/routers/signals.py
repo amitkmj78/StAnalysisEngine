@@ -8,6 +8,7 @@ from services.signal_publication_service import (
     DEFAULT_LOOKBACK_DAYS,
     DEFAULT_PREDICT_PERIOD,
     DEFAULT_UNIVERSE,
+    MODEL_PORTFOLIO_COST_BPS_ONE_WAY,
     PREDICT_COMPARE_HORIZONS,
     attach_excess_vs_spy,
     build_model_portfolio_series,
@@ -504,6 +505,7 @@ async def get_track_record(
         "spy_portfolio_series": [],
         "trim_note": "No Trim signals are currently published against this record — worst misses shown are Buy-side only.",
         "signal_note": "This record has no signal-type breakdown to show — published_signals has no Buy/Hold/Trim concept in its schema at all, only a momentum rank. Every published pick is implicitly a Buy.",
+        "model_portfolio_cost_bps_one_way": MODEL_PORTFOLIO_COST_BPS_ONE_WAY,
     }
     if not outcome_rows:
         return empty_response
