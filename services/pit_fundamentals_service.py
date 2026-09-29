@@ -33,6 +33,8 @@ def capture_universe_fundamentals(universe_id: str = DEFAULT_UNIVERSE) -> list[d
         except Exception as e:
             logger.warning("PIT fundamentals capture: failed for %s: %s", ticker, e)
             continue
+        return_on_equity = info.get("returnOnEquity")
+        profit_margin = info.get("profitMargins")
         rows.append(
             {
                 "ticker": ticker,
@@ -45,6 +47,15 @@ def capture_universe_fundamentals(universe_id: str = DEFAULT_UNIVERSE) -> list[d
                 # this instead of paying for its own full-universe .info
                 # pass just for sector labels.
                 "sector": info.get("sector"),
+                # SCR-1's Quality factor inputs. Deliberately NOT _safe_percent
+                # here -- its "abs(value) <= 1 means it's a fraction" heuristic
+                # is wrong for ROE specifically, which legitimately exceeds
+                # 100% for real companies (e.g. AAPL's returnOnEquity is a
+                # real ~1.49, i.e. 149%, from yfinance -- _safe_percent would
+                # misread that as "already 1.49%"). yfinance always returns
+                # both as fractions, so a plain *100 is correct and unambiguous.
+                "return_on_equity_pct": None if return_on_equity is None else float(return_on_equity) * 100,
+                "profit_margin_pct": None if profit_margin is None else float(profit_margin) * 100,
                 "source": SOURCE,
             }
         )

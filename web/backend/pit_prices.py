@@ -162,12 +162,14 @@ async def capture_and_persist_fundamentals(universe_id: str = FUNDAMENTALS_DEFAU
             result = await conn.execute(
                 """
                 INSERT INTO pit_fundamentals (
-                    ticker, as_of_date, forward_pe, revenue_growth_pct, earnings_growth_pct, sector, source
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ticker, as_of_date, forward_pe, revenue_growth_pct, earnings_growth_pct, sector,
+                    return_on_equity_pct, profit_margin_pct, source
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (ticker, as_of_date) DO NOTHING
                 """,
                 row["ticker"], as_of_date, row["forward_pe"], row["revenue_growth_pct"],
-                row["earnings_growth_pct"], row.get("sector"), row["source"],
+                row["earnings_growth_pct"], row.get("sector"),
+                row.get("return_on_equity_pct"), row.get("profit_margin_pct"), row["source"],
             )
             if result == "INSERT 0 1":
                 inserted += 1

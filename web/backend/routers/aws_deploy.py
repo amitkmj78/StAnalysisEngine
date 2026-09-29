@@ -1085,6 +1085,18 @@ create table if not exists pit_fundamentals (
 -- going forward only -- past rows keep sector=null, same as every other
 -- additive PIT column in this file.
 alter table pit_fundamentals add column if not exists sector text;
+
+-- SCR-1's Quality factor: return_on_equity_pct/profit_margin_pct,
+-- captured off the same .info call as everything else in this table (no
+-- new fetch). services/stock_score_capture_service.py's blend_quality
+-- averages whichever of these two is present into one raw value.
+-- Debt-to-equity is deliberately excluded from v1 -- it's lower-is-
+-- better, and averaging it in pre-percentile with these two higher-is-
+-- better metrics would distort the blend; that needs a percentile-then-
+-- blend design instead, out of scope here. Nullable/backfilled going
+-- forward only, same convention as sector above.
+alter table pit_fundamentals add column if not exists return_on_equity_pct real;
+alter table pit_fundamentals add column if not exists profit_margin_pct real;
 create index if not exists pit_fundamentals_ticker_date_idx on pit_fundamentals(ticker, as_of_date desc);
 
 -- Point-in-time capture of the same Quant Signal shown on /predict and
