@@ -94,3 +94,17 @@ def get_cached_dividends(ticker: str) -> pd.Series:
         return result if result is not None else pd.Series(dtype=float)
     except Exception:
         return pd.Series(dtype=float)
+
+
+@ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
+def get_cached_eps_trend(ticker: str) -> pd.DataFrame:
+    """Shared yf.Ticker(ticker).eps_trend -- new plumbing (SCR-1's
+    earnings-revisions factor): indexed by period (0q/+1q/0y/+1y), with
+    current/7daysAgo/30daysAgo/60daysAgo/90daysAgo EPS-estimate columns.
+    Empty DataFrame (never None) when yfinance has nothing, same
+    fail-open convention as every other function in this module."""
+    try:
+        result = fetch_with_backoff(lambda: yf.Ticker(ticker).eps_trend)
+        return result if result is not None else pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()

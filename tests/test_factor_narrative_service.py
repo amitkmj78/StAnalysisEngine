@@ -1,8 +1,11 @@
 from services.factor_narrative_service import (
     _ordinal,
+    earnings_revisions_sentence,
+    earnings_surprise_sentence,
     growth_sentence,
     low_vol_sentence,
     momentum_sentence,
+    quality_sentence,
     reversal_sentence,
     value_sentence,
 )
@@ -98,3 +101,43 @@ def test_low_vol_sentence_with_real_numbers():
 
 def test_low_vol_sentence_none_degrades_gracefully():
     assert "Not enough" in low_vol_sentence(None, None)
+
+
+def test_quality_sentence_with_real_numbers():
+    text = quality_sentence(22.5, 75.0)
+    assert "22.5%" in text
+    assert "75th percentile" in text
+
+
+def test_quality_sentence_none_degrades_gracefully():
+    assert "Not enough" in quality_sentence(None, None)
+
+
+def test_earnings_surprise_sentence_says_beat():
+    text = earnings_surprise_sentence(6.7, 80.0)
+    assert "beat estimates by 6.7%" in text
+    assert "80th percentile" in text
+
+
+def test_earnings_surprise_sentence_says_missed():
+    text = earnings_surprise_sentence(-3.2, 15.0)
+    assert "missed estimates by 3.2%" in text
+
+
+def test_earnings_surprise_sentence_none_degrades_gracefully():
+    assert "No recent earnings surprise" in earnings_surprise_sentence(None, None)
+
+
+def test_earnings_revisions_sentence_says_raised():
+    text = earnings_revisions_sentence(2.1, 85.0)
+    assert "raised 2.1%" in text
+    assert "85th percentile" in text
+
+
+def test_earnings_revisions_sentence_says_cut():
+    text = earnings_revisions_sentence(-4.4, 10.0)
+    assert "cut 4.4%" in text
+
+
+def test_earnings_revisions_sentence_none_degrades_gracefully():
+    assert "Not enough analyst-estimate history" in earnings_revisions_sentence(None, None)

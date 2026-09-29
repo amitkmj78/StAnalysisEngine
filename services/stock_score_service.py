@@ -14,11 +14,17 @@ factors), NOT a trained ML model -- per EXP-1's own acceptance criteria
 scores"), explainability here is weight x value, not SHAP. The existing
 /predict GBM (services/model_service.py) is untouched and unrelated.
 
-Per an explicit product decision: earnings-revisions/earnings-surprise
-(short-term) and Quality (long-term) factors are omitted, not faked --
-no analyst-estimates or margins/ROE/debt data source exists anywhere in
-this app. Short-term score = Momentum + Short-term reversal only.
-Long-term score = Value + Growth + Low-volatility only.
+Short-term score = Momentum + Short-term reversal + Earnings surprise +
+Earnings revisions. Long-term score = Value + Growth + Low-volatility +
+Quality -- all 8 factors SCR-1 specifies are now computed; the earlier
+"no data source exists" conclusion for earnings-revisions/surprise/
+Quality was re-investigated and found wrong (yfinance, already this
+app's data source, has usable data for all three -- see
+services/stock_score_capture_service.py for exactly what's fetched and
+why). Weights below are reasoned defaults, like the original 5-factor
+weights were -- not backtested or empirically fit, consistent with this
+whole system being a rules-based composite, not a validated alpha
+signal.
 """
 
 from __future__ import annotations
@@ -35,8 +41,8 @@ from services.portfolio_compare_service import derive_confidence  # noqa: F401
 BUY_AT = 70.0
 TRIM_AT = 30.0
 
-SHORT_TERM_WEIGHTS = {"momentum": 0.6, "reversal": 0.4}
-LONG_TERM_WEIGHTS = {"value": 0.4, "growth": 0.35, "low_vol": 0.25}
+SHORT_TERM_WEIGHTS = {"momentum": 0.35, "reversal": 0.25, "earnings_surprise": 0.20, "earnings_revisions": 0.20}
+LONG_TERM_WEIGHTS = {"value": 0.30, "growth": 0.25, "low_vol": 0.20, "quality": 0.25}
 
 # Same threshold/streak convention as web/backend/pit_prices.py's
 # get_signal_stability_for_ticker, applied to this new score's own
@@ -82,12 +88,23 @@ def _weighted_composite(factor_percentiles: dict[str, dict[str, Optional[float]]
     return result
 
 
-def compute_short_score(momentum_pct: dict, reversal_pct: dict) -> dict[str, Optional[float]]:
-    return _weighted_composite({"momentum": momentum_pct, "reversal": reversal_pct}, SHORT_TERM_WEIGHTS)
+def compute_short_score(
+    momentum_pct: dict, reversal_pct: dict, earnings_surprise_pct: dict, earnings_revisions_pct: dict
+) -> dict[str, Optional[float]]:
+    return _weighted_composite(
+        {
+            "momentum": momentum_pct, "reversal": reversal_pct,
+            "earnings_surprise": earnings_surprise_pct, "earnings_revisions": earnings_revisions_pct,
+        },
+        SHORT_TERM_WEIGHTS,
+    )
 
 
-def compute_long_score(value_pct: dict, growth_pct: dict, low_vol_pct: dict) -> dict[str, Optional[float]]:
-    return _weighted_composite({"value": value_pct, "growth": growth_pct, "low_vol": low_vol_pct}, LONG_TERM_WEIGHTS)
+def compute_long_score(value_pct: dict, growth_pct: dict, low_vol_pct: dict, quality_pct: dict) -> dict[str, Optional[float]]:
+    return _weighted_composite(
+        {"value": value_pct, "growth": growth_pct, "low_vol": low_vol_pct, "quality": quality_pct},
+        LONG_TERM_WEIGHTS,
+    )
 
 
 def sector_percentile(scores: dict[str, Optional[float]], sector_of: dict[str, str]) -> dict[str, Optional[float]]:

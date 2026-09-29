@@ -7,9 +7,12 @@ from services.stock_score_capture_service import (
     VOLATILITY_TRADING_DAYS,
     _annualized_volatility,
     _compute_rsi,
+    _eps_revision_from_trend,
+    _latest_eps_surprise,
     _momentum_and_reversal_from_rows,
     _volatility_from_rows,
     blend_growth,
+    blend_quality,
 )
 
 
@@ -122,3 +125,61 @@ def test_blend_growth_uses_whichever_one_is_present():
 
 def test_blend_growth_none_when_neither_present():
     assert blend_growth(None, None) is None
+
+
+def test_blend_quality_averages_both_when_present():
+    assert blend_quality(20.0, 10.0) == 15.0
+
+
+def test_blend_quality_uses_whichever_one_is_present():
+    assert blend_quality(None, 10.0) == 10.0
+    assert blend_quality(20.0, None) == 20.0
+
+
+def test_blend_quality_none_when_neither_present():
+    assert blend_quality(None, None) is None
+
+
+def test_latest_eps_surprise_picks_most_recent_reported_quarter():
+    df = pd.DataFrame(
+        {"Reported EPS": [1.5, 1.8, None], "Surprise(%)": [3.1, 6.7, None]},
+        index=pd.to_datetime(["2025-10-30", "2026-01-29", "2026-04-30"]),
+    )
+    assert _latest_eps_surprise(df) == 6.7
+
+
+def test_latest_eps_surprise_skips_upcoming_unreported_rows():
+    df = pd.DataFrame(
+        {"Reported EPS": [None], "Surprise(%)": [None]},
+        index=pd.to_datetime(["2026-07-30"]),
+    )
+    assert _latest_eps_surprise(df) is None
+
+
+def test_latest_eps_surprise_none_when_surprise_column_missing():
+    df = pd.DataFrame({"Reported EPS": [1.5]}, index=pd.to_datetime(["2026-01-29"]))
+    assert _latest_eps_surprise(df) is None
+
+
+def test_latest_eps_surprise_none_for_empty_frame():
+    assert _latest_eps_surprise(pd.DataFrame()) is None
+
+
+def test_eps_revision_from_trend_computes_30day_pct_change():
+    df = pd.DataFrame({"current": [2.02], "30daysAgo": [2.00]}, index=["0q"])
+    # (2.02 - 2.00) / abs(2.00) * 100 = 1.0
+    assert _eps_revision_from_trend(df) == 1.0
+
+
+def test_eps_revision_from_trend_none_when_0q_row_missing():
+    df = pd.DataFrame({"current": [1.0], "30daysAgo": [1.0]}, index=["+1q"])
+    assert _eps_revision_from_trend(df) is None
+
+
+def test_eps_revision_from_trend_none_when_30days_ago_is_zero():
+    df = pd.DataFrame({"current": [1.0], "30daysAgo": [0.0]}, index=["0q"])
+    assert _eps_revision_from_trend(df) is None
+
+
+def test_eps_revision_from_trend_none_for_empty_frame():
+    assert _eps_revision_from_trend(pd.DataFrame()) is None

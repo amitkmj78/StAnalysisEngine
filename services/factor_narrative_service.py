@@ -73,3 +73,32 @@ def low_vol_sentence(annualized_volatility_pct: Optional[float], percentile: Opt
         f"Low volatility: {annualized_volatility_pct:.1f}% annualized — {_ordinal(percentile)} percentile "
         f"(calmer is higher) in the universe."
     )
+
+
+def quality_sentence(blended_pct: Optional[float], percentile: Optional[float]) -> str:
+    if blended_pct is None or percentile is None:
+        return "Not enough fundamentals data yet to score quality."
+    return (
+        f"Quality: {blended_pct:.1f}% blended return-on-equity/profit-margin — {_ordinal(percentile)} "
+        f"percentile in the universe."
+    )
+
+
+def earnings_surprise_sentence(surprise_pct: Optional[float], percentile: Optional[float]) -> str:
+    if surprise_pct is None or percentile is None:
+        return "No recent earnings surprise on record yet."
+    verb = "beat" if surprise_pct >= 0 else "missed"
+    return (
+        f"Earnings surprise: most recent quarter {verb} estimates by {abs(surprise_pct):.1f}% "
+        f"— {_ordinal(percentile)} percentile in the universe."
+    )
+
+
+def earnings_revisions_sentence(revision_pct: Optional[float], percentile: Optional[float]) -> str:
+    if revision_pct is None or percentile is None:
+        return "Not enough analyst-estimate history yet to score earnings revisions."
+    verb = "raised" if revision_pct >= 0 else "cut"
+    return (
+        f"Earnings revisions: consensus EPS estimate {verb} {abs(revision_pct):.1f}% over the trailing "
+        f"30 days — {_ordinal(percentile)} percentile in the universe."
+    )

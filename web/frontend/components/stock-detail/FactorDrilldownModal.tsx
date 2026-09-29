@@ -9,9 +9,12 @@ import PlotlyChart from "@/components/PlotlyChart";
 const FACTOR_LABELS: Record<TwoScoreFactorKey, string> = {
   momentum: "Momentum",
   reversal: "Short-Term Reversal",
+  earnings_surprise: "Earnings Surprise",
+  earnings_revisions: "Earnings Revisions",
   value: "Value",
   growth: "Growth",
   low_vol: "Low Volatility",
+  quality: "Quality",
 };
 
 // EXP-4: "open a factor" -- its own history (up to the last 252 trading

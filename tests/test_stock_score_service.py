@@ -38,28 +38,43 @@ def test_percentile_rank_all_none_returns_all_none():
 def test_compute_short_score_weighted_average():
     momentum = {"AAPL": 80.0, "MSFT": 20.0}
     reversal = {"AAPL": 60.0, "MSFT": 40.0}
-    scores = compute_short_score(momentum, reversal)
-    # 0.6*80 + 0.4*60 = 72
-    assert scores["AAPL"] == 72.0
-    # 0.6*20 + 0.4*40 = 28
-    assert scores["MSFT"] == 28.0
+    earnings_surprise = {"AAPL": 90.0, "MSFT": 10.0}
+    earnings_revisions = {"AAPL": 50.0, "MSFT": 50.0}
+    scores = compute_short_score(momentum, reversal, earnings_surprise, earnings_revisions)
+    # 0.35*80 + 0.25*60 + 0.20*90 + 0.20*50 = 28 + 15 + 18 + 10 = 71
+    assert scores["AAPL"] == 71.0
+    # 0.35*20 + 0.25*40 + 0.20*10 + 0.20*50 = 7 + 10 + 2 + 10 = 29
+    assert scores["MSFT"] == 29.0
 
 
 def test_compute_short_score_renormalizes_when_a_factor_is_missing():
     momentum = {"AAPL": 80.0}
     reversal = {"AAPL": None}
-    scores = compute_short_score(momentum, reversal)
+    earnings_surprise = {"AAPL": None}
+    earnings_revisions = {"AAPL": None}
+    scores = compute_short_score(momentum, reversal, earnings_surprise, earnings_revisions)
     # Only momentum available -> renormalized weight is 100% momentum.
     assert scores["AAPL"] == 80.0
+
+
+def test_compute_short_score_renormalizes_with_two_factors_missing():
+    momentum = {"AAPL": 80.0}
+    reversal = {"AAPL": None}
+    earnings_surprise = {"AAPL": 60.0}
+    earnings_revisions = {"AAPL": None}
+    scores = compute_short_score(momentum, reversal, earnings_surprise, earnings_revisions)
+    # (0.35*80 + 0.20*60) / (0.35+0.20) = (28+12)/0.55 = 72.7272... -> 72.73
+    assert scores["AAPL"] == 72.73
 
 
 def test_compute_long_score_weighted_average():
     value = {"T": 100.0}
     growth = {"T": 0.0}
     low_vol = {"T": 50.0}
-    scores = compute_long_score(value, growth, low_vol)
-    # 0.4*100 + 0.35*0 + 0.25*50 = 40 + 0 + 12.5 = 52.5
-    assert scores["T"] == 52.5
+    quality = {"T": 80.0}
+    scores = compute_long_score(value, growth, low_vol, quality)
+    # 0.30*100 + 0.25*0 + 0.20*50 + 0.25*80 = 30 + 0 + 10 + 20 = 60
+    assert scores["T"] == 60.0
 
 
 def test_score_to_signal_boundaries():

@@ -12,9 +12,12 @@ from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from services.factor_narrative_service import (
+    earnings_revisions_sentence,
+    earnings_surprise_sentence,
     growth_sentence,
     low_vol_sentence,
     momentum_sentence,
+    quality_sentence,
     reversal_sentence,
     value_sentence,
 )
@@ -27,9 +30,12 @@ router = APIRouter(prefix="/api/v1/stock-scores", tags=["stock-scores"])
 
 DEFAULT_UNIVERSE = "All"
 
-# EXP-4's drillable factors -- the same 5 keys factor_detail is always
+# EXP-4's drillable factors -- the same 8 keys factor_detail is always
 # keyed by (see stock_score_capture_service.compute_and_persist_daily_scores).
-FACTOR_KEYS = {"momentum", "reversal", "value", "growth", "low_vol"}
+FACTOR_KEYS = {
+    "momentum", "reversal", "earnings_surprise", "earnings_revisions",
+    "value", "growth", "low_vol", "quality",
+}
 
 
 def _parse_factor_detail(row) -> dict:
@@ -40,15 +46,21 @@ def _parse_factor_detail(row) -> dict:
 def _build_sentences(detail: dict) -> dict:
     momentum = detail.get("momentum", {})
     reversal = detail.get("reversal", {})
+    earnings_surprise = detail.get("earnings_surprise", {})
+    earnings_revisions = detail.get("earnings_revisions", {})
     value = detail.get("value", {})
     growth = detail.get("growth", {})
     low_vol = detail.get("low_vol", {})
+    quality = detail.get("quality", {})
     return {
         "momentum": momentum_sentence(momentum.get("raw"), MOMENTUM_LOOKBACK_DAYS, momentum.get("percentile")),
         "reversal": reversal_sentence(reversal.get("raw"), reversal.get("percentile")),
+        "earnings_surprise": earnings_surprise_sentence(earnings_surprise.get("raw"), earnings_surprise.get("percentile")),
+        "earnings_revisions": earnings_revisions_sentence(earnings_revisions.get("raw"), earnings_revisions.get("percentile")),
         "value": value_sentence(value.get("raw"), value.get("percentile")),
         "growth": growth_sentence(growth.get("raw_revenue"), growth.get("raw_earnings"), growth.get("percentile")),
         "low_vol": low_vol_sentence(low_vol.get("raw"), low_vol.get("percentile")),
+        "quality": quality_sentence(quality.get("raw"), quality.get("percentile")),
     }
 
 

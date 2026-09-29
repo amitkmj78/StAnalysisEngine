@@ -492,7 +492,18 @@ export default function StockScorePage() {
               <span className="text-xs text-slate-400">Click a factor for its history</span>
             </div>
             <ul className="mt-2 flex flex-col gap-1 text-sm text-slate-700">
-              {(["momentum", "reversal", "value", "growth", "low_vol"] as const).map((f) => (
+              {(
+                [
+                  "momentum",
+                  "reversal",
+                  "earnings_surprise",
+                  "earnings_revisions",
+                  "value",
+                  "growth",
+                  "low_vol",
+                  "quality",
+                ] as const
+              ).map((f) => (
                 <li key={f}>
                   <button
                     onClick={() => setOpenFactor(f)}
@@ -505,7 +516,6 @@ export default function StockScorePage() {
             </ul>
             <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
               Rules-based composite scores from real, already-captured data — not a trained prediction model.
-              Earnings-revisions/surprise and Quality factors aren&apos;t included yet (no data source for them exists).
             </p>
           </div>
         </>

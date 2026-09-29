@@ -15,6 +15,14 @@ already uses -- so callers never have to guess where a number came from.
 As pit_prices deepens past each factor's threshold below, live-fallback
 usage shrinks to zero on its own, with no code change.
 
+Earnings surprise and earnings revisions are the one exception to that
+"live means shallow PIT history, will self-heal" reading: both are
+always source: "live", permanently -- not a depth fallback. Both are
+inherently quarterly/rolling-analyst-consensus data, not a daily price
+series, so a dedicated PIT table would add storage complexity without a
+real benefit; they're just re-fetched each run via yfinance_cache's own
+15-minute TTL cache.
+
 All DB access goes through service_conn (cross-user, public PIT data --
 see web/backend/paper_order_sync.py for the same pattern in this repo).
 """
@@ -43,7 +51,7 @@ from services.stock_score_service import (
     score_to_signal,
     sector_percentile,
 )
-from services.yfinance_cache import get_cached_history, get_cached_info
+from services.yfinance_cache import get_cached_earnings_dates, get_cached_eps_trend, get_cached_history, get_cached_info
 from web.backend.db import service_conn
 from web.backend.pit_prices import _eastern_today
 
@@ -203,18 +211,19 @@ async def fetch_low_volatility_inputs(tickers: list[str], as_of_date_: date) -> 
     return _volatility_from_rows(tickers, pit_rows_by_ticker)
 
 
-async def fetch_value_and_growth_inputs(tickers: list[str], as_of_date_: date) -> dict[str, dict]:
+async def fetch_value_growth_and_quality_inputs(tickers: list[str], as_of_date_: date) -> dict[str, dict]:
     """Per ticker: {"value": {"raw": forward_pe}, "growth": {"raw_revenue":
-    ..., "raw_earnings": ...}}, both sourced from the latest pit_fundamentals
-    row on or before as_of_date_ -- no depth problem, only the latest
-    snapshot matters (pit_fundamentals has had one row/ticker/day since
-    capture began)."""
+    ..., "raw_earnings": ...}, "quality": {"raw_roe": ..., "raw_margin":
+    ...}}, all sourced from the latest pit_fundamentals row on or before
+    as_of_date_ -- no depth problem, only the latest snapshot matters
+    (pit_fundamentals has had one row/ticker/day since capture began)."""
     if not tickers:
         return {}
     async with service_conn() as conn:
         rows = await conn.fetch(
             """
-            SELECT DISTINCT ON (ticker) ticker, forward_pe, revenue_growth_pct, earnings_growth_pct, sector
+            SELECT DISTINCT ON (ticker) ticker, forward_pe, revenue_growth_pct, earnings_growth_pct,
+                   return_on_equity_pct, profit_margin_pct, sector
             FROM pit_fundamentals
             WHERE ticker = ANY($1::text[]) AND as_of_date <= $2
             ORDER BY ticker, as_of_date DESC
@@ -232,6 +241,11 @@ async def fetch_value_and_growth_inputs(tickers: list[str], as_of_date_: date) -
                 "raw_earnings": row["earnings_growth_pct"] if row else None,
                 "source": "pit",
             },
+            "quality": {
+                "raw_roe": row["return_on_equity_pct"] if row else None,
+                "raw_margin": row["profit_margin_pct"] if row else None,
+                "source": "pit",
+            },
         }
     return result
 
@@ -243,6 +257,71 @@ def blend_growth(revenue_growth_pct: Optional[float], earnings_growth_pct: Optio
     if not values:
         return None
     return sum(values) / len(values)
+
+
+def blend_quality(roe_pct: Optional[float], profit_margin_pct: Optional[float]) -> Optional[float]:
+    """One raw quality value to percentile-rank, mirroring blend_growth
+    exactly: average of whichever of ROE%/profit-margin% is available.
+    Debt-to-equity is deliberately excluded -- it's lower-is-better, and
+    averaging it in here pre-percentile with these two higher-is-better
+    metrics would distort the blend; that needs a percentile-then-blend
+    design instead of this raw-then-percentile one, out of scope here."""
+    values = [v for v in (roe_pct, profit_margin_pct) if v is not None]
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def _latest_eps_surprise(earnings_df: pd.DataFrame) -> Optional[float]:
+    """Pure: the most recently REPORTED quarter's Surprise(%) from
+    get_cached_earnings_dates' frame -- skips upcoming (NaN Reported EPS)
+    rows. Confirmed by hand-calculation against real AAPL/MSFT/NVDA data
+    that yfinance's Surprise(%) is already a plain percent (positive =
+    beat), not a fraction -- see services/stock_detail_service.py's
+    past_earnings_dates, which omits this same column because that
+    confirmation hadn't happened yet when it was written."""
+    if earnings_df.empty or "Surprise(%)" not in earnings_df.columns or "Reported EPS" not in earnings_df.columns:
+        return None
+    reported = earnings_df.dropna(subset=["Reported EPS"])
+    if reported.empty:
+        return None
+    surprise = reported.sort_index(ascending=False).iloc[0].get("Surprise(%)")
+    return round(float(surprise), 2) if pd.notna(surprise) else None
+
+
+def _live_earnings_surprise(ticker: str) -> dict:
+    return {"raw": _latest_eps_surprise(get_cached_earnings_dates(ticker)), "source": "live"}
+
+
+async def fetch_earnings_surprise_inputs(tickers: list[str]) -> dict[str, dict]:
+    """Per ticker: {"raw": surprise_pct, "source": "live"} -- always live,
+    see the module docstring for why this factor is never PIT-stored."""
+    results = await asyncio.gather(*[asyncio.to_thread(_live_earnings_surprise, t) for t in tickers])
+    return dict(zip(tickers, results))
+
+
+def _eps_revision_from_trend(eps_trend_df: pd.DataFrame) -> Optional[float]:
+    """Pure: (current - 30daysAgo) / abs(30daysAgo) * 100 from the "0q"
+    (current-quarter, the nearest-term and most decision-relevant) row of
+    get_cached_eps_trend's frame."""
+    if eps_trend_df.empty or "0q" not in eps_trend_df.index:
+        return None
+    row = eps_trend_df.loc["0q"]
+    current, month_ago = row.get("current"), row.get("30daysAgo")
+    if current is None or month_ago is None or pd.isna(current) or pd.isna(month_ago) or month_ago == 0:
+        return None
+    return round(float((current - month_ago) / abs(month_ago) * 100), 2)
+
+
+def _live_earnings_revisions(ticker: str) -> dict:
+    return {"raw": _eps_revision_from_trend(get_cached_eps_trend(ticker)), "source": "live"}
+
+
+async def fetch_earnings_revisions_inputs(tickers: list[str]) -> dict[str, dict]:
+    """Per ticker: {"raw": revision_pct, "source": "live"} -- always live,
+    same reasoning as fetch_earnings_surprise_inputs above."""
+    results = await asyncio.gather(*[asyncio.to_thread(_live_earnings_revisions, t) for t in tickers])
+    return dict(zip(tickers, results))
 
 
 async def resolve_sector_map(tickers: list[str], as_of_date_: date) -> dict[str, str]:
@@ -324,33 +403,50 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
     if not tickers:
         return 0
 
-    momentum_reversal, volatility, value_growth, sector_map, prior_history = await asyncio.gather(
+    (
+        momentum_reversal, volatility, value_growth_quality, sector_map, prior_history,
+        earnings_surprise, earnings_revisions,
+    ) = await asyncio.gather(
         fetch_momentum_and_reversal_inputs(tickers, as_of_date_),
         fetch_low_volatility_inputs(tickers, as_of_date_),
-        fetch_value_and_growth_inputs(tickers, as_of_date_),
+        fetch_value_growth_and_quality_inputs(tickers, as_of_date_),
         resolve_sector_map(tickers, as_of_date_),
         _fetch_prior_signal_history(tickers, universe_id, as_of_date_),
+        fetch_earnings_surprise_inputs(tickers),
+        fetch_earnings_revisions_inputs(tickers),
     )
 
     momentum_raw = {t: momentum_reversal[t]["momentum"]["raw"] for t in tickers}
     reversal_raw = {t: momentum_reversal[t]["reversal"]["raw"] for t in tickers}
-    value_raw = {t: value_growth[t]["value"]["raw"] for t in tickers}
+    value_raw = {t: value_growth_quality[t]["value"]["raw"] for t in tickers}
     growth_raw = {
-        t: blend_growth(value_growth[t]["growth"]["raw_revenue"], value_growth[t]["growth"]["raw_earnings"])
+        t: blend_growth(value_growth_quality[t]["growth"]["raw_revenue"], value_growth_quality[t]["growth"]["raw_earnings"])
         for t in tickers
     }
     low_vol_raw = {t: volatility[t]["raw"] for t in tickers}
+    quality_raw = {
+        t: blend_quality(value_growth_quality[t]["quality"]["raw_roe"], value_growth_quality[t]["quality"]["raw_margin"])
+        for t in tickers
+    }
+    earnings_surprise_raw = {t: earnings_surprise[t]["raw"] for t in tickers}
+    earnings_revisions_raw = {t: earnings_revisions[t]["raw"] for t in tickers}
 
     # Reversal/value/low-vol are all "lower raw value scores higher"
-    # (oversold RSI, cheap P/E, calm volatility).
+    # (oversold RSI, cheap P/E, calm volatility). Everything else here --
+    # momentum, growth, quality, earnings surprise, earnings revisions --
+    # is "higher raw value scores higher" (a bigger beat/upward revision
+    # is better, same as more growth).
     momentum_pct = percentile_rank(momentum_raw)
     reversal_pct = percentile_rank(reversal_raw, lower_is_better=True)
     value_pct = percentile_rank(value_raw, lower_is_better=True)
     growth_pct = percentile_rank(growth_raw)
     low_vol_pct = percentile_rank(low_vol_raw, lower_is_better=True)
+    quality_pct = percentile_rank(quality_raw)
+    earnings_surprise_pct = percentile_rank(earnings_surprise_raw)
+    earnings_revisions_pct = percentile_rank(earnings_revisions_raw)
 
-    short_scores = compute_short_score(momentum_pct, reversal_pct)
-    long_scores = compute_long_score(value_pct, growth_pct, low_vol_pct)
+    short_scores = compute_short_score(momentum_pct, reversal_pct, earnings_surprise_pct, earnings_revisions_pct)
+    long_scores = compute_long_score(value_pct, growth_pct, low_vol_pct, quality_pct)
     short_sector_pct = sector_percentile(short_scores, sector_map)
     long_sector_pct = sector_percentile(long_scores, sector_map)
 
@@ -379,13 +475,27 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
             long_confidence = derive_confidence(long_stability)
 
             short_contributions = compute_factor_contributions(
-                {"momentum": momentum_raw[ticker], "reversal": reversal_raw[ticker]},
-                {"momentum": momentum_pct[ticker], "reversal": reversal_pct[ticker]},
+                {
+                    "momentum": momentum_raw[ticker], "reversal": reversal_raw[ticker],
+                    "earnings_surprise": earnings_surprise_raw[ticker],
+                    "earnings_revisions": earnings_revisions_raw[ticker],
+                },
+                {
+                    "momentum": momentum_pct[ticker], "reversal": reversal_pct[ticker],
+                    "earnings_surprise": earnings_surprise_pct[ticker],
+                    "earnings_revisions": earnings_revisions_pct[ticker],
+                },
                 SHORT_TERM_WEIGHTS,
             )
             long_contributions = compute_factor_contributions(
-                {"value": value_raw[ticker], "growth": growth_raw[ticker], "low_vol": low_vol_raw[ticker]},
-                {"value": value_pct[ticker], "growth": growth_pct[ticker], "low_vol": low_vol_pct[ticker]},
+                {
+                    "value": value_raw[ticker], "growth": growth_raw[ticker], "low_vol": low_vol_raw[ticker],
+                    "quality": quality_raw[ticker],
+                },
+                {
+                    "value": value_pct[ticker], "growth": growth_pct[ticker], "low_vol": low_vol_pct[ticker],
+                    "quality": quality_pct[ticker],
+                },
                 LONG_TERM_WEIGHTS,
             )
 
@@ -400,16 +510,26 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
                     "percentile": reversal_pct[ticker],
                     "contribution": _factor_contribution(short_contributions, "reversal"),
                 },
+                "earnings_surprise": {
+                    **earnings_surprise[ticker],
+                    "percentile": earnings_surprise_pct[ticker],
+                    "contribution": _factor_contribution(short_contributions, "earnings_surprise"),
+                },
+                "earnings_revisions": {
+                    **earnings_revisions[ticker],
+                    "percentile": earnings_revisions_pct[ticker],
+                    "contribution": _factor_contribution(short_contributions, "earnings_revisions"),
+                },
                 "value": {
-                    **value_growth[ticker]["value"],
+                    **value_growth_quality[ticker]["value"],
                     "percentile": value_pct[ticker],
                     "contribution": _factor_contribution(long_contributions, "value"),
                 },
                 "growth": {
                     "raw": growth_raw[ticker],
-                    "raw_revenue": value_growth[ticker]["growth"]["raw_revenue"],
-                    "raw_earnings": value_growth[ticker]["growth"]["raw_earnings"],
-                    "source": value_growth[ticker]["growth"]["source"],
+                    "raw_revenue": value_growth_quality[ticker]["growth"]["raw_revenue"],
+                    "raw_earnings": value_growth_quality[ticker]["growth"]["raw_earnings"],
+                    "source": value_growth_quality[ticker]["growth"]["source"],
                     "percentile": growth_pct[ticker],
                     "contribution": _factor_contribution(long_contributions, "growth"),
                 },
@@ -417,6 +537,14 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
                     **volatility[ticker],
                     "percentile": low_vol_pct[ticker],
                     "contribution": _factor_contribution(long_contributions, "low_vol"),
+                },
+                "quality": {
+                    "raw": quality_raw[ticker],
+                    "raw_roe": value_growth_quality[ticker]["quality"]["raw_roe"],
+                    "raw_margin": value_growth_quality[ticker]["quality"]["raw_margin"],
+                    "source": value_growth_quality[ticker]["quality"]["source"],
+                    "percentile": quality_pct[ticker],
+                    "contribution": _factor_contribution(long_contributions, "quality"),
                 },
             }
 

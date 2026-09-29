@@ -1084,6 +1084,8 @@ export interface TwoScoreFactor {
   raw: number | null;
   raw_revenue?: number | null;
   raw_earnings?: number | null;
+  raw_roe?: number | null;
+  raw_margin?: number | null;
   source: "pit" | "live";
   percentile: number | null;
   contribution: number | null;
@@ -1092,9 +1094,12 @@ export interface TwoScoreFactor {
 export interface TwoScoreFactorDetail {
   momentum: TwoScoreFactor;
   reversal: TwoScoreFactor;
+  earnings_surprise: TwoScoreFactor;
+  earnings_revisions: TwoScoreFactor;
   value: TwoScoreFactor;
   growth: TwoScoreFactor;
   low_vol: TwoScoreFactor;
+  quality: TwoScoreFactor;
 }
 
 export interface TwoScoreDriver {
@@ -1117,7 +1122,16 @@ export interface TwoScoreResponse {
   long_sector_percentile: number | null;
   factor_detail: TwoScoreFactorDetail;
   explanations: { drivers: TwoScoreDriver[]; drags: TwoScoreDriver[] };
-  sentences: { momentum: string; reversal: string; value: string; growth: string; low_vol: string };
+  sentences: {
+    momentum: string;
+    reversal: string;
+    earnings_surprise: string;
+    earnings_revisions: string;
+    value: string;
+    growth: string;
+    low_vol: string;
+    quality: string;
+  };
 }
 
 export interface TwoScoreTrend {
@@ -1139,7 +1153,15 @@ export interface TwoScoreWeeklyChangeResponse {
   change: { factor: string; delta_contribution: number } | null;
 }
 
-export type TwoScoreFactorKey = "momentum" | "reversal" | "value" | "growth" | "low_vol";
+export type TwoScoreFactorKey =
+  | "momentum"
+  | "reversal"
+  | "earnings_surprise"
+  | "earnings_revisions"
+  | "value"
+  | "growth"
+  | "low_vol"
+  | "quality";
 
 export interface TwoScoreFactorHistoryResponse {
   ticker: string;
