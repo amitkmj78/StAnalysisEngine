@@ -90,11 +90,20 @@ export default function FactorDrilldownModal({
                 },
               ]}
               layout={{
-                // Plotly auto-picks hour-level ticks for a short span
-                // (e.g. only 2 days on record so far) unless told this is
-                // a plain calendar-date axis -- forced explicitly so it
-                // reads "Sep 27" / "Sep 28" instead of "00:00" / "12:00".
-                xaxis: { title: { text: "" }, type: "date", tickformat: "%b %-d" },
+                // Plotly auto-picks sub-day tick spacing for a short span
+                // (e.g. only a handful of days on record so far), which a
+                // date-only tickformat alone doesn't fix -- ticks still
+                // land within the same day, each just relabeled with that
+                // day's date instead of a time. Forcing one tick per day
+                // only while the whole series is short avoids the same
+                // problem flipping to "252 crowded daily ticks" once
+                // stock_scores has a full year of history.
+                xaxis: {
+                  title: { text: "" },
+                  type: "date",
+                  tickformat: "%b %-d",
+                  ...(data.history.length <= 14 ? { dtick: 86400000 } : {}),
+                },
                 yaxis: { title: { text: "" } },
                 paper_bgcolor: "#ffffff",
                 plot_bgcolor: "#ffffff",
