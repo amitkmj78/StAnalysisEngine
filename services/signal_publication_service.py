@@ -497,29 +497,45 @@ def compute_avg_excess_vs_spy(outcome_rows_with_excess: list[dict]) -> Optional[
 
 
 def confidence_for_outcome(
-    ticker_signal_history: list[tuple], target_date: datetime.date, lookback_days: int = 30
+    ticker_ranked_dates: set,
+    all_publication_dates: list,
+    target_date: datetime.date,
+    lookback_days: int = 30,
 ) -> dict:
-    """TRK-3: a confidence PROXY for one outcome row, derived from
-    pit_quant_signal's own flip-count stability as of target_date -- a
-    DIFFERENT signal than the momentum ranking being calibrated here,
-    reused only because it's the one signal-stability measure old enough
-    to retroactively score the full existing signal_outcomes history
-    against (Stage A's own two-score signal is too new to have any
-    history yet). Reuses flip_count_from_signal_history (services/
-    stock_score_service.py) and derive_confidence (services/
-    portfolio_compare_service.py) rather than duplicating either formula.
+    """TRK-3: a confidence measure genuinely sourced from THIS ranking's
+    own history -- how consistently the ticker has stayed in (or out of)
+    the published top-N over the trailing lookback_days, expressed as a
+    day-over-day "Ranked"/"Unranked" series fed through the exact same
+    flip_count_from_signal_history (services/stock_score_service.py) and
+    derive_confidence (services/portfolio_compare_service.py) Stage A's
+    own two-score system uses for its Buy/Hold/Trim signal stability --
+    just a 2-category "was this ticker on the list that day" series
+    instead. A ticker that has stayed in (or consistently out of) the
+    top-N is scored as more stable/confident than one whose membership
+    keeps flipping day to day, the same "stability as a confidence
+    proxy" idea used everywhere else in this app.
 
-    Never looks at a signal dated after target_date -- the same
-    lookahead-safety boundary every PIT computation in this app respects;
-    ticker_signal_history may contain later rows (the caller fetches one
-    shared window per ticker across many outcome rows), so this function
-    is what enforces the per-row cutoff.
+    Supersedes an earlier version of this function that borrowed
+    pit_quant_signal's own stability -- a DIFFERENT signal -- as a proxy;
+    that was only ever needed because Stage A's own signal was too new
+    to retroactively score the full existing signal_outcomes history
+    against. published_signals has published daily since 2026-08-03 --
+    more than enough history to derive a self-sourced measure directly,
+    so borrowing an unrelated signal is no longer necessary.
+
+    Never looks at a publication date after target_date -- the same
+    lookahead-safety boundary every PIT computation in this app
+    respects. all_publication_dates may span every ticker (the caller
+    fetches one shared calendar of "a publication happened this day"
+    across the whole calibration run, not per-ticker), so this function
+    is what enforces the per-row window.
     """
     window = [
-        (d, s) for d, s in ticker_signal_history
+        d for d in all_publication_dates
         if d <= target_date and d > target_date - datetime.timedelta(days=lookback_days)
     ]
-    stability = flip_count_from_signal_history(window)
+    history = [(d, "Ranked" if d in ticker_ranked_dates else "Unranked") for d in window]
+    stability = flip_count_from_signal_history(history)
     return derive_confidence(stability)
 
 

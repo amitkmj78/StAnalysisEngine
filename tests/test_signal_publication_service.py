@@ -126,39 +126,45 @@ def test_attach_excess_vs_spy_none_when_spy_unresolved():
     assert compute_avg_excess_vs_spy(with_excess) is None
 
 
-def test_confidence_for_outcome_never_uses_signal_after_target_date():
+def test_confidence_for_outcome_never_uses_publication_after_target_date():
     target_date = date(2026, 1, 20)
-    # Stable before target_date (no flips), but flips wildly right after --
-    # a bug that looked ahead would see those later flips and downgrade
-    # confidence; this must not happen.
-    history = [
-        (date(2026, 1, 1), "BUY"),
-        (date(2026, 1, 10), "BUY"),
-        (date(2026, 1, 20), "BUY"),
-        (date(2026, 1, 21), "SELL"),
-        (date(2026, 1, 22), "BUY"),
-        (date(2026, 1, 23), "SELL"),
+    all_dates = [
+        date(2026, 1, 1), date(2026, 1, 10), date(2026, 1, 20),
+        date(2026, 1, 21), date(2026, 1, 22), date(2026, 1, 23),
     ]
-    confidence = confidence_for_outcome(history, target_date, lookback_days=30)
+    # Ranked every day up to and including target_date (stable, no flips),
+    # then flips wildly right after -- a bug that looked ahead would see
+    # those later flips and downgrade confidence; this must not happen.
+    ranked_dates = {date(2026, 1, 1), date(2026, 1, 10), date(2026, 1, 20), date(2026, 1, 22)}
+    confidence = confidence_for_outcome(ranked_dates, all_dates, target_date, lookback_days=30)
     assert confidence["label"] == "high"
 
 
 def test_confidence_for_outcome_reflects_instability_before_target_date():
     target_date = date(2026, 1, 20)
-    history = [
-        (date(2026, 1, 1), "BUY"),
-        (date(2026, 1, 5), "SELL"),
-        (date(2026, 1, 10), "BUY"),
-        (date(2026, 1, 15), "SELL"),
-        (date(2026, 1, 20), "BUY"),
-    ]
-    confidence = confidence_for_outcome(history, target_date, lookback_days=30)
+    all_dates = [date(2026, 1, 1), date(2026, 1, 5), date(2026, 1, 10), date(2026, 1, 15), date(2026, 1, 20)]
+    # In the top-N, then out, then in, then out, then in -- 4 flips across
+    # 5 points, well past the unstable threshold.
+    ranked_dates = {date(2026, 1, 1), date(2026, 1, 10), date(2026, 1, 20)}
+    confidence = confidence_for_outcome(ranked_dates, all_dates, target_date, lookback_days=30)
     assert confidence["label"] == "low"
 
 
 def test_confidence_for_outcome_none_with_insufficient_window_history():
-    confidence = confidence_for_outcome([(date(2026, 1, 20), "BUY")], date(2026, 1, 20))
+    target_date = date(2026, 1, 20)
+    confidence = confidence_for_outcome({target_date}, [target_date], target_date)
     assert confidence == {"label": "unknown", "score": None}
+
+
+def test_confidence_for_outcome_unranked_days_count_too():
+    # A ticker that's never in the top-N over the window is just as
+    # "stable" (0 flips, all "Unranked") as one that's always in it --
+    # confidence isn't only measuring presence, it's measuring
+    # consistency either way.
+    target_date = date(2026, 1, 20)
+    all_dates = [date(2026, 1, 1), date(2026, 1, 10), date(2026, 1, 20)]
+    confidence = confidence_for_outcome(set(), all_dates, target_date, lookback_days=30)
+    assert confidence["label"] == "high"
 
 
 def test_compute_calibration_buckets_hit_rate_and_sample_size():

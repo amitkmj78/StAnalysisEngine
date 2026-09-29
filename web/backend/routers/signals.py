@@ -464,7 +464,9 @@ async def get_track_record(
     portfolio-vs-SPY growth chart — all built from the existing
     signal_outcomes/published_signals record, same public/unauthenticated
     posture as /outcomes and /published. Calibration's confidence is a
-    PROXY (pit_quant_signal's own stability, not this ranking's own — see
+    stability PROXY derived from this ranking's own publication history
+    (was a ticker in the top-N that day, not a literal stated probability
+    — this is a pure rank, not a probabilistic forecast — see
     confidence_for_outcome's docstring), and worst_misses/
     metrics_by_signal are Buy-side/single-group only (this pipeline has
     no Trim/Sell concept in its schema at all, not just in today's data)
@@ -512,23 +514,33 @@ async def get_track_record(
     spy_return_by_date = compute_spy_returns_for_dates(spy_close, target_dates, horizon_days)
     with_excess = attach_excess_vs_spy(outcome_rows, spy_return_by_date)
 
-    tickers = sorted({r["ticker"] for r in outcome_rows})
+    # TRK-3: confidence is now derived from this ranking's own
+    # publication history (was this ticker in the published top-N each
+    # day) rather than a borrowed, unrelated signal -- see
+    # confidence_for_outcome's docstring. One query for every ticker's
+    # ranked dates plus the full "a publication happened this day"
+    # calendar, both scoped to the same universe/lookback_days this
+    # endpoint's own picks are ranked under, and the same
+    # reason_code IS NULL correction-filter the main query above uses.
     async with service_conn() as conn:
-        signal_rows = await conn.fetch(
+        ranked_rows = await conn.fetch(
             """
-            SELECT ticker, as_of_date, signal FROM pit_quant_signal
-            WHERE ticker = ANY($1::text[]) AND as_of_date BETWEEN $2 AND $3
-            ORDER BY ticker, as_of_date
+            SELECT DISTINCT target_date, ticker FROM published_signals
+            WHERE universe_id = $1 AND lookback_days = $2 AND reason_code IS NULL
+              AND target_date BETWEEN $3 AND $4
             """,
-            tickers, target_dates[0] - timedelta(days=35), target_dates[-1],
+            universe_id, lookback_days, target_dates[0] - timedelta(days=35), target_dates[-1],
         )
-    signal_history_by_ticker: dict[str, list[tuple]] = {}
-    for r in signal_rows:
-        signal_history_by_ticker.setdefault(r["ticker"], []).append((r["as_of_date"], r["signal"]))
+    all_publication_dates = sorted({r["target_date"] for r in ranked_rows})
+    ranked_dates_by_ticker: dict[str, set] = {}
+    for r in ranked_rows:
+        ranked_dates_by_ticker.setdefault(r["ticker"], set()).add(r["target_date"])
 
     with_confidence = []
     for row in with_excess:
-        confidence = confidence_for_outcome(signal_history_by_ticker.get(row["ticker"], []), row["target_date"])
+        confidence = confidence_for_outcome(
+            ranked_dates_by_ticker.get(row["ticker"], set()), all_publication_dates, row["target_date"],
+        )
         with_confidence.append({**row, "confidence_score": confidence["score"], "confidence_label": confidence["label"]})
 
     return {

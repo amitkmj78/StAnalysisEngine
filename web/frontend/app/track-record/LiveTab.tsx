@@ -274,10 +274,11 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                 <div className="mt-4">
                   <h3 className="text-sm font-semibold text-slate-800">Calibration</h3>
                   <p className="mt-1 text-xs text-slate-500">
-                    Stated confidence vs. actual hit rate, per bucket. Confidence here is a proxy derived from a
-                    separate signal&apos;s own day-over-day stability (see the Predict page&apos;s Quant Signal),
-                    not a stated probability from this ranking rule itself — this ranking has no confidence
-                    output of its own.
+                    Stated confidence vs. actual hit rate, per bucket. Confidence here is a stability proxy
+                    derived from this ranking&apos;s own publication history — how consistently a ticker has
+                    stayed in (or out of) the published top-N over the trailing 30 days — not a stated
+                    probability the ranking rule outputs directly (it&apos;s a pure rank, not a probabilistic
+                    forecast).
                   </p>
                   <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
                     <table className="min-w-full text-xs">
