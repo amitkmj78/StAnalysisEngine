@@ -711,11 +711,23 @@ export default function StockScorePage() {
                     href={`/stock/${p.ticker}`}
                     className="flex items-center justify-between gap-2 py-1.5 text-sm hover:text-blue-700"
                   >
-                    <span>
+                    <span className="min-w-0">
                       <span className="font-medium text-blue-700">{p.ticker}</span>
                       {p.name && <span className="ml-1.5 text-xs text-slate-400">{p.name}</span>}
                     </span>
-                    <span className="shrink-0 font-mono text-xs text-slate-500">${p.market_cap_b.toFixed(1)}B</span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      {p.short_signal && (
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${signalBadgeClass(p.short_signal)}`}>
+                          S:{p.short_signal}
+                        </span>
+                      )}
+                      {p.long_signal && (
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${signalBadgeClass(p.long_signal)}`}>
+                          L:{p.long_signal}
+                        </span>
+                      )}
+                      <span className="font-mono text-xs text-slate-500">${p.market_cap_b.toFixed(1)}B</span>
+                    </span>
                   </Link>
                 </li>
               ))}

@@ -1208,6 +1208,10 @@ export interface StockPeer {
   ticker: string;
   name: string | null;
   market_cap_b: number;
+  short_score: number | null;
+  short_signal: TwoScoreSignal | null;
+  long_score: number | null;
+  long_signal: TwoScoreSignal | null;
 }
 
 export interface StockPeersResponse {

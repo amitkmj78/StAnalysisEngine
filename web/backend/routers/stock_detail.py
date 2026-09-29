@@ -248,7 +248,33 @@ async def get_stock_signal_history(request: Request, ticker: str, universe_id: s
 async def get_stock_peers(request: Request, ticker: str, universe_id: str = Query("All")):
     """DET-5: 5 closest stocks by sector and size — a sort/filter over
     the same universe table the Stock Finder already builds, no new
-    fetch layer."""
+    fetch layer. Each peer's latest short/long score+signal is merged
+    in (DISTINCT ON picks the newest row per ticker in one query) so the
+    list shows scores inline instead of requiring a click-through per
+    peer -- a peer with nothing computed yet just gets nulls, same
+    honest-gap convention as every other not-yet-scored ticker."""
     ticker = ticker.upper()
     df = await run_in_threadpool(get_stock_finder_table, universe_id)
-    return {"ticker": ticker, "peers": select_peers(ticker, df)}
+    peers = select_peers(ticker, df)
+
+    if peers:
+        peer_tickers = [p["ticker"] for p in peers]
+        async with service_conn() as conn:
+            score_rows = await conn.fetch(
+                """
+                SELECT DISTINCT ON (ticker) ticker, short_score, short_signal, long_score, long_signal
+                FROM stock_scores
+                WHERE ticker = ANY($1::text[]) AND universe_id = $2
+                ORDER BY ticker, as_of_date DESC
+                """,
+                peer_tickers, universe_id,
+            )
+        scores_by_ticker = {r["ticker"]: r for r in score_rows}
+        for peer in peers:
+            row = scores_by_ticker.get(peer["ticker"])
+            peer["short_score"] = row["short_score"] if row else None
+            peer["short_signal"] = row["short_signal"] if row else None
+            peer["long_score"] = row["long_score"] if row else None
+            peer["long_signal"] = row["long_signal"] if row else None
+
+    return {"ticker": ticker, "peers": peers}
