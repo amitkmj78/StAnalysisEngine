@@ -399,6 +399,21 @@ def compute_outcome_metrics_by_model_version(outcome_rows: list[dict]) -> dict[s
     return {version: compute_outcome_metrics(rows) for version, rows in by_version.items()}
 
 
+def compute_outcome_metrics_by_signal(outcome_rows: list[dict]) -> dict[str, dict]:
+    """TRK-2: compute_outcome_metrics, "by signal" -- published_signals
+    has no signal-type column at all (confirmed: it's a pure momentum
+    ranking, storing only `rank`, no Buy/Hold/Trim concept anywhere in
+    the schema), so every row here is implicitly a Buy-ranked pick, the
+    same "no Trim/Sell side" fact worst_misses' docstring already states.
+    Rather than silently omitting the "by signal" breakdown the
+    acceptance criteria asks for, this returns the one real group this
+    record actually has -- {"Buy": compute_outcome_metrics(outcome_rows)}
+    -- an honest single-group label, not a fabricated split."""
+    if not outcome_rows:
+        return {}
+    return {"Buy": compute_outcome_metrics(outcome_rows)}
+
+
 def worst_misses(outcome_rows: list[dict], top_n: int = 10) -> list[dict]:
     """TRK-5: the largest losses among published picks, sorted ascending
     by realized_return_pct. published_signals has no Trim/Sell side

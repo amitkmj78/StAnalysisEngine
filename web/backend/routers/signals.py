@@ -16,6 +16,7 @@ from services.signal_publication_service import (
     compute_calibration,
     compute_outcome_metrics,
     compute_outcome_metrics_by_model_version,
+    compute_outcome_metrics_by_signal,
     compute_predict_algo_comparison,
     compute_spy_returns_for_dates,
     confidence_for_outcome,
@@ -459,14 +460,16 @@ async def get_track_record(
     """
     TRK-2/3/5/6 (docs/stock-analysis-requirements.html): the enhanced
     public track record — average return, excess-vs-SPY, a model-version
-    breakdown, calibration, worst misses, and a model-portfolio-vs-SPY
-    growth chart — all built from the existing signal_outcomes/
-    published_signals record, same public/unauthenticated posture as
-    /outcomes and /published. Calibration's confidence is a PROXY
-    (pit_quant_signal's own stability, not this ranking's own — see
-    confidence_for_outcome's docstring), and worst_misses is Buy-side
-    only (this pipeline has no Trim/Sell concept) — both called out
-    explicitly in the response rather than silently presented as complete.
+    and signal breakdown, calibration, worst misses, and a model-
+    portfolio-vs-SPY growth chart — all built from the existing
+    signal_outcomes/published_signals record, same public/unauthenticated
+    posture as /outcomes and /published. Calibration's confidence is a
+    PROXY (pit_quant_signal's own stability, not this ranking's own — see
+    confidence_for_outcome's docstring), and worst_misses/
+    metrics_by_signal are Buy-side/single-group only (this pipeline has
+    no Trim/Sell concept in its schema at all, not just in today's data)
+    — all called out explicitly in the response rather than silently
+    presented as complete.
     """
     async with service_conn() as conn:
         rows = await conn.fetch(
@@ -491,12 +494,14 @@ async def get_track_record(
         "horizon_days": horizon_days,
         "metrics": compute_outcome_metrics([]),
         "metrics_by_model_version": {},
+        "metrics_by_signal": {},
         "avg_excess_vs_spy_pct": None,
         "calibration": compute_calibration([]),
         "worst_misses": [],
         "model_portfolio_series": [],
         "spy_portfolio_series": [],
         "trim_note": "No Trim signals are currently published against this record — worst misses shown are Buy-side only.",
+        "signal_note": "This record has no signal-type breakdown to show — published_signals has no Buy/Hold/Trim concept in its schema at all, only a momentum rank. Every published pick is implicitly a Buy.",
     }
     if not outcome_rows:
         return empty_response
@@ -530,6 +535,7 @@ async def get_track_record(
         **empty_response,
         "metrics": compute_outcome_metrics(outcome_rows),
         "metrics_by_model_version": compute_outcome_metrics_by_model_version(outcome_rows),
+        "metrics_by_signal": compute_outcome_metrics_by_signal(outcome_rows),
         "avg_excess_vs_spy_pct": compute_avg_excess_vs_spy(with_excess),
         "calibration": compute_calibration(with_confidence),
         "worst_misses": [

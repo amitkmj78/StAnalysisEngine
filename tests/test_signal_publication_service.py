@@ -11,6 +11,7 @@ from services.signal_publication_service import (
     compute_calibration,
     compute_outcome_metrics,
     compute_outcome_metrics_by_model_version,
+    compute_outcome_metrics_by_signal,
     compute_spy_returns_for_dates,
     confidence_for_outcome,
     fetch_spy_close_series,
@@ -59,6 +60,24 @@ def test_compute_outcome_metrics_by_model_version_missing_hash_grouped_unknown()
     rows = [_row(model_version_hash=None)]
     by_version = compute_outcome_metrics_by_model_version(rows)
     assert "unknown" in by_version
+
+
+def test_compute_outcome_metrics_by_signal_single_buy_group():
+    # published_signals has no signal-type column at all -- every row is
+    # implicitly a Buy-ranked pick, so this is an honest single-group
+    # label, not a fabricated split.
+    rows = [
+        _row(realized=10.0, benchmark=0.0),
+        _row(ticker="MSFT", realized=6.0, benchmark=0.0),
+    ]
+    by_signal = compute_outcome_metrics_by_signal(rows)
+    assert set(by_signal) == {"Buy"}
+    assert by_signal["Buy"]["num_evaluated_picks"] == 2
+    assert by_signal["Buy"]["avg_return_pct"] == 8.0
+
+
+def test_compute_outcome_metrics_by_signal_empty_for_no_rows():
+    assert compute_outcome_metrics_by_signal([]) == {}
 
 
 def test_worst_misses_sorted_ascending_and_capped():

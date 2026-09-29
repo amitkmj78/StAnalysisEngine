@@ -1628,12 +1628,14 @@ export interface TrackRecordResponse {
   horizon_days: number;
   metrics: TrackRecordMetrics;
   metrics_by_model_version: Record<string, TrackRecordMetrics>;
+  metrics_by_signal: Record<string, TrackRecordMetrics>;
   avg_excess_vs_spy_pct: number | null;
   calibration: TrackRecordCalibrationBucket[];
   worst_misses: TrackRecordWorstMiss[];
   model_portfolio_series: [string, number][];
   spy_portfolio_series: [string, number][];
   trim_note: string;
+  signal_note: string;
 }
 
 export interface PredictAlgoComparisonRow {

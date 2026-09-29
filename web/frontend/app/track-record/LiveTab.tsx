@@ -44,6 +44,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
   }, [horizon]);
 
   const modelVersions = trackRecord ? Object.keys(trackRecord.metrics_by_model_version) : [];
+  const signalGroups = trackRecord ? Object.keys(trackRecord.metrics_by_signal) : [];
 
   return (
     <>
@@ -226,6 +227,38 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                             return (
                               <tr key={v} className="border-b border-slate-100 last:border-0">
                                 <td className="px-2 py-1.5 font-mono">{v.slice(0, 12)}</td>
+                                <td className="px-2 py-1.5 text-right">{m.num_evaluated_picks}</td>
+                                <td className="px-2 py-1.5 text-right">{m.hit_rate_pct !== null ? `${m.hit_rate_pct.toFixed(1)}%` : "—"}</td>
+                                <td className="px-2 py-1.5 text-right">{fmtPct(m.avg_return_pct)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {signalGroups.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-slate-800">By Signal</h3>
+                    <p className="mt-1 text-xs text-slate-500">{trackRecord.signal_note}</p>
+                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                            <th className="px-2 py-1.5">Signal</th>
+                            <th className="px-2 py-1.5 text-right">Picks</th>
+                            <th className="px-2 py-1.5 text-right">Hit Rate</th>
+                            <th className="px-2 py-1.5 text-right">Avg Return</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {signalGroups.map((s) => {
+                            const m = trackRecord.metrics_by_signal[s];
+                            return (
+                              <tr key={s} className="border-b border-slate-100 last:border-0">
+                                <td className="px-2 py-1.5">{s}</td>
                                 <td className="px-2 py-1.5 text-right">{m.num_evaluated_picks}</td>
                                 <td className="px-2 py-1.5 text-right">{m.hit_rate_pct !== null ? `${m.hit_rate_pct.toFixed(1)}%` : "—"}</td>
                                 <td className="px-2 py-1.5 text-right">{fmtPct(m.avg_return_pct)}</td>
