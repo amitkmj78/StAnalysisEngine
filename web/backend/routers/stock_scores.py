@@ -27,6 +27,10 @@ router = APIRouter(prefix="/api/v1/stock-scores", tags=["stock-scores"])
 
 DEFAULT_UNIVERSE = "All"
 
+# EXP-4's drillable factors -- the same 5 keys factor_detail is always
+# keyed by (see stock_score_capture_service.compute_and_persist_daily_scores).
+FACTOR_KEYS = {"momentum", "reversal", "value", "growth", "low_vol"}
+
 
 def _parse_factor_detail(row) -> dict:
     detail = row["factor_detail"]
@@ -146,4 +150,73 @@ async def get_stock_score_weekly_change(request: Request, ticker: str, universe_
         "as_of_date": today_row["as_of_date"].isoformat(),
         "compared_to": week_ago_row["as_of_date"].isoformat() if week_ago_row is not None else None,
         "change": weekly_change_explanation(today_detail, week_ago_detail),
+    }
+
+
+@router.get("/{ticker}/factor/{factor}")
+@limiter.limit("60/minute")
+async def get_stock_factor_history(
+    request: Request, ticker: str, factor: str, universe_id: str = Query(DEFAULT_UNIVERSE)
+):
+    """EXP-4: this ticker's own history for one factor (up to the last
+    252 trading days on record -- naturally shorter than "1 year" until
+    stock_scores itself has accumulated that much history; never padded
+    to look longer than it is) alongside that same factor's sector
+    median on each of those same days, so a user can see not just the
+    trend but where the stock sits versus its peers.
+
+    One query: ticker_history pulls this ticker's own raw/percentile per
+    day, sector_medians aggregates every other stock_scores row sharing
+    both that day and this ticker's sector_key into a single median --
+    scoped to exactly the (date, sector) pairs ticker_history touches,
+    not a full-table scan."""
+    if factor not in FACTOR_KEYS:
+        raise HTTPException(400, f"factor must be one of {sorted(FACTOR_KEYS)}")
+    ticker = ticker.upper()
+
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            WITH ticker_history AS (
+                SELECT as_of_date, sector_key,
+                       (factor_detail->$3->>'raw')::float8 AS raw,
+                       (factor_detail->$3->>'percentile')::float8 AS percentile
+                FROM stock_scores
+                WHERE ticker = $1 AND universe_id = $2
+                ORDER BY as_of_date DESC
+                LIMIT 252
+            ),
+            sector_medians AS (
+                SELECT s.as_of_date,
+                       percentile_cont(0.5) WITHIN GROUP (ORDER BY (s.factor_detail->$3->>'raw')::float8) AS sector_median
+                FROM stock_scores s
+                JOIN (SELECT DISTINCT as_of_date, sector_key FROM ticker_history) th
+                  ON s.as_of_date = th.as_of_date AND s.sector_key = th.sector_key
+                WHERE s.universe_id = $2 AND (s.factor_detail->$3->>'raw') IS NOT NULL
+                GROUP BY s.as_of_date
+            )
+            SELECT th.as_of_date, th.sector_key, th.raw, th.percentile, sm.sector_median
+            FROM ticker_history th
+            LEFT JOIN sector_medians sm ON sm.as_of_date = th.as_of_date
+            ORDER BY th.as_of_date ASC
+            """,
+            ticker, universe_id, factor,
+        )
+
+    if not rows:
+        raise HTTPException(404, f"No {factor} history on record yet for {ticker}.")
+
+    return {
+        "ticker": ticker,
+        "factor": factor,
+        "sector_key": rows[-1]["sector_key"],
+        "history": [
+            {
+                "as_of_date": r["as_of_date"].isoformat(),
+                "raw": r["raw"],
+                "percentile": r["percentile"],
+                "sector_median": r["sector_median"],
+            }
+            for r in rows
+        ],
     }

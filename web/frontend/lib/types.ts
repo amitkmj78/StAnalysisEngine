@@ -1139,6 +1139,15 @@ export interface TwoScoreWeeklyChangeResponse {
   change: { factor: string; delta_contribution: number } | null;
 }
 
+export type TwoScoreFactorKey = "momentum" | "reversal" | "value" | "growth" | "low_vol";
+
+export interface TwoScoreFactorHistoryResponse {
+  ticker: string;
+  factor: TwoScoreFactorKey;
+  sector_key: string;
+  history: { as_of_date: string; raw: number | null; percentile: number | null; sector_median: number | null }[];
+}
+
 // Stock detail page (docs/stock-analysis-requirements.html DET-1..5).
 // Scores/signals/explanations are deliberately NOT part of this response
 // family -- see TwoScore* above, the single source of truth for those.

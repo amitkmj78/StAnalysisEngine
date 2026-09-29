@@ -29,11 +29,13 @@ import type {
   StockPriceHistoryResponse,
   StockSentimentResponse,
   StockSignalHistoryResponse,
+  TwoScoreFactorKey,
   TwoScoreHistoryResponse,
   TwoScoreResponse,
   TwoScoreWeeklyChangeResponse,
 } from "@/lib/types";
 import Sparkline from "@/components/portfolio/Sparkline";
+import FactorDrilldownModal from "@/components/stock-detail/FactorDrilldownModal";
 import PriceHistoryChart from "@/components/stock-detail/PriceHistoryChart";
 import TickerSearchInput from "@/components/TickerSearchInput";
 
@@ -169,6 +171,7 @@ export default function StockScorePage() {
   const ticker = (params.ticker as string)?.toUpperCase() ?? "";
 
   const [jumpTicker, setJumpTicker] = useState("");
+  const [openFactor, setOpenFactor] = useState<TwoScoreFactorKey | null>(null);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [holdings, setHoldings] = useState<(PortfolioPosition & { portfolioName: string })[]>([]);
   const [data, setData] = useState<TwoScoreResponse | null>(null);
@@ -484,13 +487,21 @@ export default function StockScorePage() {
           )}
 
           <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
-            <h3 className="text-sm font-semibold text-slate-900">Why these scores</h3>
-            <ul className="mt-2 flex flex-col gap-2 text-sm text-slate-700">
-              <li>{data.sentences.momentum}</li>
-              <li>{data.sentences.reversal}</li>
-              <li>{data.sentences.value}</li>
-              <li>{data.sentences.growth}</li>
-              <li>{data.sentences.low_vol}</li>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-900">Why these scores</h3>
+              <span className="text-xs text-slate-400">Click a factor for its history</span>
+            </div>
+            <ul className="mt-2 flex flex-col gap-1 text-sm text-slate-700">
+              {(["momentum", "reversal", "value", "growth", "low_vol"] as const).map((f) => (
+                <li key={f}>
+                  <button
+                    onClick={() => setOpenFactor(f)}
+                    className="w-full rounded-md px-2 py-1 text-left hover:bg-slate-50 hover:text-blue-700"
+                  >
+                    {data.sentences[f]}
+                  </button>
+                </li>
+              ))}
             </ul>
             <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
               Rules-based composite scores from real, already-captured data — not a trained prediction model.
@@ -714,6 +725,8 @@ export default function StockScorePage() {
           )}
         </div>
       </div>
+
+      {openFactor && <FactorDrilldownModal ticker={ticker} factor={openFactor} onClose={() => setOpenFactor(null)} />}
     </div>
   );
 }

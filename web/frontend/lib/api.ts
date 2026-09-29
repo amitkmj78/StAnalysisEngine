@@ -102,6 +102,8 @@ import type {
   TopPerformersResponse,
   Trade,
   TradeCreateInput,
+  TwoScoreFactorHistoryResponse,
+  TwoScoreFactorKey,
   TwoScoreHistoryResponse,
   TwoScoreResponse,
   TwoScoreWeeklyChangeResponse,
@@ -734,6 +736,14 @@ export function getTwoScoreHistory(ticker: string, weeks = 12) {
 
 export function getTwoScoreWeeklyChange(ticker: string) {
   return apiFetch<TwoScoreWeeklyChangeResponse>(`/api/v1/stock-scores/${encodeURIComponent(ticker)}/weekly-change`);
+}
+
+// EXP-4: a single factor's own history vs. its sector median -- the
+// "open a factor" drill-down.
+export function getTwoScoreFactorHistory(ticker: string, factor: TwoScoreFactorKey) {
+  return apiFetch<TwoScoreFactorHistoryResponse>(
+    `/api/v1/stock-scores/${encodeURIComponent(ticker)}/factor/${encodeURIComponent(factor)}`,
+  );
 }
 
 // Stock detail page (DET-1..5). Scores/signals come from getTwoScore*
