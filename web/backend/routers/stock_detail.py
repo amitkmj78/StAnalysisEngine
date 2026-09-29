@@ -23,7 +23,7 @@ from services.stock_detail_service import (
     recent_dividends,
     select_peers,
 )
-from services.stock_finder_service import _gics_sector, get_stock_finder_table
+from services.stock_finder_service import _gics_sector, get_peer_lookup_table
 from services.yfinance_cache import get_cached_dividends, get_cached_earnings_dates, get_cached_history
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn, user_conn
@@ -246,15 +246,20 @@ async def get_stock_signal_history(request: Request, ticker: str, universe_id: s
 @router.get("/{ticker}/peers")
 @limiter.limit("60/minute")
 async def get_stock_peers(request: Request, ticker: str, universe_id: str = Query("All")):
-    """DET-5: 5 closest stocks by sector and size — a sort/filter over
-    the same universe table the Stock Finder already builds, no new
-    fetch layer. Each peer's latest short/long score+signal is merged
-    in (DISTINCT ON picks the newest row per ticker in one query) so the
-    list shows scores inline instead of requiring a click-through per
-    peer -- a peer with nothing computed yet just gets nulls, same
-    honest-gap convention as every other not-yet-scored ticker."""
+    """DET-5: 5 closest stocks by sector and size. Uses
+    get_peer_lookup_table (Ticker/Name/GICS Sector/Market Cap only, from
+    .info alone) rather than the Stock Finder's own get_stock_finder_table
+    -- that one also fetches 3 years of price history per ticker to
+    compute ~15 other columns peer-matching never uses, which made this
+    endpoint's first call after any cache-cold moment (a server restart,
+    or just the top of a new hour) badly slow. Each peer's latest short/
+    long score+signal is merged in (DISTINCT ON picks the newest row per
+    ticker in one query) so the list shows scores inline instead of
+    requiring a click-through per peer -- a peer with nothing computed
+    yet just gets nulls, same honest-gap convention as every other
+    not-yet-scored ticker."""
     ticker = ticker.upper()
-    df = await run_in_threadpool(get_stock_finder_table, universe_id)
+    df = await run_in_threadpool(get_peer_lookup_table, universe_id)
     peers = select_peers(ticker, df)
 
     if peers:

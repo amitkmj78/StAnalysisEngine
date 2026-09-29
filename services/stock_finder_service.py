@@ -376,6 +376,49 @@ def get_stock_finder_table(universe_key: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _build_peer_row(ticker_symbol: str) -> dict | None:
+    """Lightweight counterpart to _build_stock_row, for DET-5's peer
+    matching (services.stock_detail_service.select_peers) -- Ticker/
+    Name/GICS Sector/Market Cap are all sourced from .info alone, so
+    this skips _build_stock_row's 3-year price-history fetch entirely
+    (and the >=70-row history length it requires, which is irrelevant
+    to peer matching and would incorrectly exclude a ticker with thin
+    price history but perfectly good sector/market-cap data)."""
+    try:
+        info = get_cached_info(ticker_symbol)
+        if not info:
+            return None
+        market_cap = info.get("marketCap")
+        return {
+            "Ticker": ticker_symbol,
+            "Name": info.get("shortName") or info.get("longName") or ticker_symbol,
+            "GICS Sector": _gics_sector(info.get("sector")),
+            "Market Cap ($B)": float(market_cap) / 1_000_000_000 if market_cap else None,
+        }
+    except Exception:
+        return None
+
+
+@ttl_cache(maxsize=64, ttl_seconds=3600)
+def get_peer_lookup_table(universe_key: str) -> pd.DataFrame:
+    """DET-5: the same universe get_stock_finder_table covers, but only
+    the 4 columns peer-matching actually needs, built from .info alone
+    -- no 3-year price-history fetch per ticker like the ~15 other
+    history-derived columns get_stock_finder_table computes (and that
+    DET-5 never uses). Same 1-hour table-level cache as
+    get_stock_finder_table, but each entry is materially cheaper to
+    build on a cold cache."""
+    tickers = _universe_tickers(universe_key)
+    rows: List[dict] = []
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_FETCHES) as executor:
+        futures = [executor.submit(_build_peer_row, ticker) for ticker in tickers]
+        for future in as_completed(futures):
+            row = future.result()
+            if row is not None:
+                rows.append(row)
+    return pd.DataFrame(rows)
+
+
 # Maps a compare-page/momentum window code to the already-computed
 # return column in get_stock_finder_table's output -- "1Y"/365 reuses the
 # existing "1Y Return %" column (there is no separate "Return 365D %"
