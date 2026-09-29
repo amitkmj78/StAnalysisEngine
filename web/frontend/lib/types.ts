@@ -1173,6 +1173,13 @@ export interface StockPositionResponse {
   weight_pct?: number | null;
 }
 
+export interface SignalOutcome {
+  entry_date: string;
+  exit_date: string;
+  realized_return_pct: number;
+  outcome: "hit" | "miss" | null;
+}
+
 export interface StockSignalHistoryResponse {
   ticker: string;
   history: {
@@ -1181,6 +1188,8 @@ export interface StockSignalHistoryResponse {
     short_signal: TwoScoreSignal;
     long_score: number | null;
     long_signal: TwoScoreSignal;
+    short_outcome: SignalOutcome | null;
+    long_outcome: SignalOutcome | null;
   }[];
   note: string;
 }

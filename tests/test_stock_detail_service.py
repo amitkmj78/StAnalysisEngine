@@ -3,7 +3,13 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from services.stock_detail_service import next_earnings_date, recent_dividends, select_peers
+from services.stock_detail_service import (
+    evaluate_signal_history,
+    evaluate_signal_outcome,
+    next_earnings_date,
+    recent_dividends,
+    select_peers,
+)
 
 
 def _universe():
@@ -83,3 +89,74 @@ def test_recent_dividends_most_recent_first():
 
 def test_recent_dividends_empty_series():
     assert recent_dividends(pd.Series(dtype=float)) == []
+
+
+def _closes(prices, start="2026-01-01"):
+    return pd.Series(prices, index=pd.bdate_range(start, periods=len(prices)))
+
+
+def test_evaluate_signal_outcome_buy_hit_when_price_rises():
+    closes = _closes([100, 101, 102, 103, 104, 105])
+    result = evaluate_signal_outcome(date(2026, 1, 1), "Buy", closes, horizon_days=3)
+    assert result["outcome"] == "hit"
+    assert result["realized_return_pct"] > 0
+
+
+def test_evaluate_signal_outcome_buy_miss_when_price_falls():
+    closes = _closes([100, 99, 98, 97, 96, 95])
+    result = evaluate_signal_outcome(date(2026, 1, 1), "Buy", closes, horizon_days=3)
+    assert result["outcome"] == "miss"
+    assert result["realized_return_pct"] < 0
+
+
+def test_evaluate_signal_outcome_trim_hit_when_price_falls():
+    closes = _closes([100, 99, 98, 97, 96, 95])
+    result = evaluate_signal_outcome(date(2026, 1, 1), "Trim", closes, horizon_days=3)
+    assert result["outcome"] == "hit"
+
+
+def test_evaluate_signal_outcome_trim_miss_when_price_rises():
+    closes = _closes([100, 101, 102, 103, 104, 105])
+    result = evaluate_signal_outcome(date(2026, 1, 1), "Trim", closes, horizon_days=3)
+    assert result["outcome"] == "miss"
+
+
+def test_evaluate_signal_outcome_hold_has_no_verdict_but_reports_return():
+    closes = _closes([100, 101, 102, 103, 104, 105])
+    result = evaluate_signal_outcome(date(2026, 1, 1), "Hold", closes, horizon_days=3)
+    assert result["outcome"] is None
+    assert result["realized_return_pct"] > 0
+
+
+def test_evaluate_signal_outcome_none_when_horizon_not_elapsed():
+    closes = _closes([100, 101, 102])
+    assert evaluate_signal_outcome(date(2026, 1, 1), "Buy", closes, horizon_days=5) is None
+
+
+def test_evaluate_signal_outcome_none_when_as_of_date_past_series_end():
+    closes = _closes([100, 101, 102])
+    assert evaluate_signal_outcome(date(2026, 6, 1), "Buy", closes, horizon_days=1) is None
+
+
+def test_evaluate_signal_outcome_none_for_empty_series():
+    assert evaluate_signal_outcome(date(2026, 1, 1), "Buy", pd.Series(dtype=float), horizon_days=1) is None
+
+
+def test_evaluate_signal_history_matures_short_but_not_long_horizon():
+    closes = _closes([100 + i for i in range(15)])  # 15 trading days, rising
+    history = [
+        {
+            "as_of_date": "2026-01-01",
+            "short_score": 75.0,
+            "short_signal": "Buy",
+            "long_score": 55.0,
+            "long_signal": "Hold",
+        }
+    ]
+    result = evaluate_signal_history(history, closes)
+    assert len(result) == 1
+    row = result[0]
+    assert row["short_score"] == 75.0  # original fields preserved
+    assert row["short_outcome"] is not None
+    assert row["short_outcome"]["outcome"] == "hit"
+    assert row["long_outcome"] is None  # 252-trading-day horizon can't mature in a 15-day series

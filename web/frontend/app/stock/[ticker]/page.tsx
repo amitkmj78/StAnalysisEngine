@@ -21,6 +21,7 @@ import {
 import type {
   Portfolio,
   PortfolioPosition,
+  SignalOutcome,
   StockDetailResponse,
   StockPeersResponse,
   StockPositionResponse,
@@ -61,6 +62,40 @@ function sentimentAccentClass(label: string): string {
   if (label === "Bullish") return "border-l-emerald-400";
   if (label === "Bearish") return "border-l-red-400";
   return "border-l-slate-300";
+}
+
+// DET-3: hit/miss (or, for Hold, just the realized return -- it made no
+// directional call to grade) next to a historical signal badge. null
+// means the horizon hasn't elapsed yet, not that nothing happened.
+function OutcomeMark({ outcome }: { outcome: SignalOutcome | null }) {
+  if (!outcome) {
+    return (
+      <span className="text-slate-300" title="Horizon hasn't elapsed yet">
+        …
+      </span>
+    );
+  }
+  const returnLabel = `${outcome.realized_return_pct >= 0 ? "+" : ""}${outcome.realized_return_pct.toFixed(1)}% by ${outcome.exit_date}`;
+  if (outcome.outcome === "hit") {
+    return (
+      <span className="font-semibold text-emerald-600" title={returnLabel}>
+        ✓
+      </span>
+    );
+  }
+  if (outcome.outcome === "miss") {
+    return (
+      <span className="font-semibold text-red-600" title={returnLabel}>
+        ✗
+      </span>
+    );
+  }
+  return (
+    <span className={outcome.realized_return_pct >= 0 ? "text-emerald-600" : "text-red-600"} title={`by ${outcome.exit_date}`}>
+      {outcome.realized_return_pct >= 0 ? "+" : ""}
+      {outcome.realized_return_pct.toFixed(1)}%
+    </span>
+  );
 }
 
 function confidenceClass(label: string): string {
@@ -610,12 +645,18 @@ export default function StockScorePage() {
                 {signalHistory.history.slice(0, 8).map((h) => (
                   <li key={h.as_of_date} className="flex items-center justify-between gap-2 py-1.5 text-xs">
                     <span className="text-slate-500">{h.as_of_date}</span>
-                    <span className="flex gap-1.5">
-                      <span className={`rounded-full px-2 py-0.5 font-medium ${signalBadgeClass(h.short_signal)}`}>
-                        {h.short_signal}
+                    <span className="flex gap-2">
+                      <span className="flex items-center gap-1">
+                        <span className={`rounded-full px-2 py-0.5 font-medium ${signalBadgeClass(h.short_signal)}`}>
+                          {h.short_signal}
+                        </span>
+                        <OutcomeMark outcome={h.short_outcome} />
                       </span>
-                      <span className={`rounded-full px-2 py-0.5 font-medium ${signalBadgeClass(h.long_signal)}`}>
-                        {h.long_signal}
+                      <span className="flex items-center gap-1">
+                        <span className={`rounded-full px-2 py-0.5 font-medium ${signalBadgeClass(h.long_signal)}`}>
+                          {h.long_signal}
+                        </span>
+                        <OutcomeMark outcome={h.long_outcome} />
                       </span>
                     </span>
                   </li>

@@ -8,6 +8,7 @@ user data). /position is the one user-specific route, auth-gated.
 
 import asyncio
 
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 
@@ -15,7 +16,7 @@ from services.cache_utils import ttl_cache
 from services.data_service import get_latest_price
 from services.ranking_utils import compute_position_concentration
 from services.sentiment_service import score_ticker_sentiment
-from services.stock_detail_service import next_earnings_date, recent_dividends, select_peers
+from services.stock_detail_service import evaluate_signal_history, next_earnings_date, recent_dividends, select_peers
 from services.stock_finder_service import _gics_sector, get_stock_finder_table
 from services.yfinance_cache import get_cached_dividends, get_cached_earnings_dates, get_cached_history
 from web.backend.auth import verify_bearer_token
@@ -186,11 +187,12 @@ async def get_stock_position(request: Request, ticker: str, portfolio_id: int | 
 @router.get("/{ticker}/signal-history")
 @limiter.limit("60/minute")
 async def get_stock_signal_history(request: Request, ticker: str, universe_id: str = Query("All")):
-    """DET-3: this stock's own history from Stage A's stock_scores table.
-    Hit/miss evaluation isn't tracked for this scoring system yet (it's
-    new -- see Stage A), so this is raw signal history only, honestly
-    labeled rather than implying an evaluated track record that doesn't
-    exist yet."""
+    """DET-3: this stock's own signal history from Stage A's stock_scores
+    table, each row evaluated against the ticker's own realized price
+    move -- see services.stock_detail_service.evaluate_signal_history for
+    the exact hit/miss rules and horizons. A row too recent for its
+    horizon to have elapsed yet reports outcome: null rather than
+    guessing -- an honest "not matured yet" gap, not a missing feature."""
     ticker = ticker.upper()
     async with service_conn() as conn:
         rows = await conn.fetch(
@@ -201,19 +203,32 @@ async def get_stock_signal_history(request: Request, ticker: str, universe_id: s
             """,
             ticker, universe_id,
         )
+    history = [
+        {
+            "as_of_date": str(r["as_of_date"]),
+            "short_score": r["short_score"],
+            "short_signal": r["short_signal"],
+            "long_score": r["long_score"],
+            "long_signal": r["long_signal"],
+        }
+        for r in rows
+    ]
+
+    try:
+        price_history = await run_in_threadpool(get_cached_history, ticker, "2y", True, None)
+        closes = price_history["Close"] if not price_history.empty else pd.Series(dtype=float)
+    except Exception:
+        closes = pd.Series(dtype=float)
+
     return {
         "ticker": ticker,
-        "history": [
-            {
-                "as_of_date": str(r["as_of_date"]),
-                "short_score": r["short_score"],
-                "short_signal": r["short_signal"],
-                "long_score": r["long_score"],
-                "long_signal": r["long_signal"],
-            }
-            for r in rows
-        ],
-        "note": "Hit/miss evaluation isn't tracked yet for this scoring system — shown as raw signal history only.",
+        "history": evaluate_signal_history(history, closes),
+        "note": (
+            "Buy/Trim signals are marked hit or miss once their horizon elapses "
+            "(10 trading days short-term, ~1 trading year long-term); Hold shows the "
+            "realized return with no verdict. A null outcome means the horizon "
+            "hasn't elapsed yet."
+        ),
     }
 
 

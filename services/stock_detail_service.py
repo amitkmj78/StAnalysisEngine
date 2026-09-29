@@ -13,6 +13,16 @@ from typing import Optional
 
 import pandas as pd
 
+# DET-3: a single evaluation horizon per score, picked from within SCR-1's
+# own stated ranges (short = 10-90 days, long = 1-3 years) rather than
+# re-deriving one per row -- 10 trading days is the earliest point a
+# short-term call is honestly checkable; 252 (~1 trading year) is the low
+# end of the long-term range. Both are trading days, not calendar days,
+# matching every other horizon-evaluation in this app (e.g.
+# signal_publication_service.evaluate_signal_outcomes_for_date).
+DET3_SHORT_HORIZON_DAYS = 10
+DET3_LONG_HORIZON_DAYS = 252
+
 
 def select_peers(ticker: str, universe_df: pd.DataFrame, top_n: int = 5) -> list[dict]:
     """DET-5: the top_n closest stocks by sector and size -- same GICS
@@ -83,3 +93,65 @@ def recent_dividends(dividends: pd.Series, top_n: int = 4) -> list[dict]:
         return []
     tail = dividends.sort_index(ascending=False).head(top_n)
     return [{"date": d.date().isoformat(), "amount": round(float(v), 4)} for d, v in tail.items()]
+
+
+def evaluate_signal_outcome(as_of_date: date, signal: str, closes: pd.Series, horizon_days: int) -> Optional[dict]:
+    """DET-3: hit/miss for one historical signal against this ticker's own
+    close-price series (date/Timestamp-indexed, sorted ascending) -- entry
+    at the first close on or after as_of_date, exit `horizon_days` trading
+    days later. Returns None when the horizon hasn't elapsed yet in the
+    series (an honest "not matured yet" gap, never guessed at) or
+    as_of_date is past the end of the series entirely.
+
+    Buy is a hit if the stock actually rose; Trim is a hit if it didn't;
+    Hold makes no directional call, so it gets no hit/miss verdict -- just
+    the realized return, same "what happened" fact every other signal
+    gets."""
+    if closes.empty:
+        return None
+    index = closes.index
+    on_or_after = index[index >= pd.Timestamp(as_of_date)]
+    if len(on_or_after) == 0:
+        return None
+    entry_idx = index.get_loc(on_or_after[0])
+
+    exit_idx = entry_idx + horizon_days
+    if exit_idx >= len(index):
+        return None  # horizon hasn't elapsed yet
+
+    entry_price = float(closes.iloc[entry_idx])
+    exit_price = float(closes.iloc[exit_idx])
+    if entry_price <= 0:
+        return None
+    realized_return_pct = (exit_price / entry_price - 1.0) * 100
+
+    outcome = None
+    if signal == "Buy":
+        outcome = "hit" if realized_return_pct > 0 else "miss"
+    elif signal == "Trim":
+        outcome = "hit" if realized_return_pct <= 0 else "miss"
+
+    return {
+        "entry_date": index[entry_idx].date().isoformat(),
+        "exit_date": index[exit_idx].date().isoformat(),
+        "realized_return_pct": round(realized_return_pct, 2),
+        "outcome": outcome,
+    }
+
+
+def evaluate_signal_history(history: list[dict], closes: pd.Series) -> list[dict]:
+    """DET-3: attaches short_outcome/long_outcome to each row of a
+    ticker's own stock_scores history. The two scores have independent,
+    non-overlapping horizons (SCR-1: 10-90 days vs 1-3 years), so each is
+    evaluated separately against the same price series."""
+    result = []
+    for row in history:
+        as_of = date.fromisoformat(row["as_of_date"])
+        result.append(
+            {
+                **row,
+                "short_outcome": evaluate_signal_outcome(as_of, row["short_signal"], closes, DET3_SHORT_HORIZON_DAYS),
+                "long_outcome": evaluate_signal_outcome(as_of, row["long_signal"], closes, DET3_LONG_HORIZON_DAYS),
+            }
+        )
+    return result
