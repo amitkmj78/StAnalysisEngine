@@ -85,6 +85,35 @@ def next_earnings_date(earnings_dates: pd.DataFrame, as_of: Optional[date] = Non
     }
 
 
+def past_earnings_dates(earnings_dates: pd.DataFrame, as_of: Optional[date] = None, limit: int = 8) -> list[dict]:
+    """DET-4: already-reported earnings dates to mark on the price chart
+    -- the same get_earnings_dates() frame next_earnings_date reads,
+    just the rows strictly before as_of instead of the next one after
+    it. Only reported_eps is surfaced (not Surprise(%), whose sign/unit
+    convention isn't confirmed against this yfinance version -- omitted
+    rather than risking a mislabeled number on a chart tooltip)."""
+    if earnings_dates.empty:
+        return []
+    index = earnings_dates.index
+    if getattr(index, "tz", None) is not None:
+        earnings_dates = earnings_dates.copy()
+        earnings_dates.index = index.tz_localize(None)
+
+    as_of_ts = pd.Timestamp(as_of or date.today())
+    past = earnings_dates[earnings_dates.index.normalize() < as_of_ts].sort_index(ascending=False).head(limit)
+
+    results = []
+    for ts, row in past.iterrows():
+        reported_eps = row.get("Reported EPS")
+        results.append(
+            {
+                "date": ts.date().isoformat(),
+                "reported_eps": None if reported_eps is None or pd.isna(reported_eps) else round(float(reported_eps), 2),
+            }
+        )
+    return results
+
+
 def recent_dividends(dividends: pd.Series, top_n: int = 4) -> list[dict]:
     """DET-1: the most recent top_n dividend payments, most recent first.
     Empty list for a stock that's never paid one -- not a missing-data

@@ -1153,6 +1153,7 @@ export interface StockDetailResponse {
     as_of_date: string | null;
   };
   next_earnings: { date: string; eps_estimate: number | null } | null;
+  past_earnings: { date: string; reported_eps: number | null }[];
   recent_dividends: { date: string; amount: number }[];
 }
 

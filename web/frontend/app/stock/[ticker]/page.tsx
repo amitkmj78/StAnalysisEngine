@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
@@ -326,6 +326,24 @@ export default function StockScorePage() {
       .finally(() => setSentimentLoading(false));
   }
 
+  // DET-4: a "change" is any day whose short/long signal differs from the
+  // prior day on record -- the first day has nothing to compare against,
+  // so it's never marked as one.
+  const signalChanges = useMemo(() => {
+    if (!signalHistory || signalHistory.history.length < 2) return [];
+    const sorted = [...signalHistory.history].sort((a, b) => a.as_of_date.localeCompare(b.as_of_date));
+    const changes: { date: string; label: string }[] = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      const parts: string[] = [];
+      if (curr.short_signal !== prev.short_signal) parts.push(`Short ${prev.short_signal}→${curr.short_signal}`);
+      if (curr.long_signal !== prev.long_signal) parts.push(`Long ${prev.long_signal}→${curr.long_signal}`);
+      if (parts.length > 0) changes.push({ date: curr.as_of_date, label: parts.join(", ") });
+    }
+    return changes;
+  }, [signalHistory]);
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -383,6 +401,9 @@ export default function StockScorePage() {
           range={priceRange}
           onRangeChange={setPriceRange}
           loading={priceLoading}
+          pastEarnings={detail?.past_earnings ?? []}
+          recentDividends={detail?.recent_dividends ?? []}
+          signalChanges={signalChanges}
         />
       </div>
 

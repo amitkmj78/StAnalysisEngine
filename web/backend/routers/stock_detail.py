@@ -16,7 +16,13 @@ from services.cache_utils import ttl_cache
 from services.data_service import get_latest_price
 from services.ranking_utils import compute_position_concentration
 from services.sentiment_service import score_ticker_sentiment
-from services.stock_detail_service import evaluate_signal_history, next_earnings_date, recent_dividends, select_peers
+from services.stock_detail_service import (
+    evaluate_signal_history,
+    next_earnings_date,
+    past_earnings_dates,
+    recent_dividends,
+    select_peers,
+)
 from services.stock_finder_service import _gics_sector, get_stock_finder_table
 from services.yfinance_cache import get_cached_dividends, get_cached_earnings_dates, get_cached_history
 from web.backend.auth import verify_bearer_token
@@ -51,7 +57,11 @@ async def get_stock_detail(request: Request, ticker: str):
     """DET-1: key stats, fundamentals, earnings date, dividends. Current
     signals/reasons are deliberately NOT duplicated here -- the frontend
     already calls GET /stock-scores/{ticker} (Stage A) for that, one
-    source of truth rather than two endpoints that could drift."""
+    source of truth rather than two endpoints that could drift.
+
+    past_earnings feeds DET-4's chart markers -- reads the same
+    already-fetched earnings_dates frame next_earnings does, no second
+    fetch."""
     ticker = ticker.upper()
     async with service_conn() as conn:
         fundamentals_row = await conn.fetchrow(
@@ -81,6 +91,7 @@ async def get_stock_detail(request: Request, ticker: str):
             "as_of_date": str(fundamentals_row["as_of_date"]) if fundamentals_row else None,
         },
         "next_earnings": next_earnings_date(earnings_dates),
+        "past_earnings": past_earnings_dates(earnings_dates),
         "recent_dividends": recent_dividends(dividends),
     }
 

@@ -7,6 +7,7 @@ from services.stock_detail_service import (
     evaluate_signal_history,
     evaluate_signal_outcome,
     next_earnings_date,
+    past_earnings_dates,
     recent_dividends,
     select_peers,
 )
@@ -79,6 +80,41 @@ def test_next_earnings_date_none_eps_estimate_when_not_provided():
     earnings = pd.DataFrame({"EPS Estimate": [None]}, index=pd.to_datetime(["2026-03-15"]))
     result = next_earnings_date(earnings, as_of=date(2026, 2, 1))
     assert result == {"date": "2026-03-15", "eps_estimate": None}
+
+
+def test_past_earnings_dates_returns_only_dates_before_as_of_most_recent_first():
+    earnings = pd.DataFrame(
+        {"Reported EPS": [1.1, 1.3, None]},
+        index=pd.to_datetime(["2025-09-15", "2025-12-15", "2026-06-15"]),
+    )
+    result = past_earnings_dates(earnings, as_of=date(2026, 2, 1))
+    assert result == [
+        {"date": "2025-12-15", "reported_eps": 1.3},
+        {"date": "2025-09-15", "reported_eps": 1.1},
+    ]
+
+
+def test_past_earnings_dates_respects_limit():
+    earnings = pd.DataFrame(
+        {"Reported EPS": [1.0, 1.1, 1.2]},
+        index=pd.to_datetime(["2025-01-01", "2025-04-01", "2025-07-01"]),
+    )
+    result = past_earnings_dates(earnings, as_of=date(2026, 1, 1), limit=2)
+    assert len(result) == 2
+    assert result[0]["date"] == "2025-07-01"
+
+
+def test_past_earnings_dates_empty_input():
+    assert past_earnings_dates(pd.DataFrame()) == []
+
+
+def test_past_earnings_dates_handles_tz_aware_index_without_crashing():
+    earnings = pd.DataFrame(
+        {"Reported EPS": [2.0]},
+        index=pd.date_range("2025-03-15", periods=1, tz="America/New_York"),
+    )
+    result = past_earnings_dates(earnings, as_of=date(2026, 2, 1))
+    assert result == [{"date": "2025-03-15", "reported_eps": 2.0}]
 
 
 def test_recent_dividends_most_recent_first():
