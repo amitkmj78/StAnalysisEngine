@@ -1891,7 +1891,12 @@ def _worker_deploy(job_id: str, req: DeployRequest) -> None:
             app_service_pw = secrets.token_hex(16)
             session_secret = secrets.token_hex(32)
 
-            schema_sql = _SCHEMA_SQL.format(app_user_pw=app_user_pw, app_service_pw=app_service_pw)
+            # Plain substitution, not .format() -- _SCHEMA_SQL contains
+            # literal unescaped braces (e.g. default '{}'::jsonb) that
+            # .format() misreads as positional placeholders and raises
+            # IndexError on, confirmed live against a local sync of this
+            # exact script.
+            schema_sql = _SCHEMA_SQL.replace("{app_user_pw}", app_user_pw).replace("{app_service_pw}", app_service_pw)
             sftp.putfo(io.BytesIO(schema_sql.encode()), "/tmp/schema.sql")
             _ssh_exec(client, "sudo -u postgres createdb stanalysisengine 2>/dev/null; true")
             out, err, rc = _ssh_exec(client, "sudo -u postgres psql -d stanalysisengine -f /tmp/schema.sql", timeout=60)
