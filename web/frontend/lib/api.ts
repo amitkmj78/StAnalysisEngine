@@ -85,6 +85,7 @@ import type {
   SavedPrediction,
   PresetScreen,
   SavedScreen,
+  SavedScreenAlert,
   SavedStrategyPlan,
   SignalOutcomesResponse,
   TrackRecordResponse,
@@ -307,6 +308,14 @@ export function disableBasketRebalance() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/basket-rebalance/disable", "POST");
 }
 
+export function enableSavedScreenAlerts() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/saved-screen-alerts/enable", "POST");
+}
+
+export function disableSavedScreenAlerts() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/saved-screen-alerts/disable", "POST");
+}
+
 export function scanRebalanceAlertsNow(rebalanceFrequency?: "monthly" | "quarterly") {
   const suffix = rebalanceFrequency ? `?rebalance_frequency=${rebalanceFrequency}` : "";
   return apiSend<{ inserted: number }>(`/api/v1/portfolio/rebalance-alerts/scan-now${suffix}`, "POST");
@@ -346,6 +355,10 @@ export function deleteScreen(screenId: number) {
 
 export function getPresetScreens() {
   return apiFetch<{ presets: PresetScreen[] }>("/api/v1/stock-finder/presets");
+}
+
+export function getSavedScreenAlerts() {
+  return apiFetch<{ alerts: SavedScreenAlert[] }>("/api/v1/stock-finder/screen-alerts");
 }
 
 // Index Fund Finder

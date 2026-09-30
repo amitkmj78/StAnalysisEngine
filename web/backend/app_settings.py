@@ -77,6 +77,12 @@ PRICE_DATA_PROVIDER_DEFAULT = "yahoo"
 # load) and writes user-visible content (a rebalance alert), same
 # opt-in rationale as PORTFOLIO_DROP_ALERTS_ENABLED_KEY.
 BASKET_REBALANCE_ENABLED_KEY = "basket_rebalance_enabled"
+# Defaults OFF: re-ranks every saved screen's universe nightly and, on a
+# genuine enter/leave change, emails the screen's owner (SCN-3) -- the
+# first Stock Finder feature that emails a user automatically, so it gets
+# the same deliberate admin opt-in as PORTFOLIO_DROP_ALERTS_ENABLED_KEY
+# rather than defaulting on the moment this deploys.
+SAVED_SCREEN_ALERTS_ENABLED_KEY = "saved_screen_alerts_enabled"
 # Defaults OFF: a continuous ~50-minute-interval scan of the "All"/S&P 500
 # stock-finder universes purely to keep get_stock_finder_table's cache
 # warm (see the Diversified Basket page's <3s generation goal) — a real,

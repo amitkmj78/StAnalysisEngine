@@ -9,6 +9,7 @@ from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.email_service import APP_URL, send_admin_alert_email, send_rankings_email
 from services.prediction_verification_service import verify_prediction
+from services.saved_screen_alert_service import scan_saved_screens_for_membership_changes
 from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE, TRACK_RECORD_HORIZONS
 from services.stock_finder_service import SP500_UNIVERSE_NAME, get_stock_finder_table
 from services.stock_score_capture_service import compute_and_persist_daily_scores
@@ -23,6 +24,7 @@ from web.backend.app_settings import (
     PIT_QUANT_SIGNAL_CAPTURE_ENABLED_KEY,
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
+    SAVED_SCREEN_ALERTS_ENABLED_KEY,
     STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY,
     STOCK_SCORE_COMPUTE_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
@@ -338,6 +340,28 @@ async def _compute_stock_scores_job() -> None:
         logger.info("Scheduler: stock score capture — %d tickers newly scored", inserted)
 
 
+SAVED_SCREEN_ALERTS_HOUR_ET = 16
+# 15 minutes after STOCK_SCORE_COMPUTE_HOUR_ET/MINUTE_ET so a saved screen
+# filtering on Short/Long-Term Score or Signal sees today's fresh
+# stock_scores rows, not yesterday's.
+SAVED_SCREEN_ALERTS_MINUTE_ET = 30
+
+
+async def _scan_saved_screen_alerts_job() -> None:
+    """SCN-3: re-applies every saved screen's own filters to today's fresh
+    Stock Finder table and emails the owner on a genuine enter/leave
+    change. Off by default -- the first Stock Finder feature that emails a
+    user automatically, same admin-opt-in rationale as portfolio drop
+    alerts (see SAVED_SCREEN_ALERTS_ENABLED_KEY)."""
+    if not await get_setting_bool(SAVED_SCREEN_ALERTS_ENABLED_KEY, default=False):
+        logger.info("Scheduler: saved_screen_alerts is disabled, skipping this run")
+        return
+
+    emailed = await scan_saved_screens_for_membership_changes()
+    if emailed:
+        logger.info("Scheduler: %d saved-screen alert emails sent", emailed)
+
+
 async def _capture_pit_analyst_ratings_job() -> None:
     """Appends today's real, third-party analyst consensus (same data as
     the Stock Screener's "Analyst Rating" column) to pit_analyst_rating
@@ -645,6 +669,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="compute_stock_scores",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _scan_saved_screen_alerts_job,
+        CronTrigger(
+            hour=SAVED_SCREEN_ALERTS_HOUR_ET, minute=SAVED_SCREEN_ALERTS_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="scan_saved_screen_alerts",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

@@ -11,7 +11,7 @@ price series.
 import pandas as pd
 import pytest
 
-from services.stock_finder_service import _annualized_return, _pct_return, _build_stock_row, rank_stocks_by_window_return
+from services.stock_finder_service import _annualized_return, _pct_return, _build_stock_row, apply_filters, rank_stocks_by_window_return
 import services.stock_finder_service as sfs
 
 
@@ -189,3 +189,109 @@ def test_build_stock_row_dividend_yield_none_when_missing(monkeypatch):
     monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info(dividendYield=None))
 
     assert _build_stock_row("AAA")["Dividend Yield %"] is None
+
+
+# ---------------------------------------------------------------------------
+# apply_filters -- SCN-3's server-side re-implementation of the Stock
+# Finder page's own client-side filteredResults predicate. Must match that
+# predicate's semantics exactly, or a saved-screen alert would silently
+# diverge from what the UI shows.
+# ---------------------------------------------------------------------------
+
+
+def _filter_test_df():
+    return pd.DataFrame([
+        {
+            "Ticker": "AAA", "Sector": "Technology", "Market Cap ($B)": 500.0, "Forward PE": 18.0,
+            "Volume Strength %": 5.0, "Dividend Yield %": 2.5, "6M Volatility %": 15.0,
+            "3M Return %": 8.0, "Earnings Growth %": 12.0,
+        },
+        {
+            "Ticker": "BBB", "Sector": "Energy", "Market Cap ($B)": 50.0, "Forward PE": 35.0,
+            "Volume Strength %": -2.0, "Dividend Yield %": 0.5, "6M Volatility %": 40.0,
+            "3M Return %": -10.0, "Earnings Growth %": -3.0,
+        },
+        {
+            "Ticker": "CCC", "Sector": "Technology", "Market Cap ($B)": 5.0, "Forward PE": None,
+            "Volume Strength %": None, "Dividend Yield %": None, "6M Volatility %": None,
+            "3M Return %": None, "Earnings Growth %": None,
+        },
+    ])
+
+
+def _filter_test_scores():
+    return {
+        "AAA": {"short_score": 70.0, "short_signal": "Buy", "long_score": 60.0, "long_signal": "Hold"},
+        "BBB": {"short_score": 30.0, "short_signal": "Trim", "long_score": 40.0, "long_signal": "Trim"},
+    }
+
+
+def test_apply_filters_no_filters_matches_everything():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {})
+    assert matched == ["AAA", "BBB", "CCC"]
+
+
+def test_apply_filters_market_cap_range():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"marketCapMin": "100"})
+    assert matched == ["AAA"]
+
+
+def test_apply_filters_sector():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"sectors": ["Energy"]})
+    assert matched == ["BBB"]
+
+
+def test_apply_filters_dividend_yield_min_excludes_missing():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"dividendYieldMin": "1"})
+    assert matched == ["AAA"]
+
+
+def test_apply_filters_volatility_max():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"volatilityMax": "20"})
+    assert matched == ["AAA"]
+
+
+def test_apply_filters_momentum_range():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"momentumMin": "0"})
+    assert matched == ["AAA"]
+
+
+def test_apply_filters_earnings_growth_range():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"earningsGrowthMax": "0"})
+    assert matched == ["BBB"]
+
+
+def test_apply_filters_short_score_and_signal():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"shortScoreMin": "50", "shortSignal": ["Buy"]})
+    assert matched == ["AAA"]
+
+
+def test_apply_filters_long_signal_excludes_unscored_ticker():
+    # CCC has no row in `scores` at all -- must be excluded, not KeyError.
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"longSignal": ["Hold", "Trim"]})
+    assert matched == ["AAA", "BBB"]
+
+
+def test_apply_filters_owned_only():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"owned": "only"}, owned_tickers={"BBB"})
+    assert matched == ["BBB"]
+
+
+def test_apply_filters_owned_exclude():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"owned": "exclude"}, owned_tickers={"BBB"})
+    assert matched == ["AAA", "CCC"]
+
+
+def test_apply_filters_watchlisted_only():
+    matched = apply_filters(
+        _filter_test_df(), _filter_test_scores(), {"watchlisted": "only"}, watchlisted_tickers={"AAA", "CCC"},
+    )
+    assert matched == ["AAA", "CCC"]
+
+
+def test_apply_filters_combines_multiple_dimensions():
+    matched = apply_filters(
+        _filter_test_df(), _filter_test_scores(),
+        {"sectors": ["Technology"], "marketCapMin": "100", "shortSignal": ["Buy"]},
+    )
+    assert matched == ["AAA"]

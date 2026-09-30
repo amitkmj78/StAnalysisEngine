@@ -186,6 +186,16 @@ export interface SavedScreen {
   saved_at: string;
 }
 
+export interface SavedScreenAlert {
+  id: number;
+  screen_id: number;
+  check_date: string;
+  entered: string[];
+  left_tickers: string[];
+  membership: string[];
+  emailed_at: string | null;
+}
+
 export interface PresetScreen {
   key: string;
   name: string;
@@ -1330,6 +1340,7 @@ export interface AdminSettings {
   free_tier_lag_days: number;
   price_data_provider: "yahoo" | "alpaca";
   basket_rebalance_enabled: boolean;
+  saved_screen_alerts_enabled: boolean;
   stock_finder_cache_prewarm_enabled: boolean;
 }
 

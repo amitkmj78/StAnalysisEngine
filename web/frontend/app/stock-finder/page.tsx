@@ -14,6 +14,7 @@ import {
   getAnalystRating,
   getPredictionSummary,
   getPresetScreens,
+  getSavedScreenAlerts,
   getScreens,
   getStockRanking,
   getStockScore,
@@ -25,6 +26,7 @@ import type {
   AnalystRatingSummary,
   PresetScreen,
   SavedScreen,
+  SavedScreenAlert,
   ScreenSnapshotRow,
   SignalOut,
   StockRankRow,
@@ -415,6 +417,7 @@ export default function StockFinderPage() {
 
   const [screens, setScreens] = useState<SavedScreen[]>([]);
   const [screensLoading, setScreensLoading] = useState(false);
+  const [screenAlerts, setScreenAlerts] = useState<Record<number, SavedScreenAlert>>({});
   const [screenName, setScreenName] = useState("");
   const [savingScreen, setSavingScreen] = useState(false);
   const [saveScreenMessage, setSaveScreenMessage] = useState<string | null>(null);
@@ -471,6 +474,13 @@ export default function StockFinderPage() {
       // Non-fatal — saved screens are supplementary.
     } finally {
       setScreensLoading(false);
+    }
+    try {
+      const res = await getSavedScreenAlerts();
+      setScreenAlerts(Object.fromEntries(res.alerts.map((a) => [a.screen_id, a])));
+    } catch {
+      // Non-fatal -- the enter/leave badge is supplementary (SCN-3 may
+      // also just be disabled server-side, which returns an empty list).
     }
   }
 
@@ -984,6 +994,14 @@ export default function StockFinderPage() {
                         <span className={PF.ink}>
                           <strong>{s.name}</strong> &middot; {s.goal} &middot; {s.universe} &middot;{" "}
                           {new Date(s.saved_at).toLocaleDateString()}
+                          {screenAlerts[s.id] && (screenAlerts[s.id].entered.length > 0 || screenAlerts[s.id].left_tickers.length > 0) && (
+                            <span
+                              title={`Entered: ${screenAlerts[s.id].entered.join(", ") || "none"} · Left: ${screenAlerts[s.id].left_tickers.join(", ") || "none"}`}
+                              className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${PF.warnBg} ${PF.warnText}`}
+                            >
+                              +{screenAlerts[s.id].entered.length} entered, {screenAlerts[s.id].left_tickers.length} dropped since last check
+                            </span>
+                          )}
                         </span>
                         <span className="flex items-center gap-2">
                           <button onClick={() => handleLoadScreen(s)} className={`${PF.btn} px-2 py-1 text-xs`}>

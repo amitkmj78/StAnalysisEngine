@@ -333,6 +333,93 @@ def send_portfolio_drop_alert_email(
     return _send_email(to_email, subject, text_body, html_body)
 
 
+SCREEN_ALERT_TEXT_TEMPLATE = """"{screen_name}" changed since the last check
+
+New entrants: {entered_line}
+Dropped out:  {left_line}
+
+View this screen: {app_url}/stock-finder
+
+Sent once per day this screen's matching tickers actually change -- not on
+every nightly run, and never a repeat for the same change.
+"""
+
+SCREEN_ALERT_HTML_TEMPLATE = """\
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+            <tr>
+              <td style="background-color:#0f172a;padding:24px 32px;">
+                <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;letter-spacing:0.2px;">
+                  StAnalysisEngine
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;color:#0f172a;">
+                  &quot;{screen_name}&quot; changed
+                </p>
+                <p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#15803d;">New entrants</p>
+                <p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;">{entered_line}</p>
+                <p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#b91c1c;">Dropped out</p>
+                <p style="margin:0 0 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;">{left_line}</p>
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="border-radius:8px;background-color:#0f172a;">
+                      <a href="{app_url}/stock-finder" style="display:inline-block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">
+                        View this screen
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:24px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.6;color:#94a3b8;">
+                  Sent once per day this screen's matching tickers actually change -- not on every
+                  nightly run, and never a repeat for the same change.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
+                <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;">
+                  StAnalysisEngine · AI-assisted stock analysis
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
+
+
+def send_saved_screen_alert_email(to_email: str, screen_name: str, entered: list[str], left: list[str]) -> bool:
+    """
+    SCN-3: sent once per day a saved screen's matching-ticker set actually
+    changes (services/saved_screen_alert_service.py calls this only when
+    the day's membership diff is non-empty AND the day's alert row is a
+    fresh insert, never on a same-day re-run) -- same fail-open behavior
+    and "only on a genuine new event" discipline as
+    send_portfolio_drop_alert_email above.
+    """
+    entered_line = ", ".join(entered) if entered else "none"
+    left_line = ", ".join(left) if left else "none"
+    text_body = SCREEN_ALERT_TEXT_TEMPLATE.format(
+        screen_name=screen_name, entered_line=entered_line, left_line=left_line, app_url=APP_URL,
+    )
+    html_body = SCREEN_ALERT_HTML_TEMPLATE.format(
+        screen_name=screen_name, entered_line=entered_line, left_line=left_line, app_url=APP_URL,
+    )
+    subject = f"\"{screen_name}\" changed: {len(entered)} new, {len(left)} dropped"
+    return _send_email(to_email, subject, text_body, html_body)
+
+
 def send_password_reset_email(to_email: str, reset_link: str) -> bool:
     """
     Same fail-open behavior as every other email here: if SMTP isn't

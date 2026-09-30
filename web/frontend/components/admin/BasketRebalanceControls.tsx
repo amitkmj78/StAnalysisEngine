@@ -5,8 +5,10 @@ import { useEffect, useState } from "react";
 import {
   ApiError,
   disableBasketRebalance,
+  disableSavedScreenAlerts,
   disableStockFinderCachePrewarm,
   enableBasketRebalance,
+  enableSavedScreenAlerts,
   enableStockFinderCachePrewarm,
   getAdminSettings,
   scanRebalanceAlertsNow,
@@ -15,9 +17,10 @@ import {
 export default function BasketRebalanceControls() {
   const [rebalanceEnabled, setRebalanceEnabled] = useState<boolean | null>(null);
   const [prewarmEnabled, setPrewarmEnabled] = useState<boolean | null>(null);
+  const [screenAlertsEnabled, setScreenAlertsEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"rebalance" | "prewarm" | null>(null);
-  const [confirming, setConfirming] = useState<"rebalance" | "prewarm" | null>(null);
+  const [busy, setBusy] = useState<"rebalance" | "prewarm" | "screenAlerts" | null>(null);
+  const [confirming, setConfirming] = useState<"rebalance" | "prewarm" | "screenAlerts" | null>(null);
 
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
@@ -29,6 +32,7 @@ export default function BasketRebalanceControls() {
       const settings = await getAdminSettings();
       setRebalanceEnabled(settings.basket_rebalance_enabled);
       setPrewarmEnabled(settings.stock_finder_cache_prewarm_enabled);
+      setScreenAlertsEnabled(settings.saved_screen_alerts_enabled);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load Diversified Basket settings.");
     }
@@ -69,6 +73,24 @@ export default function BasketRebalanceControls() {
       setPrewarmEnabled(result.stock_finder_cache_prewarm_enabled);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to update cache prewarm setting.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleToggleScreenAlerts() {
+    if (!screenAlertsEnabled && confirming !== "screenAlerts") {
+      setConfirming("screenAlerts");
+      return;
+    }
+    setBusy("screenAlerts");
+    setError(null);
+    setConfirming(null);
+    try {
+      const result = screenAlertsEnabled ? await disableSavedScreenAlerts() : await enableSavedScreenAlerts();
+      setScreenAlertsEnabled(result.saved_screen_alerts_enabled);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update saved screen alerts setting.");
     } finally {
       setBusy(null);
     }
@@ -203,6 +225,59 @@ export default function BasketRebalanceControls() {
             <button
               onClick={() => setConfirming(null)}
               disabled={busy === "prewarm"}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 border-t border-amber-200 pt-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="font-medium text-slate-900">Saved Screen Alerts (SCN-3)</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Nightly (16:30 ET, after the day&apos;s scores compute), re-applies every saved screen&apos;s own
+              filters to the fresh Stock Finder table and emails the owner when a ticker enters or leaves —
+              only on a genuine change, never a repeat for the same one.
+            </p>
+          </div>
+          {screenAlertsEnabled !== null && (
+            <span
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
+                screenAlertsEnabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {screenAlertsEnabled ? "Scanning" : "Disabled"}
+            </span>
+          )}
+        </div>
+
+        {confirming === "screenAlerts" && !screenAlertsEnabled && (
+          <p className="mt-3 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">
+            Click again to confirm — this starts emailing users automatically.
+          </p>
+        )}
+
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            onClick={handleToggleScreenAlerts}
+            disabled={busy === "screenAlerts" || screenAlertsEnabled === null}
+            className={`rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 ${
+              screenAlertsEnabled
+                ? "border border-red-200 text-red-700 hover:bg-red-50"
+                : confirming === "screenAlerts"
+                ? "bg-amber-600 text-white hover:bg-amber-700"
+                : "bg-slate-900 text-white hover:bg-slate-800"
+            }`}
+          >
+            {busy === "screenAlerts" ? "Updating…" : screenAlertsEnabled ? "Disable" : confirming === "screenAlerts" ? "Confirm Enable" : "Enable"}
+          </button>
+          {confirming === "screenAlerts" && !screenAlertsEnabled && (
+            <button
+              onClick={() => setConfirming(null)}
+              disabled={busy === "screenAlerts"}
               className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
             >
               Cancel

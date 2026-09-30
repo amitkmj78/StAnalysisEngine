@@ -315,3 +315,31 @@ async def delete_screen(request: Request, screen_id: int):
     if row is None:
         raise HTTPException(404, "Saved screen not found.")
     return {"ok": True}
+
+
+def _screen_alert_to_dict(record) -> dict:
+    row = {k: record[k] for k in record.keys()}
+    for col in ("entered", "left_tickers", "membership"):
+        if isinstance(row.get(col), str):
+            row[col] = json.loads(row[col])
+    return row
+
+
+@router.get("/screen-alerts")
+async def list_screen_alerts(request: Request):
+    """SCN-3: each saved screen's latest enter/leave check (see
+    services/saved_screen_alert_service.py's nightly scan) -- RLS-scoped
+    via user_conn, same as /screens above, so this never leaks another
+    user's screens/alerts."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        records = await conn.fetch(
+            """
+            SELECT DISTINCT ON (screen_id) *
+            FROM saved_screen_alerts
+            WHERE user_id = $1::uuid
+            ORDER BY screen_id, check_date DESC
+            """,
+            user_id,
+        )
+    return {"alerts": [_screen_alert_to_dict(r) for r in records]}

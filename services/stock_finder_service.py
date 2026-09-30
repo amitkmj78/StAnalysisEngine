@@ -528,6 +528,101 @@ def rank_stocks(goal: str, universe_key: str) -> pd.DataFrame:
     )
 
 
+def apply_filters(
+    df: pd.DataFrame,
+    scores: Dict[str, dict],
+    filters: dict,
+    owned_tickers: Optional[set] = None,
+    watchlisted_tickers: Optional[set] = None,
+) -> List[str]:
+    """SCN-3: a pure Python re-implementation of the Stock Finder page's own
+    client-side filteredResults predicate (web/frontend/app/stock-finder/
+    page.tsx), so a saved screen's server-side nightly re-check (see
+    services/saved_screen_alert_service.py) matches exactly what the user
+    saw when they saved it. `scores` is a fetch_latest_scores(...)-shaped
+    dict (ticker -> {short_score, short_signal, long_score, long_signal}).
+
+    MAINTENANCE NOTE: any new filter dimension added to page.tsx's
+    FilterState needs a matching branch here, or saved-screen alerts will
+    silently diverge from what the UI actually shows. Returns the list of
+    matching tickers (not a filtered DataFrame -- the caller only needs
+    the membership set for its enter/leave diff)."""
+    owned_tickers = owned_tickers or set()
+    watchlisted_tickers = watchlisted_tickers or set()
+
+    def _num(key: str) -> Optional[float]:
+        v = filters.get(key)
+        return float(v) if isinstance(v, str) and v != "" else None
+
+    market_cap_min, market_cap_max = _num("marketCapMin"), _num("marketCapMax")
+    forward_pe_min, forward_pe_max = _num("forwardPeMin"), _num("forwardPeMax")
+    volume_strength_min = _num("volumeStrengthMin")
+    dividend_yield_min = _num("dividendYieldMin")
+    volatility_max = _num("volatilityMax")
+    momentum_min, momentum_max = _num("momentumMin"), _num("momentumMax")
+    earnings_growth_min, earnings_growth_max = _num("earningsGrowthMin"), _num("earningsGrowthMax")
+    short_score_min, short_score_max = _num("shortScoreMin"), _num("shortScoreMax")
+    long_score_min, long_score_max = _num("longScoreMin"), _num("longScoreMax")
+    sectors = set(filters.get("sectors") or [])
+    short_signal = set(filters.get("shortSignal") or [])
+    long_signal = set(filters.get("longSignal") or [])
+    owned = filters.get("owned", "any")
+    watchlisted = filters.get("watchlisted", "any")
+
+    def _in_range(value, lo, hi) -> bool:
+        if lo is None and hi is None:
+            return True
+        if value is None or pd.isna(value):
+            return False
+        if lo is not None and value < lo:
+            return False
+        if hi is not None and value > hi:
+            return False
+        return True
+
+    matched: List[str] = []
+    for row in df.to_dict(orient="records"):
+        ticker = row["Ticker"]
+        if not _in_range(row.get("Market Cap ($B)"), market_cap_min, market_cap_max):
+            continue
+        if not _in_range(row.get("Forward PE"), forward_pe_min, forward_pe_max):
+            continue
+        if volume_strength_min is not None and not _in_range(row.get("Volume Strength %"), volume_strength_min, None):
+            continue
+        if sectors and row.get("Sector") not in sectors:
+            continue
+        if dividend_yield_min is not None and not _in_range(row.get("Dividend Yield %"), dividend_yield_min, None):
+            continue
+        if volatility_max is not None and not _in_range(row.get("6M Volatility %"), None, volatility_max):
+            continue
+        if not _in_range(row.get("3M Return %"), momentum_min, momentum_max):
+            continue
+        if not _in_range(row.get("Earnings Growth %"), earnings_growth_min, earnings_growth_max):
+            continue
+
+        s = scores.get(ticker, {})
+        if not _in_range(s.get("short_score"), short_score_min, short_score_max):
+            continue
+        if not _in_range(s.get("long_score"), long_score_min, long_score_max):
+            continue
+        if short_signal and s.get("short_signal") not in short_signal:
+            continue
+        if long_signal and s.get("long_signal") not in long_signal:
+            continue
+
+        if owned == "only" and ticker not in owned_tickers:
+            continue
+        if owned == "exclude" and ticker in owned_tickers:
+            continue
+        if watchlisted == "only" and ticker not in watchlisted_tickers:
+            continue
+        if watchlisted == "exclude" and ticker in watchlisted_tickers:
+            continue
+
+        matched.append(ticker)
+    return matched
+
+
 def get_basket_candidates(goal: str, universe_key: str) -> tuple[pd.DataFrame, List[dict], str]:
     """
     Classifies every ticker in universe_key into eligible-for-the-basket

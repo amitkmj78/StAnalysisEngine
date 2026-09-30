@@ -33,6 +33,7 @@ from web.backend.app_settings import (
     PRICE_DATA_PROVIDER_DEFAULT,
     PRICE_DATA_PROVIDER_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
+    SAVED_SCREEN_ALERTS_ENABLED_KEY,
     STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY,
     STOCK_SCORE_COMPUTE_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
@@ -76,6 +77,7 @@ async def get_settings():
         "free_tier_lag_days": await get_setting_int(FREE_TIER_LAG_DAYS_KEY, default=FREE_TIER_LAG_DAYS_DEFAULT),
         "price_data_provider": await get_setting_str(PRICE_DATA_PROVIDER_KEY, default=PRICE_DATA_PROVIDER_DEFAULT),
         "basket_rebalance_enabled": await get_setting_bool(BASKET_REBALANCE_ENABLED_KEY, default=False),
+        "saved_screen_alerts_enabled": await get_setting_bool(SAVED_SCREEN_ALERTS_ENABLED_KEY, default=False),
         "stock_finder_cache_prewarm_enabled": await get_setting_bool(
             STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY, default=False
         ),
@@ -205,6 +207,21 @@ async def enable_basket_rebalance():
 async def disable_basket_rebalance():
     await set_setting_bool(BASKET_REBALANCE_ENABLED_KEY, False)
     return {"basket_rebalance_enabled": False}
+
+
+@router.post("/saved-screen-alerts/enable")
+async def enable_saved_screen_alerts():
+    """Starts the nightly saved-screen membership scan on the next
+    scheduler tick -- emails a screen's owner only on a genuine
+    enter/leave change, never on a no-op re-run."""
+    await set_setting_bool(SAVED_SCREEN_ALERTS_ENABLED_KEY, True)
+    return {"saved_screen_alerts_enabled": True}
+
+
+@router.post("/saved-screen-alerts/disable")
+async def disable_saved_screen_alerts():
+    await set_setting_bool(SAVED_SCREEN_ALERTS_ENABLED_KEY, False)
+    return {"saved_screen_alerts_enabled": False}
 
 
 @router.post("/stock-finder-cache-prewarm/enable")

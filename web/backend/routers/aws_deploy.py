@@ -782,6 +782,32 @@ create policy saved_screens_isolation on saved_screens for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- SCN-3: one row per saved screen per day it's checked, written by the
+-- nightly scan (see services/saved_screen_alert_service.py). `membership`
+-- is the full set of tickers matching that screen as of check_date --
+-- storing the whole set (not just top-10, unlike snapshot_top10 above)
+-- means the NEXT day's enter/leave diff is just "most recent row's
+-- membership", no mutation of saved_screens itself needed.
+create table if not exists saved_screen_alerts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  screen_id bigint not null references saved_screens(id) on delete cascade,
+  check_date date not null,
+  entered jsonb not null default '[]'::jsonb,
+  left_tickers jsonb not null default '[]'::jsonb,
+  membership jsonb not null default '[]'::jsonb,
+  emailed_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (screen_id, check_date)
+);
+create index if not exists saved_screen_alerts_screen_idx on saved_screen_alerts(screen_id, check_date desc);
+create index if not exists saved_screen_alerts_user_idx on saved_screen_alerts(user_id, created_at desc);
+alter table saved_screen_alerts enable row level security;
+drop policy if exists saved_screen_alerts_isolation on saved_screen_alerts;
+create policy saved_screen_alerts_isolation on saved_screen_alerts for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 -- A saved GET /portfolio/goal-plan request — same inputs (target_amount,
 -- target_date, optional monthly_amount/compare_universe) re-run live
 -- against current prices/signals each time it's loaded, not a frozen
@@ -1463,6 +1489,15 @@ grant select, insert, update on portfolio_drop_alerts to app_service;
 -- Same refresh-in-place rationale as portfolio_drop_alerts above (see
 -- services/basket_rebalance_service.py's scan_baskets_for_rebalance).
 grant select, insert, update on basket_rebalance_alerts to app_service;
+-- SCN-3: scan_saved_screens_for_membership_changes (services/
+-- saved_screen_alert_service.py) reads every user's saved screens
+-- cross-user via service_conn, same read-only-cross-user need as
+-- portfolio_positions above.
+grant select on saved_screens to app_service;
+-- Same refresh-in-place rationale as portfolio_drop_alerts/
+-- basket_rebalance_alerts above -- a same-day re-run updates that day's
+-- row rather than only ever inserting.
+grant select, insert, update on saved_screen_alerts to app_service;
 
 -- Horizon 1 (docs/signal-licensing-whitelabel-requirements.md.pdf, RS-*):
 -- built and migrated so the code is ready, but gated off by
