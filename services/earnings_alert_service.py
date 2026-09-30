@@ -85,7 +85,8 @@ async def scan_earnings_in_window() -> int:
                     f"{ticker} is scheduled to report earnings on {upcoming['date']}{timing} -- within "
                     f"{EARNINGS_ALERT_WINDOW_DAYS} days.\n\nSee {APP_URL}/earnings for your full earnings calendar."
                 )
-                await dispatch_alert(str(user_id), ticker, "earnings", subject, text_body)
+                values = {"earnings_date": upcoming["date"], "market_timing": upcoming["market_timing"]}
+                await dispatch_alert(str(user_id), ticker, "earnings", subject, text_body, values)
                 dispatched += 1
 
     if dispatched:

@@ -35,6 +35,7 @@ export default function AlertSettingsPage() {
 
   const [overrideTicker, setOverrideTicker] = useState("");
   const [overrideType, setOverrideType] = useState<AlertPreferenceType>("signal_change");
+  const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
 
   async function load() {
     setError(null);
@@ -108,6 +109,7 @@ export default function AlertSettingsPage() {
         webhook_url: webhookUrl || null,
       });
       setSettings(saved);
+      if (saved.webhook_secret) setRevealedSecret(saved.webhook_secret);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save settings.");
     } finally {
@@ -333,6 +335,13 @@ export default function AlertSettingsPage() {
                 />
               </label>
             </div>
+
+            {revealedSecret && (
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Your webhook signing secret (shown once — copy it now, it won&apos;t be shown again):
+                <code className="mt-1 block break-all rounded bg-white px-2 py-1 font-mono">{revealedSecret}</code>
+              </div>
+            )}
 
             <button
               type="submit"

@@ -110,7 +110,8 @@ async def scan_signal_changes() -> int:
                         f"{ticker}'s {horizon_label.lower()} signal changed from {old_signal} to {new_signal} "
                         f"as of today's close.\n\nSee {APP_URL}/stock/{ticker} for the full score breakdown."
                     )
-                    await dispatch_alert(str(user_id), ticker, "signal_change", subject, text_body)
+                    values = {"horizon": horizon, "old_signal": old_signal, "new_signal": new_signal}
+                    await dispatch_alert(str(user_id), ticker, "signal_change", subject, text_body, values)
                     dispatched += 1
 
     if dispatched:

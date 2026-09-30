@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from services.notification_dispatcher import DEFAULT_PREFERENCE
+from services.webhook_service import generate_webhook_secret
 from web.backend.auth import verify_bearer_token
 from web.backend.db import user_conn
 
@@ -152,18 +153,36 @@ async def upsert_settings(request: Request, body: SettingsUpsertRequest):
     digest_time = _parse_time(body.digest_time) or time(8, 0)
 
     async with user_conn(user_id) as conn:
+        existing_secret = await conn.fetchval(
+            "SELECT webhook_secret FROM user_notification_settings WHERE user_id = $1::uuid", user_id
+        )
+        # ALR-3: a secret is generated once, the first time webhooks are
+        # enabled with none on record yet -- never regenerated silently
+        # on a later save, so an already-configured receiver's signature
+        # verification doesn't break under it.
+        newly_generated_secret = None
+        if body.webhook_enabled and not existing_secret:
+            newly_generated_secret = generate_webhook_secret()
+
         record = await conn.fetchrow(
             """
             INSERT INTO user_notification_settings (
                 user_id, quiet_hours_start, quiet_hours_end, digest_enabled, digest_time,
-                webhook_enabled, webhook_url
-            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)
+                webhook_enabled, webhook_url, webhook_secret
+            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (user_id) DO UPDATE SET
                 quiet_hours_start = $2, quiet_hours_end = $3, digest_enabled = $4, digest_time = $5,
-                webhook_enabled = $6, webhook_url = $7, updated_at = now()
+                webhook_enabled = $6, webhook_url = $7,
+                webhook_secret = COALESCE(user_notification_settings.webhook_secret, $8),
+                updated_at = now()
             RETURNING *
             """,
             user_id, quiet_start, quiet_end, body.digest_enabled, digest_time,
-            body.webhook_enabled, body.webhook_url,
+            body.webhook_enabled, body.webhook_url, newly_generated_secret,
         )
-    return _settings_response(record)
+    result = _settings_response(record)
+    if newly_generated_secret:
+        # Shown exactly once -- GET/subsequent PUT responses only ever
+        # expose has_webhook_secret, never the secret itself again.
+        result["webhook_secret"] = newly_generated_secret
+    return result

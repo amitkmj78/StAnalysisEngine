@@ -78,7 +78,10 @@ async def scan_cost_drops(threshold_pct: Optional[float] = None) -> int:
                     f"{row['ticker']} is now ${row['current_price']:.2f}, down {abs(pct_change):.1f}% from your "
                     f"average cost of ${row['avg_cost']:.2f}.\n\nSee {APP_URL}/portfolio for your full holdings."
                 )
-                await dispatch_alert(str(row["user_id"]), row["ticker"], "cost_drop", subject, text_body)
+                values = {
+                    "pct_change": pct_change, "avg_cost": row["avg_cost"], "current_price": row["current_price"],
+                }
+                await dispatch_alert(str(row["user_id"]), row["ticker"], "cost_drop", subject, text_body, values)
                 dispatched += 1
 
     if dispatched:

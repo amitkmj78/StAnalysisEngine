@@ -15,6 +15,11 @@ earnings_alert_log, cost_drop_alerts) already IS the in-app record --
 the caller's own INSERT happened before dispatch_alert was ever called,
 so "disabled" below only ever means "don't email/queue", never "don't
 record".
+
+ALR-3: also fires an outbound webhook (services/webhook_service.py) when
+the user has one configured, independent of email preferences/quiet-
+hours/digest -- a power user's own automation is a separate delivery
+channel from the ones those settings govern.
 """
 
 from __future__ import annotations
@@ -26,7 +31,8 @@ from zoneinfo import ZoneInfo
 
 from starlette.concurrency import run_in_threadpool
 
-from services.email_service import send_alert_email
+from services.email_service import APP_URL, send_alert_email
+from services.webhook_service import send_webhook
 from web.backend.db import service_conn
 
 logger = logging.getLogger(__name__)
@@ -75,25 +81,56 @@ def is_within_quiet_hours(now_et: datetime, start: Optional[time], end: Optional
     return current >= start or current < end
 
 
-async def dispatch_alert(user_id: str, ticker: Optional[str], alert_type: str, subject: str, text_body: str) -> None:
+async def dispatch_alert(
+    user_id: str,
+    ticker: Optional[str],
+    alert_type: str,
+    subject: str,
+    text_body: str,
+    values: Optional[dict] = None,
+) -> None:
     """Called by every ALR alert-producing service in place of emailing
     directly, right after that service's own fresh-insert check (the
     unique(user_id, ticker, alert_date, ...) constraint on each alert
     table is what enforces ALR-2's "no more than one alert per stock per
     type per day" -- this function doesn't need its own cap logic since
-    it's only ever called once per genuine new event)."""
-    preference = await _resolve_preference(user_id, ticker, alert_type)
-    if not preference["enabled"] or not preference["channel_email"]:
-        return
+    it's only ever called once per genuine new event).
 
+    `values` is ALR-3's structured payload data (e.g. {"pct_change": ...,
+    "avg_cost": ...}) -- optional since not every caller has passed it
+    yet, but required for a webhook to fire (an email-only alert with no
+    values simply never reaches send_webhook below)."""
     async with service_conn() as conn:
         settings_row = await conn.fetchrow(
             """
-            SELECT quiet_hours_start, quiet_hours_end, digest_enabled
+            SELECT quiet_hours_start, quiet_hours_end, digest_enabled,
+                   webhook_enabled, webhook_url, webhook_secret
             FROM user_notification_settings WHERE user_id = $1::uuid
             """,
             user_id,
         )
+
+    # ALR-3: webhooks fire independently of quiet hours/digest/email
+    # preference -- a power user piping alerts into their own automation
+    # wants real-time delivery, and their downstream system can filter
+    # or rate-limit itself; the acceptance criteria for quiet hours/
+    # digest only ever mention push/email/in-app.
+    if settings_row and settings_row["webhook_enabled"] and settings_row["webhook_url"] and settings_row["webhook_secret"]:
+        payload = {
+            "ticker": ticker,
+            "alert_type": alert_type,
+            "values": values or {},
+            "link": f"{APP_URL}/stock/{ticker}" if ticker else None,
+        }
+        sent = await run_in_threadpool(
+            send_webhook, settings_row["webhook_url"], settings_row["webhook_secret"], payload
+        )
+        if not sent:
+            logger.warning("dispatch_alert: webhook delivery failed for user %s (%s)", user_id, alert_type)
+
+    preference = await _resolve_preference(user_id, ticker, alert_type)
+    if not preference["enabled"] or not preference["channel_email"]:
+        return
 
     now_et = datetime.now(EASTERN)
     in_digest_mode = bool(settings_row and settings_row["digest_enabled"])

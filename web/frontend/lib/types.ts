@@ -1506,6 +1506,9 @@ export interface AlertNotificationSettings {
   webhook_enabled: boolean;
   webhook_url: string | null;
   has_webhook_secret: boolean;
+  // Present only in the one PUT response where it was just generated --
+  // never returned again afterward (GET never includes it).
+  webhook_secret?: string;
 }
 
 export interface WatchlistAlert {
