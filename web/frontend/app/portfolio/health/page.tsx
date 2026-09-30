@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, getPortfolioHealthConcentration, getPortfolioHealthRisk } from "@/lib/api";
-import type { PortfolioHealthConcentrationResponse, PortfolioHealthRiskResponse, PortfolioRiskWindow } from "@/lib/types";
+import { ApiError, getPortfolioHealthConcentration, getPortfolioHealthOverlap, getPortfolioHealthRisk } from "@/lib/api";
+import type {
+  PortfolioHealthConcentrationResponse,
+  PortfolioHealthOverlapResponse,
+  PortfolioHealthRiskResponse,
+  PortfolioRiskWindow,
+} from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import { useUrlState } from "@/lib/useUrlState";
 
@@ -39,6 +44,10 @@ export default function PortfolioHealthPage() {
   const [riskLoading, setRiskLoading] = useState(true);
   const [riskError, setRiskError] = useState<string | null>(null);
 
+  const [overlap, setOverlap] = useState<PortfolioHealthOverlapResponse | null>(null);
+  const [overlapLoading, setOverlapLoading] = useState(true);
+  const [overlapError, setOverlapError] = useState<string | null>(null);
+
   function handlePortfolioChange(id: number) {
     setSelectedPortfolioId(id);
     setUrlState({ p: String(id) });
@@ -60,6 +69,13 @@ export default function PortfolioHealthPage() {
       .then(setRisk)
       .catch((err) => setRiskError(err instanceof ApiError ? err.message : "Couldn't load risk."))
       .finally(() => setRiskLoading(false));
+
+    setOverlapLoading(true);
+    setOverlapError(null);
+    getPortfolioHealthOverlap(selectedPortfolioId)
+      .then(setOverlap)
+      .catch((err) => setOverlapError(err instanceof ApiError ? err.message : "Couldn't load fund overlap."))
+      .finally(() => setOverlapLoading(false));
   }, [selectedPortfolioId]);
 
   return (
@@ -187,6 +203,111 @@ export default function PortfolioHealthPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <RiskWindowTile label="1 Year" window={risk.windows["1Y"]} />
               <RiskWindowTile label="3 Years" window={risk.windows["3Y"]} />
+            </div>
+          )}
+        </Card>
+
+        <Card
+          title="Fund Overlap (ETF Look-Through)"
+          subtitle="A stock held directly and through a fund, combined into one exposure figure."
+        >
+          {overlapLoading && (
+            <div className="flex flex-col gap-2">
+              <SkeletonBlock className="h-8 w-2/3" />
+              <SkeletonBlock className="h-40" />
+            </div>
+          )}
+          {overlapError && <p className="text-sm text-red-700">{overlapError}</p>}
+          {overlap && !overlapLoading && (
+            <div className="flex flex-col gap-4">
+              <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{overlap.disclosure}</p>
+
+              {Object.keys(overlap.fund_coverage_pct).length > 0 && (
+                <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                  {Object.entries(overlap.fund_coverage_pct).map(([ticker, pct]) => (
+                    <span key={ticker} className="rounded-full border border-slate-200 px-2 py-0.5">
+                      {ticker}: top 10 = {pct.toFixed(1)}% of fund
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {overlap.combined_exposure.length === 0 ? (
+                <p className="text-sm text-slate-500">No positions yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <th className="px-2 py-1.5">Ticker</th>
+                        <th className="px-2 py-1.5">Direct</th>
+                        <th className="px-2 py-1.5">Via Funds</th>
+                        <th className="px-2 py-1.5">Combined</th>
+                        <th className="px-2 py-1.5">Weight</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overlap.combined_exposure.slice(0, 20).map((row) => (
+                        <tr key={row.ticker} className="border-b border-slate-100 last:border-0">
+                          <td className="px-2 py-1.5 font-medium text-slate-900">{row.ticker}</td>
+                          <td className="px-2 py-1.5 text-slate-700">${row.direct_value.toLocaleString()}</td>
+                          <td className="px-2 py-1.5 text-slate-700">
+                            {row.look_through_value > 0 ? (
+                              <span title={row.via_funds.map((f) => `${f.fund_ticker}: $${f.dollars}`).join(", ")}>
+                                ${row.look_through_value.toLocaleString()}
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5 font-medium text-slate-900">
+                            ${row.combined_value.toLocaleString()}
+                          </td>
+                          <td className="px-2 py-1.5 text-slate-700">{row.combined_weight_pct.toFixed(1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {overlap.sector_comparison.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Sector weight vs. S&amp;P 500 (look-through-adjusted)
+                  </p>
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                          <th className="px-2 py-1.5">Sector</th>
+                          <th className="px-2 py-1.5">Your Portfolio</th>
+                          <th className="px-2 py-1.5">S&amp;P 500</th>
+                          <th className="px-2 py-1.5">Gap</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...overlap.sector_comparison]
+                          .sort((a, b) => b.portfolio_weight_pct - a.portfolio_weight_pct)
+                          .map((row) => (
+                            <tr key={row.sector} className="border-b border-slate-100 last:border-0">
+                              <td className="px-2 py-1.5 text-slate-900">{row.sector}</td>
+                              <td className="px-2 py-1.5 text-slate-700">{row.portfolio_weight_pct.toFixed(1)}%</td>
+                              <td className="px-2 py-1.5 text-slate-700">{row.sp500_weight_pct.toFixed(1)}%</td>
+                              <td
+                                className={`px-2 py-1.5 font-medium ${
+                                  row.gap_pct >= 0 ? "text-emerald-700" : "text-red-700"
+                                }`}
+                              >
+                                {fmtPct(row.gap_pct)}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </Card>

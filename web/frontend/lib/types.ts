@@ -1018,6 +1018,23 @@ export interface PortfolioHealthRiskResponse {
   windows: { "1Y": PortfolioRiskWindow; "3Y": PortfolioRiskWindow };
 }
 
+export interface CombinedExposureRow {
+  ticker: string;
+  direct_value: number;
+  look_through_value: number;
+  combined_value: number;
+  combined_weight_pct: number;
+  via_funds: { fund_ticker: string; dollars: number }[];
+}
+
+export interface PortfolioHealthOverlapResponse {
+  combined_exposure: CombinedExposureRow[];
+  fund_coverage_pct: Record<string, number>;
+  sector_comparison: SectorComparisonRow[];
+  disclosure: string;
+  as_of_date: string;
+}
+
 export interface PortfolioCompareResponse {
   as_of: string;
   window: CompareWindow;

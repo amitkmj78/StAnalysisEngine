@@ -97,6 +97,26 @@ def get_cached_dividends(ticker: str) -> pd.Series:
 
 
 @ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
+def get_cached_fund_top_holdings(ticker: str) -> pd.DataFrame:
+    """HLT-1: Shared yf.Ticker(ticker).funds_data.top_holdings -- a fund's
+    top 10 disclosed holdings, DataFrame indexed by Symbol with a
+    "Holding Percent" column (fraction of 1). Broad except (not just
+    yfinance's own YFDataException) since accessing .funds_data on a
+    non-fund ticker (a plain stock) raises YFDataException ("No Fund
+    data found."), while an invalid ticker raises a plain requests.
+    HTTPError 404 at the .funds_data property access itself -- neither
+    is worth distinguishing from any other fetch failure here. Empty
+    DataFrame (never None) both for "this is a stock" and for "this is
+    a fund with nothing disclosed" (e.g. GLD -- physical gold, genuinely
+    0 rows, not a failure)."""
+    try:
+        result = fetch_with_backoff(lambda: yf.Ticker(ticker).funds_data.top_holdings)
+        return result if result is not None else pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
+
+
+@ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
 def get_cached_eps_trend(ticker: str) -> pd.DataFrame:
     """Shared yf.Ticker(ticker).eps_trend -- new plumbing (SCR-1's
     earnings-revisions factor): indexed by period (0q/+1q/0y/+1y), with

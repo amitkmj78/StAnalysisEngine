@@ -37,9 +37,13 @@ from services.portfolio_compare_service import (
 )
 from services.portfolio_health_service import (
     ACCOUNT_TYPES,
+    TOP10_DISCLOSURE,
     build_sector_comparison,
+    compute_fund_coverage_pct,
+    compute_look_through_exposure,
     compute_portfolio_sector_weights,
     compute_risk_over_windows,
+    fetch_fund_holdings_map,
 )
 from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
@@ -1602,6 +1606,60 @@ async def portfolio_health_risk(request: Request, portfolio_id: Optional[int] = 
     ]
     windows = await run_in_threadpool(compute_risk_over_windows, positions)
     return {"as_of": str(_eastern_today()), "windows": windows}
+
+
+@router.get("/health/overlap")
+@limiter.limit("10/minute")
+async def portfolio_health_overlap(request: Request, portfolio_id: Optional[int] = None):
+    """HLT-1's fund overlap / ETF look-through: combines a stock held
+    directly with its exposure inside any held fund's disclosed top-10
+    holdings (services.portfolio_health_service.compute_look_through_
+    exposure). Sector weights are recomputed on the look-through-
+    expanded ticker set rather than raw positions -- compute_sectors
+    already silently excludes ETFs (no `sector` on a fund's .info), so a
+    portfolio heavy in SPY would otherwise show an artificially low tech
+    weight; this reuses data already fetched here, at no extra network
+    cost."""
+    await enforce_daily_quota(request, "portfolio/health/overlap")
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        resolved_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT ticker, shares, current_price FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_id,
+        )
+    positions = [
+        {"ticker": r["ticker"], "market_value": (r["shares"] or 0) * (r["current_price"] or 0)}
+        for r in records if r["ticker"]
+    ]
+    if not positions:
+        return {
+            "combined_exposure": [], "fund_coverage_pct": {}, "sector_comparison": [],
+            "disclosure": TOP10_DISCLOSURE, "as_of_date": str(_eastern_today()),
+        }
+
+    tickers = [p["ticker"] for p in positions]
+    fund_holdings = await run_in_threadpool(fetch_fund_holdings_map, tickers)
+    combined_exposure = compute_look_through_exposure(positions, fund_holdings)
+    fund_coverage_pct = compute_fund_coverage_pct(fund_holdings)
+
+    expanded_tickers = [row["ticker"] for row in combined_exposure]
+    sector_by_ticker = await run_in_threadpool(compute_sectors, expanded_tickers)
+    sectored_expanded = [
+        {"ticker": row["ticker"], "sector": sector_by_ticker.get(row["ticker"]), "market_value": row["combined_value"]}
+        for row in combined_exposure
+    ]
+    portfolio_sector_weights = compute_portfolio_sector_weights(sectored_expanded)
+    sp500_sector_weights = await run_in_threadpool(compute_sp500_sector_mix)
+    sector_comparison = build_sector_comparison(portfolio_sector_weights, sp500_sector_weights)
+
+    return {
+        "combined_exposure": combined_exposure,
+        "fund_coverage_pct": fund_coverage_pct,
+        "sector_comparison": sector_comparison,
+        "disclosure": TOP10_DISCLOSURE,
+        "as_of_date": str(_eastern_today()),
+    }
 
 
 @router.get("/goal-plan")

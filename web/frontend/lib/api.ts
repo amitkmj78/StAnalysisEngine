@@ -53,6 +53,7 @@ import type {
   PortfolioDropAlert,
   Portfolio1yForecast,
   PortfolioHealthConcentrationResponse,
+  PortfolioHealthOverlapResponse,
   PortfolioHealthRiskResponse,
   PortfolioInsightsResponse,
   PortfolioListResponse,
@@ -900,6 +901,13 @@ export function getPortfolioHealthConcentration(portfolioId?: number) {
 export function getPortfolioHealthRisk(portfolioId?: number) {
   return apiFetch<PortfolioHealthRiskResponse>(
     "/api/v1/portfolio/health/risk",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
+}
+
+export function getPortfolioHealthOverlap(portfolioId?: number) {
+  return apiFetch<PortfolioHealthOverlapResponse>(
+    "/api/v1/portfolio/health/overlap",
     portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
   );
 }

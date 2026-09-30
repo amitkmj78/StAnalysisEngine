@@ -12,9 +12,12 @@ import pytest
 import services.portfolio_health_service as phs
 from services.portfolio_health_service import (
     build_sector_comparison,
+    compute_fund_coverage_pct,
+    compute_look_through_exposure,
     compute_portfolio_risk_metrics,
     compute_portfolio_sector_weights,
     compute_risk_over_windows,
+    fetch_fund_holdings_map,
 )
 
 
@@ -98,6 +101,28 @@ def test_compute_portfolio_risk_metrics_empty_positions():
     assert result["excluded_from_risk"] == []
 
 
+def test_compute_portfolio_risk_metrics_excludes_ticker_whose_fetch_raises(monkeypatch):
+    # Regression: a real live case -- get_cached_history doesn't fail
+    # open like its sibling yfinance_cache functions, and raised
+    # YFRateLimitError straight through, 500-ing the whole endpoint over
+    # one rate-limited ticker in the fan-out.
+    spy_prices = [100.0 + i for i in range(30)]
+
+    def fake_history(ticker, period, auto_adjust=True):
+        if ticker == "RATELIMITED":
+            raise RuntimeError("Too Many Requests. Rate limited. Try after a while.")
+        return pd.DataFrame({"Close": _prices(spy_prices)})
+
+    monkeypatch.setattr(phs, "get_cached_history", fake_history)
+
+    result = compute_portfolio_risk_metrics(
+        [{"ticker": "GOOD", "market_value": 5_000.0}, {"ticker": "RATELIMITED", "market_value": 5_000.0}],
+        period="1y",
+    )
+    assert "RATELIMITED" in result["excluded_from_risk"]
+    assert result["beta_to_spy"] is not None
+
+
 def test_compute_portfolio_risk_metrics_missing_spy_data_degrades_gracefully(monkeypatch):
     monkeypatch.setattr(phs, "get_cached_history", lambda ticker, period, auto_adjust=True: pd.DataFrame())
     result = compute_portfolio_risk_metrics([{"ticker": "A", "market_value": 1_000.0}], period="1y")
@@ -178,3 +203,105 @@ def test_build_sector_comparison_union_and_gap():
 
 def test_build_sector_comparison_empty_both_sides():
     assert build_sector_comparison({}, {}) == []
+
+
+# ---------------------------------------------------------------------------
+# fetch_fund_holdings_map / compute_fund_coverage_pct / compute_look_through_exposure
+# ---------------------------------------------------------------------------
+
+
+def _fake_top_holdings(ticker_to_holdings: dict[str, dict[str, float]]):
+    def fake(ticker: str) -> pd.DataFrame:
+        holdings = ticker_to_holdings.get(ticker)
+        if not holdings:
+            return pd.DataFrame()
+        return pd.DataFrame({"Holding Percent": holdings})
+
+    return fake
+
+
+def test_fetch_fund_holdings_map_only_keys_funds(monkeypatch):
+    monkeypatch.setattr(
+        phs, "get_cached_fund_top_holdings",
+        _fake_top_holdings({"SPY": {"NVDA": 0.08, "AAPL": 0.07}}),
+    )
+    result = fetch_fund_holdings_map(["SPY", "AAPL"])
+    assert set(result.keys()) == {"SPY"}
+    assert result["SPY"] == {"NVDA": 0.08, "AAPL": 0.07}
+
+
+def test_fetch_fund_holdings_map_empty_input():
+    assert fetch_fund_holdings_map([]) == {}
+
+
+def test_compute_fund_coverage_pct_sums_fractions_to_a_percent():
+    fund_holdings = {"SPY": {"NVDA": 0.08, "AAPL": 0.07, "MSFT": 0.05}}
+    result = compute_fund_coverage_pct(fund_holdings)
+    assert result == {"SPY": 20.0}
+
+
+def test_compute_fund_coverage_pct_empty():
+    assert compute_fund_coverage_pct({}) == {}
+
+
+def test_compute_look_through_exposure_combines_direct_and_fund_holding_into_one_row():
+    # NVDA held directly ($1,000) AND via SPY ($10,000 position, 8% NVDA
+    # weight = $800 look-through) -- must combine into ONE NVDA row.
+    positions = [
+        {"ticker": "NVDA", "market_value": 1_000.0},
+        {"ticker": "SPY", "market_value": 10_000.0},
+    ]
+    fund_holdings = {"SPY": {"NVDA": 0.08, "AAPL": 0.07}}
+    rows = compute_look_through_exposure(positions, fund_holdings)
+    by_ticker = {r["ticker"]: r for r in rows}
+
+    nvda = by_ticker["NVDA"]
+    assert nvda["direct_value"] == pytest.approx(1_000.0)
+    assert nvda["look_through_value"] == pytest.approx(800.0)
+    assert nvda["combined_value"] == pytest.approx(1_800.0)
+    assert nvda["via_funds"] == [{"fund_ticker": "SPY", "dollars": 800.0}]
+
+    # AAPL only exists via SPY's look-through, never held directly.
+    aapl = by_ticker["AAPL"]
+    assert aapl["direct_value"] == 0.0
+    assert aapl["look_through_value"] == pytest.approx(700.0)
+
+    # SPY's own row is the undisclosed remainder: 1 - (0.08+0.07) = 0.85
+    # of its $10,000 value, attributed to SPY itself.
+    spy_row = by_ticker["SPY"]
+    assert spy_row["direct_value"] == pytest.approx(8_500.0)
+    assert spy_row["look_through_value"] == 0.0
+
+
+def test_compute_look_through_exposure_conserves_total_dollars():
+    positions = [
+        {"ticker": "NVDA", "market_value": 1_000.0},
+        {"ticker": "SPY", "market_value": 10_000.0},
+        {"ticker": "GLD", "market_value": 2_000.0},
+    ]
+    fund_holdings = {"SPY": {"NVDA": 0.08, "AAPL": 0.07}, "GLD": {}}
+    rows = compute_look_through_exposure(positions, fund_holdings)
+    total_in = sum(p["market_value"] for p in positions)
+    total_out = sum(r["combined_value"] for r in rows)
+    assert total_out == pytest.approx(total_in, abs=0.01)
+
+
+def test_compute_look_through_exposure_zero_holdings_fund_is_its_own_row():
+    # GLD-like: a real fund with nothing disclosed (0 rows) -- must not
+    # error, and its value stays attributed to itself.
+    positions = [{"ticker": "GLD", "market_value": 5_000.0}]
+    rows = compute_look_through_exposure(positions, fund_holdings={"GLD": {}})
+    assert len(rows) == 1
+    assert rows[0]["ticker"] == "GLD"
+    assert rows[0]["combined_value"] == pytest.approx(5_000.0)
+
+
+def test_compute_look_through_exposure_no_funds_is_pass_through():
+    positions = [{"ticker": "AAPL", "market_value": 3_000.0}]
+    rows = compute_look_through_exposure(positions, fund_holdings={})
+    assert rows == [
+        {
+            "ticker": "AAPL", "direct_value": 3_000.0, "look_through_value": 0.0,
+            "combined_value": 3_000.0, "combined_weight_pct": 100.0, "via_funds": [],
+        }
+    ]

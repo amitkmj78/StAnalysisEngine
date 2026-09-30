@@ -16,9 +16,18 @@ import pandas as pd
 
 from services.backtest_engine import max_drawdown_pct
 from services.stock_finder_service import _gics_sector
-from services.yfinance_cache import get_cached_history
+from services.yfinance_cache import get_cached_fund_top_holdings, get_cached_history
 
 BENCHMARK_TICKER = "SPY"
+
+# HLT-1: yfinance only discloses a fund's top 10 holdings (confirmed live:
+# SPY's top 10 sum to ~37.8% of the fund, QQQ's to ~46.3% -- the rest is
+# unavailable from any data source). Reused verbatim in both the API
+# response and the frontend copy so the two never drift apart.
+TOP10_DISCLOSURE = (
+    "Overlap computed against each fund's top 10 holdings only — smaller "
+    "positions inside the fund aren't visible."
+)
 
 # Re-declared rather than imported from services/million_plan_service.py
 # (which pulls in unrelated goal-plan-solver internals for one shared
@@ -38,8 +47,20 @@ def _fetch_close_for_period(ticker: str, period: str) -> pd.Series:
     from portfolio_compare_service's trading-day window codes (that
     module tops out at "1Y"=252 trading days and its own _fetch_close
     caps history at 2y -- neither covers a real 3-year window), so this
-    is new, deliberately parallel plumbing rather than a reuse."""
-    hist = get_cached_history(ticker, period, auto_adjust=True)
+    is new, deliberately parallel plumbing rather than a reuse.
+
+    Unlike every other yfinance_cache function, get_cached_history does
+    NOT fail open -- it can raise straight through (confirmed live: a
+    rate-limited ticker raised yfinance.exceptions.YFRateLimitError
+    here, 500-ing the whole risk endpoint over one bad ticker in a
+    bounded ThreadPoolExecutor fan-out). Caught here instead so one
+    ticker's fetch failure degrades to the same honest
+    excluded_from_risk path as "no history for this ticker", not a
+    crash."""
+    try:
+        hist = get_cached_history(ticker, period, auto_adjust=True)
+    except Exception:
+        return pd.Series(dtype=float)
     return hist["Close"] if not hist.empty else pd.Series(dtype=float)
 
 
@@ -193,3 +214,87 @@ def build_sector_comparison(portfolio_weights: dict[str, float], sp500_weights: 
             }
         )
     return result
+
+
+def fetch_fund_holdings_map(tickers: list[str]) -> dict[str, dict[str, float]]:
+    """{fund_ticker: {underlying_symbol: weight_fraction}} -- ONLY for
+    tickers where get_cached_fund_top_holdings returned non-empty. A
+    ticker absent from this dict's keys is being treated as a plain
+    stock (or a fund with nothing disclosed, e.g. GLD/BITO --
+    functionally the same for look-through purposes: nothing to
+    decompose either way). Bounded fan-out, same rationale as every
+    other per-ticker yfinance call in this codebase."""
+    if not tickers:
+        return {}
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_HEALTH_FETCHES) as executor:
+        holdings_list = list(executor.map(get_cached_fund_top_holdings, tickers))
+    result = {}
+    for ticker, holdings_df in zip(tickers, holdings_list):
+        if holdings_df is None or holdings_df.empty or "Holding Percent" not in holdings_df.columns:
+            continue
+        result[ticker] = {str(symbol): float(pct) for symbol, pct in holdings_df["Holding Percent"].items()}
+    return result
+
+
+def compute_fund_coverage_pct(fund_holdings: dict[str, dict[str, float]]) -> dict[str, float]:
+    """{fund_ticker: sum(weight_fraction) * 100} -- "top 10 holdings = X%
+    of the fund," drives the per-fund disclosure copy (confirmed live:
+    SPY ~=37.8%, QQQ ~=46.3%)."""
+    return {ticker: round(sum(weights.values()) * 100, 1) for ticker, weights in fund_holdings.items()}
+
+
+def compute_look_through_exposure(positions: list[dict], fund_holdings: dict[str, dict[str, float]]) -> list[dict]:
+    """positions: [{ticker, market_value}]. For a fund position (a key in
+    fund_holdings), its market_value is decomposed across the fund's
+    disclosed holdings into look-through dollars per underlying symbol;
+    the UNDISCLOSED remainder (1 - sum of disclosed fractions) stays
+    attributed to the fund ticker itself -- dollars are always
+    conserved, nothing silently dropped. A non-fund position's full
+    market_value counts as direct exposure to itself. A symbol held
+    both directly AND via one or more funds gets exactly ONE combined
+    row (direct_value + look_through_value = combined_value) -- this is
+    HLT-1's literal acceptance criterion ("a stock held directly and
+    through ETFs is combined").
+
+    Returns, sorted by combined_value descending:
+    [{"ticker", "direct_value", "look_through_value", "combined_value",
+      "combined_weight_pct", "via_funds": [{"fund_ticker", "dollars"}]}]
+    """
+    total_value = sum(p.get("market_value") or 0.0 for p in positions)
+    direct_value: dict[str, float] = {}
+    look_through_value: dict[str, float] = {}
+    via_funds: dict[str, list[dict]] = {}
+
+    for p in positions:
+        ticker = p["ticker"]
+        market_value = p.get("market_value") or 0.0
+        holdings = fund_holdings.get(ticker)
+        if holdings:
+            disclosed_fraction = sum(holdings.values())
+            for symbol, weight_fraction in holdings.items():
+                dollars = market_value * weight_fraction
+                look_through_value[symbol] = look_through_value.get(symbol, 0.0) + dollars
+                via_funds.setdefault(symbol, []).append({"fund_ticker": ticker, "dollars": round(dollars, 2)})
+            undisclosed_dollars = market_value * (1.0 - disclosed_fraction)
+            direct_value[ticker] = direct_value.get(ticker, 0.0) + undisclosed_dollars
+        else:
+            direct_value[ticker] = direct_value.get(ticker, 0.0) + market_value
+
+    all_tickers = set(direct_value) | set(look_through_value)
+    rows = []
+    for ticker in all_tickers:
+        d = round(direct_value.get(ticker, 0.0), 2)
+        lt = round(look_through_value.get(ticker, 0.0), 2)
+        combined = round(d + lt, 2)
+        rows.append(
+            {
+                "ticker": ticker,
+                "direct_value": d,
+                "look_through_value": lt,
+                "combined_value": combined,
+                "combined_weight_pct": round(combined / total_value * 100, 2) if total_value else 0.0,
+                "via_funds": via_funds.get(ticker, []),
+            }
+        )
+    rows.sort(key=lambda r: r["combined_value"], reverse=True)
+    return rows
