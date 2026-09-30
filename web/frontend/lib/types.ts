@@ -1312,6 +1312,30 @@ export interface EarningsCalendarResponse {
   entries: EarningsCalendarEntry[];
 }
 
+// REG-1/2/3 — see services/market_regime_service.py's module docstring
+// for why this ships despite a failed validation gate; `disclosure` must
+// always be rendered, not treated as optional copy.
+export interface MarketRegimeComponents {
+  breadth?: { pct_above_50dma: number; change_5d_pct: number | null };
+  volatility?: { vix: number; vix3m: number; term_spread: number; inverted: boolean };
+  trend?: { spy_close: number; spy_50dma: number | null; above_50dma: boolean | null };
+  risk_appetite?: { momentum_pct: number | null };
+}
+
+export interface MarketRegimeResponse {
+  available: boolean;
+  reason?: string;
+  as_of_date?: string;
+  regime?: string | null;
+  regime_raw?: string | null;
+  mds?: number | null;
+  internals_score?: number | null;
+  data_completeness?: number;
+  conflict_flag?: boolean;
+  components?: MarketRegimeComponents;
+  disclosure?: string;
+}
+
 export interface StockDetailResponse {
   ticker: string;
   current_price: number | null;

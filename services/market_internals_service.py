@@ -6,17 +6,23 @@ series (breadth, VIX, sector/ratio data); this module turns them into a
 score, a regime label, and — for the release gate in spec §9 — forward-
 return backtest statistics.
 
-NOT WIRED INTO THE LIVE APP. The spec's own release gate (§9, V-2/V-3)
-requires the score to demonstrably improve outcomes before it ships.
-Backtested on 5 years of real data (see spec §9 "Validation Results"):
-the score as specified here is a statistically significant *contrarian*
-signal (worse internals readings preceded better forward SPY returns at
-every tested horizon) — the opposite of the "Risk-On -> add risk,
-Risk-Off -> get defensive" framing the regime labels imply. Kept here,
-tested and unwired, as a validated-negative research artifact rather
-than deleted outright — reworking the signal (or just the labels) is a
-plausible follow-up, but this must not be surfaced to users, scheduled,
-or exposed via any endpoint until it passes the gate.
+WIRED IN DESPITE A FAILED RELEASE GATE — BY EXPLICIT, INFORMED USER
+OVERRIDE, NOT BECAUSE IT PASSED. The spec's own release gate (§9,
+V-2/V-3) requires the score to demonstrably improve outcomes before it
+ships, and it never did: backtested three separate times (see spec §9a,
+§9b, §9c), it was a statistically significant *contrarian* signal in the
+first two attempts, and in the third — isolating the 2008 financial
+crisis — extreme internals stress predicted a further -7.91% over the
+next 21 days (n=24, p<0.0001 HAC-corrected), the opposite of a "buy the
+fear" signal; the Risk-On/Risk-Off framing below would have compounded
+losses in that crisis, not flagged an opportunity. This was presented in
+full to the product owner before services/market_regime_service.py
+wired it into the live app (daily scheduler job, GET /api/v1/market/
+regime, RegimeBanner.tsx), and the owner explicitly chose to ship it
+anyway. See services/market_regime_service.py::REGIME_GATE_DISCLOSURE
+for the exact user-facing disclosure this decision requires — that
+disclosure must remain permanent and prominent, not softened or removed
+by a future change here.
 
 Deliberately excludes the News and Earnings pillars (deferred to P2/P3
 per the spec's own phasing). MDS in this phase is the Internals score
@@ -136,6 +142,74 @@ def compute_composite_score(
         "mds": round(float(mds), 2),
         "data_completeness": round(len(present) / len(pillars), 4),
         "conflict_flag": conflict_flag,
+    }
+
+
+def compute_internals_components(internals: pd.DataFrame) -> dict:
+    """
+    Human-legible raw readings for display (REG-1's "trend, volatility,
+    breadth, rates" framing) — purely additive: does not feed, and is
+    never fed by, compute_internals_score/compute_composite_score/
+    map_regime/apply_hysteresis, so it carries none of those functions'
+    gated-signal risk. Needed because compute_internals_score blends its
+    five sub-signals into one number and discards them, and because two
+    of REG-1's literal labels don't map onto anything this dataset
+    actually has: there is no rates series fetched anywhere (hyg_ief is a
+    credit/risk-appetite ratio, not a rate level), and no price-trend
+    reading exists yet even though SPY's own close is already fetched as
+    spy_close. Returns the latest date's readings (or {} if `internals`
+    is empty):
+      breadth: pct_above_50dma, change_5d_pct
+      volatility: vix, vix3m, term_spread (vix - vix3m), inverted
+      trend: spy_close, spy_50dma, above_50dma (SPY vs. its own 50-day
+        average -- computed fresh here, nothing else in this codebase
+        does this)
+      risk_appetite: momentum_pct (the same three-ratio 21-day blended
+        momentum compute_internals_score already computes internally,
+        surfaced here instead of being discarded)
+    """
+    if internals.empty:
+        return {}
+
+    latest = internals.iloc[-1]
+    breadth_5d_ago = internals["breadth_50dma"].iloc[-6] if len(internals) > 5 else None
+    spy_50dma = internals["spy_close"].rolling(50, min_periods=50).mean().iloc[-1]
+    ratio_momentum = (
+        pd.concat(
+            [
+                internals["xly_xlp"].pct_change(21),
+                internals["hyg_ief"].pct_change(21),
+                internals["rsp_spy"].pct_change(21),
+            ],
+            axis=1,
+        )
+        .mean(axis=1)
+        .iloc[-1]
+    )
+
+    return {
+        "breadth": {
+            "pct_above_50dma": round(float(latest["breadth_50dma"]), 2),
+            "change_5d_pct": (
+                round(float(latest["breadth_50dma"] - breadth_5d_ago), 2)
+                if breadth_5d_ago is not None
+                else None
+            ),
+        },
+        "volatility": {
+            "vix": round(float(latest["vix"]), 2),
+            "vix3m": round(float(latest["vix3m"]), 2),
+            "term_spread": round(float(latest["vix"] - latest["vix3m"]), 2),
+            "inverted": bool(latest["vix"] > latest["vix3m"]),
+        },
+        "trend": {
+            "spy_close": round(float(latest["spy_close"]), 2),
+            "spy_50dma": round(float(spy_50dma), 2) if pd.notna(spy_50dma) else None,
+            "above_50dma": bool(latest["spy_close"] > spy_50dma) if pd.notna(spy_50dma) else None,
+        },
+        "risk_appetite": {
+            "momentum_pct": round(float(ratio_momentum) * 100, 2) if pd.notna(ratio_momentum) else None,
+        },
     }
 
 

@@ -119,6 +119,13 @@ PAPER_TRADING_RESTRICTED_SYMBOLS_DEFAULT = ""
 # internal data accumulation off the existing PIT stores, no legal/
 # compliance gate like publish_signals_enabled has.
 STOCK_SCORE_COMPUTE_ENABLED_KEY = "stock_score_compute_enabled"
+# REG-1/2/3: gates services/market_regime_service.py's daily scheduler
+# job. Defaults OFF, doubly deliberate beyond the usual "deploying code
+# must not itself start a live job" rationale — this wires up a scoring
+# engine that failed its own release-gate backtest three times (see
+# services/market_internals_service.py's module docstring). An admin
+# opts in via /admin/settings with that history in view, not by deploy.
+MARKET_REGIME_ENABLED_KEY = "market_regime_enabled"
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

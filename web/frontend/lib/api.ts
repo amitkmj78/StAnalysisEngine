@@ -30,6 +30,7 @@ import type {
   DropAlertThreshold,
   DualBenchmarkComparison,
   EarningsCalendarResponse,
+  MarketRegimeResponse,
   EntryHistory,
   EntryPlan,
   EntryScanRow,
@@ -779,6 +780,10 @@ export function getStockDetail(ticker: string) {
 
 export function getEarningsCalendar() {
   return apiFetch<EarningsCalendarResponse>("/api/v1/earnings/calendar");
+}
+
+export function getMarketRegime() {
+  return apiFetch<MarketRegimeResponse>("/api/v1/market/regime");
 }
 
 export function getStockPriceHistory(ticker: string, range: StockPriceHistoryRange = "1Y") {

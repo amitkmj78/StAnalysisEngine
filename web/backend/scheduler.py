@@ -8,6 +8,7 @@ from starlette.concurrency import run_in_threadpool
 from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.email_service import APP_URL, send_admin_alert_email, send_rankings_email
+from services.market_regime_service import compute_and_persist_daily_regime
 from services.prediction_verification_service import verify_prediction
 from services.saved_screen_alert_service import scan_saved_screens_for_membership_changes
 from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE, TRACK_RECORD_HORIZONS
@@ -18,6 +19,7 @@ from web.backend.app_settings import (
     BASKET_REBALANCE_ENABLED_KEY,
     DB_BACKUP_ENABLED_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
+    MARKET_REGIME_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
@@ -86,6 +88,14 @@ STOCK_SCORE_COMPUTE_MINUTE_ET = 15
 # right at market close when other scheduled/user activity also peaks.
 PIT_QUANT_SIGNAL_CAPTURE_HOUR_ET = 18
 PIT_QUANT_SIGNAL_CAPTURE_MINUTE_ET = 0
+# REG-1/2/3: 10 minutes after the quant-signal capture above — this job
+# fans out ~500+8 tickers' full price history (services/
+# market_data_service.py::fetch_market_internals_history), throttled to
+# MAX_PARALLEL_FETCHES=4 after a real prior rate-limit incident, so it's
+# deliberately kept off the network-bound 16:0x captures and spaced past
+# the CPU-heavy quant-signal job rather than stacked with either.
+MARKET_REGIME_HOUR_ET = 18
+MARKET_REGIME_MINUTE_ET = 10
 # After the capture above lands today's rows — mostly picks up older
 # calls that just became due (a call is only evaluable once horizon_days
 # *trading* days have actually elapsed, so this rarely evaluates today's
@@ -393,6 +403,24 @@ async def _capture_pit_quant_signals_job() -> None:
         logger.info("Scheduler: PIT quant signal capture — %d rows", inserted)
 
 
+async def _compute_market_regime_job() -> None:
+    """REG-1/2/3: computes and persists today's regime row (latest date
+    only — see services/market_regime_service.py's one-time admin
+    backfill endpoint for historical population). Off by default —
+    see MARKET_REGIME_ENABLED_KEY's docstring in app_settings.py for why
+    this one gets a stricter opt-in posture than the other daily jobs."""
+    if not await get_setting_bool(MARKET_REGIME_ENABLED_KEY, default=False):
+        logger.info("Scheduler: market_regime is disabled, skipping this run")
+        return
+
+    result = await compute_and_persist_daily_regime(backfill=False)
+    if result["rows_persisted"]:
+        logger.info(
+            "Scheduler: market regime — %s confirmed for %s",
+            result["latest_regime"], result["latest_as_of_date"],
+        )
+
+
 async def _evaluate_quant_signal_outcomes_job() -> None:
     """The live counterpart to the Quant Signal capture above: checks
     every already-captured call old enough to have a real exit price on
@@ -691,6 +719,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="capture_pit_quant_signals",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _compute_market_regime_job,
+        CronTrigger(
+            hour=MARKET_REGIME_HOUR_ET, minute=MARKET_REGIME_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="compute_market_regime",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

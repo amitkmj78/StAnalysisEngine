@@ -1574,6 +1574,49 @@ grant select, insert on demand_enquiries to app_service;
 insert into app_settings (key, value) values ('horizon1_subscriptions_enabled', 'false') on conflict (key) do nothing;
 insert into app_settings (key, value) values ('free_tier_lag_days', '7') on conflict (key) do nothing;
 
+-- REG-1/2/3: one row per trading day from the Market Direction Phase 1
+-- Internals engine (services/market_internals_service.py) -- see that
+-- module's docstring for the failed-release-gate history this ships
+-- under explicit, informed override. regime_raw is the unsmoothed daily
+-- label; regime_confirmed is regime_raw after SR-5 hysteresis (a change
+-- only sticks after 2 consecutive sessions), which can retroactively
+-- reconsider a recent day as more days land -- unlike the append-only
+-- PIT-family tables, this one is refreshed in place, hence the update
+-- grant below. breadth_50dma/vix/vix3m/xly_xlp/hyg_ief/rsp_spy are the
+-- raw same-day inputs, stored for the banner's "trend/volatility/
+-- breadth/rates" display (services/market_internals_service.py::
+-- compute_internals_components) without needing to refetch history for
+-- a historical date.
+create table if not exists market_regime_daily (
+  id bigint generated always as identity primary key,
+  as_of_date date not null unique,
+  internals_score real,
+  mds real,
+  regime_raw text,
+  regime_confirmed text,
+  data_completeness real not null,
+  conflict_flag boolean not null default false,
+  breadth_50dma real,
+  vix real,
+  vix3m real,
+  xly_xlp real,
+  hyg_ief real,
+  rsp_spy real,
+  computed_at_utc timestamptz not null default now()
+);
+create index if not exists market_regime_daily_date_idx on market_regime_daily(as_of_date desc);
+
+grant select on market_regime_daily to app_user;
+grant select, insert, update on market_regime_daily to app_service;
+
+-- Defaults OFF, doubly deliberate here vs. every other *_ENABLED_KEY:
+-- beyond the usual "deploying code must not itself start a live job"
+-- rationale, this one wires up a scoring engine that failed its own
+-- release-gate backtest three times (see market_internals_service.py) --
+-- an admin must opt in with that history in view via /admin/settings,
+-- not have it start scoring/banner-ing the moment this deploys.
+insert into app_settings (key, value) values ('market_regime_enabled', 'false') on conflict (key) do nothing;
+
 grant usage, select on all sequences in schema public to app_service;
 """
 

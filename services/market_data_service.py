@@ -3,10 +3,11 @@ Raw data fetch for the Market Direction Score's Internals pillar. All
 yfinance I/O lives here — services/market_internals_service.py stays pure
 and only consumes the DataFrames this module produces.
 
-NOT WIRED INTO THE LIVE APP — see market_internals_service.py's module
-docstring: the resulting score failed its own release-gate backtest
-(contrarian, not confirming). Kept as tested, unused fetch infrastructure
-in case the signal is reworked later.
+NOW WIRED INTO THE LIVE APP (services/market_regime_service.py) despite
+the resulting score having failed its own release-gate backtest three
+times — see market_internals_service.py's module docstring for the full
+history and the explicit, informed override that authorized shipping it
+anyway.
 
 Breadth (% of S&P 500 above its 50/200-day moving average) is the
 expensive part: it requires several years of daily closes for every S&P

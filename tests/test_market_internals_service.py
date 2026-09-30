@@ -8,6 +8,7 @@ from services.market_internals_service import (
     _newey_west_mean_test,
     apply_hysteresis,
     compute_composite_score,
+    compute_internals_components,
     compute_internals_score,
     map_regime,
     run_forward_return_backtest,
@@ -260,3 +261,41 @@ def test_newey_west_widens_pvalue_under_positive_autocorrelation():
 def test_newey_west_returns_none_for_degenerate_input():
     assert _newey_west_mean_test(np.array([1.0]), maxlags=5) == (None, None)
     assert _newey_west_mean_test(np.array([]), maxlags=5) == (None, None)
+
+
+# ---------------------------------------------------------------------------
+# compute_internals_components (REG-1 -- additive, does not touch the
+# gated score/composite/regime/hysteresis functions above)
+# ---------------------------------------------------------------------------
+
+def test_compute_internals_components_empty_input_returns_empty_dict():
+    assert compute_internals_components(pd.DataFrame()) == {}
+
+
+def test_compute_internals_components_reads_latest_row_honestly():
+    n = 60
+    df = _flat_internals(n, breadth=50.0, vix=20.0, vix3m=18.0)  # inverted term structure
+    df["spy_close"] = 100.0 + np.arange(n) * 0.1  # steadily rising
+    components = compute_internals_components(df)
+
+    assert components["breadth"]["pct_above_50dma"] == 50.0
+    assert components["breadth"]["change_5d_pct"] == 0.0  # flat breadth series
+
+    assert components["volatility"]["vix"] == 20.0
+    assert components["volatility"]["vix3m"] == 18.0
+    assert components["volatility"]["term_spread"] == 2.0
+    assert components["volatility"]["inverted"] is True  # VIX > VIX3M
+
+    assert components["trend"]["spy_close"] == round(100.0 + (n - 1) * 0.1, 2)
+    assert components["trend"]["above_50dma"] is True  # monotonically rising series
+
+    assert components["risk_appetite"]["momentum_pct"] == 0.0  # flat ratios, no momentum
+
+
+def test_compute_internals_components_handles_short_history_gracefully():
+    df = _flat_internals(3)
+    df["spy_close"] = [100.0, 101.0, 102.0]
+    components = compute_internals_components(df)
+    assert components["breadth"]["change_5d_pct"] is None  # fewer than 6 rows
+    assert components["trend"]["spy_50dma"] is None  # fewer than 50 rows
+    assert components["trend"]["above_50dma"] is None
