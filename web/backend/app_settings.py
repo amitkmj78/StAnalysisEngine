@@ -126,6 +126,17 @@ STOCK_SCORE_COMPUTE_ENABLED_KEY = "stock_score_compute_enabled"
 # services/market_internals_service.py's module docstring). An admin
 # opts in via /admin/settings with that history in view, not by deploy.
 MARKET_REGIME_ENABLED_KEY = "market_regime_enabled"
+# ALR-1: each of the three new alert-scan jobs gets its own deliberate
+# opt-in flag, same rationale as PORTFOLIO_DROP_ALERTS_ENABLED_KEY --
+# they write user-visible content and send email, so a deploy must not
+# itself start alerting anyone. Defaults OFF.
+SIGNAL_CHANGE_ALERTS_ENABLED_KEY = "signal_change_alerts_enabled"
+EARNINGS_ALERTS_ENABLED_KEY = "earnings_alerts_enabled"
+COST_DROP_ALERTS_ENABLED_KEY = "cost_drop_alerts_enabled"
+# Separate from PORTFOLIO_DROP_THRESHOLD_PCT_KEY -- that one means "vs.
+# yesterday's close", this means "vs. cost basis", different concepts.
+COST_DROP_THRESHOLD_PCT_KEY = "cost_drop_threshold_pct"
+COST_DROP_THRESHOLD_DEFAULT = 10.0
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

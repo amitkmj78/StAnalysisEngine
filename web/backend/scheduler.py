@@ -7,9 +7,12 @@ from starlette.concurrency import run_in_threadpool
 
 from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
+from services.cost_drop_alert_service import scan_cost_drops
+from services.earnings_alert_service import scan_earnings_in_window
 from services.email_service import APP_URL, send_admin_alert_email, send_rankings_email
 from services.market_regime_service import compute_and_persist_daily_regime
 from services.prediction_verification_service import verify_prediction
+from services.signal_change_alert_service import scan_signal_changes
 from services.saved_screen_alert_service import scan_saved_screens_for_membership_changes
 from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE, TRACK_RECORD_HORIZONS
 from services.stock_finder_service import SP500_UNIVERSE_NAME, get_stock_finder_table
@@ -17,7 +20,9 @@ from services.stock_score_capture_service import compute_and_persist_daily_score
 from web.backend.admin import ADMIN_EMAIL
 from web.backend.app_settings import (
     BASKET_REBALANCE_ENABLED_KEY,
+    COST_DROP_ALERTS_ENABLED_KEY,
     DB_BACKUP_ENABLED_KEY,
+    EARNINGS_ALERTS_ENABLED_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     MARKET_REGIME_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
@@ -27,6 +32,7 @@ from web.backend.app_settings import (
     PORTFOLIO_DROP_ALERTS_ENABLED_KEY,
     PUBLISH_SIGNALS_ENABLED_KEY,
     SAVED_SCREEN_ALERTS_ENABLED_KEY,
+    SIGNAL_CHANGE_ALERTS_ENABLED_KEY,
     STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY,
     STOCK_SCORE_COMPUTE_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
@@ -263,6 +269,20 @@ async def _scan_portfolio_drops_job() -> None:
         logger.info("Scheduler: inserted %d portfolio drop alerts", inserted)
 
 
+async def _scan_cost_drop_alerts_job() -> None:
+    """ALR-1: "a holding falling a set % from cost" -- distinct from
+    _scan_portfolio_drops_job above, which compares to yesterday's close.
+    Same interval rationale as that job (needs to catch moves throughout
+    the trading day), deliberately simpler (no LLM synthesis). Off by
+    default, same opt-in posture as portfolio_drop_alerts."""
+    if not await get_setting_bool(COST_DROP_ALERTS_ENABLED_KEY, default=False):
+        logger.info("Scheduler: cost_drop_alerts is disabled, skipping this run")
+        return
+    emailed = await scan_cost_drops()
+    if emailed:
+        logger.info("Scheduler: %d cost-drop alert emails sent", emailed)
+
+
 async def _poll_paper_orders_job() -> None:
     """Reconciles every paper-trading account with an order still in a
     SUBMITTING/OPEN/PARTIALLY_FILLED local status against Alpaca's own
@@ -369,6 +389,46 @@ async def _compute_stock_scores_job() -> None:
     inserted = await compute_and_persist_daily_scores()
     if inserted:
         logger.info("Scheduler: stock score capture — %d tickers newly scored", inserted)
+
+
+SIGNAL_CHANGE_ALERTS_HOUR_ET = 16
+# 3 minutes after STOCK_SCORE_COMPUTE_HOUR_ET/MINUTE_ET (16:15) so today's
+# fresh stock_scores row exists to compare against yesterday's.
+SIGNAL_CHANGE_ALERTS_MINUTE_ET = 18
+
+
+async def _scan_signal_change_alerts_job() -> None:
+    """ALR-1: day-over-day short_signal/long_signal change, per owned or
+    watchlisted ticker, emailed once per (user, ticker, horizon, day). Off
+    by default, same opt-in posture as portfolio_drop_alerts/
+    saved_screen_alerts -- the first thing that emails a user about a
+    plain signal change."""
+    if not await get_setting_bool(SIGNAL_CHANGE_ALERTS_ENABLED_KEY, default=False):
+        logger.info("Scheduler: signal_change_alerts is disabled, skipping this run")
+        return
+    emailed = await scan_signal_changes()
+    if emailed:
+        logger.info("Scheduler: %d signal-change alert emails sent", emailed)
+
+
+# Pre-market, so a user sees "earnings in 2 days" with enough notice
+# before that trading day, not after it's already underway. Runs daily
+# (not just weekdays) since a Monday run needs to catch a Tuesday
+# earnings date the same as any other day.
+EARNINGS_ALERTS_HOUR_ET = 8
+EARNINGS_ALERTS_MINUTE_ET = 0
+
+
+async def _scan_earnings_alerts_job() -> None:
+    """ALR-1: "earnings in 2 days" for every owned or watchlisted ticker,
+    emailed once per (user, ticker, day) the window check hits. Off by
+    default, same opt-in posture as the other ALR-1 scan jobs."""
+    if not await get_setting_bool(EARNINGS_ALERTS_ENABLED_KEY, default=False):
+        logger.info("Scheduler: earnings_alerts is disabled, skipping this run")
+        return
+    emailed = await scan_earnings_in_window()
+    if emailed:
+        logger.info("Scheduler: %d earnings alert emails sent", emailed)
 
 
 SAVED_SCREEN_ALERTS_HOUR_ET = 16
@@ -674,6 +734,15 @@ def start_scheduler() -> AsyncIOScheduler:
         max_instances=1,
     )
     _scheduler.add_job(
+        _scan_cost_drop_alerts_job,
+        "interval",
+        minutes=PORTFOLIO_DROP_INTERVAL_MINUTES,
+        id="scan_cost_drop_alerts",
+        next_run_time=datetime.now(),
+        coalesce=True,
+        max_instances=1,
+    )
+    _scheduler.add_job(
         _poll_paper_orders_job,
         "interval",
         seconds=PAPER_ORDER_POLL_INTERVAL_SECONDS,
@@ -718,6 +787,25 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="compute_stock_scores",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _scan_signal_change_alerts_job,
+        CronTrigger(
+            hour=SIGNAL_CHANGE_ALERTS_HOUR_ET, minute=SIGNAL_CHANGE_ALERTS_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="scan_signal_change_alerts",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _scan_earnings_alerts_job,
+        CronTrigger(hour=EARNINGS_ALERTS_HOUR_ET, minute=EARNINGS_ALERTS_MINUTE_ET, timezone="America/New_York"),
+        id="scan_earnings_alerts",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

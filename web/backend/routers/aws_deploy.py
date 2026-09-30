@@ -1617,6 +1617,88 @@ grant select, insert, update on market_regime_daily to app_service;
 -- not have it start scoring/banner-ing the moment this deploys.
 insert into app_settings (key, value) values ('market_regime_enabled', 'false') on conflict (key) do nothing;
 
+-- ALR-1: day-over-day short_signal/long_signal change, per owned or
+-- watchlisted ticker. Mirrors watchlist_alerts' user isolation; a row
+-- per (user, ticker, day, horizon) since short and long can each change
+-- independently on the same day.
+create table if not exists signal_change_alerts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  ticker text not null,
+  alert_date date not null,
+  horizon text not null check (horizon in ('short', 'long')),
+  old_signal text,
+  new_signal text,
+  created_at timestamptz not null default now(),
+  seen_at timestamptz,
+  unique (user_id, ticker, alert_date, horizon)
+);
+create index if not exists signal_change_alerts_user_idx on signal_change_alerts(user_id, created_at desc);
+alter table signal_change_alerts enable row level security;
+drop policy if exists signal_change_alerts_isolation on signal_change_alerts;
+create policy signal_change_alerts_isolation on signal_change_alerts for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- ALR-1: earnings-in-2-days, one row per (user, ticker, day) the window
+-- was first entered -- reuses stock_detail_service.upcoming_earnings_in_window
+-- (called with window_days=2) for the actual date math, no new logic there.
+create table if not exists earnings_alert_log (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  ticker text not null,
+  alert_date date not null,
+  earnings_date date not null,
+  created_at timestamptz not null default now(),
+  seen_at timestamptz,
+  unique (user_id, ticker, alert_date)
+);
+create index if not exists earnings_alert_log_user_idx on earnings_alert_log(user_id, created_at desc);
+alter table earnings_alert_log enable row level security;
+drop policy if exists earnings_alert_log_isolation on earnings_alert_log;
+create policy earnings_alert_log_isolation on earnings_alert_log for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- ALR-1: "a holding falling a set % from cost" -- distinct from the
+-- existing portfolio_drop_alerts above, which compares to yesterday's
+-- close, not cost basis. Same per-day-cap idiom, deliberately simpler
+-- (no LLM sentiment synthesis, matching saved_screen_alerts' lighter
+-- shape instead of portfolio_drop_alerts' richer one).
+create table if not exists cost_drop_alerts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  ticker text not null,
+  alert_date date not null,
+  avg_cost real not null,
+  current_price real not null,
+  pct_change real not null,
+  created_at timestamptz not null default now(),
+  seen_at timestamptz,
+  unique (user_id, ticker, alert_date)
+);
+create index if not exists cost_drop_alerts_user_idx on cost_drop_alerts(user_id, created_at desc);
+alter table cost_drop_alerts enable row level security;
+drop policy if exists cost_drop_alerts_isolation on cost_drop_alerts;
+create policy cost_drop_alerts_isolation on cost_drop_alerts for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+grant select, insert on signal_change_alerts to app_service;
+grant select, insert on earnings_alert_log to app_service;
+grant select, insert on cost_drop_alerts to app_service;
+grant select, update, delete on signal_change_alerts, earnings_alert_log, cost_drop_alerts to app_user;
+
+-- Each gets its own deliberate-opt-in flag, same rationale as
+-- portfolio_drop_alerts_enabled -- these write user-visible content and
+-- send email, so a deploy must not itself start alerting anyone.
+insert into app_settings (key, value) values ('signal_change_alerts_enabled', 'false') on conflict (key) do nothing;
+insert into app_settings (key, value) values ('earnings_alerts_enabled', 'false') on conflict (key) do nothing;
+insert into app_settings (key, value) values ('cost_drop_alerts_enabled', 'false') on conflict (key) do nothing;
+-- Separate from portfolio_drop_threshold_pct -- that one means "vs.
+-- yesterday's close", this means "vs. cost basis", different concepts.
+insert into app_settings (key, value) values ('cost_drop_threshold_pct', '10.0') on conflict (key) do nothing;
+
 grant usage, select on all sequences in schema public to app_service;
 """
 
