@@ -37,9 +37,16 @@ const NAV: NavEntry[] = [
     label: "Portfolio",
     items: [
       { href: "/portfolio", label: "Holdings" },
-      { href: "/watchlist", label: "Watchlist" },
       { href: "/earnings", label: "Earnings Calendar" },
       { href: "/portfolio/health", label: "Health Check" },
+    ],
+  },
+  {
+    label: "Alerts",
+    items: [
+      { href: "/alerts", label: "Inbox" },
+      { href: "/watchlist", label: "Watchlist" },
+      { href: "/alerts/settings", label: "Settings" },
     ],
   },
   { label: "Assistant", href: "/chat" },

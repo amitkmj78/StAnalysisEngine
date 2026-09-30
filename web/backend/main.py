@@ -25,6 +25,7 @@ from web.backend.routers import (
     admin_sql,
     admin_users,
     alert_preferences,
+    alerts_inbox,
     auth,
     aws_deploy,
     baseline,
@@ -83,6 +84,7 @@ app.add_middleware(
 )
 
 app.include_router(alert_preferences.router)
+app.include_router(alerts_inbox.router)
 app.include_router(auth.router)
 app.include_router(baseline.router)
 app.include_router(prediction.router)

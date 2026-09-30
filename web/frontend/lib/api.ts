@@ -11,6 +11,11 @@ import type {
   AdminUser,
   AdminUserPortfolio,
   AlertConditionType,
+  AlertInboxItem,
+  AlertNotificationSettings,
+  AlertPreferenceOverride,
+  AlertPreferencesResponse,
+  AlertPreferenceType,
   AnalystRatingSummary,
   AuditLogResponse,
   BackupStatus,
@@ -1164,6 +1169,47 @@ export function deleteWatchlistAlert(alertId: number) {
 
 export function dismissWatchlistAlert(alertId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/watchlist/${alertId}/dismiss`, "POST");
+}
+
+export function getAlertInbox() {
+  return apiFetch<AlertInboxItem[]>("/api/v1/alerts");
+}
+
+export function dismissAlertInboxItem(source: string, alertId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/alerts/${source}/${alertId}/dismiss`, "POST");
+}
+
+export function getAlertPreferences() {
+  return apiFetch<AlertPreferencesResponse>("/api/v1/alerts/preferences");
+}
+
+export function upsertAlertPreference(body: {
+  alert_type: AlertPreferenceType;
+  ticker?: string | null;
+  enabled: boolean;
+  channel_email: boolean;
+  channel_inapp: boolean;
+}) {
+  return apiSend<AlertPreferenceOverride>("/api/v1/alerts/preferences", "PUT", body);
+}
+
+export function deleteAlertPreference(preferenceId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/alerts/preferences/${preferenceId}`, "DELETE");
+}
+
+export function getAlertSettings() {
+  return apiFetch<AlertNotificationSettings>("/api/v1/alerts/settings");
+}
+
+export function upsertAlertSettings(body: {
+  quiet_hours_start?: string | null;
+  quiet_hours_end?: string | null;
+  digest_enabled: boolean;
+  digest_time: string;
+  webhook_enabled: boolean;
+  webhook_url?: string | null;
+}) {
+  return apiSend<AlertNotificationSettings>("/api/v1/alerts/settings", "PUT", body);
 }
 
 export function getAdminSettings() {

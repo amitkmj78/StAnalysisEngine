@@ -1464,6 +1464,50 @@ export interface AdminActivityRow {
 
 export type AlertConditionType = "price_above" | "price_below" | "score_above" | "score_below";
 
+// ALR-2: one normalized row per triggered alert across every source
+// table -- see web/backend/routers/alerts_inbox.py.
+export interface AlertInboxItem {
+  source: "watchlist" | "portfolio_drop" | "signal_change" | "earnings" | "cost_drop";
+  id: number;
+  ticker: string;
+  alert_type: string;
+  summary: string;
+  created_at: string;
+  event_at: string;
+  seen_at: string | null;
+  link: string | null;
+}
+
+// ALR-1: matches services/notification_dispatcher.py's alert_type strings.
+export type AlertPreferenceType = "signal_change" | "earnings" | "cost_drop";
+
+export interface AlertPreferenceOverride {
+  id: number;
+  user_id: string;
+  ticker: string | null;
+  alert_type: AlertPreferenceType;
+  enabled: boolean;
+  channel_email: boolean;
+  channel_inapp: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertPreferencesResponse {
+  default: { enabled: boolean; channel_email: boolean; channel_inapp: boolean };
+  overrides: AlertPreferenceOverride[];
+}
+
+export interface AlertNotificationSettings {
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+  digest_enabled: boolean;
+  digest_time: string;
+  webhook_enabled: boolean;
+  webhook_url: string | null;
+  has_webhook_secret: boolean;
+}
+
 export interface WatchlistAlert {
   id: number;
   ticker: string;
