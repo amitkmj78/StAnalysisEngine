@@ -1231,6 +1231,9 @@ export interface TwoScoreResponse {
   ticker: string;
   as_of_date: string;
   universe_id: string;
+  // REG-3: the market regime as of this row's own as_of_date (not
+  // necessarily "today") -- see services/market_regime_service.py.
+  regime: string | null;
   short_score: number | null;
   short_signal: TwoScoreSignal;
   short_confidence: TwoScoreConfidence;

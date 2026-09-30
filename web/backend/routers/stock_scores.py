@@ -21,6 +21,7 @@ from services.factor_narrative_service import (
     reversal_sentence,
     value_sentence,
 )
+from services.market_regime_service import regime_as_of
 from services.stock_score_capture_service import MOMENTUM_LOOKBACK_DAYS
 from services.stock_score_service import flag_12week_trend, select_top_and_bottom_factors, weekly_change_explanation
 from web.backend.db import service_conn
@@ -93,10 +94,19 @@ async def get_stock_score(request: Request, ticker: str, universe_id: str = Quer
         raise HTTPException(404, f"No score on record yet for {ticker.upper()}.")
 
     detail = _parse_factor_detail(row)
+    # REG-3: the regime for THIS row's own as_of_date, not "today" --
+    # this row could be yesterday's or older if today's capture hasn't
+    # landed yet, and stamping today's regime on it would be historically
+    # wrong. See services/market_regime_service.py's module docstring for
+    # why this ships despite a failed validation gate, and
+    # portfolio_compare_service.derive_confidence's docstring for why
+    # this is attached alongside confidence rather than folded into it.
+    regime = await regime_as_of(target_date=row["as_of_date"])
     return {
         "ticker": row["ticker"],
         "as_of_date": row["as_of_date"].isoformat(),
         "universe_id": row["universe_id"],
+        "regime": regime,
         "short_score": row["short_score"],
         "short_signal": row["short_signal"],
         "short_confidence": {"score": row["short_confidence_score"], "label": row["short_confidence_label"]},

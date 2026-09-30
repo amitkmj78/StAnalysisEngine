@@ -113,6 +113,21 @@ function confidenceClass(label: string): string {
   return "text-slate-400";
 }
 
+// REG-3: a caution note, not a confidence number change -- see
+// services/market_regime_service.py's module docstring for why this
+// ships despite a failed validation gate, and derive_confidence's own
+// docstring for why regime is attached alongside confidence rather than
+// folded into it.
+function regimeCautionCopy(regime: string | null): string | null {
+  if (regime === "Risk-Off") {
+    return "Market regime: Risk-Off — this signal's track record in risk-off conditions may differ from its usual calibration.";
+  }
+  if (regime === "Cautious") {
+    return "Market regime: Cautious — treat this signal with extra awareness of broader market stress.";
+  }
+  return null;
+}
+
 function ScoreCard({
   title,
   horizon,
@@ -124,6 +139,7 @@ function ScoreCard({
   sectorRank,
   sectorKey,
   trend,
+  regime,
 }: {
   title: string;
   horizon: string;
@@ -135,7 +151,9 @@ function ScoreCard({
   sectorRank: { rank: number; of: number } | null;
   sectorKey: string;
   trend?: { weekly_series: [string, number][]; flagged: boolean; change_pts: number | null };
+  regime: string | null;
 }) {
+  const caution = regimeCautionCopy(regime);
   // SCR-3's exact target format: "Top 8% of S&P 500, top 3 of 22 in Semis".
   const rankParts: string[] = [];
   if (universePercentile !== null) {
@@ -167,6 +185,9 @@ function ScoreCard({
         Confidence: {confidence.label}
         {confidence.score !== null ? ` (${confidence.score.toFixed(0)})` : ""}
       </p>
+      {caution && (
+        <p className="mt-1.5 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800">{caution}</p>
+      )}
       {trend && trend.weekly_series.length >= 2 && (
         <div className="mt-3 flex items-center gap-2">
           <Sparkline values={trend.weekly_series.map(([, v]) => v)} color="#1F4FD1" />
@@ -444,6 +465,7 @@ export default function StockScorePage() {
               sectorRank={data.short_sector_rank}
               sectorKey={data.sector_key}
               trend={history?.short_term}
+              regime={data.regime}
             />
             <ScoreCard
               title="Long-Term Score"
@@ -456,6 +478,7 @@ export default function StockScorePage() {
               sectorRank={data.long_sector_rank}
               sectorKey={data.sector_key}
               trend={history?.long_term}
+              regime={data.regime}
             />
           </div>
 

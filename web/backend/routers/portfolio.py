@@ -23,6 +23,7 @@ from services.goal_plan_service import (
 )
 from services.index_fund_service import GOAL_DESCRIPTIONS, GOAL_WEIGHTS
 from services.manual_positions import build_manual_positions
+from services.market_regime_service import regime_as_of
 from services.monthly_investing_service import get_best_monthly_pick
 from services.portfolio_alert_service import build_drop_analysis, get_price_and_prev_close
 from services.portfolio_compare_service import (
@@ -1232,6 +1233,11 @@ async def _attach_stock_forecasts(stock_rows: list[dict]) -> None:
 
     stability_results = await asyncio.gather(*(get_signal_stability_for_ticker(t) for t in tickers))
     stability_by_ticker = dict(zip(tickers, stability_results))
+    # REG-3: today's regime, fetched once for the whole batch rather than
+    # per-row -- these are live current-day forecasts, so "today" is the
+    # correct regime for every row here (unlike a historical track-record
+    # row, which needs its own target_date's regime instead).
+    current_regime = await regime_as_of()
 
     for row in stock_rows:
         q = by_ticker.get(row["ticker"])
@@ -1240,6 +1246,7 @@ async def _attach_stock_forecasts(stock_rows: list[dict]) -> None:
         row["signal"] = {
             "action": COMPARE_SIGNAL_ACTION.get(q["signal"]) if q else None,
             **derive_confidence(stability_by_ticker.get(row["ticker"])),
+            "regime": current_regime,
             "as_of": str(as_of_date) if as_of_date else None,
         }
 
@@ -1313,6 +1320,9 @@ async def portfolio_compare(
     signal_by_ticker = {p["ticker"]: p for p in insights.get("positions", [])}
     stability_results = await asyncio.gather(*(get_signal_stability_for_ticker(h.ticker) for h in holdings))
     stability_by_ticker = dict(zip((h.ticker for h in holdings), stability_results))
+    # REG-3: today's regime for this live holdings view -- see the same
+    # note in _attach_stock_forecasts above.
+    current_regime = await regime_as_of()
 
     holdings_out = []
     signal_counts = {"buy": 0, "hold": 0, "trim": 0}
@@ -1326,6 +1336,7 @@ async def portfolio_compare(
             "signal": {
                 "action": action,
                 **derive_confidence(stability_by_ticker.get(row["ticker"])),
+                "regime": current_regime,
                 "as_of": insights.get("as_of_date"),
             },
         })

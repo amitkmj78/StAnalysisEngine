@@ -87,6 +87,15 @@ export default function RegimeBanner() {
           {data.disclosure}
         </p>
       )}
+      {data.regime === "Risk-Off" && (
+        // REG-3: a site-wide echo of the same per-signal caution note on
+        // stock/[ticker]/page.tsx's ScoreCard -- a condition, not an
+        // instruction (no "sell"/"buy" language).
+        <p className="mx-auto mt-1 max-w-6xl text-[11px] font-medium leading-relaxed">
+          Signal confidence may read differently than usual across this app while the market is in a Risk-Off
+          regime.
+        </p>
+      )}
     </div>
   );
 }
