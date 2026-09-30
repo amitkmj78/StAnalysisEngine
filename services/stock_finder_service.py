@@ -334,7 +334,16 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
                 else None
             ),
             "Forward PE": info.get("forwardPE"),
-            "Dividend Yield %": _safe_percent(info.get("dividendYield")),
+            # NOT _safe_percent: unlike revenue/earnings growth, yfinance's
+            # dividendYield is already a plain percent (confirmed live --
+            # MSFT's raw value is 0.77, meaning 0.77%, not a 0.0077
+            # fraction), and most real yields are legitimately under 1 --
+            # _safe_percent's "abs(value) <= 1 -> treat as a fraction"
+            # heuristic would 100x a real 0.77% yield into a fake 77%.
+            # Same bug class as SCR-1's ROE-vs-_safe_percent fix.
+            "Dividend Yield %": (
+                None if info.get("dividendYield") is None else float(info.get("dividendYield"))
+            ),
             "Revenue Growth %": _safe_percent(info.get("revenueGrowth")),
             "Earnings Growth %": _safe_percent(info.get("earningsGrowth")),
             "1M Return %": return_1m,

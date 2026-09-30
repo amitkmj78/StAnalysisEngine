@@ -170,14 +170,18 @@ def test_build_stock_row_spark_90d_shorter_than_90_uses_full_history(monkeypatch
     assert len(row["Spark 90D"]) == 70
 
 
-def test_build_stock_row_dividend_yield_normalizes_fraction_and_percent(monkeypatch):
+def test_build_stock_row_dividend_yield_passed_through_unscaled(monkeypatch):
+    # Unlike revenueGrowth/earningsGrowth, yfinance's dividendYield is
+    # already a plain percent (confirmed live: MSFT's raw value is 0.77,
+    # meaning 0.77%) -- must NOT be run through _safe_percent's
+    # fraction-detection heuristic, which would 100x a real sub-1% yield.
     monkeypatch.setattr(sfs, "get_cached_history", lambda ticker, period, auto_adjust=True: _synthetic_hist(100))
 
-    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info(dividendYield=0.021))
-    assert _build_stock_row("AAA")["Dividend Yield %"] == pytest.approx(2.1)
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info(dividendYield=0.77))
+    assert _build_stock_row("AAA")["Dividend Yield %"] == pytest.approx(0.77)
 
-    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info(dividendYield=2.1))
-    assert _build_stock_row("AAA")["Dividend Yield %"] == pytest.approx(2.1)
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info(dividendYield=2.43))
+    assert _build_stock_row("AAA")["Dividend Yield %"] == pytest.approx(2.43)
 
 
 def test_build_stock_row_dividend_yield_none_when_missing(monkeypatch):
