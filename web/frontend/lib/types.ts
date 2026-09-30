@@ -1795,9 +1795,11 @@ export interface TrackRecordResponse {
   universe_id: string;
   lookback_days: number;
   horizon_days: number;
+  regime_filter: string | null;
   metrics: TrackRecordMetrics;
   metrics_by_model_version: Record<string, TrackRecordMetrics>;
   metrics_by_signal: Record<string, TrackRecordMetrics>;
+  metrics_by_regime: Record<string, TrackRecordMetrics>;
   avg_excess_vs_spy_pct: number | null;
   calibration: TrackRecordCalibrationBucket[];
   worst_misses: TrackRecordWorstMiss[];

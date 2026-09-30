@@ -1383,8 +1383,10 @@ export function getSignalOutcomes(horizonDays = 30) {
   return apiFetch<SignalOutcomesResponse>("/api/v1/signals/outcomes", { horizon_days: String(horizonDays) });
 }
 
-export function getTrackRecord(horizonDays = 30) {
-  return apiFetch<TrackRecordResponse>("/api/v1/signals/track-record", { horizon_days: String(horizonDays) });
+export function getTrackRecord(horizonDays = 30, regime?: string) {
+  const params: Record<string, string> = { horizon_days: String(horizonDays) };
+  if (regime) params.regime = regime;
+  return apiFetch<TrackRecordResponse>("/api/v1/signals/track-record", params);
 }
 
 export function comparePredictionsToFund(fundGoal = "Balanced Core", fundCategory = "All") {

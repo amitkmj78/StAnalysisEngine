@@ -424,6 +424,22 @@ def compute_outcome_metrics_by_signal(outcome_rows: list[dict]) -> dict[str, dic
     return {"Buy": compute_outcome_metrics(outcome_rows)}
 
 
+def compute_outcome_metrics_by_regime(outcome_rows: list[dict]) -> dict[str, dict]:
+    """REG-2: compute_outcome_metrics, grouped by each row's regime (the
+    caller LEFT JOINs this in from market_regime_daily on target_date --
+    this module has no DB access of its own, same convention as
+    compute_outcome_metrics_by_model_version/by_signal above). A row
+    whose target_date predates market_regime_daily's earliest backfilled
+    date (or fell in the scoring engine's 250-day warm-up window) has
+    regime=None from that LEFT JOIN -- bucketed under "unknown" here
+    rather than silently dropped, since the row itself is still real
+    track-record data, just from before a regime reading existed for it."""
+    by_regime: dict[str, list[dict]] = {}
+    for row in outcome_rows:
+        by_regime.setdefault(row.get("regime") or "unknown", []).append(row)
+    return {regime: compute_outcome_metrics(rows) for regime, rows in by_regime.items()}
+
+
 def worst_misses(outcome_rows: list[dict], top_n: int = 10) -> list[dict]:
     """TRK-5: the largest losses among published picks, sorted ascending
     by realized_return_pct. published_signals has no Trim/Sell side

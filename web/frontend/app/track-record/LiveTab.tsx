@@ -16,6 +16,8 @@ function fmtPct(v: number | null): string {
 
 export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
   const [horizon, setHorizon] = useState(30);
+  // REG-2: empty string means "all regimes" (no filter sent to the API).
+  const [regime, setRegime] = useState("");
   const [outcomes, setOutcomes] = useState<SignalOutcomesResponse | null>(null);
   const [outcomesError, setOutcomesError] = useState<string | null>(null);
   const [trackRecord, setTrackRecord] = useState<TrackRecordResponse | null>(null);
@@ -31,7 +33,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
         setOutcomesError(err instanceof ApiError ? err.message : "Failed to load evaluated outcomes.");
         return null;
       }),
-      getTrackRecord(horizon).catch((err) => {
+      getTrackRecord(horizon, regime || undefined).catch((err) => {
         setTrackRecordError(err instanceof ApiError ? err.message : "Failed to load the enhanced track record.");
         return null;
       }),
@@ -41,10 +43,15 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
         setTrackRecord(tr);
       })
       .finally(() => setLoading(false));
-  }, [horizon]);
+  }, [horizon, regime]);
 
   const modelVersions = trackRecord ? Object.keys(trackRecord.metrics_by_model_version) : [];
   const signalGroups = trackRecord ? Object.keys(trackRecord.metrics_by_signal) : [];
+  // metrics_by_regime is always the full, unfiltered breakdown (see
+  // signals.py::get_track_record) regardless of the active `regime`
+  // filter, so this list of options never collapses to one entry once a
+  // filter is chosen.
+  const regimeOptions = trackRecord ? Object.keys(trackRecord.metrics_by_regime) : [];
 
   return (
     <>
@@ -137,19 +144,38 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
       <div className="mt-8 rounded-lg border border-emerald-200 bg-emerald-50/40 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold text-slate-900">Live Performance to Date</h2>
-          <div className="flex gap-1 rounded-md border border-emerald-300 bg-white p-1">
-            {HORIZONS.map((h) => (
-              <button
-                key={h}
-                type="button"
-                onClick={() => setHorizon(h)}
-                className={`rounded px-2.5 py-1 text-xs font-medium ${
-                  horizon === h ? "bg-emerald-600 text-white" : "text-slate-600 hover:bg-emerald-50"
-                }`}
-              >
-                {h}d
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            {regimeOptions.length > 0 && (
+              <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                Regime
+                <select
+                  value={regime}
+                  onChange={(e) => setRegime(e.target.value)}
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                >
+                  <option value="">All regimes</option>
+                  {regimeOptions.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <div className="flex gap-1 rounded-md border border-emerald-300 bg-white p-1">
+              {HORIZONS.map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setHorizon(h)}
+                  className={`rounded px-2.5 py-1 text-xs font-medium ${
+                    horizon === h ? "bg-emerald-600 text-white" : "text-slate-600 hover:bg-emerald-50"
+                  }`}
+                >
+                  {h}d
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
@@ -259,6 +285,42 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                             return (
                               <tr key={s} className="border-b border-slate-100 last:border-0">
                                 <td className="px-2 py-1.5">{s}</td>
+                                <td className="px-2 py-1.5 text-right">{m.num_evaluated_picks}</td>
+                                <td className="px-2 py-1.5 text-right">{m.hit_rate_pct !== null ? `${m.hit_rate_pct.toFixed(1)}%` : "—"}</td>
+                                <td className="px-2 py-1.5 text-right">{fmtPct(m.avg_return_pct)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {regimeOptions.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-slate-800">By Regime</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      REG-2: hit rate by market regime at the time each pick was published. &quot;unknown&quot;
+                      covers dates before a regime reading existed for that day.{" "}
+                      {regime ? `Filtered to ${regime} above.` : "Use the Regime selector above to filter."}
+                    </p>
+                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                            <th className="px-2 py-1.5">Regime</th>
+                            <th className="px-2 py-1.5 text-right">Picks</th>
+                            <th className="px-2 py-1.5 text-right">Hit Rate</th>
+                            <th className="px-2 py-1.5 text-right">Avg Return</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {regimeOptions.map((r) => {
+                            const m = trackRecord.metrics_by_regime[r];
+                            return (
+                              <tr key={r} className="border-b border-slate-100 last:border-0">
+                                <td className="px-2 py-1.5">{r}</td>
                                 <td className="px-2 py-1.5 text-right">{m.num_evaluated_picks}</td>
                                 <td className="px-2 py-1.5 text-right">{m.hit_rate_pct !== null ? `${m.hit_rate_pct.toFixed(1)}%` : "—"}</td>
                                 <td className="px-2 py-1.5 text-right">{fmtPct(m.avg_return_pct)}</td>

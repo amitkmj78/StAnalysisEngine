@@ -11,6 +11,7 @@ from services.signal_publication_service import (
     compute_calibration,
     compute_outcome_metrics,
     compute_outcome_metrics_by_model_version,
+    compute_outcome_metrics_by_regime,
     compute_outcome_metrics_by_signal,
     compute_spy_returns_for_dates,
     confidence_for_outcome,
@@ -20,7 +21,7 @@ from services.signal_publication_service import (
 from services.signal_publication_service import _period_end_labels
 
 
-def _row(ticker="AAPL", target_date=date(2026, 1, 5), rank=1, realized=2.0, benchmark=1.0, model_version_hash="v1"):
+def _row(ticker="AAPL", target_date=date(2026, 1, 5), rank=1, realized=2.0, benchmark=1.0, model_version_hash="v1", regime=None):
     return {
         "ticker": ticker,
         "target_date": target_date,
@@ -29,6 +30,7 @@ def _row(ticker="AAPL", target_date=date(2026, 1, 5), rank=1, realized=2.0, benc
         "benchmark_return_pct": benchmark,
         "beat_benchmark": realized > benchmark,
         "model_version_hash": model_version_hash,
+        "regime": regime,
     }
 
 
@@ -78,6 +80,33 @@ def test_compute_outcome_metrics_by_signal_single_buy_group():
 
 def test_compute_outcome_metrics_by_signal_empty_for_no_rows():
     assert compute_outcome_metrics_by_signal([]) == {}
+
+
+def test_compute_outcome_metrics_by_regime_groups_separately():
+    rows = [
+        _row(regime="Risk-On", realized=10.0, benchmark=0.0),
+        _row(ticker="MSFT", regime="Risk-On", realized=6.0, benchmark=0.0),
+        _row(ticker="GOOG", regime="Risk-Off", realized=-4.0, benchmark=0.0),
+    ]
+    by_regime = compute_outcome_metrics_by_regime(rows)
+    assert set(by_regime) == {"Risk-On", "Risk-Off"}
+    assert by_regime["Risk-On"]["num_evaluated_picks"] == 2
+    assert by_regime["Risk-Off"]["num_evaluated_picks"] == 1
+    assert by_regime["Risk-On"]["avg_return_pct"] == 8.0
+
+
+def test_compute_outcome_metrics_by_regime_missing_regime_grouped_unknown():
+    # A row whose target_date predates market_regime_daily's earliest
+    # backfilled date (or the LEFT JOIN simply found nothing) has
+    # regime=None -- bucketed honestly, not dropped.
+    rows = [_row(regime=None)]
+    by_regime = compute_outcome_metrics_by_regime(rows)
+    assert "unknown" in by_regime
+    assert by_regime["unknown"]["num_evaluated_picks"] == 1
+
+
+def test_compute_outcome_metrics_by_regime_empty_for_no_rows():
+    assert compute_outcome_metrics_by_regime([]) == {}
 
 
 def test_worst_misses_sorted_ascending_and_capped():

@@ -17,6 +17,7 @@ from services.signal_publication_service import (
     compute_calibration,
     compute_outcome_metrics,
     compute_outcome_metrics_by_model_version,
+    compute_outcome_metrics_by_regime,
     compute_outcome_metrics_by_signal,
     compute_predict_algo_comparison,
     compute_spy_returns_for_dates,
@@ -457,11 +458,19 @@ async def get_track_record(
     universe_id: str = Query(DEFAULT_UNIVERSE),
     lookback_days: int = Query(DEFAULT_LOOKBACK_DAYS),
     horizon_days: int = Query(DEFAULT_HORIZON_DAYS),
+    regime: str | None = Query(
+        None,
+        description="REG-2: filter to only outcomes whose target_date fell in this market "
+        "regime (e.g. 'Risk-Off', or 'unknown' for dates before market_regime_daily has a "
+        "reading). Every metric/list in the response is scoped to this filter when set; "
+        "metrics_by_regime is always the full breakdown regardless, so a caller can see "
+        "every regime's stats before picking one to filter to.",
+    ),
 ):
     """
     TRK-2/3/5/6 (docs/stock-analysis-requirements.html): the enhanced
-    public track record — average return, excess-vs-SPY, a model-version
-    and signal breakdown, calibration, worst misses, and a model-
+    public track record — average return, excess-vs-SPY, a model-version,
+    signal, and regime breakdown, calibration, worst misses, and a model-
     portfolio-vs-SPY growth chart — all built from the existing
     signal_outcomes/published_signals record, same public/unauthenticated
     posture as /outcomes and /published. Calibration's confidence is a
@@ -472,32 +481,46 @@ async def get_track_record(
     metrics_by_signal are Buy-side/single-group only (this pipeline has
     no Trim/Sell concept in its schema at all, not just in today's data)
     — all called out explicitly in the response rather than silently
-    presented as complete.
+    presented as complete. REG-2: `regime` (from market_regime_daily,
+    joined on target_date) is attached to every row and, when the
+    `regime` query param is set, filters the whole response — see
+    services/market_regime_service.py for why this ships despite a
+    failed validation gate.
     """
     async with service_conn() as conn:
         rows = await conn.fetch(
             """
             SELECT so.target_date, so.ticker, so.rank, so.entry_price, so.exit_price,
                    so.realized_return_pct, so.benchmark_return_pct, so.beat_benchmark,
-                   ps.model_version_hash
+                   ps.model_version_hash, mr.regime_confirmed AS regime
             FROM signal_outcomes so
             LEFT JOIN published_signals ps
               ON ps.target_date = so.target_date AND ps.universe_id = so.universe_id
              AND ps.lookback_days = so.lookback_days AND ps.ticker = so.ticker AND ps.reason_code IS NULL
+            LEFT JOIN market_regime_daily mr ON mr.as_of_date = so.target_date
             WHERE so.universe_id = $1 AND so.lookback_days = $2 AND so.horizon_days = $3
             ORDER BY so.target_date ASC, so.rank ASC
             """,
             universe_id, lookback_days, horizon_days,
         )
     outcome_rows = [_record_to_dict(r) for r in rows]
+    # Computed from the FULL (unfiltered) set, before `regime` narrows
+    # outcome_rows below -- this breakdown should always show every
+    # regime's stats so a caller can see them all before picking one to
+    # filter to, regardless of whether a filter is currently active.
+    metrics_by_regime = compute_outcome_metrics_by_regime(outcome_rows)
+    if regime:
+        outcome_rows = [r for r in outcome_rows if (r.get("regime") or "unknown") == regime]
 
     empty_response = {
         "universe_id": universe_id,
         "lookback_days": lookback_days,
         "horizon_days": horizon_days,
+        "regime_filter": regime,
         "metrics": compute_outcome_metrics([]),
         "metrics_by_model_version": {},
         "metrics_by_signal": {},
+        "metrics_by_regime": metrics_by_regime,
         "avg_excess_vs_spy_pct": None,
         "calibration": compute_calibration([]),
         "worst_misses": [],
