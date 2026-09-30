@@ -35,6 +35,12 @@ from services.portfolio_compare_service import (
     select_gap_drivers,
     select_top_funds,
 )
+from services.portfolio_health_service import (
+    ACCOUNT_TYPES,
+    build_sector_comparison,
+    compute_portfolio_sector_weights,
+    compute_risk_over_windows,
+)
 from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
 from services.positions_from_csv import positions_from_activity_csv
@@ -54,7 +60,7 @@ from services.signal_publication_service import (
     compute_predict_algo_comparison,
     rank_within_universe,
 )
-from services.stock_finder_service import STOCK_UNIVERSES, rank_stocks_by_window_return
+from services.stock_finder_service import STOCK_UNIVERSES, compute_sp500_sector_mix, rank_stocks_by_window_return
 from services.subscriber_events_service import log_event
 from services.yfinance_cache import get_cached_info
 
@@ -285,6 +291,7 @@ async def _save_and_respond(conn, user_id: str, portfolio_id: int, holdings_df: 
 
 class CreatePortfolioRequest(BaseModel):
     name: str
+    account_type: str = "Taxable"
 
 
 @router.get("/list")
@@ -297,11 +304,11 @@ async def list_portfolios(request: Request):
     async with user_conn(user_id) as conn:
         records = await conn.fetch(
             """
-            SELECT p.id, p.name, p.created_at, p.margin_balance, p.cash_balance, count(pp.id) AS position_count
+            SELECT p.id, p.name, p.created_at, p.margin_balance, p.cash_balance, p.account_type, count(pp.id) AS position_count
             FROM portfolios p
             LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = p.user_id
             WHERE p.user_id = $1::uuid AND p.is_active
-            GROUP BY p.id, p.name, p.created_at, p.margin_balance, p.cash_balance
+            GROUP BY p.id, p.name, p.created_at, p.margin_balance, p.cash_balance, p.account_type
             ORDER BY p.created_at ASC
             """,
             user_id,
@@ -318,12 +325,15 @@ async def create_portfolio(request: Request, body: CreatePortfolioRequest):
         raise HTTPException(422, "Portfolio name is required.")
     if len(name) > 100:
         raise HTTPException(422, "Portfolio name must be 100 characters or fewer.")
+    if body.account_type not in ACCOUNT_TYPES:
+        raise HTTPException(422, f"account_type must be one of {ACCOUNT_TYPES}")
 
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
         record = await conn.fetchrow(
-            "INSERT INTO portfolios (user_id, name) VALUES ($1::uuid, $2) RETURNING id, name, created_at, margin_balance, cash_balance",
-            user_id, name,
+            "INSERT INTO portfolios (user_id, name, account_type) VALUES ($1::uuid, $2, $3) "
+            "RETURNING id, name, created_at, margin_balance, cash_balance, account_type",
+            user_id, name, body.account_type,
         )
     return {**_record_to_dict(record), "position_count": 0}
 
@@ -403,6 +413,32 @@ async def set_portfolio_cash(request: Request, portfolio_id: int, body: SetCashR
     if row is None:
         raise HTTPException(404, "Portfolio not found.")
     return {"id": row["id"], "cash_balance": row["cash_balance"]}
+
+
+class SetAccountTypeRequest(BaseModel):
+    account_type: str
+
+
+@router.put("/{portfolio_id}/account-type")
+@limiter.limit("20/minute")
+async def set_portfolio_account_type(request: Request, portfolio_id: int, body: SetAccountTypeRequest):
+    """HLT-4: tax-loss harvesting is only shown for Taxable accounts --
+    this is the one place that's set/edited. User-edited directly, same
+    as margin_balance/cash_balance above; this app has no way to infer
+    account type from anything else in the schema."""
+    await enforce_daily_quota(request, "portfolio/account-type")
+    if body.account_type not in ACCOUNT_TYPES:
+        raise HTTPException(422, f"account_type must be one of {ACCOUNT_TYPES}")
+
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "UPDATE portfolios SET account_type = $1 WHERE id = $2 AND user_id = $3::uuid AND is_active RETURNING id, account_type",
+            body.account_type, portfolio_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Portfolio not found.")
+    return {"id": row["id"], "account_type": row["account_type"]}
 
 
 class SaveDiversifiedBasketRequest(BaseModel):
@@ -1499,6 +1535,73 @@ async def portfolio_review(request: Request, portfolio_id: Optional[int] = None)
         ],
         "as_of_date": insights.get("as_of_date"),
     }
+
+
+@router.get("/health/concentration")
+@limiter.limit("20/minute")
+async def portfolio_health_concentration(request: Request, portfolio_id: Optional[int] = None):
+    """HLT-1 (concentration + sector-vs-S&P-500 half; fund overlap/ETF
+    look-through is the separate GET /health/overlap): largest positions
+    (services.ranking_utils.compute_position_concentration, reused as-is)
+    and a sector-weight comparison against compute_sp500_sector_mix's
+    market-cap-weighted S&P 500 approximation (reused as-is). Uses each
+    position's stored current_price (same convention as GET /compare),
+    not a fresh live-price refetch."""
+    await enforce_daily_quota(request, "portfolio/health/concentration")
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        resolved_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT ticker, shares, current_price FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_id,
+        )
+    positions = [
+        {"ticker": r["ticker"], "market_value": (r["shares"] or 0) * (r["current_price"] or 0)}
+        for r in records if r["ticker"]
+    ]
+    if not positions:
+        return {"largest_positions": [], "sector_comparison": [], "as_of_date": str(_eastern_today())}
+
+    concentration = compute_position_concentration(positions, threshold_pct=CONCENTRATION_THRESHOLD_PCT)
+    largest_positions = sorted(concentration, key=lambda p: p["weight_pct"], reverse=True)[:10]
+
+    tickers = [p["ticker"] for p in positions]
+    sector_by_ticker = await run_in_threadpool(compute_sectors, tickers)
+    sectored_positions = [{**p, "sector": sector_by_ticker.get(p["ticker"])} for p in positions]
+    portfolio_sector_weights = compute_portfolio_sector_weights(sectored_positions)
+    sp500_sector_weights = await run_in_threadpool(compute_sp500_sector_mix)
+    sector_comparison = build_sector_comparison(portfolio_sector_weights, sp500_sector_weights)
+
+    return {
+        "largest_positions": largest_positions,
+        "sector_comparison": sector_comparison,
+        "as_of_date": str(_eastern_today()),
+    }
+
+
+@router.get("/health/risk")
+@limiter.limit("10/minute")
+async def portfolio_health_risk(request: Request, portfolio_id: Optional[int] = None):
+    """HLT-2: volatility, beta, correlation to SPY, and max drawdown for
+    the real portfolio, over both 1-year and 3-year windows -- see
+    services.portfolio_health_service.compute_risk_over_windows for the
+    computation (each window's real data_start/data_end is included so
+    the response states the exact period used, not just the nominal
+    1y/3y request)."""
+    await enforce_daily_quota(request, "portfolio/health/risk")
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        resolved_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT ticker, shares, current_price FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_id,
+        )
+    positions = [
+        {"ticker": r["ticker"], "market_value": (r["shares"] or 0) * (r["current_price"] or 0)}
+        for r in records if r["ticker"]
+    ]
+    windows = await run_in_threadpool(compute_risk_over_windows, positions)
+    return {"as_of": str(_eastern_today()), "windows": windows}
 
 
 @router.get("/goal-plan")

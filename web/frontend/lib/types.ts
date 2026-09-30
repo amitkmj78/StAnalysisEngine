@@ -601,6 +601,7 @@ export interface Portfolio {
   created_at: string;
   margin_balance: number;
   cash_balance: number;
+  account_type: AccountType;
   position_count: number;
 }
 
@@ -978,6 +979,43 @@ export interface CompareGapDriver {
   ticker: string;
   kind: "lead" | "drag";
   contribution_pts: number;
+}
+
+// Portfolio Health Check (HLT-1..4)
+
+export interface PortfolioHealthPosition {
+  ticker: string;
+  weight_pct: number;
+  concentrated: boolean;
+}
+
+export interface SectorComparisonRow {
+  sector: string;
+  portfolio_weight_pct: number;
+  sp500_weight_pct: number;
+  gap_pct: number;
+}
+
+export interface PortfolioHealthConcentrationResponse {
+  largest_positions: PortfolioHealthPosition[];
+  sector_comparison: SectorComparisonRow[];
+  as_of_date: string;
+}
+
+export interface PortfolioRiskWindow {
+  period: string;
+  data_start: string | null;
+  data_end: string | null;
+  volatility_pct: number | null;
+  beta_to_spy: number | null;
+  correlation_to_spy: number | null;
+  max_drawdown_pct: number | null;
+  excluded_from_risk: string[];
+}
+
+export interface PortfolioHealthRiskResponse {
+  as_of: string;
+  windows: { "1Y": PortfolioRiskWindow; "3Y": PortfolioRiskWindow };
 }
 
 export interface PortfolioCompareResponse {

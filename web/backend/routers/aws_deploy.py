@@ -543,6 +543,25 @@ begin
   end if;
 end $$;
 
+-- HLT-4: tax-loss harvesting is only shown for taxable accounts. Reuses
+-- the exact Taxable/Traditional/Roth taxonomy services/million_plan_
+-- service.py::ACCOUNT_TYPES already established for strategy_plans, for
+-- consistency -- not a new enum. Defaults to 'Taxable' (the more
+-- conservative default for an observational feature: a false positive
+-- just shows a candidate list on an account that isn't really taxable,
+-- while defaulting to a non-taxable type would silently hide a real
+-- insight on an account that is).
+alter table portfolios add column if not exists account_type text not null default 'Taxable';
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'portfolios_account_type_check'
+  ) then
+    alter table portfolios add constraint portfolios_account_type_check
+      check (account_type in ('Taxable', 'Traditional', 'Roth')) not valid;
+  end if;
+end $$;
+
 create table if not exists portfolio_positions (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,

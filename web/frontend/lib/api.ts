@@ -52,6 +52,8 @@ import type {
   PortfolioCompareResponse,
   PortfolioDropAlert,
   Portfolio1yForecast,
+  PortfolioHealthConcentrationResponse,
+  PortfolioHealthRiskResponse,
   PortfolioInsightsResponse,
   PortfolioListResponse,
   PortfolioPerformance,
@@ -886,6 +888,28 @@ export function getPortfolioCompare(goal: string, window: string, portfolioId?: 
   const params: Record<string, string> = { goal, window };
   if (portfolioId !== undefined) params.portfolio_id = String(portfolioId);
   return apiFetch<PortfolioCompareResponse>("/api/v1/portfolio/compare", params);
+}
+
+export function getPortfolioHealthConcentration(portfolioId?: number) {
+  return apiFetch<PortfolioHealthConcentrationResponse>(
+    "/api/v1/portfolio/health/concentration",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
+}
+
+export function getPortfolioHealthRisk(portfolioId?: number) {
+  return apiFetch<PortfolioHealthRiskResponse>(
+    "/api/v1/portfolio/health/risk",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
+}
+
+export function setPortfolioAccountType(portfolioId: number, accountType: string) {
+  return apiSend<{ id: number; account_type: string }>(
+    `/api/v1/portfolio/${portfolioId}/account-type`,
+    "PUT",
+    { account_type: accountType },
+  );
 }
 
 export function getPortfolioInsights(portfolioId?: number) {

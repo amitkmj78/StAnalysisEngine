@@ -15,11 +15,13 @@ import {
   getPortfolioSummary,
   movePortfolioPosition,
   refreshPortfolio,
+  setPortfolioAccountType,
   setPortfolioCash,
   setPortfolioMargin,
 } from "@/lib/api";
 import { isAdmin } from "@/lib/admin";
 import type {
+  AccountType,
   Portfolio,
   PortfolioInsight,
   PortfolioPerformance,
@@ -199,6 +201,10 @@ export default function PortfolioPage() {
   const [cashSaving, setCashSaving] = useState(false);
   const [cashSaved, setCashSaved] = useState(false);
   const [cashError, setCashError] = useState<string | null>(null);
+  const [accountTypeInput, setAccountTypeInput] = useState<AccountType>("Taxable");
+  const [accountTypeSaving, setAccountTypeSaving] = useState(false);
+  const [accountTypeSaved, setAccountTypeSaved] = useState(false);
+  const [accountTypeError, setAccountTypeError] = useState<string | null>(null);
   const currentPortfolio = allPortfolios.find((p) => p.id === selectedPortfolioId) ?? null;
 
   useEffect(() => {
@@ -208,8 +214,11 @@ export default function PortfolioPage() {
     setCashInput(currentPortfolio ? String(currentPortfolio.cash_balance) : "");
     setCashSaved(false);
     setCashError(null);
+    setAccountTypeInput(currentPortfolio?.account_type ?? "Taxable");
+    setAccountTypeSaved(false);
+    setAccountTypeError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPortfolio?.id, currentPortfolio?.margin_balance, currentPortfolio?.cash_balance]);
+  }, [currentPortfolio?.id, currentPortfolio?.margin_balance, currentPortfolio?.cash_balance, currentPortfolio?.account_type]);
 
   async function saveMargin() {
     if (selectedPortfolioId === null) return;
@@ -254,6 +263,24 @@ export default function PortfolioPage() {
       setCashError(err instanceof ApiError ? err.message : "Could not save cash balance.");
     } finally {
       setCashSaving(false);
+    }
+  }
+
+  async function saveAccountType() {
+    if (selectedPortfolioId === null) return;
+    setAccountTypeSaving(true);
+    setAccountTypeError(null);
+    setAccountTypeSaved(false);
+    try {
+      await setPortfolioAccountType(selectedPortfolioId, accountTypeInput);
+      setAllPortfolios((prev) =>
+        prev.map((p) => (p.id === selectedPortfolioId ? { ...p, account_type: accountTypeInput } : p)),
+      );
+      setAccountTypeSaved(true);
+    } catch (err) {
+      setAccountTypeError(err instanceof ApiError ? err.message : "Could not save account type.");
+    } finally {
+      setAccountTypeSaving(false);
     }
   }
 
@@ -626,6 +653,7 @@ export default function PortfolioPage() {
             extraMenuItems={[
               { label: "Build Diversified Basket", href: "/portfolio/build-index" },
               { label: "Compare vs. Best Fund", href: "/portfolio/compare" },
+              { label: "Portfolio Health Check", href: "/portfolio/health" },
               { label: "Paper Trading", href: "/portfolio/paper-trading" },
             ]}
           />
@@ -689,6 +717,28 @@ export default function PortfolioPage() {
             </button>
             {cashSaved && <span className={`text-xs font-medium ${PF.good}`}>Saved</span>}
             {cashError && <span className={`text-xs font-medium ${PF.bad}`}>{cashError}</span>}
+
+            <Field label="Account type (for tax-loss harvesting)">
+              <select
+                value={accountTypeInput}
+                onChange={(e) => setAccountTypeInput(e.target.value as AccountType)}
+                className="w-44 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm text-[#1f2420]"
+              >
+                <option value="Taxable">Taxable</option>
+                <option value="Traditional">Traditional</option>
+                <option value="Roth">Roth</option>
+              </select>
+            </Field>
+            <button
+              type="button"
+              onClick={saveAccountType}
+              disabled={accountTypeSaving}
+              className={`${PF.btn} disabled:opacity-50`}
+            >
+              {accountTypeSaving ? "Saving…" : "Save"}
+            </button>
+            {accountTypeSaved && <span className={`text-xs font-medium ${PF.good}`}>Saved</span>}
+            {accountTypeError && <span className={`text-xs font-medium ${PF.bad}`}>{accountTypeError}</span>}
           </div>
         )}
 
