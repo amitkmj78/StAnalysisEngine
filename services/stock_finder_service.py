@@ -334,6 +334,7 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
                 else None
             ),
             "Forward PE": info.get("forwardPE"),
+            "Dividend Yield %": _safe_percent(info.get("dividendYield")),
             "Revenue Growth %": _safe_percent(info.get("revenueGrowth")),
             "Earnings Growth %": _safe_percent(info.get("earningsGrowth")),
             "1M Return %": return_1m,
@@ -353,6 +354,10 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
             "1Y Max Drawdown %": max_drawdown_1y,
             "3Y Max Drawdown %": max_drawdown_3y,
             "3Y Sharpe": sharpe_3y,
+            # Last 90 closes for the table's sparkline column -- `close` is
+            # already fetched above for the return/RSI/MACD math, so this is
+            # zero new yfinance calls, not a new data source.
+            "Spark 90D": close.tail(90).round(2).tolist(),
         }
     except Exception:
         return None

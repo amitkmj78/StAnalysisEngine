@@ -16,6 +16,8 @@ from services.stock_finder_service import (
     rank_stocks,
     score_stock_ticker,
 )
+from services.stock_finder_presets import PRESET_SCREENS
+from services.stock_score_capture_service import fetch_latest_scores
 from services.subscriber_events_service import log_event
 
 from web.backend.auth import verify_bearer_token
@@ -53,6 +55,12 @@ async def universes():
     return {"universes": list(STOCK_UNIVERSES.keys())}
 
 
+@router.get("/presets")
+async def presets():
+    """SCN-4: static preset screens -- see services/stock_finder_presets.py."""
+    return {"presets": PRESET_SCREENS}
+
+
 @router.get("/universes/detail")
 async def universes_detail():
     """Per-universe description, live stock count, sector breakdown, and
@@ -65,6 +73,42 @@ async def universes_detail():
         preview = await run_in_threadpool(get_universe_sector_preview, key)
         out.append({"key": key, "description": UNIVERSE_DESCRIPTIONS.get(key, ""), **preview})
     return {"universes": out}
+
+
+async def _annotate_with_user_state(records: list[dict], user_id: str) -> None:
+    """Mutates each record in place with Owned/Watchlisted flags and the
+    ticker's latest Stage-A short/long score+signal (SCN-1) -- one bulk
+    query per dimension, never N+1. "Watchlisted" deliberately excludes
+    watchlist_alerts rows with source='portfolio_auto' (auto-created for
+    every owned position, see web/backend/routers/portfolio.py) so it
+    stays a distinct signal from "Owned" instead of being trivially
+    implied by it."""
+    if not records:
+        return
+    tickers = [r["Ticker"] for r in records]
+    async with user_conn(user_id) as conn:
+        owned_rows = await conn.fetch(
+            "SELECT DISTINCT ticker FROM portfolio_positions WHERE user_id = $1::uuid",
+            user_id,
+        )
+        watchlisted_rows = await conn.fetch(
+            """
+            SELECT DISTINCT ticker FROM watchlist_alerts
+            WHERE user_id = $1::uuid AND active AND source IS DISTINCT FROM 'portfolio_auto'
+            """,
+            user_id,
+        )
+    owned = {r["ticker"] for r in owned_rows}
+    watchlisted = {r["ticker"] for r in watchlisted_rows}
+    scores = await fetch_latest_scores(tickers)
+    for r in records:
+        r["Owned"] = r["Ticker"] in owned
+        r["Watchlisted"] = r["Ticker"] in watchlisted
+        s = scores.get(r["Ticker"], {})
+        r["Short-Term Score"] = s.get("short_score")
+        r["Short-Term Signal"] = s.get("short_signal")
+        r["Long-Term Score"] = s.get("long_score")
+        r["Long-Term Signal"] = s.get("long_signal")
 
 
 @router.get("/rank")
@@ -82,7 +126,9 @@ async def rank(
         raise HTTPException(422, f"universe must be one of {sorted(STOCK_UNIVERSES.keys())}")
 
     df = await run_in_threadpool(rank_stocks, goal, universe)
-    return {"results": records_safe(df)}
+    records = records_safe(df)
+    await _annotate_with_user_state(records, request.state.user["id"])
+    return {"results": records}
 
 
 @router.get("/score")
@@ -98,6 +144,7 @@ async def score(
 
     df = await run_in_threadpool(score_stock_ticker, goal, ticker)
     records = records_safe(df)
+    await _annotate_with_user_state(records, request.state.user["id"])
     return {"result": records[0] if records else None}
 
 

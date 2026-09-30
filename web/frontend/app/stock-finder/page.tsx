@@ -5,6 +5,7 @@ import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import Link from "next/link";
 
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import Sparkline from "@/components/portfolio/Sparkline";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import {
   ApiError,
@@ -12,6 +13,7 @@ import {
   deleteScreen,
   getAnalystRating,
   getPredictionSummary,
+  getPresetScreens,
   getScreens,
   getStockRanking,
   getStockScore,
@@ -21,6 +23,7 @@ import {
 import type {
   AlertConditionType,
   AnalystRatingSummary,
+  PresetScreen,
   SavedScreen,
   ScreenSnapshotRow,
   SignalOut,
@@ -95,6 +98,7 @@ const ALL_COLUMNS = [
   "Analyst Rating",
   "Market Cap ($B)",
   "Forward PE",
+  "Dividend Yield %",
   "Revenue Growth %",
   "Earnings Growth %",
   "1M Return %",
@@ -112,6 +116,13 @@ const ALL_COLUMNS = [
   "Volume Strength %",
   "6M Volatility %",
   "1Y Max Drawdown %",
+  "Spark 90D",
+  "Short-Term Score",
+  "Short-Term Signal",
+  "Long-Term Score",
+  "Long-Term Signal",
+  "Owned",
+  "Watchlisted",
 ];
 
 // Data-driven columns come straight from the API row; "Quant Signal" and
@@ -120,15 +131,20 @@ const ALL_COLUMNS = [
 // branches in the table body below) since each is its own yfinance/model
 // call per ticker, not something to eagerly run across a 500-ticker
 // universe.
-const DEFAULT_COLUMNS = ["Ticker", "Name", "Sector", "Price", "Score", "Quant Signal", "Analyst Rating", "1M Return %", "3M Return %", "1Y Return %", "RSI"];
+const DEFAULT_COLUMNS = ["Ticker", "Name", "Sector", "Price", "Score", "Quant Signal", "Analyst Rating", "1M Return %", "3M Return %", "1Y Return %", "RSI", "Spark 90D"];
 const REQUIRED_COLUMN = "Ticker";
 const COLUMNS_STORAGE_KEY = "stanalysisengine.stockFinderColumns";
 
-const TEXT_COLUMNS = new Set(["Ticker", "Name", "Sector"]);
+const TEXT_COLUMNS = new Set(["Ticker", "Name", "Sector", "Short-Term Signal", "Long-Term Signal", "Owned", "Watchlisted"]);
 
 type SortDirection = "asc" | "desc";
 type SortKey = { column: string; direction: SortDirection };
 const MAX_SORT_KEYS = 3;
+
+// "Any" / "Only" / "Exclude" -- a plain boolean can't express "only show
+// tickers I don't own", so Owned/Watchlisted get their own tri-state type
+// instead of overloading `boolean | null`.
+type TriState = "any" | "only" | "exclude";
 
 interface FilterState {
   marketCapMin: string;
@@ -137,6 +153,18 @@ interface FilterState {
   forwardPeMax: string;
   volumeStrengthMin: string;
   sectors: string[];
+  dividendYieldMin: string;
+  volatilityMax: string;
+  earningsGrowthMin: string;
+  earningsGrowthMax: string;
+  shortScoreMin: string;
+  shortScoreMax: string;
+  longScoreMin: string;
+  longScoreMax: string;
+  shortSignal: string[];
+  longSignal: string[];
+  owned: TriState;
+  watchlisted: TriState;
 }
 
 const EMPTY_FILTERS: FilterState = {
@@ -146,6 +174,18 @@ const EMPTY_FILTERS: FilterState = {
   forwardPeMax: "",
   volumeStrengthMin: "",
   sectors: [],
+  dividendYieldMin: "",
+  volatilityMax: "",
+  earningsGrowthMin: "",
+  earningsGrowthMax: "",
+  shortScoreMin: "",
+  shortScoreMax: "",
+  longScoreMin: "",
+  longScoreMax: "",
+  shortSignal: [],
+  longSignal: [],
+  owned: "any",
+  watchlisted: "any",
 };
 
 function filtersActive(f: FilterState): boolean {
@@ -155,9 +195,23 @@ function filtersActive(f: FilterState): boolean {
     f.forwardPeMin !== "" ||
     f.forwardPeMax !== "" ||
     f.volumeStrengthMin !== "" ||
-    f.sectors.length > 0
+    f.sectors.length > 0 ||
+    f.dividendYieldMin !== "" ||
+    f.volatilityMax !== "" ||
+    f.earningsGrowthMin !== "" ||
+    f.earningsGrowthMax !== "" ||
+    f.shortScoreMin !== "" ||
+    f.shortScoreMax !== "" ||
+    f.longScoreMin !== "" ||
+    f.longScoreMax !== "" ||
+    f.shortSignal.length > 0 ||
+    f.longSignal.length > 0 ||
+    f.owned !== "any" ||
+    f.watchlisted !== "any"
   );
 }
+
+const SIGNAL_VALUES = ["Buy", "Hold", "Trim"];
 
 const COLUMN_INFO: Record<string, ColumnInfo> = {
   Ticker: {
@@ -210,6 +264,10 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
       "Price divided by analysts' consensus estimate of next year's earnings per share — a lower number generally means the stock is cheaper relative to its expected earnings.",
       "Only used in the \"Long Term\" Score (8%, lower is better). Not meaningful for companies expected to have negative earnings.",
     ],
+  },
+  "Dividend Yield %": {
+    title: "Dividend Yield %",
+    body: ["Trailing 12-month dividend payments as a percent of the current price, as reported by the data provider. Shows \"N/A\" when the provider has no dividend data for this ticker (typically non-dividend-payers). Not used in either Score — display/filter only."],
   },
   "Revenue Growth %": {
     title: "Revenue Growth %",
@@ -285,6 +343,43 @@ const COLUMN_INFO: Record<string, ColumnInfo> = {
     title: "1-Year Max Drawdown",
     body: ["The largest peak-to-trough decline over the trailing year. Used in the \"Long Term\" Score (10%, lower is better)."],
   },
+  "Spark 90D": {
+    title: "90-Day Sparkline",
+    body: [
+      "The trailing 90 trading days' closing price, min–max normalized to fit a small inline shape — a quick visual of the recent trend, not a chart with axes or exact values.",
+      "Colored by this row's 1-Month Return: green if positive, red if negative. Not sortable and not used in either Score — display only.",
+    ],
+  },
+  "Short-Term Score": {
+    title: "Short-Term Score",
+    body: [
+      "The 0–100 short-term score computed nightly by this app's two-score ranking engine (momentum, short-term reversal, earnings surprise, earnings revisions) — the same number shown on a ticker's own Score page.",
+      "A completely different computation from the Score column above: Score is a live, goal-weighted rank against just this result set; Short-Term Score is Stage A's daily composite, comparable across every day and every screen. \"N/A\" means this ticker hasn't been scored yet.",
+    ],
+  },
+  "Short-Term Signal": {
+    title: "Short-Term Signal",
+    body: ["Buy/Hold/Trim derived from the Short-Term Score's percentile against the rest of the universe — see the Short-Term Score column."],
+  },
+  "Long-Term Score": {
+    title: "Long-Term Score",
+    body: [
+      "The 0–100 long-term score computed nightly by this app's two-score ranking engine (value, growth, low volatility, quality) — the same number shown on a ticker's own Score page.",
+      "Same disambiguation as Short-Term Score: a different, daily-computed number from the goal-weighted Score column above.",
+    ],
+  },
+  "Long-Term Signal": {
+    title: "Long-Term Signal",
+    body: ["Buy/Hold/Trim derived from the Long-Term Score's percentile against the rest of the universe — see the Long-Term Score column."],
+  },
+  Owned: {
+    title: "Owned",
+    body: ["Whether this ticker is a position in any of your portfolios right now."],
+  },
+  Watchlisted: {
+    title: "Watchlisted",
+    body: ["Whether you have an active price alert on this ticker that you set up yourself. Excludes alerts this app auto-creates when you add a position to a portfolio, so this stays a distinct signal from Owned."],
+  },
 };
 
 export default function StockFinderPage() {
@@ -309,6 +404,8 @@ export default function StockFinderPage() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const tableWrapRef = useRef<HTMLDivElement | null>(null);
   const [tableOverflowing, setTableOverflowing] = useState(false);
+
+  const [presets, setPresets] = useState<PresetScreen[]>([]);
 
   const [screens, setScreens] = useState<SavedScreen[]>([]);
   const [screensLoading, setScreensLoading] = useState(false);
@@ -351,6 +448,11 @@ export default function StockFinderPage() {
     }
 
     loadScreens();
+    getPresetScreens()
+      .then((res) => setPresets(res.presets))
+      .catch(() => {
+        // Non-fatal -- presets are supplementary.
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -413,6 +515,20 @@ export default function StockFinderPage() {
     }));
   }
 
+  function toggleShortSignal(signal: string) {
+    setFilters((prev) => ({
+      ...prev,
+      shortSignal: prev.shortSignal.includes(signal) ? prev.shortSignal.filter((s) => s !== signal) : [...prev.shortSignal, signal],
+    }));
+  }
+
+  function toggleLongSignal(signal: string) {
+    setFilters((prev) => ({
+      ...prev,
+      longSignal: prev.longSignal.includes(signal) ? prev.longSignal.filter((s) => s !== signal) : [...prev.longSignal, signal],
+    }));
+  }
+
   function toggleRow(t: string) {
     setExpandedRows((prev) => {
       const next = new Set(prev);
@@ -460,6 +576,35 @@ export default function StockFinderPage() {
       const vol = row["Volume Strength %"] as number | null;
       if (filters.volumeStrengthMin !== "" && (vol == null || vol < Number(filters.volumeStrengthMin))) return false;
       if (filters.sectors.length > 0 && !filters.sectors.includes(String(row.Sector ?? "Unknown"))) return false;
+
+      const divYield = row["Dividend Yield %"] as number | null;
+      if (filters.dividendYieldMin !== "" && (divYield == null || divYield < Number(filters.dividendYieldMin))) return false;
+
+      const volatility = row["6M Volatility %"] as number | null;
+      if (filters.volatilityMax !== "" && (volatility == null || volatility > Number(filters.volatilityMax))) return false;
+
+      const earningsGrowth = row["Earnings Growth %"] as number | null;
+      if (filters.earningsGrowthMin !== "" && (earningsGrowth == null || earningsGrowth < Number(filters.earningsGrowthMin))) return false;
+      if (filters.earningsGrowthMax !== "" && (earningsGrowth == null || earningsGrowth > Number(filters.earningsGrowthMax))) return false;
+
+      const shortScore = row["Short-Term Score"] as number | null;
+      if (filters.shortScoreMin !== "" && (shortScore == null || shortScore < Number(filters.shortScoreMin))) return false;
+      if (filters.shortScoreMax !== "" && (shortScore == null || shortScore > Number(filters.shortScoreMax))) return false;
+
+      const longScore = row["Long-Term Score"] as number | null;
+      if (filters.longScoreMin !== "" && (longScore == null || longScore < Number(filters.longScoreMin))) return false;
+      if (filters.longScoreMax !== "" && (longScore == null || longScore > Number(filters.longScoreMax))) return false;
+
+      if (filters.shortSignal.length > 0 && !filters.shortSignal.includes(String(row["Short-Term Signal"] ?? ""))) return false;
+      if (filters.longSignal.length > 0 && !filters.longSignal.includes(String(row["Long-Term Signal"] ?? ""))) return false;
+
+      const owned = row.Owned as boolean | undefined;
+      if (filters.owned === "only" && !owned) return false;
+      if (filters.owned === "exclude" && owned) return false;
+      const watchlisted = row.Watchlisted as boolean | undefined;
+      if (filters.watchlisted === "only" && !watchlisted) return false;
+      if (filters.watchlisted === "exclude" && watchlisted) return false;
+
       return true;
     });
   }, [results, filters]);
@@ -545,23 +690,51 @@ export default function StockFinderPage() {
     }
   }
 
-  async function handleLoadScreen(screen: SavedScreen) {
-    setMode("rank");
-    setGoal(screen.goal);
-    setUniverse(screen.universe);
-    const f = screen.filters as Partial<Record<keyof FilterState, unknown>>;
-    setFilters({
+  // Defensive round-trip of a persisted filters blob (a saved screen or a
+  // hardcoded preset) into FilterState -- any key that's missing, wrongly
+  // typed, or from a since-removed filter falls back to EMPTY_FILTERS'
+  // value instead of corrupting state.
+  function parseFilters(f: Partial<Record<keyof FilterState, unknown>>): FilterState {
+    return {
       marketCapMin: typeof f.marketCapMin === "string" ? f.marketCapMin : "",
       marketCapMax: typeof f.marketCapMax === "string" ? f.marketCapMax : "",
       forwardPeMin: typeof f.forwardPeMin === "string" ? f.forwardPeMin : "",
       forwardPeMax: typeof f.forwardPeMax === "string" ? f.forwardPeMax : "",
       volumeStrengthMin: typeof f.volumeStrengthMin === "string" ? f.volumeStrengthMin : "",
       sectors: Array.isArray(f.sectors) ? (f.sectors as string[]) : [],
-    });
+      dividendYieldMin: typeof f.dividendYieldMin === "string" ? f.dividendYieldMin : "",
+      volatilityMax: typeof f.volatilityMax === "string" ? f.volatilityMax : "",
+      earningsGrowthMin: typeof f.earningsGrowthMin === "string" ? f.earningsGrowthMin : "",
+      earningsGrowthMax: typeof f.earningsGrowthMax === "string" ? f.earningsGrowthMax : "",
+      shortScoreMin: typeof f.shortScoreMin === "string" ? f.shortScoreMin : "",
+      shortScoreMax: typeof f.shortScoreMax === "string" ? f.shortScoreMax : "",
+      longScoreMin: typeof f.longScoreMin === "string" ? f.longScoreMin : "",
+      longScoreMax: typeof f.longScoreMax === "string" ? f.longScoreMax : "",
+      shortSignal: Array.isArray(f.shortSignal) ? (f.shortSignal as string[]) : [],
+      longSignal: Array.isArray(f.longSignal) ? (f.longSignal as string[]) : [],
+      owned: f.owned === "only" || f.owned === "exclude" ? f.owned : "any",
+      watchlisted: f.watchlisted === "only" || f.watchlisted === "exclude" ? f.watchlisted : "any",
+    };
+  }
+
+  async function handleLoadScreen(screen: SavedScreen) {
+    setMode("rank");
+    setGoal(screen.goal);
+    setUniverse(screen.universe);
+    setFilters(parseFilters(screen.filters as Partial<Record<keyof FilterState, unknown>>));
     if (screen.visible_columns.length > 0) setVisibleColumns(screen.visible_columns);
     setSortKeys(screen.sort_keys);
     setCompareScreenId(screen.id);
     await fetchResults(screen.goal, "rank", screen.universe, ticker);
+  }
+
+  async function handleLoadPreset(preset: PresetScreen) {
+    setMode("rank");
+    setGoal(preset.goal);
+    setUniverse(preset.universe);
+    setFilters(parseFilters(preset.filters as Partial<Record<keyof FilterState, unknown>>));
+    setCompareScreenId(null);
+    await fetchResults(preset.goal, "rank", preset.universe, ticker);
   }
 
   async function handleDeleteScreen(id: number) {
@@ -638,7 +811,10 @@ export default function StockFinderPage() {
   // the two lazy-loaded ones (they get their own dedicated table cell, not
   // a duplicate in the expand panel).
   const detailColumns = useMemo(
-    () => ALL_COLUMNS.filter((c) => !visibleColumns.includes(c) && c !== "Quant Signal" && c !== "Analyst Rating"),
+    () =>
+      ALL_COLUMNS.filter(
+        (c) => !visibleColumns.includes(c) && c !== "Quant Signal" && c !== "Analyst Rating" && c !== "Spark 90D",
+      ),
     [visibleColumns],
   );
 
@@ -701,6 +877,26 @@ export default function StockFinderPage() {
                 {w.lowerIsBetter && <span className={PF.muted}>(lower is better)</span>}
               </span>
             ))}
+          </div>
+        )}
+
+        {mode === "rank" && presets.length > 0 && (
+          <div className={`mt-3 ${PF.card} p-4`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${PF.muted}`}>Preset screens</p>
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {presets.map((p) => (
+                <div key={p.key} className={`rounded-md border ${PF.line} p-3`}>
+                  <button
+                    type="button"
+                    onClick={() => handleLoadPreset(p)}
+                    className={`text-sm font-semibold underline-offset-2 hover:underline ${PF.ink}`}
+                  >
+                    {p.name}
+                  </button>
+                  <p className={`mt-1 text-xs ${PF.muted}`}>{p.rules}</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -916,6 +1112,123 @@ export default function StockFinderPage() {
                       placeholder="e.g. 0"
                     />
                   </div>
+                  <div className="flex flex-col gap-1">
+                    <label className={`text-xs font-medium ${PF.muted}`}>Dividend Yield % (min)</label>
+                    <input
+                      type="number"
+                      value={filters.dividendYieldMin}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, dividendYieldMin: e.target.value }))}
+                      className={PF.input}
+                      placeholder="e.g. 2"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className={`text-xs font-medium ${PF.muted}`}>6M Volatility % (max)</label>
+                    <input
+                      type="number"
+                      value={filters.volatilityMax}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, volatilityMax: e.target.value }))}
+                      className={PF.input}
+                      placeholder="e.g. 20"
+                    />
+                  </div>
+                  <RangeFilter
+                    label="Earnings Growth %"
+                    min={filters.earningsGrowthMin}
+                    max={filters.earningsGrowthMax}
+                    onMinChange={(v) => setFilters((prev) => ({ ...prev, earningsGrowthMin: v }))}
+                    onMaxChange={(v) => setFilters((prev) => ({ ...prev, earningsGrowthMax: v }))}
+                  />
+                  <RangeFilter
+                    label="Short-Term Score"
+                    min={filters.shortScoreMin}
+                    max={filters.shortScoreMax}
+                    onMinChange={(v) => setFilters((prev) => ({ ...prev, shortScoreMin: v }))}
+                    onMaxChange={(v) => setFilters((prev) => ({ ...prev, shortScoreMax: v }))}
+                  />
+                  <RangeFilter
+                    label="Long-Term Score"
+                    min={filters.longScoreMin}
+                    max={filters.longScoreMax}
+                    onMinChange={(v) => setFilters((prev) => ({ ...prev, longScoreMin: v }))}
+                    onMaxChange={(v) => setFilters((prev) => ({ ...prev, longScoreMax: v }))}
+                  />
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={`text-xs font-medium ${PF.muted}`}>Short-Term Signal</label>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {SIGNAL_VALUES.map((sig) => (
+                        <button
+                          key={sig}
+                          type="button"
+                          onClick={() => toggleShortSignal(sig)}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                            filters.shortSignal.includes(sig)
+                              ? "border-[#2f5d50] bg-[#2f5d50] text-white"
+                              : `${PF.line} ${PF.muted} hover:bg-[#efebe3]`
+                          }`}
+                        >
+                          {sig}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium ${PF.muted}`}>Long-Term Signal</label>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {SIGNAL_VALUES.map((sig) => (
+                        <button
+                          key={sig}
+                          type="button"
+                          onClick={() => toggleLongSignal(sig)}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                            filters.longSignal.includes(sig)
+                              ? "border-[#2f5d50] bg-[#2f5d50] text-white"
+                              : `${PF.line} ${PF.muted} hover:bg-[#efebe3]`
+                          }`}
+                        >
+                          {sig}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={`text-xs font-medium ${PF.muted}`}>Owned</label>
+                    <div className="mt-1 flex gap-2">
+                      {(["any", "only", "exclude"] as TriState[]).map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => setFilters((prev) => ({ ...prev, owned: v }))}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${
+                            filters.owned === v ? "border-[#2f5d50] bg-[#2f5d50] text-white" : `${PF.line} ${PF.muted} hover:bg-[#efebe3]`
+                          }`}
+                        >
+                          {v === "only" ? "Owned only" : v === "exclude" ? "Not owned" : "Any"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium ${PF.muted}`}>Watchlisted</label>
+                    <div className="mt-1 flex gap-2">
+                      {(["any", "only", "exclude"] as TriState[]).map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => setFilters((prev) => ({ ...prev, watchlisted: v }))}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${
+                            filters.watchlisted === v ? "border-[#2f5d50] bg-[#2f5d50] text-white" : `${PF.line} ${PF.muted} hover:bg-[#efebe3]`
+                          }`}
+                        >
+                          {v === "only" ? "Watchlisted only" : v === "exclude" ? "Not watchlisted" : "Any"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-3">
                   <label className={`text-xs font-medium ${PF.muted}`}>Sector</label>
@@ -982,21 +1295,25 @@ export default function StockFinderPage() {
                             className={`sticky top-0 ${PF.surface2} px-3 py-2 ${pinned ? "left-8 z-20" : "z-10"}`}
                           >
                             <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={(e) => handleSort(col, e.shiftKey)}
-                                title="Click to sort; shift-click to add as a secondary sort key"
-                                className={`flex items-center gap-1 uppercase tracking-wide ${PF.muted} hover:text-[#1f2420]`}
-                              >
-                                {col}
-                                <span className="text-[10px]">
-                                  {keyIndex !== -1
-                                    ? `${sortKeys[keyIndex].direction === "asc" ? "▲" : "▼"}${
-                                        sortKeys.length > 1 ? keyIndex + 1 : ""
-                                      }`
-                                    : ""}
-                                </span>
-                              </button>
+                              {col === "Spark 90D" ? (
+                                <span className="uppercase tracking-wide">{col}</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleSort(col, e.shiftKey)}
+                                  title="Click to sort; shift-click to add as a secondary sort key"
+                                  className={`flex items-center gap-1 uppercase tracking-wide ${PF.muted} hover:text-[#1f2420]`}
+                                >
+                                  {col}
+                                  <span className="text-[10px]">
+                                    {keyIndex !== -1
+                                      ? `${sortKeys[keyIndex].direction === "asc" ? "▲" : "▼"}${
+                                          sortKeys.length > 1 ? keyIndex + 1 : ""
+                                        }`
+                                      : ""}
+                                  </span>
+                                </button>
+                              )}
                               {COLUMN_INFO[col] && (
                                 <button
                                   type="button"
@@ -1118,6 +1435,17 @@ export default function StockFinderPage() {
                                   </td>
                                 );
                               }
+                              if (col === "Spark 90D") {
+                                const values = (row["Spark 90D"] as number[] | undefined) ?? [];
+                                return (
+                                  <td key={col} className="px-3 py-2">
+                                    <Sparkline
+                                      values={values}
+                                      color={goodBad(row["1M Return %"] as number | null) === PF.good ? "#2f6b4f" : "#a23b34"}
+                                    />
+                                  </td>
+                                );
+                              }
                               const isNumeric = !TEXT_COLUMNS.has(col);
                               const pinned = col === "Ticker";
                               return (
@@ -1225,8 +1553,10 @@ export default function StockFinderPage() {
   );
 }
 
-function formatCell(value: string | number | null | undefined) {
+function formatCell(value: string | number | boolean | number[] | null | undefined) {
   if (value === null || value === undefined) return "N/A";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) return "—";
   if (typeof value === "number") return Number.isInteger(value) ? value : value.toFixed(2);
   return value;
 }

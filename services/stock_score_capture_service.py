@@ -359,6 +359,29 @@ def resolve_universe_tickers(universe_id: str) -> list[str]:
     return list(_universe_tickers(universe_id))
 
 
+async def fetch_latest_scores(tickers: list[str], universe_id: str = "All") -> dict[str, dict]:
+    """Per ticker, the newest row's short/long score+signal -- same
+    DISTINCT ON pattern as stock_detail.py's DET-5 peer-score merge, used
+    here to annotate the Stock Finder table (SCN-1). universe_id defaults
+    to "All" since that's the only value compute_and_persist_daily_scores
+    ever writes today, and "All" is a superset of every curated universe
+    Stock Finder can scan. A ticker with no row yet is simply absent from
+    the returned dict, not a KeyError -- callers should .get() it."""
+    if not tickers:
+        return {}
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT DISTINCT ON (ticker) ticker, short_score, short_signal, long_score, long_signal
+            FROM stock_scores
+            WHERE ticker = ANY($1::text[]) AND universe_id = $2
+            ORDER BY ticker, as_of_date DESC
+            """,
+            tickers, universe_id,
+        )
+    return {r["ticker"]: dict(r) for r in rows}
+
+
 async def _fetch_prior_signal_history(tickers: list[str], universe_id: str, before_date: date) -> dict[str, list]:
     """Every (as_of_date, short_signal, long_signal) row already on record
     for these tickers, strictly before before_date -- feeds

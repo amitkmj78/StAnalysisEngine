@@ -142,7 +142,7 @@ export interface StockRankRow {
   Sector: string;
   Price: number;
   Score: number;
-  [key: string]: string | number | null;
+  [key: string]: string | number | null | boolean | number[];
 }
 
 export interface AnalystRatingSummary {
@@ -184,6 +184,15 @@ export interface SavedScreen {
   sort_keys: { column: string; direction: "asc" | "desc" }[];
   snapshot_top10: ScreenSnapshotRow[];
   saved_at: string;
+}
+
+export interface PresetScreen {
+  key: string;
+  name: string;
+  rules: string;
+  goal: string;
+  universe: string;
+  filters: Record<string, unknown>;
 }
 
 export interface TickerSearchResult {

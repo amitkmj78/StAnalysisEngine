@@ -83,6 +83,7 @@ import type {
   SavedMonthlyPlan,
   SavedNarrative,
   SavedPrediction,
+  PresetScreen,
   SavedScreen,
   SavedStrategyPlan,
   SignalOutcomesResponse,
@@ -341,6 +342,10 @@ export function getScreens() {
 
 export function deleteScreen(screenId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/stock-finder/screens/${screenId}`, "DELETE");
+}
+
+export function getPresetScreens() {
+  return apiFetch<{ presets: PresetScreen[] }>("/api/v1/stock-finder/presets");
 }
 
 // Index Fund Finder

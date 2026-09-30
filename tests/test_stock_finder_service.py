@@ -11,7 +11,7 @@ price series.
 import pandas as pd
 import pytest
 
-from services.stock_finder_service import _annualized_return, _pct_return, rank_stocks_by_window_return
+from services.stock_finder_service import _annualized_return, _pct_return, _build_stock_row, rank_stocks_by_window_return
 import services.stock_finder_service as sfs
 
 
@@ -120,3 +120,68 @@ def test_rank_stocks_by_window_return_unknown_window_raises(monkeypatch):
 def test_rank_stocks_by_window_return_empty_universe(monkeypatch):
     monkeypatch.setattr(sfs, "get_stock_finder_table", lambda universe_key: pd.DataFrame())
     assert rank_stocks_by_window_return("90D", "All", 10) == []
+
+
+# ---------------------------------------------------------------------------
+# _build_stock_row -- SCN-1/SCN-2: dividend yield and the sparkline column.
+# No live network -- get_cached_history/get_cached_info are monkeypatched.
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_info(**overrides):
+    info = {
+        "shortName": "Alpha Co",
+        "sector": "Technology",
+        "industry": "Software",
+        "marketCap": 1_000_000_000,
+        "forwardPE": 20.0,
+        "dividendYield": 0.021,
+        "revenueGrowth": 0.05,
+        "earningsGrowth": 0.05,
+    }
+    info.update(overrides)
+    return info
+
+
+def _synthetic_hist(n=100):
+    close = _prices(list(range(100, 100 + n)))
+    volume = pd.Series([1_000_000.0] * n, index=close.index)
+    return pd.DataFrame({"Close": close, "Volume": volume})
+
+
+def test_build_stock_row_spark_90d_is_last_90_closes(monkeypatch):
+    monkeypatch.setattr(sfs, "get_cached_history", lambda ticker, period, auto_adjust=True: _synthetic_hist(100))
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info())
+
+    row = _build_stock_row("AAA")
+
+    assert row is not None
+    assert row["Spark 90D"] == pytest.approx(list(range(110, 200)), abs=0.01)
+    assert len(row["Spark 90D"]) == 90
+
+
+def test_build_stock_row_spark_90d_shorter_than_90_uses_full_history(monkeypatch):
+    monkeypatch.setattr(sfs, "get_cached_history", lambda ticker, period, auto_adjust=True: _synthetic_hist(70))
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info())
+
+    row = _build_stock_row("AAA")
+
+    assert row is not None
+    assert len(row["Spark 90D"]) == 70
+
+
+def test_build_stock_row_dividend_yield_normalizes_fraction_and_percent(monkeypatch):
+    monkeypatch.setattr(sfs, "get_cached_history", lambda ticker, period, auto_adjust=True: _synthetic_hist(100))
+
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info(dividendYield=0.021))
+    assert _build_stock_row("AAA")["Dividend Yield %"] == pytest.approx(2.1)
+
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info(dividendYield=2.1))
+    assert _build_stock_row("AAA")["Dividend Yield %"] == pytest.approx(2.1)
+
+
+def test_build_stock_row_dividend_yield_none_when_missing(monkeypatch):
+    monkeypatch.setattr(sfs, "get_cached_history", lambda ticker, period, auto_adjust=True: _synthetic_hist(100))
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info(dividendYield=None))
+
+    assert _build_stock_row("AAA")["Dividend Yield %"] is None
