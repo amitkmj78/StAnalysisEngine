@@ -234,19 +234,28 @@ def test_compute_sp500_sector_mix_matches_hand_computed_percentages(monkeypatch)
     # compute_sp500_sector_mix takes no args, so its @ttl_cache caches
     # under one fixed key across the whole test session -- clear it first
     # so each test actually re-invokes the monkeypatched fetch.
+    #
+    # Uses get_peer_lookup_table (DET-5's lightweight, .info-only scan),
+    # not get_stock_finder_table -- confirmed live that the heavy,
+    # 3-year-price-history version can take minutes to build on a cold
+    # cache across ~500 S&P 500 tickers, which HLT-1's Portfolio Health
+    # Check page (the first synchronous, page-load-blocking caller of
+    # this function) exposed directly. GICS Sector is already normalized
+    # in get_peer_lookup_table's own output, so no separate _gics_sector
+    # mapping step is needed here.
     compute_sp500_sector_mix.cache.clear()
     df = pd.DataFrame([
-        {"Ticker": "A", "Sector": "Technology", "Market Cap ($B)": 300.0},
-        {"Ticker": "B", "Sector": "Energy", "Market Cap ($B)": 100.0},
+        {"Ticker": "A", "GICS Sector": "Information Technology", "Market Cap ($B)": 300.0},
+        {"Ticker": "B", "GICS Sector": "Energy", "Market Cap ($B)": 100.0},
     ])
-    monkeypatch.setattr(sfs, "get_stock_finder_table", lambda universe_key: df)
+    monkeypatch.setattr(sfs, "get_peer_lookup_table", lambda universe_key: df)
     mix = compute_sp500_sector_mix()
     assert mix == {"Information Technology": 75.0, "Energy": 25.0}
 
 
 def test_compute_sp500_sector_mix_empty_is_a_noop(monkeypatch):
     compute_sp500_sector_mix.cache.clear()
-    monkeypatch.setattr(sfs, "get_stock_finder_table", lambda universe_key: pd.DataFrame())
+    monkeypatch.setattr(sfs, "get_peer_lookup_table", lambda universe_key: pd.DataFrame())
     assert compute_sp500_sector_mix() == {}
 
 

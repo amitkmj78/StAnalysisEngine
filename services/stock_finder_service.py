@@ -932,11 +932,18 @@ def compute_sp500_sector_mix() -> Dict[str, float]:
     GICS sector across the full S&P 500 scan -- this app has no source
     for SPY's real holdings/weights data. Every caller must label this as
     an approximation, not real index data.
+
+    Uses get_peer_lookup_table (DET-5's lightweight, .info-only scan)
+    rather than get_stock_finder_table -- confirmed live this endpoint,
+    now called synchronously from the Portfolio Health Check page (HLT-1),
+    otherwise triggers a ~500-ticker, 3-year-price-history fetch on a
+    cold cache that can run for minutes, the exact same root cause
+    already fixed once for DET-5's peer matching. Sector/market-cap data
+    alone (no price history) is all this function has ever needed.
     """
-    df = get_stock_finder_table(SP500_UNIVERSE_NAME).copy()
+    df = get_peer_lookup_table(SP500_UNIVERSE_NAME)
     if df.empty:
         return {}
-    df["GICS Sector"] = df["Sector"].map(_gics_sector)
     by_sector = df.groupby("GICS Sector")["Market Cap ($B)"].sum(min_count=1).dropna()
     total = by_sector.sum()
     if not total:
