@@ -1462,7 +1462,7 @@ export interface AdminActivityRow {
   created_at: string;
 }
 
-export type AlertConditionType = "price_above" | "price_below";
+export type AlertConditionType = "price_above" | "price_below" | "score_above" | "score_below";
 
 export interface WatchlistAlert {
   id: number;

@@ -13,6 +13,27 @@ import {
 } from "@/lib/api";
 import type { AlertConditionType, WatchlistAlert } from "@/lib/types";
 
+// ALR-1: score_above/score_below alongside the original price_above/
+// price_below -- threshold display drops the "$" for a score (0-100,
+// not a dollar figure).
+function isScoreCondition(c: AlertConditionType): boolean {
+  return c === "score_above" || c === "score_below";
+}
+
+function conditionVerb(c: AlertConditionType): string {
+  return c === "price_above" || c === "score_above" ? "rose above" : "fell below";
+}
+
+function conditionNoun(c: AlertConditionType): string {
+  if (c === "price_above") return "Price above";
+  if (c === "price_below") return "Price below";
+  return c === "score_above" ? "Score above" : "Score below";
+}
+
+function fmtThreshold(c: AlertConditionType, value: number): string {
+  return isScoreCondition(c) ? value.toFixed(0) : `$${value.toFixed(2)}`;
+}
+
 export default function WatchlistPage() {
   const [alerts, setAlerts] = useState<WatchlistAlert[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,8 +107,8 @@ export default function WatchlistPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-2xl font-semibold text-slate-900">Watchlist Alerts</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Set a price target for a ticker and it gets checked automatically in the background — every 5 minutes,
-        no need to keep this page open. Price-only for now (above/below a target).
+        Set a price or short-term score target for a ticker and it gets checked automatically in the
+        background — every 5 minutes, no need to keep this page open.
       </p>
 
       <form onSubmit={handleCreate} className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
@@ -109,10 +130,14 @@ export default function WatchlistPage() {
           >
             <option value="price_above">Price rises above</option>
             <option value="price_below">Price falls below</option>
+            <option value="score_above">Short-term score rises above</option>
+            <option value="score_below">Short-term score falls below</option>
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Threshold ($)</label>
+          <label className="text-xs font-medium text-slate-500">
+            Threshold {isScoreCondition(condition) ? "(0-100)" : "($)"}
+          </label>
           <input
             value={threshold}
             onChange={(e) => setThreshold(e.target.value)}
@@ -151,8 +176,8 @@ export default function WatchlistPage() {
                   >
                     <span>
                       <strong>{a.ticker}</strong>{" "}
-                      {a.condition_type === "price_above" ? "rose above" : "fell below"} ${a.threshold.toFixed(2)}{" "}
-                      — now ${a.triggered_price?.toFixed(2)}{" "}
+                      {conditionVerb(a.condition_type)} {fmtThreshold(a.condition_type, a.threshold)}{" "}
+                      — now {a.triggered_price !== null ? fmtThreshold(a.condition_type, a.triggered_price) : "—"}{" "}
                       <span className="text-xs text-slate-500">
                         ({a.triggered_at ? new Date(a.triggered_at).toLocaleString() : ""})
                       </span>
@@ -209,7 +234,7 @@ export default function WatchlistPage() {
                           )}
                         </td>
                         <td className="px-3 py-2 text-slate-600">
-                          {a.condition_type === "price_above" ? "Price above" : "Price below"} ${a.threshold.toFixed(2)}
+                          {conditionNoun(a.condition_type)} {fmtThreshold(a.condition_type, a.threshold)}
                         </td>
                         <td className="px-3 py-2 text-slate-500">{new Date(a.created_at).toLocaleDateString()}</td>
                         <td className="px-3 py-2 text-right">
@@ -247,8 +272,8 @@ export default function WatchlistPage() {
                       <tr key={a.id} className="border-b border-slate-100 last:border-0 text-slate-500">
                         <td className="px-3 py-2">{a.ticker}</td>
                         <td className="px-3 py-2">
-                          {a.condition_type === "price_above" ? "rose above" : "fell below"} ${a.threshold.toFixed(2)} —
-                          hit ${a.triggered_price?.toFixed(2)}
+                          {conditionVerb(a.condition_type)} {fmtThreshold(a.condition_type, a.threshold)} — hit{" "}
+                          {a.triggered_price !== null ? fmtThreshold(a.condition_type, a.triggered_price) : "—"}
                         </td>
                         <td className="px-3 py-2">{a.triggered_at ? new Date(a.triggered_at).toLocaleString() : "—"}</td>
                         <td className="px-3 py-2 text-right">

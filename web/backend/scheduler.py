@@ -190,26 +190,47 @@ async def _verify_all_saved_predictions() -> None:
 
 async def _evaluate_watchlist_alerts() -> None:
     """Second scheduler job: check every not-yet-triggered watchlist alert's
-    condition against a live price, across every user, on its own (shorter)
-    interval since price moves faster than what the prediction-verify job
-    cares about."""
+    condition against a live price or today's short_score, across every
+    user, on its own (shorter) interval since price moves faster than
+    what the prediction-verify job cares about."""
     async with service_conn() as conn:
         rows = await conn.fetch("SELECT * FROM watchlist_alerts WHERE triggered_at IS NULL")
         if not rows:
             return
 
+        # ALR-1: stock_scores only changes once/day, so batch-fetch every
+        # score-condition ticker's latest short_score in one query rather
+        # than per-row -- same "one bulk query, not N" idiom as
+        # web/backend/routers/portfolio.py::_attach_stock_forecasts.
+        score_tickers = sorted({r["ticker"] for r in rows if r["condition_type"] in ("score_above", "score_below")})
+        scores_by_ticker: dict[str, float] = {}
+        if score_tickers:
+            score_rows = await conn.fetch(
+                """
+                SELECT DISTINCT ON (ticker) ticker, short_score
+                FROM stock_scores WHERE ticker = ANY($1::text[]) AND universe_id = 'All'
+                ORDER BY ticker, as_of_date DESC
+                """,
+                score_tickers,
+            )
+            scores_by_ticker = {r["ticker"]: r["short_score"] for r in score_rows if r["short_score"] is not None}
+
         checked = 0
         triggered = 0
         for row in rows:
-            price = await run_in_threadpool(
-                evaluate_alert, row["ticker"], row["condition_type"], row["threshold"]
+            matched_value = await run_in_threadpool(
+                evaluate_alert, row["ticker"], row["condition_type"], row["threshold"],
+                scores_by_ticker.get(row["ticker"]),
             )
             checked += 1
-            if price is None:
+            if matched_value is None:
                 continue
+            # triggered_price holds whatever value satisfied the
+            # condition -- a live price for price_* alerts, today's
+            # short_score for score_* alerts.
             await conn.execute(
                 "UPDATE watchlist_alerts SET triggered_at = now(), triggered_price = $2 WHERE id = $1",
-                row["id"], price,
+                row["id"], matched_value,
             )
             triggered += 1
 
