@@ -155,6 +155,8 @@ interface FilterState {
   sectors: string[];
   dividendYieldMin: string;
   volatilityMax: string;
+  momentumMin: string;
+  momentumMax: string;
   earningsGrowthMin: string;
   earningsGrowthMax: string;
   shortScoreMin: string;
@@ -176,6 +178,8 @@ const EMPTY_FILTERS: FilterState = {
   sectors: [],
   dividendYieldMin: "",
   volatilityMax: "",
+  momentumMin: "",
+  momentumMax: "",
   earningsGrowthMin: "",
   earningsGrowthMax: "",
   shortScoreMin: "",
@@ -198,6 +202,8 @@ function filtersActive(f: FilterState): boolean {
     f.sectors.length > 0 ||
     f.dividendYieldMin !== "" ||
     f.volatilityMax !== "" ||
+    f.momentumMin !== "" ||
+    f.momentumMax !== "" ||
     f.earningsGrowthMin !== "" ||
     f.earningsGrowthMax !== "" ||
     f.shortScoreMin !== "" ||
@@ -583,6 +589,13 @@ export default function StockFinderPage() {
       const volatility = row["6M Volatility %"] as number | null;
       if (filters.volatilityMax !== "" && (volatility == null || volatility > Number(filters.volatilityMax))) return false;
 
+      // Momentum: 3-Month Return, the same metric this app already treats
+      // as the dominant momentum signal (the largest single weight in the
+      // Short Term goal -- see the 3M Return % column's own tooltip).
+      const momentum = row["3M Return %"] as number | null;
+      if (filters.momentumMin !== "" && (momentum == null || momentum < Number(filters.momentumMin))) return false;
+      if (filters.momentumMax !== "" && (momentum == null || momentum > Number(filters.momentumMax))) return false;
+
       const earningsGrowth = row["Earnings Growth %"] as number | null;
       if (filters.earningsGrowthMin !== "" && (earningsGrowth == null || earningsGrowth < Number(filters.earningsGrowthMin))) return false;
       if (filters.earningsGrowthMax !== "" && (earningsGrowth == null || earningsGrowth > Number(filters.earningsGrowthMax))) return false;
@@ -704,6 +717,8 @@ export default function StockFinderPage() {
       sectors: Array.isArray(f.sectors) ? (f.sectors as string[]) : [],
       dividendYieldMin: typeof f.dividendYieldMin === "string" ? f.dividendYieldMin : "",
       volatilityMax: typeof f.volatilityMax === "string" ? f.volatilityMax : "",
+      momentumMin: typeof f.momentumMin === "string" ? f.momentumMin : "",
+      momentumMax: typeof f.momentumMax === "string" ? f.momentumMax : "",
       earningsGrowthMin: typeof f.earningsGrowthMin === "string" ? f.earningsGrowthMin : "",
       earningsGrowthMax: typeof f.earningsGrowthMax === "string" ? f.earningsGrowthMax : "",
       shortScoreMin: typeof f.shortScoreMin === "string" ? f.shortScoreMin : "",
@@ -1132,6 +1147,13 @@ export default function StockFinderPage() {
                       placeholder="e.g. 20"
                     />
                   </div>
+                  <RangeFilter
+                    label="Momentum (3M Return %)"
+                    min={filters.momentumMin}
+                    max={filters.momentumMax}
+                    onMinChange={(v) => setFilters((prev) => ({ ...prev, momentumMin: v }))}
+                    onMaxChange={(v) => setFilters((prev) => ({ ...prev, momentumMax: v }))}
+                  />
                   <RangeFilter
                     label="Earnings Growth %"
                     min={filters.earningsGrowthMin}

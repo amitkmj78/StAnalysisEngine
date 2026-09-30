@@ -13,6 +13,7 @@ VALID_FILTER_KEYS = {
     "sectors",
     "dividendYieldMin",
     "volatilityMax",
+    "momentumMin", "momentumMax",
     "earningsGrowthMin", "earningsGrowthMax",
     "shortScoreMin", "shortScoreMax",
     "longScoreMin", "longScoreMax",
