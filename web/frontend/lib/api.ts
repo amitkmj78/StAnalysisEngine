@@ -56,6 +56,7 @@ import type {
   PortfolioHealthIncomeFeesResponse,
   PortfolioHealthOverlapResponse,
   PortfolioHealthRiskResponse,
+  PortfolioHealthTaxLossHarvestingResponse,
   PortfolioInsightsResponse,
   PortfolioListResponse,
   PortfolioPerformance,
@@ -916,6 +917,13 @@ export function getPortfolioHealthOverlap(portfolioId?: number) {
 export function getPortfolioHealthIncomeFees(portfolioId?: number) {
   return apiFetch<PortfolioHealthIncomeFeesResponse>(
     "/api/v1/portfolio/health/income-fees",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
+  );
+}
+
+export function getPortfolioHealthTaxLossHarvesting(portfolioId?: number) {
+  return apiFetch<PortfolioHealthTaxLossHarvestingResponse>(
+    "/api/v1/portfolio/health/tax-loss-harvesting",
     portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
   );
 }

@@ -1063,6 +1063,24 @@ export interface PortfolioHealthIncomeFeesResponse {
   };
 }
 
+export interface TaxLossHarvestCandidate {
+  ticker: string;
+  shares: number;
+  avg_cost: number;
+  current_price: number;
+  unrealized_loss_pct: number;
+  unrealized_loss_dollars: number;
+  wash_sale_note: string;
+}
+
+export interface PortfolioHealthTaxLossHarvestingResponse {
+  as_of_date: string;
+  account_type: AccountType;
+  eligible: boolean;
+  reason: string | null;
+  candidates: TaxLossHarvestCandidate[];
+}
+
 export interface PortfolioCompareResponse {
   as_of: string;
   window: CompareWindow;

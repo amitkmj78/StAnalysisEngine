@@ -439,3 +439,61 @@ def compute_fee_drag(
         "by_fund": by_fund,
         "total_annual_fee_drag_dollars": round(total, 2) if any_known else None,
     }
+
+
+# HLT-4: this app has no transaction/lot history anywhere in its schema
+# (portfolio_positions is a current-snapshot table only -- shares/
+# avg_cost, never a buy/sell log), so whether the user has already
+# repurchased a ticker within the wash-sale window is genuinely not
+# computable. This generic, always-shown disclosure is the honest
+# alternative to a fabricated or silently-omitted personalized check.
+WASH_SALE_DISCLOSURE = (
+    "This app has no transaction/lot history, so it cannot tell whether you've already "
+    "repurchased a ticker recently. If you buy this ticker again within 30 days before or "
+    "after selling it at a loss, the IRS wash-sale rule may disallow the loss for tax purposes."
+)
+
+
+def find_tax_loss_harvest_candidates(positions: list[dict], account_type: str) -> dict:
+    """positions: [{ticker, shares, avg_cost, current_price,
+    unrealized_pnl_pct}] -- straight from portfolio_positions, no new
+    computation needed for the core filter (unrealized_pnl_pct already
+    exists and already tells us which positions are below cost). Only
+    returns candidates when account_type == "Taxable" (HLT-4's
+    acceptance criterion) -- {"eligible": False, "candidates": []} with
+    a stated reason otherwise, not silent emptiness. Candidates sorted
+    by unrealized_loss_dollars ascending (biggest loss first)."""
+    if account_type != "Taxable":
+        return {
+            "eligible": False,
+            "reason": f"Tax-loss harvesting only applies to taxable accounts -- this portfolio is marked {account_type}.",
+            "candidates": [],
+        }
+
+    candidates = []
+    for p in positions:
+        avg_cost = p.get("avg_cost")
+        current_price = p.get("current_price")
+        shares = p.get("shares")
+        if avg_cost is None or current_price is None or shares is None:
+            continue
+        unrealized_pnl_pct = p.get("unrealized_pnl_pct")
+        if unrealized_pnl_pct is None:
+            unrealized_pnl_pct = (current_price / avg_cost - 1.0) * 100 if avg_cost else None
+        if unrealized_pnl_pct is None or unrealized_pnl_pct >= 0:
+            continue
+        unrealized_loss_dollars = round((current_price - avg_cost) * shares, 2)
+        candidates.append(
+            {
+                "ticker": p["ticker"],
+                "shares": shares,
+                "avg_cost": avg_cost,
+                "current_price": current_price,
+                "unrealized_loss_pct": round(unrealized_pnl_pct, 2),
+                "unrealized_loss_dollars": unrealized_loss_dollars,
+                "wash_sale_note": WASH_SALE_DISCLOSURE,
+            }
+        )
+    candidates.sort(key=lambda c: c["unrealized_loss_dollars"])
+
+    return {"eligible": True, "reason": None, "candidates": candidates}

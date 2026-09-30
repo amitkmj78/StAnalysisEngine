@@ -11,6 +11,7 @@ import pytest
 
 import services.portfolio_health_service as phs
 from services.portfolio_health_service import (
+    WASH_SALE_DISCLOSURE,
     _infer_annual_payment_count,
     build_sector_comparison,
     compute_fee_drag,
@@ -22,6 +23,7 @@ from services.portfolio_health_service import (
     compute_risk_over_windows,
     compute_trailing_dividend_per_share,
     fetch_fund_holdings_map,
+    find_tax_loss_harvest_candidates,
 )
 
 
@@ -416,3 +418,52 @@ def test_compute_look_through_exposure_no_funds_is_pass_through():
             "combined_value": 3_000.0, "combined_weight_pct": 100.0, "via_funds": [],
         }
     ]
+
+
+# ---------------------------------------------------------------------------
+# find_tax_loss_harvest_candidates
+# ---------------------------------------------------------------------------
+
+
+def test_find_tax_loss_harvest_candidates_ineligible_for_non_taxable_accounts():
+    positions = [
+        {"ticker": "AAPL", "shares": 10.0, "avg_cost": 200.0, "current_price": 150.0, "unrealized_pnl_pct": -25.0},
+    ]
+    for account_type in ("Traditional", "Roth"):
+        result = find_tax_loss_harvest_candidates(positions, account_type)
+        assert result["eligible"] is False
+        assert result["candidates"] == []
+        assert account_type in result["reason"]
+
+
+def test_find_tax_loss_harvest_candidates_only_losers_sorted_biggest_loss_first():
+    positions = [
+        {"ticker": "WINNER", "shares": 10.0, "avg_cost": 100.0, "current_price": 150.0, "unrealized_pnl_pct": 50.0},
+        {"ticker": "SMALL_LOSS", "shares": 10.0, "avg_cost": 100.0, "current_price": 95.0, "unrealized_pnl_pct": -5.0},
+        {"ticker": "BIG_LOSS", "shares": 10.0, "avg_cost": 100.0, "current_price": 60.0, "unrealized_pnl_pct": -40.0},
+    ]
+    result = find_tax_loss_harvest_candidates(positions, "Taxable")
+    assert result["eligible"] is True
+    assert result["reason"] is None
+    tickers = [c["ticker"] for c in result["candidates"]]
+    assert tickers == ["BIG_LOSS", "SMALL_LOSS"]  # WINNER excluded, biggest loss first
+    assert result["candidates"][0]["unrealized_loss_dollars"] == pytest.approx(-400.0)
+    assert result["candidates"][0]["wash_sale_note"] == WASH_SALE_DISCLOSURE
+
+
+def test_find_tax_loss_harvest_candidates_excludes_position_with_missing_price_data():
+    positions = [
+        {"ticker": "NOPRICE", "shares": 10.0, "avg_cost": 100.0, "current_price": None, "unrealized_pnl_pct": None},
+    ]
+    result = find_tax_loss_harvest_candidates(positions, "Taxable")
+    assert result["candidates"] == []
+
+
+def test_find_tax_loss_harvest_candidates_derives_pnl_when_not_precomputed():
+    positions = [
+        {"ticker": "LOSER", "shares": 5.0, "avg_cost": 100.0, "current_price": 80.0, "unrealized_pnl_pct": None},
+    ]
+    result = find_tax_loss_harvest_candidates(positions, "Taxable")
+    assert len(result["candidates"]) == 1
+    assert result["candidates"][0]["unrealized_loss_pct"] == pytest.approx(-20.0)
+    assert result["candidates"][0]["unrealized_loss_dollars"] == pytest.approx(-100.0)

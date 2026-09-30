@@ -8,12 +8,14 @@ import {
   getPortfolioHealthIncomeFees,
   getPortfolioHealthOverlap,
   getPortfolioHealthRisk,
+  getPortfolioHealthTaxLossHarvesting,
 } from "@/lib/api";
 import type {
   PortfolioHealthConcentrationResponse,
   PortfolioHealthIncomeFeesResponse,
   PortfolioHealthOverlapResponse,
   PortfolioHealthRiskResponse,
+  PortfolioHealthTaxLossHarvestingResponse,
   PortfolioRiskWindow,
 } from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
@@ -59,6 +61,10 @@ export default function PortfolioHealthPage() {
   const [incomeFeesLoading, setIncomeFeesLoading] = useState(true);
   const [incomeFeesError, setIncomeFeesError] = useState<string | null>(null);
 
+  const [tlh, setTlh] = useState<PortfolioHealthTaxLossHarvestingResponse | null>(null);
+  const [tlhLoading, setTlhLoading] = useState(true);
+  const [tlhError, setTlhError] = useState<string | null>(null);
+
   function handlePortfolioChange(id: number) {
     setSelectedPortfolioId(id);
     setUrlState({ p: String(id) });
@@ -94,6 +100,13 @@ export default function PortfolioHealthPage() {
       .then(setIncomeFees)
       .catch((err) => setIncomeFeesError(err instanceof ApiError ? err.message : "Couldn't load income & fees."))
       .finally(() => setIncomeFeesLoading(false));
+
+    setTlhLoading(true);
+    setTlhError(null);
+    getPortfolioHealthTaxLossHarvesting(selectedPortfolioId)
+      .then(setTlh)
+      .catch((err) => setTlhError(err instanceof ApiError ? err.message : "Couldn't load tax-loss harvesting."))
+      .finally(() => setTlhLoading(false));
   }, [selectedPortfolioId]);
 
   return (
@@ -429,6 +442,57 @@ export default function PortfolioHealthPage() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+        </Card>
+
+        <Card title="Tax-Loss Harvesting" subtitle="Positions below cost, only shown for taxable accounts.">
+          {tlhLoading && (
+            <div className="flex flex-col gap-2">
+              <SkeletonBlock className="h-8 w-1/2" />
+              <SkeletonBlock className="h-32" />
+            </div>
+          )}
+          {tlhError && <p className="text-sm text-red-700">{tlhError}</p>}
+          {tlh && !tlhLoading && (
+            <div>
+              {!tlh.eligible ? (
+                <p className="text-sm text-slate-500">{tlh.reason}</p>
+              ) : tlh.candidates.length === 0 ? (
+                <p className="text-sm text-slate-500">No positions are currently below cost.</p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    {tlh.candidates[0].wash_sale_note}
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                          <th className="px-2 py-1.5">Ticker</th>
+                          <th className="px-2 py-1.5">Shares</th>
+                          <th className="px-2 py-1.5">Avg Cost</th>
+                          <th className="px-2 py-1.5">Current Price</th>
+                          <th className="px-2 py-1.5">Loss</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tlh.candidates.map((c) => (
+                          <tr key={c.ticker} className="border-b border-slate-100 last:border-0">
+                            <td className="px-2 py-1.5 font-medium text-slate-900">{c.ticker}</td>
+                            <td className="px-2 py-1.5 text-slate-700">{c.shares}</td>
+                            <td className="px-2 py-1.5 text-slate-700">${c.avg_cost.toFixed(2)}</td>
+                            <td className="px-2 py-1.5 text-slate-700">${c.current_price.toFixed(2)}</td>
+                            <td className="px-2 py-1.5 font-medium text-red-700">
+                              {c.unrealized_loss_pct.toFixed(1)}% (${c.unrealized_loss_dollars.toLocaleString()})
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </Card>

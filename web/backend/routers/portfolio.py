@@ -48,6 +48,7 @@ from services.portfolio_health_service import (
     compute_portfolio_sector_weights,
     compute_risk_over_windows,
     fetch_fund_holdings_map,
+    find_tax_loss_harvest_candidates,
 )
 from services.portfolio_performance_service import compute_portfolio_performance
 from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
@@ -1720,6 +1721,38 @@ async def portfolio_health_income_fees(request: Request, portfolio_id: Optional[
     fee_drag = compute_fee_drag(positions, fund_holdings, info_by_ticker)
 
     return {"as_of_date": str(_eastern_today()), "dividends": dividends, "fee_drag": fee_drag}
+
+
+@router.get("/health/tax-loss-harvesting")
+@limiter.limit("20/minute")
+async def portfolio_health_tax_loss_harvesting(request: Request, portfolio_id: Optional[int] = None):
+    """HLT-4: positions below cost, shown only for Taxable accounts
+    (services.portfolio_health_service.find_tax_loss_harvest_candidates).
+    Cheapest of the four health endpoints -- pure SQL filter + pure
+    Python, no yfinance calls at all."""
+    await enforce_daily_quota(request, "portfolio/health/tax-loss-harvesting")
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        resolved_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        portfolio_row = await conn.fetchrow(
+            "SELECT account_type FROM portfolios WHERE id = $1 AND user_id = $2::uuid",
+            resolved_id, user_id,
+        )
+        records = await conn.fetch(
+            "SELECT ticker, shares, avg_cost, current_price, unrealized_pnl_pct FROM portfolio_positions "
+            "WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_id,
+        )
+    account_type = portfolio_row["account_type"] if portfolio_row else "Taxable"
+    positions = [
+        {
+            "ticker": r["ticker"], "shares": r["shares"], "avg_cost": r["avg_cost"],
+            "current_price": r["current_price"], "unrealized_pnl_pct": r["unrealized_pnl_pct"],
+        }
+        for r in records if r["ticker"]
+    ]
+    result = find_tax_loss_harvest_candidates(positions, account_type)
+    return {"as_of_date": str(_eastern_today()), "account_type": account_type, **result}
 
 
 @router.get("/goal-plan")
