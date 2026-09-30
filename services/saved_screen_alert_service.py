@@ -103,5 +103,9 @@ async def scan_saved_screens_for_membership_changes() -> int:
                 )
                 if sent:
                     emailed += 1
+                    await conn.execute(
+                        "UPDATE saved_screen_alerts SET emailed_at = now() WHERE screen_id = $1 AND check_date = $2",
+                        screen_id, today,
+                    )
 
     return emailed
