@@ -29,6 +29,7 @@ import type {
   DiversifiedBasketRequest,
   DropAlertThreshold,
   DualBenchmarkComparison,
+  EarningsCalendarResponse,
   EntryHistory,
   EntryPlan,
   EntryScanRow,
@@ -769,6 +770,10 @@ export function getTwoScoreFactorHistory(ticker: string, factor: TwoScoreFactorK
 // history, and peers only.
 export function getStockDetail(ticker: string) {
   return apiFetch<StockDetailResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/detail`);
+}
+
+export function getEarningsCalendar() {
+  return apiFetch<EarningsCalendarResponse>("/api/v1/earnings/calendar");
 }
 
 export function getStockPriceHistory(ticker: string, range: StockPriceHistoryRange = "1Y") {

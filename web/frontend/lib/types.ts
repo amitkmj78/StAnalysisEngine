@@ -1196,6 +1196,21 @@ export interface TwoScoreFactorHistoryResponse {
 // Stock detail page (docs/stock-analysis-requirements.html DET-1..5).
 // Scores/signals/explanations are deliberately NOT part of this response
 // family -- see TwoScore* above, the single source of truth for those.
+export interface EarningsCalendarEntry {
+  ticker: string;
+  owned: boolean;
+  watchlisted: boolean;
+  date: string;
+  market_timing: "before_market" | "after_market";
+  eps_estimate: number | null;
+}
+
+export interface EarningsCalendarResponse {
+  as_of: string;
+  window_days: number;
+  entries: EarningsCalendarEntry[];
+}
+
 export interface StockDetailResponse {
   ticker: string;
   current_price: number | null;
