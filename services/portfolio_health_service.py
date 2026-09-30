@@ -298,3 +298,144 @@ def compute_look_through_exposure(positions: list[dict], fund_holdings: dict[str
         )
     rows.sort(key=lambda r: r["combined_value"], reverse=True)
     return rows
+
+
+def _infer_annual_payment_count(dividends: pd.Series, lookback_days: int = 400) -> int:
+    """Counts distinct payments in the trailing ~400 days (from the
+    series' own most recent payment, not "today" -- this is historical
+    data), and maps to an assumed payments-per-year frequency: >=10 ->
+    12 (monthly), >=3 -> 4 (quarterly), ==2 -> 2 (semiannual), ==1 -> 1
+    (annual), 0 -> 0. 400 rather than 365 gives quarterly/monthly payers
+    a little slack so a payment landing just past the exact-365-day mark
+    isn't missed and misread as a lower frequency."""
+    if dividends.empty:
+        return 0
+    cutoff = dividends.index.max() - pd.Timedelta(days=lookback_days)
+    count = int((dividends.index >= cutoff).sum())
+    if count >= 10:
+        return 12
+    if count >= 3:
+        return 4
+    if count == 2:
+        return 2
+    if count == 1:
+        return 1
+    return 0
+
+
+def compute_trailing_dividend_per_share(dividends: pd.Series) -> Optional[float]:
+    """Sum of the last N payments, N = _infer_annual_payment_count --
+    fixes a confirmed-live bug where a naive 365-day cutoff over-counts
+    by one extra payment for issuers whose pay dates don't land exactly
+    365 days apart (AAPL: naive sum 1.32 vs. Yahoo's own
+    trailingAnnualDividendRate 1.05, ~26% inflation from one stray extra
+    quarterly payment). None (not 0.0) when there's no payment history
+    at all -- "never paid" and "we don't know" are different facts,
+    same convention as services.stock_detail_service.recent_dividends."""
+    n = _infer_annual_payment_count(dividends)
+    if n == 0:
+        return None
+    return round(float(dividends.sort_index().tail(n).sum()), 4)
+
+
+def compute_portfolio_dividend_income(
+    positions: list[dict], dividends_by_ticker: dict[str, pd.Series], info_by_ticker: dict[str, dict]
+) -> dict:
+    """positions: [{ticker, shares}]. Pure function -- the caller (router)
+    does the live fetches and passes the results in, same separation
+    compute_look_through_exposure already uses for fund_holdings.
+    Trailing income = compute_trailing_dividend_per_share(...) * shares.
+    Projected income uses info.get("dividendRate") directly (Yahoo's own
+    forward-looking per-share rate) -- not recomputed from the trailing
+    series, since a forward rate and a trailing sum measure different
+    things and shouldn't be conflated. A ticker with no trailing
+    history or no dividendRate contributes None (not 0) to its own
+    row, excluded from (not zeroing) the portfolio total."""
+    by_ticker = []
+    total_trailing = 0.0
+    total_projected = 0.0
+    any_trailing = False
+    any_projected = False
+
+    for p in positions:
+        ticker = p["ticker"]
+        shares = p.get("shares") or 0
+        dividends = dividends_by_ticker.get(ticker, pd.Series(dtype=float))
+        info = info_by_ticker.get(ticker) or {}
+
+        trailing_per_share = compute_trailing_dividend_per_share(dividends)
+        trailing_income = round(trailing_per_share * shares, 2) if trailing_per_share is not None else None
+
+        projected_per_share = info.get("dividendRate")
+        projected_income = round(projected_per_share * shares, 2) if projected_per_share is not None else None
+
+        by_ticker.append(
+            {
+                "ticker": ticker,
+                "trailing_per_share": trailing_per_share,
+                "trailing_income": trailing_income,
+                "projected_per_share": projected_per_share,
+                "projected_income": projected_income,
+            }
+        )
+        if trailing_income is not None:
+            total_trailing += trailing_income
+            any_trailing = True
+        if projected_income is not None:
+            total_projected += projected_income
+            any_projected = True
+
+    return {
+        "by_ticker": by_ticker,
+        "total_trailing_income": round(total_trailing, 2) if any_trailing else None,
+        "total_projected_income": round(total_projected, 2) if any_projected else None,
+    }
+
+
+def compute_fee_drag(
+    positions: list[dict], fund_holdings: dict[str, dict[str, float]], info_by_ticker: dict[str, dict]
+) -> dict:
+    """positions: [{ticker, market_value}]. A position counts as a fund
+    for fee-drag purposes iff it's a key in fund_holdings -- the SAME
+    classification compute_look_through_exposure already uses, not
+    re-detected here. expense_ratio_pct = info["netExpenseRatio"] --
+    confirmed live this is already a percentage-point value (0.0945
+    means 0.0945%, not a fraction of 1), same convention already used in
+    services/index_fund_service.py and GET /compare's benchmark section
+    -- do NOT run it through a fraction-of-1 heuristic.
+    annual_fee_drag_dollars = market_value * (expense_ratio_pct / 100).
+    A fund with a missing netExpenseRatio gets null drag, excluded from
+    the total, not treated as 0 (an unknown fee is not the same fact as
+    a genuinely zero-cost fund)."""
+    by_fund = []
+    total = 0.0
+    any_known = False
+
+    for p in positions:
+        ticker = p["ticker"]
+        if ticker not in fund_holdings:
+            continue
+        market_value = p.get("market_value") or 0.0
+        info = info_by_ticker.get(ticker) or {}
+        expense_ratio_pct = info.get("netExpenseRatio")
+
+        if expense_ratio_pct is None:
+            annual_fee_drag_dollars = None
+        else:
+            annual_fee_drag_dollars = round(market_value * (expense_ratio_pct / 100.0), 2)
+            total += annual_fee_drag_dollars
+            any_known = True
+
+        by_fund.append(
+            {
+                "ticker": ticker,
+                "market_value": round(market_value, 2),
+                "expense_ratio_pct": expense_ratio_pct,
+                "annual_fee_drag_dollars": annual_fee_drag_dollars,
+            }
+        )
+
+    return {
+        "by_fund": by_fund,
+        "total_annual_fee_drag_dollars": round(total, 2) if any_known else None,
+    }

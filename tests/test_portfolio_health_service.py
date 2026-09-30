@@ -11,12 +11,16 @@ import pytest
 
 import services.portfolio_health_service as phs
 from services.portfolio_health_service import (
+    _infer_annual_payment_count,
     build_sector_comparison,
+    compute_fee_drag,
     compute_fund_coverage_pct,
     compute_look_through_exposure,
+    compute_portfolio_dividend_income,
     compute_portfolio_risk_metrics,
     compute_portfolio_sector_weights,
     compute_risk_over_windows,
+    compute_trailing_dividend_per_share,
     fetch_fund_holdings_map,
 )
 
@@ -294,6 +298,113 @@ def test_compute_look_through_exposure_zero_holdings_fund_is_its_own_row():
     assert len(rows) == 1
     assert rows[0]["ticker"] == "GLD"
     assert rows[0]["combined_value"] == pytest.approx(5_000.0)
+
+
+def _dividend_series(amounts, dates):
+    return pd.Series(amounts, index=pd.to_datetime(dates))
+
+
+# ---------------------------------------------------------------------------
+# _infer_annual_payment_count / compute_trailing_dividend_per_share
+# ---------------------------------------------------------------------------
+
+
+def test_infer_annual_payment_count_quarterly():
+    dates = ["2023-01-01", "2023-04-01", "2023-07-01", "2023-10-01", "2024-01-01", "2024-04-01", "2024-07-01", "2024-10-01"]
+    dividends = _dividend_series([0.25] * len(dates), dates)
+    assert _infer_annual_payment_count(dividends) == 4
+
+
+def test_infer_annual_payment_count_monthly():
+    dates = pd.date_range("2023-08-01", periods=15, freq="MS")
+    dividends = pd.Series([0.05] * 15, index=dates)
+    assert _infer_annual_payment_count(dividends) == 12
+
+
+def test_infer_annual_payment_count_single_payment_ever():
+    # A ticker's first-ever dividend -- not enough history to infer a
+    # recurring frequency beyond "exactly one so far".
+    dividends = _dividend_series([0.10], ["2024-06-01"])
+    assert _infer_annual_payment_count(dividends) == 1
+
+
+def test_infer_annual_payment_count_empty():
+    assert _infer_annual_payment_count(pd.Series(dtype=float)) == 0
+
+
+def test_compute_trailing_dividend_per_share_sums_last_n_by_inferred_frequency():
+    dates = ["2023-01-01", "2023-04-01", "2023-07-01", "2023-10-01", "2024-01-01", "2024-04-01", "2024-07-01", "2024-10-01"]
+    dividends = _dividend_series([0.20, 0.20, 0.22, 0.22, 0.24, 0.24, 0.26, 0.26], dates)
+    # Quarterly (4/yr) -- last 4 payments: 0.24+0.24+0.26+0.26
+    assert compute_trailing_dividend_per_share(dividends) == pytest.approx(1.00)
+
+
+def test_compute_trailing_dividend_per_share_none_for_empty_series():
+    assert compute_trailing_dividend_per_share(pd.Series(dtype=float)) is None
+
+
+# ---------------------------------------------------------------------------
+# compute_portfolio_dividend_income
+# ---------------------------------------------------------------------------
+
+
+def test_compute_portfolio_dividend_income_totals_correctly():
+    dates = ["2023-01-01", "2023-04-01", "2023-07-01", "2023-10-01"]
+    positions = [{"ticker": "KO", "shares": 100.0}, {"ticker": "NODIV", "shares": 50.0}]
+    dividends_by_ticker = {
+        "KO": _dividend_series([0.46, 0.48, 0.48, 0.50], dates),
+        "NODIV": pd.Series(dtype=float),
+    }
+    info_by_ticker = {"KO": {"dividendRate": 2.04}, "NODIV": {}}
+
+    result = compute_portfolio_dividend_income(positions, dividends_by_ticker, info_by_ticker)
+    by_ticker = {r["ticker"]: r for r in result["by_ticker"]}
+
+    assert by_ticker["KO"]["trailing_income"] == pytest.approx(1.92 * 100, abs=0.01)
+    assert by_ticker["NODIV"]["trailing_income"] is None
+    assert by_ticker["NODIV"]["projected_income"] is None
+    # Total excludes NODIV's None rather than treating it as 0, but still
+    # reports a real total since KO contributed real numbers.
+    assert result["total_trailing_income"] == pytest.approx(1.92 * 100, abs=0.01)
+    assert result["total_projected_income"] == pytest.approx(2.04 * 100, abs=0.01)
+
+
+def test_compute_portfolio_dividend_income_none_total_when_nothing_known():
+    positions = [{"ticker": "NODIV", "shares": 50.0}]
+    result = compute_portfolio_dividend_income(positions, {"NODIV": pd.Series(dtype=float)}, {"NODIV": {}})
+    assert result["total_trailing_income"] is None
+    assert result["total_projected_income"] is None
+
+
+# ---------------------------------------------------------------------------
+# compute_fee_drag
+# ---------------------------------------------------------------------------
+
+
+def test_compute_fee_drag_percentage_point_convention():
+    # 0.03% ER (already a percentage-point value, per confirmed live
+    # research -- NOT a fraction of 1) on $10,000 -> exactly $3.00.
+    positions = [{"ticker": "VOO", "market_value": 10_000.0}]
+    fund_holdings = {"VOO": {"SPY_HOLDING": 0.05}}
+    info_by_ticker = {"VOO": {"netExpenseRatio": 0.03}}
+    result = compute_fee_drag(positions, fund_holdings, info_by_ticker)
+    assert result["by_fund"][0]["annual_fee_drag_dollars"] == pytest.approx(3.0)
+    assert result["total_annual_fee_drag_dollars"] == pytest.approx(3.0)
+
+
+def test_compute_fee_drag_excludes_non_fund_positions():
+    positions = [{"ticker": "AAPL", "market_value": 5_000.0}]
+    result = compute_fee_drag(positions, fund_holdings={}, info_by_ticker={"AAPL": {"netExpenseRatio": None}})
+    assert result["by_fund"] == []
+    assert result["total_annual_fee_drag_dollars"] is None
+
+
+def test_compute_fee_drag_missing_expense_ratio_excluded_from_total_not_zeroed():
+    positions = [{"ticker": "OBSCURE", "market_value": 1_000.0}]
+    fund_holdings = {"OBSCURE": {"X": 0.1}}
+    result = compute_fee_drag(positions, fund_holdings, info_by_ticker={"OBSCURE": {"netExpenseRatio": None}})
+    assert result["by_fund"][0]["annual_fee_drag_dollars"] is None
+    assert result["total_annual_fee_drag_dollars"] is None
 
 
 def test_compute_look_through_exposure_no_funds_is_pass_through():

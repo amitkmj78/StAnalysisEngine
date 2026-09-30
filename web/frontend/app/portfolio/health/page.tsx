@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, getPortfolioHealthConcentration, getPortfolioHealthOverlap, getPortfolioHealthRisk } from "@/lib/api";
+import {
+  ApiError,
+  getPortfolioHealthConcentration,
+  getPortfolioHealthIncomeFees,
+  getPortfolioHealthOverlap,
+  getPortfolioHealthRisk,
+} from "@/lib/api";
 import type {
   PortfolioHealthConcentrationResponse,
+  PortfolioHealthIncomeFeesResponse,
   PortfolioHealthOverlapResponse,
   PortfolioHealthRiskResponse,
   PortfolioRiskWindow,
@@ -48,6 +55,10 @@ export default function PortfolioHealthPage() {
   const [overlapLoading, setOverlapLoading] = useState(true);
   const [overlapError, setOverlapError] = useState<string | null>(null);
 
+  const [incomeFees, setIncomeFees] = useState<PortfolioHealthIncomeFeesResponse | null>(null);
+  const [incomeFeesLoading, setIncomeFeesLoading] = useState(true);
+  const [incomeFeesError, setIncomeFeesError] = useState<string | null>(null);
+
   function handlePortfolioChange(id: number) {
     setSelectedPortfolioId(id);
     setUrlState({ p: String(id) });
@@ -76,6 +87,13 @@ export default function PortfolioHealthPage() {
       .then(setOverlap)
       .catch((err) => setOverlapError(err instanceof ApiError ? err.message : "Couldn't load fund overlap."))
       .finally(() => setOverlapLoading(false));
+
+    setIncomeFeesLoading(true);
+    setIncomeFeesError(null);
+    getPortfolioHealthIncomeFees(selectedPortfolioId)
+      .then(setIncomeFees)
+      .catch((err) => setIncomeFeesError(err instanceof ApiError ? err.message : "Couldn't load income & fees."))
+      .finally(() => setIncomeFeesLoading(false));
   }, [selectedPortfolioId]);
 
   return (
@@ -308,6 +326,109 @@ export default function PortfolioHealthPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </Card>
+
+        <Card title="Income & Fees" subtitle="Dividend income (trailing and projected) and annual fund fee drag, in dollars.">
+          {incomeFeesLoading && (
+            <div className="flex flex-col gap-2">
+              <SkeletonBlock className="h-16" />
+              <SkeletonBlock className="h-16" />
+            </div>
+          )}
+          {incomeFeesError && <p className="text-sm text-red-700">{incomeFeesError}</p>}
+          {incomeFees && !incomeFeesLoading && (
+            <div className="flex flex-col gap-6">
+              <div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Trailing (last 12mo)</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900">
+                      {incomeFees.dividends.total_trailing_income !== null
+                        ? `$${incomeFees.dividends.total_trailing_income.toLocaleString()}`
+                        : "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Projected (annual)</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900">
+                      {incomeFees.dividends.total_projected_income !== null
+                        ? `$${incomeFees.dividends.total_projected_income.toLocaleString()}`
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
+                {incomeFees.dividends.by_ticker.filter((r) => r.trailing_income !== null || r.projected_income !== null)
+                  .length > 0 && (
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                          <th className="px-2 py-1.5">Ticker</th>
+                          <th className="px-2 py-1.5">Trailing</th>
+                          <th className="px-2 py-1.5">Projected</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {incomeFees.dividends.by_ticker
+                          .filter((r) => r.trailing_income !== null || r.projected_income !== null)
+                          .map((r) => (
+                            <tr key={r.ticker} className="border-b border-slate-100 last:border-0">
+                              <td className="px-2 py-1.5 font-medium text-slate-900">{r.ticker}</td>
+                              <td className="px-2 py-1.5 text-slate-700">
+                                {r.trailing_income !== null ? `$${r.trailing_income.toLocaleString()}` : "—"}
+                              </td>
+                              <td className="px-2 py-1.5 text-slate-700">
+                                {r.projected_income !== null ? `$${r.projected_income.toLocaleString()}` : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Fund fee drag — total $
+                  {incomeFees.fee_drag.total_annual_fee_drag_dollars !== null
+                    ? incomeFees.fee_drag.total_annual_fee_drag_dollars.toLocaleString()
+                    : "—"}
+                  /year
+                </p>
+                {incomeFees.fee_drag.by_fund.length === 0 ? (
+                  <p className="mt-2 text-sm text-slate-500">No fund holdings.</p>
+                ) : (
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                          <th className="px-2 py-1.5">Fund</th>
+                          <th className="px-2 py-1.5">Value</th>
+                          <th className="px-2 py-1.5">Expense Ratio</th>
+                          <th className="px-2 py-1.5">Annual Drag</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {incomeFees.fee_drag.by_fund.map((r) => (
+                          <tr key={r.ticker} className="border-b border-slate-100 last:border-0">
+                            <td className="px-2 py-1.5 font-medium text-slate-900">{r.ticker}</td>
+                            <td className="px-2 py-1.5 text-slate-700">${r.market_value.toLocaleString()}</td>
+                            <td className="px-2 py-1.5 text-slate-700">
+                              {r.expense_ratio_pct !== null ? `${r.expense_ratio_pct.toFixed(2)}%` : "—"}
+                            </td>
+                            <td className="px-2 py-1.5 text-slate-700">
+                              {r.annual_fee_drag_dollars !== null ? `$${r.annual_fee_drag_dollars.toLocaleString()}` : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </Card>

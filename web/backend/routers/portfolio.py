@@ -1,6 +1,7 @@
 import asyncio
 import io
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from typing import List, Optional
 from zoneinfo import ZoneInfo
@@ -37,10 +38,13 @@ from services.portfolio_compare_service import (
 )
 from services.portfolio_health_service import (
     ACCOUNT_TYPES,
+    MAX_PARALLEL_HEALTH_FETCHES,
     TOP10_DISCLOSURE,
     build_sector_comparison,
+    compute_fee_drag,
     compute_fund_coverage_pct,
     compute_look_through_exposure,
+    compute_portfolio_dividend_income,
     compute_portfolio_sector_weights,
     compute_risk_over_windows,
     fetch_fund_holdings_map,
@@ -66,7 +70,7 @@ from services.signal_publication_service import (
 )
 from services.stock_finder_service import STOCK_UNIVERSES, compute_sp500_sector_mix, rank_stocks_by_window_return
 from services.subscriber_events_service import log_event
-from services.yfinance_cache import get_cached_info
+from services.yfinance_cache import get_cached_dividends, get_cached_info
 
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
@@ -1660,6 +1664,62 @@ async def portfolio_health_overlap(request: Request, portfolio_id: Optional[int]
         "disclosure": TOP10_DISCLOSURE,
         "as_of_date": str(_eastern_today()),
     }
+
+
+def _safe_get_cached_info(ticker: str) -> dict:
+    """get_cached_info doesn't fail open like most of yfinance_cache
+    (confirmed live: a rate-limited ticker raised straight through
+    compute_portfolio_risk_metrics's own fan-out earlier in this file) --
+    wrapped locally here so one bad ticker can't 500 the whole
+    income/fees endpoint."""
+    try:
+        return get_cached_info(ticker) or {}
+    except Exception:
+        return {}
+
+
+def _fetch_dividends_and_info(tickers: list[str]) -> tuple[dict, dict]:
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL_HEALTH_FETCHES) as executor:
+        dividends_list = list(executor.map(get_cached_dividends, tickers))
+        info_list = list(executor.map(_safe_get_cached_info, tickers))
+    return dict(zip(tickers, dividends_list)), dict(zip(tickers, info_list))
+
+
+@router.get("/health/income-fees")
+@limiter.limit("10/minute")
+async def portfolio_health_income_fees(request: Request, portfolio_id: Optional[int] = None):
+    """HLT-3: trailing/projected dividend income and annual fund fee
+    drag in dollars, aggregated across real holdings. A position counts
+    as a fund for fee-drag purposes using the same fetch_fund_holdings_
+    map classification GET /health/overlap already uses (not
+    re-detected)."""
+    await enforce_daily_quota(request, "portfolio/health/income-fees")
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        resolved_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        records = await conn.fetch(
+            "SELECT ticker, shares, current_price FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_id,
+        )
+    positions = [
+        {"ticker": r["ticker"], "shares": r["shares"] or 0, "market_value": (r["shares"] or 0) * (r["current_price"] or 0)}
+        for r in records if r["ticker"]
+    ]
+    if not positions:
+        return {
+            "as_of_date": str(_eastern_today()),
+            "dividends": {"by_ticker": [], "total_trailing_income": None, "total_projected_income": None},
+            "fee_drag": {"by_fund": [], "total_annual_fee_drag_dollars": None},
+        }
+
+    tickers = [p["ticker"] for p in positions]
+    dividends_by_ticker, info_by_ticker = await run_in_threadpool(_fetch_dividends_and_info, tickers)
+    fund_holdings = await run_in_threadpool(fetch_fund_holdings_map, tickers)
+
+    dividends = compute_portfolio_dividend_income(positions, dividends_by_ticker, info_by_ticker)
+    fee_drag = compute_fee_drag(positions, fund_holdings, info_by_ticker)
+
+    return {"as_of_date": str(_eastern_today()), "dividends": dividends, "fee_drag": fee_drag}
 
 
 @router.get("/goal-plan")

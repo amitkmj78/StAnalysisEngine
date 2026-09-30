@@ -1035,6 +1035,34 @@ export interface PortfolioHealthOverlapResponse {
   as_of_date: string;
 }
 
+export interface DividendIncomeRow {
+  ticker: string;
+  trailing_per_share: number | null;
+  trailing_income: number | null;
+  projected_per_share: number | null;
+  projected_income: number | null;
+}
+
+export interface FeeDragRow {
+  ticker: string;
+  market_value: number;
+  expense_ratio_pct: number | null;
+  annual_fee_drag_dollars: number | null;
+}
+
+export interface PortfolioHealthIncomeFeesResponse {
+  as_of_date: string;
+  dividends: {
+    by_ticker: DividendIncomeRow[];
+    total_trailing_income: number | null;
+    total_projected_income: number | null;
+  };
+  fee_drag: {
+    by_fund: FeeDragRow[];
+    total_annual_fee_drag_dollars: number | null;
+  };
+}
+
 export interface PortfolioCompareResponse {
   as_of: string;
   window: CompareWindow;
