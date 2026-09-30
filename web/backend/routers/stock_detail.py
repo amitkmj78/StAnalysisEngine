@@ -18,10 +18,12 @@ from services.ranking_utils import compute_position_concentration
 from services.sentiment_service import score_ticker_sentiment
 from services.stock_detail_service import (
     evaluate_signal_history,
+    next_day_move_pct,
     next_earnings_date,
     past_earnings_dates,
     recent_dividends,
     select_peers,
+    typical_earnings_move,
 )
 from services.stock_finder_service import _gics_sector, get_peer_lookup_table
 from services.yfinance_cache import get_cached_dividends, get_cached_earnings_dates, get_cached_history
@@ -72,13 +74,16 @@ async def get_stock_detail(request: Request, ticker: str):
             ticker,
         )
 
-    price, earnings_dates, dividends = await asyncio.gather(
+    price, earnings_dates, dividends, price_history = await asyncio.gather(
         run_in_threadpool(get_latest_price, ticker),
         run_in_threadpool(get_cached_earnings_dates, ticker),
         run_in_threadpool(get_cached_dividends, ticker),
+        run_in_threadpool(get_cached_history, ticker, "2y", True, None),
     )
+    closes = price_history["Close"] if not price_history.empty else pd.Series(dtype=float)
 
     sector = _gics_sector(fundamentals_row["sector"]) if fundamentals_row and fundamentals_row["sector"] else None
+    earnings_moves = next_day_move_pct(earnings_dates, closes)
 
     return {
         "ticker": ticker,
@@ -92,6 +97,8 @@ async def get_stock_detail(request: Request, ticker: str):
         },
         "next_earnings": next_earnings_date(earnings_dates),
         "past_earnings": past_earnings_dates(earnings_dates),
+        "earnings_moves": earnings_moves,
+        "typical_earnings_move": typical_earnings_move(earnings_moves),
         "recent_dividends": recent_dividends(dividends),
     }
 

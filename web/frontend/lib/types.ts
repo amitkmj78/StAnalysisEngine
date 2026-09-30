@@ -1207,7 +1207,16 @@ export interface StockDetailResponse {
     as_of_date: string | null;
   };
   next_earnings: { date: string; eps_estimate: number | null } | null;
-  past_earnings: { date: string; reported_eps: number | null }[];
+  past_earnings: {
+    date: string;
+    reported_eps: number | null;
+    eps_estimate: number | null;
+    eps_beat: boolean | null;
+    surprise_pct: number | null;
+    revenue_beat: null; // always null -- yfinance has no historical revenue-estimate data, an honest gap
+  }[];
+  earnings_moves: { date: string; market_timing: "before_market" | "after_market"; move_pct: number | null }[];
+  typical_earnings_move: { avg_abs_move_pct: number; quarters_counted: number } | null;
   recent_dividends: { date: string; amount: number }[];
 }
 

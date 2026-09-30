@@ -2,14 +2,18 @@ from datetime import date
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from services.stock_detail_service import (
     evaluate_signal_history,
     evaluate_signal_outcome,
+    next_day_move_pct,
     next_earnings_date,
     past_earnings_dates,
     recent_dividends,
     select_peers,
+    typical_earnings_move,
+    upcoming_earnings_in_window,
 )
 
 
@@ -84,14 +88,50 @@ def test_next_earnings_date_none_eps_estimate_when_not_provided():
 
 def test_past_earnings_dates_returns_only_dates_before_as_of_most_recent_first():
     earnings = pd.DataFrame(
-        {"Reported EPS": [1.1, 1.3, None]},
+        {"Reported EPS": [1.1, 1.3, None], "EPS Estimate": [1.0, 1.2, 1.4], "Surprise(%)": [10.0, 8.3, None]},
         index=pd.to_datetime(["2025-09-15", "2025-12-15", "2026-06-15"]),
     )
     result = past_earnings_dates(earnings, as_of=date(2026, 2, 1))
     assert result == [
-        {"date": "2025-12-15", "reported_eps": 1.3},
-        {"date": "2025-09-15", "reported_eps": 1.1},
+        {
+            "date": "2025-12-15", "reported_eps": 1.3, "eps_estimate": 1.2, "eps_beat": True,
+            "surprise_pct": 8.3, "revenue_beat": None,
+        },
+        {
+            "date": "2025-09-15", "reported_eps": 1.1, "eps_estimate": 1.0, "eps_beat": True,
+            "surprise_pct": 10.0, "revenue_beat": None,
+        },
     ]
+
+
+def test_past_earnings_dates_eps_beat_false_on_miss():
+    earnings = pd.DataFrame(
+        {"Reported EPS": [0.9], "EPS Estimate": [1.0], "Surprise(%)": [-10.0]},
+        index=pd.to_datetime(["2025-12-15"]),
+    )
+    result = past_earnings_dates(earnings, as_of=date(2026, 1, 1))
+    assert result[0]["eps_beat"] is False
+
+
+def test_past_earnings_dates_eps_beat_none_when_estimate_missing():
+    earnings = pd.DataFrame(
+        {"Reported EPS": [1.1], "EPS Estimate": [None], "Surprise(%)": [None]},
+        index=pd.to_datetime(["2025-12-15"]),
+    )
+    result = past_earnings_dates(earnings, as_of=date(2026, 1, 1))
+    assert result[0]["eps_beat"] is None
+
+
+def test_past_earnings_dates_revenue_beat_always_none():
+    # Locks in the deliberate "honest gap" decision -- yfinance has no
+    # historical revenue-estimate-vs-actual for past quarters anywhere,
+    # so this must never silently start returning True/False.
+    earnings = pd.DataFrame(
+        {"Reported EPS": [1.1, 0.9], "EPS Estimate": [1.0, 1.0], "Surprise(%)": [10.0, -10.0]},
+        index=pd.to_datetime(["2025-09-15", "2025-12-15"]),
+    )
+    result = past_earnings_dates(earnings, as_of=date(2026, 1, 1))
+    assert all(row["revenue_beat"] is None for row in result)
 
 
 def test_past_earnings_dates_respects_limit():
@@ -114,7 +154,8 @@ def test_past_earnings_dates_handles_tz_aware_index_without_crashing():
         index=pd.date_range("2025-03-15", periods=1, tz="America/New_York"),
     )
     result = past_earnings_dates(earnings, as_of=date(2026, 2, 1))
-    assert result == [{"date": "2025-03-15", "reported_eps": 2.0}]
+    assert result[0]["date"] == "2025-03-15"
+    assert result[0]["reported_eps"] == 2.0
 
 
 def test_recent_dividends_most_recent_first():
@@ -209,3 +250,138 @@ def test_evaluate_signal_history_matures_short_but_not_long_horizon():
     assert row["short_outcome"] is not None
     assert row["short_outcome"]["outcome"] == "hit"
     assert row["long_outcome"] is None  # 252-trading-day horizon can't mature in a 15-day series
+
+
+# ---------------------------------------------------------------------------
+# next_day_move_pct / typical_earnings_move / upcoming_earnings_in_window
+# (ERN-1/2/3). 2026-01-02 is a Friday, so bdate_range from there gives
+# Fri, Mon, Tue, Wed, Thu -- five consecutive trading days spanning a
+# weekend, the same shape real daily bars have.
+# ---------------------------------------------------------------------------
+
+
+def test_next_day_move_pct_amc_uses_entry_and_next_day_exit():
+    # AMC (16:00) on 2026-01-05 (Mon, index 1): entry=that day's close,
+    # exit=2026-01-06's close.
+    earnings = pd.DataFrame({"EPS Estimate": [None]}, index=pd.DatetimeIndex([pd.Timestamp("2026-01-05 16:00:00")]))
+    closes = _closes([100, 100, 105, 106, 107], start="2026-01-02")
+    result = next_day_move_pct(earnings, closes, as_of=date(2026, 2, 1))
+    assert len(result) == 1
+    assert result[0]["market_timing"] == "after_market"
+    assert result[0]["move_pct"] == pytest.approx(5.0)
+
+
+def test_next_day_move_pct_bmo_uses_prior_day_entry_and_earnings_day_exit():
+    # BMO (07:00) on 2026-01-06 (Tue, index 2): entry=prior day
+    # (2026-01-05)'s close, exit=that day's own close.
+    earnings = pd.DataFrame({"EPS Estimate": [None]}, index=pd.DatetimeIndex([pd.Timestamp("2026-01-06 07:00:00")]))
+    closes = _closes([100, 102, 110, 106, 107], start="2026-01-02")
+    result = next_day_move_pct(earnings, closes, as_of=date(2026, 2, 1))
+    assert result[0]["market_timing"] == "before_market"
+    assert result[0]["move_pct"] == pytest.approx((110 / 102 - 1) * 100, abs=0.01)
+
+
+def test_next_day_move_pct_none_when_price_data_insufficient():
+    # AMC on the very last day in the closes series -- no next-day bar
+    # exists yet, so move_pct must be None, not raise.
+    earnings = pd.DataFrame({"EPS Estimate": [None]}, index=pd.DatetimeIndex([pd.Timestamp("2026-01-08 16:00:00")]))
+    closes = _closes([100, 100, 105, 106, 107], start="2026-01-02")
+    result = next_day_move_pct(earnings, closes, as_of=date(2026, 2, 1))
+    assert result[0]["move_pct"] is None
+
+
+def test_next_day_move_pct_handles_tz_aware_earnings_index():
+    earnings = pd.DataFrame(
+        {"EPS Estimate": [None]},
+        index=pd.DatetimeIndex([pd.Timestamp("2026-01-05 16:00:00")]).tz_localize("America/New_York"),
+    )
+    closes = _closes([100, 100, 105, 106, 107], start="2026-01-02")
+    result = next_day_move_pct(earnings, closes, as_of=date(2026, 2, 1))
+    assert result[0]["market_timing"] == "after_market"
+    assert result[0]["move_pct"] == pytest.approx(5.0)
+
+
+def test_next_day_move_pct_handles_tz_aware_closes_index():
+    # Mirrors get_cached_history's real, tz-aware (America/New_York) index.
+    earnings = pd.DataFrame({"EPS Estimate": [None]}, index=pd.DatetimeIndex([pd.Timestamp("2026-01-05 16:00:00")]))
+    closes = pd.Series(
+        [100, 100, 105, 106, 107], index=pd.bdate_range("2026-01-02", periods=5, tz="America/New_York")
+    )
+    result = next_day_move_pct(earnings, closes, as_of=date(2026, 2, 1))
+    assert result[0]["move_pct"] == pytest.approx(5.0)
+
+
+def test_next_day_move_pct_empty_earnings():
+    assert next_day_move_pct(pd.DataFrame(), _closes([100, 101]), as_of=date(2026, 1, 1)) == []
+
+
+def test_next_day_move_pct_empty_closes():
+    earnings = pd.DataFrame({"EPS Estimate": [None]}, index=pd.DatetimeIndex([pd.Timestamp("2026-01-05 16:00:00")]))
+    assert next_day_move_pct(earnings, pd.Series(dtype=float), as_of=date(2026, 1, 1)) == []
+
+
+def test_typical_earnings_move_averages_absolute_values():
+    # A +5% quarter and a -5% quarter both mean "usually moves ~5%" --
+    # direction must not cancel out.
+    moves = [{"move_pct": 5.0}, {"move_pct": -5.0}, {"move_pct": 3.0}]
+    result = typical_earnings_move(moves)
+    assert result["avg_abs_move_pct"] == round(13 / 3, 1)
+    assert result["quarters_counted"] == 3
+
+
+def test_typical_earnings_move_ignores_none_rows_and_counts_correctly():
+    moves = [{"move_pct": 5.0}, {"move_pct": None}, {"move_pct": 3.0}]
+    result = typical_earnings_move(moves)
+    assert result["quarters_counted"] == 2
+    assert result["avg_abs_move_pct"] == pytest.approx(4.0)
+
+
+def test_typical_earnings_move_none_when_no_computable_quarters():
+    assert typical_earnings_move([{"move_pct": None}, {"move_pct": None}]) is None
+
+
+def test_typical_earnings_move_empty_list():
+    assert typical_earnings_move([]) is None
+
+
+def test_upcoming_earnings_in_window_within_30_days():
+    earnings = pd.DataFrame({"EPS Estimate": [1.5]}, index=pd.to_datetime(["2026-02-10"]))
+    result = upcoming_earnings_in_window(earnings, as_of=date(2026, 2, 1), window_days=30)
+    assert result["date"] == "2026-02-10"
+    assert result["eps_estimate"] == 1.5
+
+
+def test_upcoming_earnings_in_window_excludes_beyond_window():
+    earnings = pd.DataFrame({"EPS Estimate": [1.5]}, index=pd.to_datetime(["2026-04-01"]))
+    assert upcoming_earnings_in_window(earnings, as_of=date(2026, 2, 1), window_days=30) is None
+
+
+def test_upcoming_earnings_in_window_excludes_past_dates():
+    earnings = pd.DataFrame({"EPS Estimate": [1.5]}, index=pd.to_datetime(["2026-01-15"]))
+    assert upcoming_earnings_in_window(earnings, as_of=date(2026, 2, 1), window_days=30) is None
+
+
+def test_upcoming_earnings_in_window_infers_before_market():
+    earnings = pd.DataFrame(
+        {"EPS Estimate": [1.5]}, index=pd.DatetimeIndex([pd.Timestamp("2026-02-10 07:00:00")])
+    )
+    result = upcoming_earnings_in_window(earnings, as_of=date(2026, 2, 1))
+    assert result["market_timing"] == "before_market"
+
+
+def test_upcoming_earnings_in_window_infers_after_market():
+    earnings = pd.DataFrame(
+        {"EPS Estimate": [1.5]}, index=pd.DatetimeIndex([pd.Timestamp("2026-02-10 16:00:00")])
+    )
+    result = upcoming_earnings_in_window(earnings, as_of=date(2026, 2, 1))
+    assert result["market_timing"] == "after_market"
+
+
+def test_upcoming_earnings_in_window_empty_input():
+    assert upcoming_earnings_in_window(pd.DataFrame()) is None
+
+
+def test_upcoming_earnings_in_window_custom_window_days():
+    earnings = pd.DataFrame({"EPS Estimate": [1.5]}, index=pd.to_datetime(["2026-02-08"]))  # 7 days out
+    assert upcoming_earnings_in_window(earnings, as_of=date(2026, 2, 1), window_days=5) is None
+    assert upcoming_earnings_in_window(earnings, as_of=date(2026, 2, 1), window_days=10) is not None

@@ -606,6 +606,85 @@ export default function StockScorePage() {
         </div>
       </div>
 
+      {detail && detail.past_earnings.length > 0 && (
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-900">Earnings History</h3>
+          {detail.typical_earnings_move && (
+            <p className="mt-1 text-xs text-slate-500">
+              Usually moves &plusmn;{detail.typical_earnings_move.avg_abs_move_pct}% the day after reporting (based
+              on {detail.typical_earnings_move.quarters_counted} of the last 8 quarters).
+            </p>
+          )}
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <th className="px-2 py-1.5">Date</th>
+                  <th className="px-2 py-1.5">EPS Est.</th>
+                  <th className="px-2 py-1.5">EPS Actual</th>
+                  <th className="px-2 py-1.5">Beat / Miss</th>
+                  <th className="px-2 py-1.5">Revenue</th>
+                  <th className="px-2 py-1.5">Next-Day Move</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.past_earnings.map((row) => {
+                  const move = detail.earnings_moves.find((m) => m.date === row.date);
+                  return (
+                    <tr key={row.date} className="border-b border-slate-100 last:border-0">
+                      <td className="px-2 py-1.5 text-slate-700">{row.date}</td>
+                      <td className="px-2 py-1.5 text-slate-700">
+                        {row.eps_estimate !== null ? `$${row.eps_estimate.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="px-2 py-1.5 text-slate-700">
+                        {row.reported_eps !== null ? `$${row.reported_eps.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {row.eps_beat === null ? (
+                          <span className="text-slate-400">—</span>
+                        ) : (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              row.eps_beat ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                            }`}
+                          >
+                            {row.eps_beat ? "Beat" : "Miss"}
+                            {row.surprise_pct !== null
+                              ? ` ${row.surprise_pct >= 0 ? "+" : ""}${row.surprise_pct.toFixed(1)}%`
+                              : ""}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-slate-400">Not available</td>
+                      <td className="px-2 py-1.5 text-slate-700">
+                        {move && move.move_pct !== null ? (
+                          <span className={move.move_pct >= 0 ? "text-emerald-700" : "text-red-700"}>
+                            {move.move_pct >= 0 ? "+" : ""}
+                            {move.move_pct.toFixed(2)}%
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                        {move && (
+                          <span className="ml-1 text-xs text-slate-400">
+                            ({move.market_timing === "before_market" ? "BMO" : "AMC"})
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            Before/after-market (BMO/AMC) is inferred from the report&apos;s timestamp, not a confirmed flag from
+            the data provider. Revenue beat/miss isn&apos;t available for past quarters — no data source has a
+            historical record of what was estimated at the time.
+          </p>
+        </div>
+      )}
+
       <div
         className={`mt-6 rounded-lg border border-l-4 border-slate-200 bg-white p-5 ${
           sentiment?.label ? sentimentAccentClass(sentiment.label) : "border-l-slate-200"
