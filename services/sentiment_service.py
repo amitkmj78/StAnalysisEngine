@@ -80,7 +80,11 @@ def score_ticker_sentiment(ticker: str, llms: list) -> dict:
             f"{context}\n\n"
             "Respond in exactly this two-line format, nothing else:\n"
             "SENTIMENT: <Bullish, Neutral, or Bearish>\n"
-            "REASON: <one concise sentence citing what in the context above drove this>"
+            "REASON: <one concise sentence citing what in the context above drove this>\n\n"
+            "When your REASON mentions guidance, be precise about which quarter it's for: "
+            "guidance issued on an earnings call is a forecast for the NEXT quarter, not the "
+            "quarter whose results were just reported -- never label forward guidance with the "
+            "same quarter as the earnings beat/miss it was announced alongside."
         )
         response, _ = invoke_with_fallback(llms, prompt)
     except Exception:

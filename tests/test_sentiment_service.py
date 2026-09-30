@@ -12,9 +12,11 @@ class _FakeLLM:
     def __init__(self, response_text: str):
         self.response_text = response_text
         self.calls = 0
+        self.prompts: list[str] = []
 
     def invoke(self, prompt: str):
         self.calls += 1
+        self.prompts.append(prompt)
         return _FakeMessage(self.response_text)
 
 
@@ -66,3 +68,15 @@ def test_score_tickers_sentiment_returns_one_entry_per_input_ticker():
 
 def test_score_tickers_sentiment_empty_input_returns_empty_dict():
     assert score_tickers_sentiment([], [_FakeLLM("SENTIMENT: Bullish\nREASON: n/a")]) == {}
+
+
+def test_score_ticker_sentiment_prompt_warns_against_mislabeling_guidance_quarter():
+    # Regression: a real live case (MSFT, 2026-07-29 report) had the LLM
+    # describe the *next* quarter's guidance as "Q4 guidance" -- the same
+    # label as the quarter just reported. The prompt must tell the model
+    # forward guidance belongs to the quarter it's forecasting, not the
+    # one whose results were just announced.
+    llm = _FakeLLM("SENTIMENT: Bullish\nREASON: Earnings beat with strong forward guidance.")
+    with patch("services.sentiment_service.get_sentiment_summary", return_value="fake context"):
+        score_ticker_sentiment("MSFT", [llm])
+    assert "NEXT quarter" in llm.prompts[-1]
