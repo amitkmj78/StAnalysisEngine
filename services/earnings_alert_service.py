@@ -16,7 +16,8 @@ from datetime import date
 
 from starlette.concurrency import run_in_threadpool
 
-from services.email_service import send_earnings_alert_email
+from services.email_service import APP_URL
+from services.notification_dispatcher import dispatch_alert
 from services.stock_detail_service import upcoming_earnings_in_window
 from services.yfinance_cache import get_cached_earnings_dates
 from web.backend.db import service_conn
@@ -27,7 +28,8 @@ EARNINGS_ALERT_WINDOW_DAYS = 2
 
 
 async def scan_earnings_in_window() -> int:
-    """Returns the number of alert emails actually sent."""
+    """Returns the number of alerts dispatched (see
+    services/notification_dispatcher.py)."""
     today = date.today()
 
     async with service_conn() as conn:
@@ -60,10 +62,10 @@ async def scan_earnings_in_window() -> int:
     if not upcoming_by_ticker:
         return 0
 
-    emailed = 0
+    dispatched = 0
     async with service_conn() as conn:
         for row in rows:
-            user_id, email, ticker = row["user_id"], row["email"], row["ticker"]
+            user_id, ticker = row["user_id"], row["ticker"]
             upcoming = upcoming_by_ticker.get(ticker)
             if upcoming is None:
                 continue
@@ -77,12 +79,15 @@ async def scan_earnings_in_window() -> int:
                 user_id, ticker, today, date.fromisoformat(upcoming["date"]),
             )
             if result == "INSERT 0 1":
-                sent = await run_in_threadpool(
-                    send_earnings_alert_email, email, ticker, upcoming["date"], upcoming["market_timing"],
+                timing = f" ({upcoming['market_timing']})" if upcoming["market_timing"] else ""
+                subject = f"{ticker} reports earnings {upcoming['date']}{timing}"
+                text_body = (
+                    f"{ticker} is scheduled to report earnings on {upcoming['date']}{timing} -- within "
+                    f"{EARNINGS_ALERT_WINDOW_DAYS} days.\n\nSee {APP_URL}/earnings for your full earnings calendar."
                 )
-                if sent:
-                    emailed += 1
+                await dispatch_alert(str(user_id), ticker, "earnings", subject, text_body)
+                dispatched += 1
 
-    if emailed:
-        logger.info("Earnings alerts: %d emails sent", emailed)
-    return emailed
+    if dispatched:
+        logger.info("Earnings alerts: %d dispatched", dispatched)
+    return dispatched

@@ -420,52 +420,32 @@ def send_saved_screen_alert_email(to_email: str, screen_name: str, entered: list
     return _send_email(to_email, subject, text_body, html_body)
 
 
-def send_signal_change_alert_email(to_email: str, ticker: str, horizon: str, old_signal: str, new_signal: str) -> bool:
-    """
-    ALR-1: sent once per (user, ticker, horizon, day) a stock's
-    short_signal/long_signal actually changes overnight (services/
-    signal_change_alert_service.py calls this only on a genuine fresh
-    insert, never a same-day re-run). Plain text only -- this and the
-    two ALR-1 alert emails below intentionally skip a bespoke branded
-    HTML template each: services/notification_dispatcher.py routes all
-    of them through one shared send path shortly after they're added, so
-    ~40 lines of HTML boilerplate per type isn't worth it here.
-    """
-    horizon_label = "Short-term" if horizon == "short" else "Long-term"
-    subject = f"{ticker} {horizon_label.lower()} signal changed: {old_signal} → {new_signal}"
-    text_body = (
-        f"{ticker}'s {horizon_label.lower()} signal changed from {old_signal} to {new_signal} "
-        f"as of today's close.\n\nSee {APP_URL}/stock/{ticker} for the full score breakdown."
-    )
+def send_alert_email(to_email: str, subject: str, text_body: str) -> bool:
+    """ALR-2: generic single-recipient send used by
+    services/notification_dispatcher.py for every ALR alert type routed
+    through it -- the caller (each alert-producing service) already
+    builds its own subject/text_body, so this is a thin pass-through to
+    _send_email, kept separate from the bespoke-HTML send_* functions
+    above/below since a dispatcher-routed alert is plain text only (not
+    worth ~40 lines of HTML boilerplate per alert type when they all
+    funnel through one send path anyway)."""
     return _send_email(to_email, subject, text_body)
 
 
-def send_earnings_alert_email(to_email: str, ticker: str, earnings_date: str, market_timing: str | None) -> bool:
-    """ALR-1: sent once per (user, ticker, day) when a held or
-    watchlisted ticker's earnings date first enters the 2-day window
-    (services/earnings_alert_service.py). See send_signal_change_alert_
-    email's docstring for why this is plain text only."""
-    timing = f" ({market_timing})" if market_timing else ""
-    subject = f"{ticker} reports earnings {earnings_date}{timing}"
-    text_body = (
-        f"{ticker} is scheduled to report earnings on {earnings_date}{timing} -- within 2 days.\n\n"
-        f"See {APP_URL}/earnings for your full earnings calendar."
-    )
-    return _send_email(to_email, subject, text_body)
-
-
-def send_cost_drop_alert_email(to_email: str, ticker: str, pct_change: float, avg_cost: float, current_price: float) -> bool:
-    """ALR-1: sent once per (user, ticker, day) a holding first crosses
-    its cost-basis drop threshold (services/cost_drop_alert_service.py) --
-    the "down a set % from cost" alert, distinct from the existing
-    send_portfolio_drop_alert_email above, which compares to yesterday's
-    close. See send_signal_change_alert_email's docstring for why this
-    is plain text only."""
-    subject = f"{ticker} is down {abs(pct_change):.1f}% from your cost basis"
-    text_body = (
-        f"{ticker} is now ${current_price:.2f}, down {abs(pct_change):.1f}% from your average cost of "
-        f"${avg_cost:.2f}.\n\nSee {APP_URL}/portfolio for your full holdings."
-    )
+def send_digest_email(to_email: str, items: list[dict]) -> bool:
+    """ALR-2: one consolidated email for every alert queued while a user
+    was in quiet hours or has digest mode on (services/
+    notification_dispatcher.py queues them into pending_digest_items;
+    the hourly _flush_pending_digest_job in web/backend/scheduler.py
+    calls this). `items` are pending_digest_items rows, each already
+    carrying its own ready-made subject/text_body from when it was
+    originally dispatched -- this just concatenates them under one
+    wrapper subject/body rather than re-deriving anything."""
+    if not items:
+        return False
+    subject = f"Your alert digest: {len(items)} update{'s' if len(items) != 1 else ''}"
+    lines = [f"- {item['subject']}\n  {item['text_body']}" for item in items]
+    text_body = "Alerts since your last digest:\n\n" + "\n\n".join(lines)
     return _send_email(to_email, subject, text_body)
 
 

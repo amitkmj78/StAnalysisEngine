@@ -1,18 +1,18 @@
 """
 ALR-1: detects a day-over-day change in a ticker's stock_scores
 short_signal/long_signal for every user who owns or watchlists it, and
-emails on a genuine change. Mirrors services/saved_screen_alert_service.py's
-idiom -- INSERT ... ON CONFLICT DO NOTHING, email only on a fresh insert --
-rather than web/backend/portfolio_alerts.py's richer refresh-in-place +
-LLM-sentiment shape, since a signal change needs neither.
+notifies (via services/notification_dispatcher.py) on a genuine change.
+Mirrors services/saved_screen_alert_service.py's idiom -- INSERT ... ON
+CONFLICT DO NOTHING, notify only on a fresh insert -- rather than
+web/backend/portfolio_alerts.py's richer refresh-in-place + LLM-sentiment
+shape, since a signal change needs neither.
 """
 
 import logging
 from datetime import date
 
-from starlette.concurrency import run_in_threadpool
-
-from services.email_service import send_signal_change_alert_email
+from services.email_service import APP_URL
+from services.notification_dispatcher import dispatch_alert
 from web.backend.db import service_conn
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,10 @@ UNIVERSE_ID = "All"
 
 
 async def scan_signal_changes() -> int:
-    """Returns the number of alert emails actually sent."""
+    """Returns the number of alerts dispatched (immediate email or queued
+    for digest/quiet-hours, per that user's notification preferences --
+    see services/notification_dispatcher.py; the in-app record is
+    written regardless, via this function's own INSERT)."""
     today = date.today()
 
     async with service_conn() as conn:
@@ -59,7 +62,7 @@ async def scan_signal_changes() -> int:
         )
     latest_by_ticker = {r["ticker"]: r for r in latest_rows}
 
-    emailed = 0
+    dispatched = 0
     prior_cache: dict[str, dict | None] = {}
 
     async with service_conn() as conn:
@@ -101,12 +104,15 @@ async def scan_signal_changes() -> int:
                     user_id, ticker, today, horizon, old_signal, new_signal,
                 )
                 if result == "INSERT 0 1":
-                    sent = await run_in_threadpool(
-                        send_signal_change_alert_email, email, ticker, horizon, old_signal, new_signal,
+                    horizon_label = "Short-term" if horizon == "short" else "Long-term"
+                    subject = f"{ticker} {horizon_label.lower()} signal changed: {old_signal} → {new_signal}"
+                    text_body = (
+                        f"{ticker}'s {horizon_label.lower()} signal changed from {old_signal} to {new_signal} "
+                        f"as of today's close.\n\nSee {APP_URL}/stock/{ticker} for the full score breakdown."
                     )
-                    if sent:
-                        emailed += 1
+                    await dispatch_alert(str(user_id), ticker, "signal_change", subject, text_body)
+                    dispatched += 1
 
-    if emailed:
-        logger.info("Signal change alerts: %d emails sent", emailed)
-    return emailed
+    if dispatched:
+        logger.info("Signal change alerts: %d dispatched", dispatched)
+    return dispatched

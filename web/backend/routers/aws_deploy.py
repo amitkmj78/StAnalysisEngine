@@ -1699,6 +1699,82 @@ insert into app_settings (key, value) values ('cost_drop_alerts_enabled', 'false
 -- yesterday's close", this means "vs. cost basis", different concepts.
 insert into app_settings (key, value) values ('cost_drop_threshold_pct', '10.0') on conflict (key) do nothing;
 
+-- ALR-1/2: per-alert-type channel preference, global (ticker is null) or
+-- per-ticker (overrides the global row for that alert_type). A plain
+-- unique(user_id, ticker, alert_type) constraint would NOT work here --
+-- Postgres treats every NULL as distinct, so it would silently allow
+-- duplicate "global" rows -- hence two partial unique indexes instead.
+-- No row for a given (user, alert_type) means the default in
+-- services/notification_dispatcher.py applies (enabled, email+in-app on).
+create table if not exists user_alert_preferences (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  ticker text,
+  alert_type text not null,
+  enabled boolean not null default true,
+  channel_email boolean not null default true,
+  channel_inapp boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists user_alert_preferences_global_idx
+  on user_alert_preferences(user_id, alert_type) where ticker is null;
+create unique index if not exists user_alert_preferences_ticker_idx
+  on user_alert_preferences(user_id, ticker, alert_type) where ticker is not null;
+alter table user_alert_preferences enable row level security;
+drop policy if exists user_alert_preferences_isolation on user_alert_preferences;
+create policy user_alert_preferences_isolation on user_alert_preferences for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- ALR-2: quiet hours + daily digest + (ALR-3, columns added now to avoid
+-- a second migration on this table later) webhook delivery settings.
+-- One row per user, created on first write (no default row seeded).
+-- push_enabled is deliberately NOT a column here yet -- no push
+-- infrastructure exists (see the Smart Alerts plan's Stage 10), and this
+-- table shouldn't carry a column for a channel that doesn't exist.
+create table if not exists user_notification_settings (
+  user_id uuid primary key references users(id) on delete cascade,
+  quiet_hours_start time,
+  quiet_hours_end time,
+  digest_enabled boolean not null default false,
+  digest_time time not null default '08:00',
+  webhook_enabled boolean not null default false,
+  webhook_url text,
+  webhook_secret text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table user_notification_settings enable row level security;
+drop policy if exists user_notification_settings_isolation on user_notification_settings;
+create policy user_notification_settings_isolation on user_notification_settings for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- ALR-2: the "quiet hours" / "digest mode" delivery queue --
+-- notification_dispatcher.py writes here instead of sending immediately
+-- when either applies; the hourly flush job (scheduler.py) sends one
+-- consolidated email per user and marks flushed_at. Service-only table
+-- (written and read exclusively via service_conn), no RLS needed.
+create table if not exists pending_digest_items (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  ticker text,
+  alert_type text not null,
+  subject text not null,
+  text_body text not null,
+  created_at timestamptz not null default now(),
+  flushed_at timestamptz
+);
+create index if not exists pending_digest_items_unflushed_idx
+  on pending_digest_items(user_id) where flushed_at is null;
+
+grant select, insert, update, delete on user_alert_preferences to app_user;
+grant select, insert, update on user_alert_preferences to app_service;
+grant select, insert, update on user_notification_settings to app_user;
+grant select, insert, update on user_notification_settings to app_service;
+grant select, insert, update on pending_digest_items to app_service;
+
 grant usage, select on all sequences in schema public to app_service;
 """
 

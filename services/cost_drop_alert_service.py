@@ -12,9 +12,8 @@ import logging
 from datetime import date
 from typing import Optional
 
-from starlette.concurrency import run_in_threadpool
-
-from services.email_service import send_cost_drop_alert_email
+from services.email_service import APP_URL
+from services.notification_dispatcher import dispatch_alert
 from web.backend.app_settings import COST_DROP_THRESHOLD_DEFAULT, COST_DROP_THRESHOLD_PCT_KEY, get_setting_float
 from web.backend.db import service_conn
 
@@ -22,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 
 async def scan_cost_drops(threshold_pct: Optional[float] = None) -> int:
-    """Returns the number of alert emails actually sent. threshold_pct
+    """Returns the number of alerts dispatched (see
+    services/notification_dispatcher.py). threshold_pct
     mirrors scan_portfolios_for_drops' own contract: None (scheduler's
     normal call) uses the admin-configured global default; an explicit
     float (an admin manual-trigger) overrides it for everyone, for
@@ -53,7 +53,7 @@ async def scan_cost_drops(threshold_pct: Optional[float] = None) -> int:
         )
     already_alerted_keys = {(r["user_id"], r["ticker"]) for r in already_alerted}
 
-    emailed = 0
+    dispatched = 0
     async with service_conn() as conn:
         for row in holdings:
             key = (row["user_id"], row["ticker"])
@@ -73,13 +73,14 @@ async def scan_cost_drops(threshold_pct: Optional[float] = None) -> int:
                 row["user_id"], row["ticker"], today, row["avg_cost"], row["current_price"], pct_change,
             )
             if result == "INSERT 0 1":
-                sent = await run_in_threadpool(
-                    send_cost_drop_alert_email,
-                    row["email"], row["ticker"], pct_change, row["avg_cost"], row["current_price"],
+                subject = f"{row['ticker']} is down {abs(pct_change):.1f}% from your cost basis"
+                text_body = (
+                    f"{row['ticker']} is now ${row['current_price']:.2f}, down {abs(pct_change):.1f}% from your "
+                    f"average cost of ${row['avg_cost']:.2f}.\n\nSee {APP_URL}/portfolio for your full holdings."
                 )
-                if sent:
-                    emailed += 1
+                await dispatch_alert(str(row["user_id"]), row["ticker"], "cost_drop", subject, text_body)
+                dispatched += 1
 
-    if emailed:
-        logger.info("Cost-drop alerts: %d emails sent", emailed)
-    return emailed
+    if dispatched:
+        logger.info("Cost-drop alerts: %d dispatched", dispatched)
+    return dispatched

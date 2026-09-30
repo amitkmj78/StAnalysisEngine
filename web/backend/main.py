@@ -24,6 +24,7 @@ from web.backend.routers import (
     admin_settings,
     admin_sql,
     admin_users,
+    alert_preferences,
     auth,
     aws_deploy,
     baseline,
@@ -81,6 +82,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(alert_preferences.router)
 app.include_router(auth.router)
 app.include_router(baseline.router)
 app.include_router(prediction.router)

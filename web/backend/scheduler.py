@@ -9,8 +9,9 @@ from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.cost_drop_alert_service import scan_cost_drops
 from services.earnings_alert_service import scan_earnings_in_window
-from services.email_service import APP_URL, send_admin_alert_email, send_rankings_email
+from services.email_service import APP_URL, send_admin_alert_email, send_digest_email, send_rankings_email
 from services.market_regime_service import compute_and_persist_daily_regime
+from services.notification_dispatcher import EASTERN, is_within_quiet_hours
 from services.prediction_verification_service import verify_prediction
 from services.signal_change_alert_service import scan_signal_changes
 from services.saved_screen_alert_service import scan_saved_screens_for_membership_changes
@@ -281,6 +282,72 @@ async def _scan_cost_drop_alerts_job() -> None:
     emailed = await scan_cost_drops()
     if emailed:
         logger.info("Scheduler: %d cost-drop alert emails sent", emailed)
+
+
+async def _flush_pending_digest_job() -> None:
+    """ALR-2: hourly check -- for each user with queued
+    pending_digest_items (see services/notification_dispatcher.py::
+    dispatch_alert), sends one consolidated email when either (a)
+    they're in digest mode and the current ET hour matches their
+    digest_time's hour, or (b) they're not in digest mode (their items
+    were queued only because dispatch_alert caught them in quiet hours)
+    and the current time is now outside their quiet-hours window. No
+    gate flag -- this only ever sends what dispatch_alert already
+    decided to queue, same "always on" posture as
+    _evaluate_watchlist_alerts above."""
+    now_et = datetime.now(EASTERN)
+
+    async with service_conn() as conn:
+        user_rows = await conn.fetch("SELECT DISTINCT user_id FROM pending_digest_items WHERE flushed_at IS NULL")
+    if not user_rows:
+        return
+
+    flushed_users = 0
+    for row in user_rows:
+        user_id = row["user_id"]
+        async with service_conn() as conn:
+            settings_row = await conn.fetchrow(
+                """
+                SELECT digest_enabled, digest_time, quiet_hours_start, quiet_hours_end
+                FROM user_notification_settings WHERE user_id = $1::uuid
+                """,
+                user_id,
+            )
+            email = await conn.fetchval("SELECT email FROM users WHERE id = $1::uuid", user_id)
+
+        if settings_row and settings_row["digest_enabled"]:
+            should_flush = settings_row["digest_time"] is not None and now_et.hour == settings_row["digest_time"].hour
+        elif settings_row:
+            should_flush = not is_within_quiet_hours(
+                now_et, settings_row["quiet_hours_start"], settings_row["quiet_hours_end"]
+            )
+        else:
+            # No settings row at all shouldn't happen (dispatch_alert only
+            # queues when one exists and triggered digest/quiet-hours),
+            # but flush rather than strand items indefinitely if it does.
+            should_flush = True
+
+        if not should_flush or not email:
+            continue
+
+        async with service_conn() as conn:
+            items = await conn.fetch(
+                """
+                SELECT id, ticker, alert_type, subject, text_body FROM pending_digest_items
+                WHERE user_id = $1::uuid AND flushed_at IS NULL ORDER BY created_at
+                """,
+                user_id,
+            )
+            if not items:
+                continue
+            sent = await run_in_threadpool(send_digest_email, email, [dict(i) for i in items])
+            if sent:
+                ids = [i["id"] for i in items]
+                await conn.execute("UPDATE pending_digest_items SET flushed_at = now() WHERE id = ANY($1::bigint[])", ids)
+                flushed_users += 1
+
+    if flushed_users:
+        logger.info("Scheduler: digest flushed for %d users", flushed_users)
 
 
 async def _poll_paper_orders_job() -> None:
@@ -739,6 +806,14 @@ def start_scheduler() -> AsyncIOScheduler:
         minutes=PORTFOLIO_DROP_INTERVAL_MINUTES,
         id="scan_cost_drop_alerts",
         next_run_time=datetime.now(),
+        coalesce=True,
+        max_instances=1,
+    )
+    _scheduler.add_job(
+        _flush_pending_digest_job,
+        "interval",
+        minutes=60,
+        id="flush_pending_digest",
         coalesce=True,
         max_instances=1,
     )
