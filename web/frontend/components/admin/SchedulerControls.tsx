@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 
 import {
   ApiError,
+  disableFilingSummaries,
   disableMarketRegime,
   disableVerifyPredictions,
+  enableFilingSummaries,
   enableMarketRegime,
   enableVerifyPredictions,
   getAdminSettings,
@@ -60,6 +62,7 @@ function JobToggleCard({
 export default function SchedulerControls() {
   const [verifyEnabled, setVerifyEnabled] = useState<boolean | null>(null);
   const [regimeEnabled, setRegimeEnabled] = useState<boolean | null>(null);
+  const [filingSummariesEnabled, setFilingSummariesEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -69,6 +72,7 @@ export default function SchedulerControls() {
       const settings = await getAdminSettings();
       setVerifyEnabled(settings.verify_predictions_enabled);
       setRegimeEnabled(settings.market_regime_enabled);
+      setFilingSummariesEnabled(settings.filing_summaries_enabled);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load scheduler settings.");
     }
@@ -104,6 +108,19 @@ export default function SchedulerControls() {
     }
   }
 
+  async function handleToggleFilingSummaries() {
+    setBusyKey("filing-summaries");
+    setError(null);
+    try {
+      const result = filingSummariesEnabled ? await disableFilingSummaries() : await enableFilingSummaries();
+      setFilingSummariesEnabled(result.filing_summaries_enabled);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update scheduler setting.");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -122,6 +139,14 @@ export default function SchedulerControls() {
         enabled={regimeEnabled}
         busy={busyKey === "regime"}
         onToggle={handleToggleRegime}
+      />
+
+      <JobToggleCard
+        title="SEC Filing Summaries"
+        description="Daily job (weekdays 20:00 ET) that checks SEC EDGAR for new 10-K/10-Q filings for every ticker any user holds or watchlists, and summarizes what changed vs the prior filing. Hits a real external government API plus LLM cost on a schedule. Disabling it stops new filing checks; existing summaries stay visible."
+        enabled={filingSummariesEnabled}
+        busy={busyKey === "filing-summaries"}
+        onToggle={handleToggleFilingSummaries}
       />
     </div>
   );

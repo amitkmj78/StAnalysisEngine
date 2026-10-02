@@ -1294,6 +1294,32 @@ create table if not exists ticker_sentiment_snapshots (
 );
 create index if not exists ticker_sentiment_snapshots_ticker_date_idx on ticker_sentiment_snapshots(ticker, as_of_date desc);
 
+-- SUM-1: real SEC 10-K/10-Q filing summaries, straight from SEC EDGAR's
+-- free submissions/document APIs (services/edgar_service.py) -- not the
+-- LLM-guesses-from-training-knowledge approach Agent/filingAgent.py uses.
+-- Shared per ticker like ticker_sentiment_snapshots above, not user-scoped.
+-- Unique on (ticker, accession_number) is the idempotency guarantee the
+-- daily scheduler job relies on -- re-running it never re-summarizes or
+-- duplicates a filing already stored. compared_to_accession_number is
+-- null only when there's truly no prior filing of that form type in SEC's
+-- own history for this ticker (e.g. a recent IPO's first 10-K).
+create table if not exists filing_summaries (
+  id bigint generated always as identity primary key,
+  ticker text not null,
+  cik text not null,
+  form_type text not null,
+  accession_number text not null,
+  filing_date date not null,
+  report_date date,
+  document_url text not null,
+  compared_to_accession_number text,
+  summary text not null,
+  method text not null,
+  created_at timestamptz not null default now(),
+  unique (ticker, accession_number)
+);
+create index if not exists filing_summaries_ticker_form_idx on filing_summaries(ticker, form_type, filing_date desc);
+
 -- Plaid brokerage integration: one row per linked institution (a "Link"
 -- connection). access_token_encrypted is Fernet ciphertext (see
 -- web/backend/crypto_utils.py) -- never plaintext at rest, and never
@@ -1521,6 +1547,8 @@ grant select on stock_scores to app_user;
 grant select, insert on stock_scores to app_service;
 grant select on ticker_sentiment_snapshots to app_user;
 grant select, insert on ticker_sentiment_snapshots to app_service;
+grant select on filing_summaries to app_user;
+grant select, insert on filing_summaries to app_service;
 -- update needed: scan_portfolios_for_drops refreshes an already-alerted
 -- row in place (see web/backend/portfolio_alerts.py) rather than only
 -- ever inserting new ones.

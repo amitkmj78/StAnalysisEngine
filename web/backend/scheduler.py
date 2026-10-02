@@ -10,6 +10,7 @@ from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.cost_drop_alert_service import scan_cost_drops
 from services.earnings_alert_service import scan_earnings_in_window
 from services.email_service import APP_URL, send_admin_alert_email, send_digest_email, send_rankings_email
+from services.filing_summary_service import process_new_filings_for_ticker
 from services.market_regime_service import compute_and_persist_daily_regime
 from services.notification_dispatcher import EASTERN, is_within_quiet_hours
 from services.prediction_verification_service import verify_prediction
@@ -24,6 +25,7 @@ from web.backend.app_settings import (
     COST_DROP_ALERTS_ENABLED_KEY,
     DB_BACKUP_ENABLED_KEY,
     EARNINGS_ALERTS_ENABLED_KEY,
+    FILING_SUMMARIES_ENABLED_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     MARKET_REGIME_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
@@ -41,6 +43,7 @@ from web.backend.app_settings import (
 )
 from web.backend.db import service_conn
 from web.backend.db_backup import run_backup, run_restore_test
+from web.backend.llm_cache import cached_init_llms, ordered_llms
 from web.backend.paper_order_sync import poll_open_orders, sync_positions_and_cash
 from web.backend.pit_prices import (
     capture_and_persist_analyst_ratings,
@@ -103,6 +106,10 @@ PIT_QUANT_SIGNAL_CAPTURE_MINUTE_ET = 0
 # the CPU-heavy quant-signal job rather than stacked with either.
 MARKET_REGIME_HOUR_ET = 18
 MARKET_REGIME_MINUTE_ET = 10
+# SUM-1: after market close, so same-day filings are caught by the next
+# run (filings mostly post during the trading day or shortly after).
+FILING_SUMMARIES_HOUR_ET = 20
+FILING_SUMMARIES_MINUTE_ET = 0
 # After the capture above lands today's rows — mostly picks up older
 # calls that just became due (a call is only evaluable once horizon_days
 # *trading* days have actually elapsed, so this rarely evaluates today's
@@ -569,6 +576,45 @@ async def _compute_market_regime_job() -> None:
         )
 
 
+async def _compute_filing_summaries_job() -> None:
+    """SUM-1: real SEC 10-K/10-Q filing summaries for every ticker any
+    user holds or has watchlisted (same owned/watchlisted ticker universe
+    as web/backend/routers/earnings.py's calendar, but global across all
+    users since this is shared per-ticker data). Off by default — see
+    FILING_SUMMARIES_ENABLED_KEY's docstring in app_settings.py: this hits
+    a real external (SEC EDGAR) API plus LLM cost on a schedule. Tickers
+    are processed one at a time (not fanned out in parallel) to stay a
+    well-behaved EDGAR citizen under their stated rate limit."""
+    if not await get_setting_bool(FILING_SUMMARIES_ENABLED_KEY, default=False):
+        logger.info("Scheduler: filing_summaries is disabled, skipping this run")
+        return
+
+    async with service_conn() as conn:
+        owned_rows = await conn.fetch("SELECT DISTINCT ticker FROM portfolio_positions")
+        watchlisted_rows = await conn.fetch(
+            "SELECT DISTINCT ticker FROM watchlist_alerts WHERE active AND source IS DISTINCT FROM 'portfolio_auto'"
+        )
+    tickers = sorted({r["ticker"] for r in owned_rows} | {r["ticker"] for r in watchlisted_rows})
+    if not tickers:
+        return
+
+    llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
+    if not labels:
+        logger.info("Scheduler: filing_summaries has no LLM provider configured, skipping this run")
+        return
+    llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
+
+    total_inserted = 0
+    for ticker in tickers:
+        try:
+            total_inserted += await process_new_filings_for_ticker(llms, ticker)
+        except Exception as e:
+            logger.warning("Scheduler: filing_summaries failed for %s: %s", ticker, e)
+
+    if total_inserted:
+        logger.info("Scheduler: filing summaries — %d new filing(s) summarized", total_inserted)
+
+
 async def _evaluate_quant_signal_outcomes_job() -> None:
     """The live counterpart to the Quant Signal capture above: checks
     every already-captured call old enough to have a real exit price on
@@ -914,6 +960,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="compute_market_regime",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _compute_filing_summaries_job,
+        CronTrigger(
+            hour=FILING_SUMMARIES_HOUR_ET, minute=FILING_SUMMARIES_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="compute_filing_summaries",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

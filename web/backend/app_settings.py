@@ -126,6 +126,11 @@ STOCK_SCORE_COMPUTE_ENABLED_KEY = "stock_score_compute_enabled"
 # services/market_internals_service.py's module docstring). An admin
 # opts in via /admin/settings with that history in view, not by deploy.
 MARKET_REGIME_ENABLED_KEY = "market_regime_enabled"
+# SUM-1: gates services/filing_summary_service.py's daily scheduler job.
+# Defaults OFF, same deliberate-opt-in rationale as MARKET_REGIME_ENABLED_
+# KEY -- this one hits a real external (SEC EDGAR) API plus LLM cost on a
+# schedule, so deploying the code must not itself start making requests.
+FILING_SUMMARIES_ENABLED_KEY = "filing_summaries_enabled"
 # ALR-1: each of the three new alert-scan jobs gets its own deliberate
 # opt-in flag, same rationale as PORTFOLIO_DROP_ALERTS_ENABLED_KEY --
 # they write user-visible content and send email, so a deploy must not

@@ -8,6 +8,7 @@ from web.backend.app_settings import (
     DAILY_QUOTA_DEFAULT,
     DAILY_QUOTA_KEY,
     DB_BACKUP_ENABLED_KEY,
+    FILING_SUMMARIES_ENABLED_KEY,
     FREE_TIER_LAG_DAYS_DEFAULT,
     FREE_TIER_LAG_DAYS_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
@@ -101,6 +102,7 @@ async def get_settings():
         ),
         "stock_score_compute_enabled": await get_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, default=True),
         "market_regime_enabled": await get_setting_bool(MARKET_REGIME_ENABLED_KEY, default=False),
+        "filing_summaries_enabled": await get_setting_bool(FILING_SUMMARIES_ENABLED_KEY, default=False),
     }
 
 
@@ -130,6 +132,23 @@ async def enable_market_regime():
 async def disable_market_regime():
     await set_setting_bool(MARKET_REGIME_ENABLED_KEY, False)
     return {"market_regime_enabled": False}
+
+
+@router.post("/filing-summaries/enable")
+async def enable_filing_summaries():
+    """SUM-1: turns on the daily scheduler job (services/filing_summary_
+    service.py via _compute_filing_summaries_job) -- see FILING_SUMMARIES_
+    ENABLED_KEY's docstring in app_settings.py for why this defaults off
+    and needs a deliberate admin opt-in (hits a real external API plus
+    LLM cost)."""
+    await set_setting_bool(FILING_SUMMARIES_ENABLED_KEY, True)
+    return {"filing_summaries_enabled": True}
+
+
+@router.post("/filing-summaries/disable")
+async def disable_filing_summaries():
+    await set_setting_bool(FILING_SUMMARIES_ENABLED_KEY, False)
+    return {"filing_summaries_enabled": False}
 
 
 @router.post("/publish-signals/enable")

@@ -1549,6 +1549,21 @@ export interface ChatAskParams {
   provider?: string;
 }
 
+export interface FilingSummary {
+  form_type: string;
+  filing_date: string;
+  report_date: string | null;
+  document_url: string;
+  compared_to_prior_filing: boolean;
+  summary: string;
+  method: string;
+}
+
+export interface FilingSummariesResponse {
+  ticker: string;
+  filings: FilingSummary[];
+}
+
 // Admin — user approvals
 export interface AdminUser {
   id: string;
@@ -1658,6 +1673,7 @@ export interface AdminSettings {
   saved_screen_alerts_enabled: boolean;
   stock_finder_cache_prewarm_enabled: boolean;
   market_regime_enabled: boolean;
+  filing_summaries_enabled: boolean;
 }
 
 export interface BackupRun {

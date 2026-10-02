@@ -40,6 +40,7 @@ import type {
   EntryHistory,
   EntryPlan,
   EntryScanRow,
+  FilingSummariesResponse,
   FundGoalsResponse,
   FundRankResponse,
   FundReturnSince,
@@ -1270,6 +1271,18 @@ export function enableMarketRegime() {
 
 export function disableMarketRegime() {
   return apiSend<{ market_regime_enabled: boolean }>("/api/v1/admin/settings/market-regime/disable", "POST");
+}
+
+export function enableFilingSummaries() {
+  return apiSend<{ filing_summaries_enabled: boolean }>("/api/v1/admin/settings/filing-summaries/enable", "POST");
+}
+
+export function disableFilingSummaries() {
+  return apiSend<{ filing_summaries_enabled: boolean }>("/api/v1/admin/settings/filing-summaries/disable", "POST");
+}
+
+export function getFilingSummaries(ticker: string) {
+  return apiFetch<FilingSummariesResponse>(`/api/v1/filings/${encodeURIComponent(ticker)}`);
 }
 
 export function enablePublishSignals() {

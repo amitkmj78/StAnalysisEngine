@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 
 import {
   ApiError,
+  getFilingSummaries,
   getPortfolioPositions,
   getPortfolios,
   getStockDetail,
@@ -19,6 +20,7 @@ import {
   getTwoScoreWeeklyChange,
 } from "@/lib/api";
 import type {
+  FilingSummariesResponse,
   Portfolio,
   PortfolioPosition,
   SignalOutcome,
@@ -234,6 +236,11 @@ export default function StockScorePage() {
   const [sentimentLoading, setSentimentLoading] = useState(false);
   const [sentimentError, setSentimentError] = useState<string | null>(null);
 
+  // SUM-1: already computed by a daily background job -- a plain read, no
+  // fresh LLM cost at request time, so (unlike sentiment above) this is
+  // safe to auto-fetch with the rest of the page.
+  const [filingSummaries, setFilingSummaries] = useState<FilingSummariesResponse | null>(null);
+
   // Every portfolio, fetched once -- both the holdings picker and "Your
   // Position" below need the full list, not just GET /portfolio/positions'
   // default (the oldest active portfolio only, when no portfolio_id is
@@ -302,9 +309,11 @@ export default function StockScorePage() {
     setPeers(null);
     setSentiment(null);
     setSentimentError(null);
+    setFilingSummaries(null);
     getStockDetail(ticker).then(setDetail).catch(() => setDetail(null));
     getStockSignalHistory(ticker).then(setSignalHistory).catch(() => setSignalHistory(null));
     getStockPeers(ticker).then(setPeers).catch(() => setPeers(null));
+    getFilingSummaries(ticker).then(setFilingSummaries).catch(() => setFilingSummaries(null));
   }, [ticker]);
 
   // Checked against every portfolio -- GET /stock/{ticker}/position with
@@ -746,6 +755,34 @@ export default function StockScorePage() {
           <p className="mt-2 text-sm text-slate-700">{sentiment.reasoning}</p>
         )}
       </div>
+
+      {filingSummaries && filingSummaries.filings.length > 0 && (
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-900">Filing Summary</h3>
+          <div className="mt-3 flex flex-col gap-4">
+            {filingSummaries.filings.map((f) => (
+              <div key={f.form_type} className="border-t border-slate-100 pt-3 first:border-t-0 first:pt-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    {f.form_type} · filed {f.filing_date}
+                    {f.compared_to_prior_filing ? "" : " (first on file)"}
+                  </p>
+                  <a
+                    href={f.document_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-indigo-600 hover:underline"
+                  >
+                    View full filing on SEC.gov
+                  </a>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{f.summary}</p>
+                <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{f.method}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loggedIn && (
         <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
