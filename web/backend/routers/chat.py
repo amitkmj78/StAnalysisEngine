@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -6,9 +6,13 @@ from starlette.concurrency import run_in_threadpool
 
 from Agent.meta_agent import ask_meta_agent, build_agent
 
+from services.portfolio_health_service import compute_portfolio_risk_metrics
+from services.portfolio_review_service import answer_portfolio_question, compute_sectors
 from web.backend.auth import verify_bearer_token
+from web.backend.db import user_conn
 from web.backend.llm_cache import cached_init_llms, label_for_llm, ordered_llms
 from web.backend.rate_limit import enforce_daily_quota, limiter
+from web.backend.routers.portfolio import _resolve_portfolio_id
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"], dependencies=[Depends(verify_bearer_token)])
 
@@ -20,7 +24,9 @@ async def providers():
 
 
 class ChatRequest(BaseModel):
-    ticker: str
+    scope: Literal["ticker", "portfolio"] = "ticker"
+    ticker: Optional[str] = None
+    portfolio_id: Optional[int] = None
     question: str
     provider: Optional[str] = None
 
@@ -44,6 +50,24 @@ async def ask(request: Request, body: ChatRequest):
         raise HTTPException(422, f"provider must be one of {labels}")
 
     llms = ordered_llms(provider, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
+
+    if body.scope == "portfolio":
+        answer, actual_llm = await _ask_portfolio(request, body, llms)
+        result_ticker = "PORTFOLIO"
+    else:
+        if not body.ticker or not body.ticker.strip():
+            raise HTTPException(422, "ticker is required when scope is 'ticker'")
+        answer, actual_llm = await _ask_ticker(body, llms)
+        result_ticker = body.ticker.strip().upper()
+
+    actual_provider = provider
+    if actual_llm is not None:
+        actual_provider = label_for_llm(actual_llm, llm_openai, llm_groq, llm_claude, llm_ollama, labels) or provider
+
+    return {"ticker": result_ticker, "provider": actual_provider, "answer": answer}
+
+
+async def _ask_ticker(body: ChatRequest, llms: list) -> tuple[str, object]:
     ticker = body.ticker.strip().upper()
 
     # Each provider needs its own agent (bind_tools is provider-specific,
@@ -65,8 +89,37 @@ async def ask(request: Request, body: ChatRequest):
             actual_llm = candidate
             break
 
-    actual_provider = provider
-    if actual_llm is not None:
-        actual_provider = label_for_llm(actual_llm, llm_openai, llm_groq, llm_claude, llm_ollama, labels) or provider
+    return answer, actual_llm
 
-    return {"ticker": ticker, "provider": actual_provider, "answer": answer}
+
+async def _ask_portfolio(request: Request, body: ChatRequest, llms: list) -> tuple[str, object]:
+    """ASK-1: answer a question about the user's whole portfolio, from data
+    this app has already computed -- see services.portfolio_review_service.
+    answer_portfolio_question for the scope boundary (holdings + sectors +
+    compute_portfolio_risk_metrics only; anything beyond that correctly
+    comes back as "I don't know" via that function's own guardrail)."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        resolved_id = await _resolve_portfolio_id(conn, user_id, body.portfolio_id)
+        records = await conn.fetch(
+            "SELECT ticker, shares, current_price FROM portfolio_positions "
+            "WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_id,
+        )
+
+    positions = [
+        {"ticker": r["ticker"], "shares": r["shares"], "market_value": (r["shares"] or 0) * (r["current_price"] or 0)}
+        for r in records if r["ticker"]
+    ]
+    if not positions:
+        return "Your portfolio has no positions yet — there's nothing to answer questions about.", None
+
+    def _compute():
+        sectors = compute_sectors([p["ticker"] for p in positions])
+        for p in positions:
+            p["sector"] = sectors.get(p["ticker"])
+        risk = compute_portfolio_risk_metrics(positions, "1y")
+        return answer_portfolio_question(llms, positions, risk, body.question)
+
+    answer = await run_in_threadpool(_compute)
+    return answer or "No LLM provider was available to answer.", None

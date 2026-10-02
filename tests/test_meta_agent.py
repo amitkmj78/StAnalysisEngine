@@ -1,14 +1,17 @@
 from langchain_core.messages import AIMessage
 
-from Agent.meta_agent import ask_meta_agent
+from Agent.meta_agent import SYSTEM_PROMPT, ask_meta_agent
 
 
 class _FakeTool:
-    def __init__(self, name, result):
+    def __init__(self, name, result=None, raises=None):
         self.name = name
         self._result = result
+        self._raises = raises
 
     def run(self, args):
+        if self._raises is not None:
+            raise self._raises
         return self._result
 
 
@@ -33,9 +36,11 @@ class _FakePlainLLM:
     def __init__(self, response_content):
         self.response_content = response_content
         self.invoke_count = 0
+        self.last_prompt = None
 
-    def invoke(self, _prompt):
+    def invoke(self, prompt):
         self.invoke_count += 1
+        self.last_prompt = prompt
         return AIMessage(content=self.response_content)
 
 
@@ -43,6 +48,16 @@ def _tool_call_response():
     return AIMessage(
         content="",
         tool_calls=[{"name": "company_basics", "args": {"ticker": "XLK"}, "id": "call-1"}],
+    )
+
+
+def _two_tool_call_response():
+    return AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "company_basics", "args": {"ticker": "XLK"}, "id": "call-1"},
+            {"name": "news_sentiment", "args": {"ticker": "XLK"}, "id": "call-2"},
+        ],
     )
 
 
@@ -92,3 +107,46 @@ def test_direct_text_response_without_tool_calls():
     result = ask_meta_agent({"agent": agent, "tools": [], "llm": llm}, "XLK", "is this ok to hold")
     assert result == "XLK looks reasonably diversified."
     assert llm.invoke_count == 0
+
+
+# --- ASK-2: failures must never be laundered into the summarized "data" ---
+
+def test_one_tool_failing_is_noted_separately_not_mixed_into_summarized_data():
+    """A failed tool must not become a fabricated-looking fact in `combined`
+    -- it's surfaced as a distinct note in the summarization prompt instead,
+    alongside the real data from the tool that did succeed."""
+    agent = _FakeAgent(_two_tool_call_response())
+    llm = _FakePlainLLM("XLK is a diversified tech ETF.")
+    tools = [
+        _FakeTool("company_basics", result="Name: Technology Select Sector SPDR Fund"),
+        _FakeTool("news_sentiment", raises=RuntimeError("search provider down")),
+    ]
+
+    result = ask_meta_agent({"agent": agent, "tools": tools, "llm": llm}, "XLK", "is this ok to hold")
+
+    assert result == "XLK is a diversified tech ETF."
+    assert llm.invoke_count == 1  # real data existed, so summarization still runs
+    prompt = llm.last_prompt
+    assert "Technology Select Sector SPDR Fund" in prompt
+    assert "Error executing" not in prompt  # old failure-laundering string must be gone
+    assert "news_sentiment" in prompt and "do not guess" in prompt.lower()
+
+
+def test_all_tools_failing_returns_honest_message_without_calling_llm():
+    agent = _FakeAgent(_two_tool_call_response())
+    llm = _FakePlainLLM("should not be called")
+    tools = [
+        _FakeTool("company_basics", raises=RuntimeError("yfinance down")),
+        _FakeTool("news_sentiment", raises=RuntimeError("search provider down")),
+    ]
+
+    result = ask_meta_agent({"agent": agent, "tools": tools, "llm": llm}, "XLK", "is this ok to hold")
+
+    assert "don't have enough data" in result
+    assert "company_basics" in result and "news_sentiment" in result
+    assert llm.invoke_count == 0  # never summarize when there's nothing real to summarize
+
+
+def test_system_prompt_instructs_against_guessing():
+    assert "don't know" in SYSTEM_PROMPT.lower()
+    assert "guess" in SYSTEM_PROMPT.lower()

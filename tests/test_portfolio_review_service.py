@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from services.portfolio_review_service import (
+    answer_portfolio_question,
     build_portfolio_review,
     compute_market_values,
     compute_sector_concentration,
@@ -198,3 +199,48 @@ def test_build_portfolio_review_returns_none_when_all_providers_fail():
     flagged = [{"ticker": "AAA", "signal": "SELL", "expected_return_pct": -6.0, "weight_pct": 12.0,
                 "sentiment_label": "Bearish", "reasons": ["the quant model's signal is SELL"]}]
     assert build_portfolio_review([_RaisingLLM()], flagged) is None
+
+
+# --- ASK-1: portfolio-wide chat Q&A ---
+
+_SAMPLE_RISK = {
+    "period": "1y", "data_start": "2025-10-01", "data_end": "2026-09-30",
+    "volatility_pct": 18.5, "beta_to_spy": 0.98, "correlation_to_spy": 0.91,
+    "max_drawdown_pct": -12.3,
+}
+
+
+def test_answer_portfolio_question_returns_none_for_empty_positions():
+    assert answer_portfolio_question([_FakeLLM("should not be called")], [], _SAMPLE_RISK, "how risky am I?") is None
+
+
+def test_answer_portfolio_question_prompt_contains_guardrail_and_real_data():
+    positions = [
+        {"ticker": "AAPL", "shares": 10, "market_value": 2500.0, "sector": "Technology"},
+        {"ticker": "KO", "shares": 20, "market_value": 1200.0, "sector": "Consumer Defensive"},
+    ]
+
+    class _CapturingLLM:
+        def __init__(self, response_text):
+            self.response_text = response_text
+            self.last_prompt = None
+
+        def invoke(self, prompt):
+            self.last_prompt = prompt
+            return _FakeMessage(self.response_text)
+
+    llm = _CapturingLLM("Technology is your largest sector exposure.")
+    result = answer_portfolio_question([llm], positions, _SAMPLE_RISK, "what's my biggest sector exposure?")
+
+    assert result == "Technology is your largest sector exposure."
+    prompt = llm.last_prompt
+    assert "do not invent any numbers not shown here" in prompt.lower()
+    assert "don't have enough data" in prompt.lower()
+    assert "AAPL" in prompt and "2,500" in prompt
+    assert "beta_to_spy=0.98" in prompt
+    assert "what's my biggest sector exposure?" in prompt
+
+
+def test_answer_portfolio_question_returns_none_when_all_providers_fail():
+    positions = [{"ticker": "AAPL", "shares": 10, "market_value": 2500.0, "sector": "Technology"}]
+    assert answer_portfolio_question([_RaisingLLM()], positions, _SAMPLE_RISK, "how risky am I?") is None

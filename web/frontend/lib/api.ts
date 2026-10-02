@@ -21,6 +21,7 @@ import type {
   BackupStatus,
   BaselineBand,
   BasketRebalanceAlert,
+  ChatAskParams,
   ChatAskResponse,
   ChatProvidersResponse,
   CrawlSearchDomainResetResult,
@@ -1111,8 +1112,8 @@ export function getChatProviders() {
   return apiFetch<ChatProvidersResponse>("/api/v1/chat/providers");
 }
 
-export function askMetaAgent(ticker: string, question: string, provider?: string) {
-  return apiSend<ChatAskResponse>("/api/v1/chat/ask", "POST", { ticker, question, provider });
+export function askMetaAgent(params: ChatAskParams) {
+  return apiSend<ChatAskResponse>("/api/v1/chat/ask", "POST", params);
 }
 
 // Admin — user approvals

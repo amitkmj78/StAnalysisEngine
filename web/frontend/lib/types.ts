@@ -1541,6 +1541,14 @@ export interface ChatAskResponse {
   answer: string;
 }
 
+export interface ChatAskParams {
+  scope: "ticker" | "portfolio";
+  ticker?: string;
+  portfolio_id?: number;
+  question: string;
+  provider?: string;
+}
+
 // Admin — user approvals
 export interface AdminUser {
   id: string;

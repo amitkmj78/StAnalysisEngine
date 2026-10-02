@@ -245,3 +245,71 @@ def build_portfolio_review(llms: list, flagged: list[dict]) -> Optional[str]:
     except Exception as e:
         logger.warning("Portfolio review narrative failed (all providers): %s", e)
         return None
+
+
+def answer_portfolio_question(
+    llms: list, positions: list[dict], risk: dict, question: str
+) -> Optional[str]:
+    """
+    ASK-1 (portfolio-wide chat): answers a free-form question about the
+    whole portfolio from data this app has already computed -- holdings
+    (ticker/shares/market_value/sector) and compute_portfolio_risk_metrics'
+    output (volatility/beta/correlation/max drawdown). Deliberately does
+    NOT pull in quant signals/sentiment/insights the way flag_positions
+    does -- for a question that needs that data, the "do not invent"
+    guardrail below correctly makes the LLM say it doesn't know, rather
+    than silently expanding this function's scope.
+
+    `llms` is an ordered list of available providers, tried in turn via
+    invoke_with_fallback. Returns None if `positions` is empty (caller
+    should show a plain "no positions" message, no LLM call needed) or if
+    every provider fails.
+    """
+    if not positions:
+        return None
+
+    total_value = sum(p.get("market_value") or 0.0 for p in positions)
+    lines = [
+        f"{p['ticker']}: shares={p.get('shares')}, "
+        f"market_value={_fmt_dollars(p.get('market_value'))}, "
+        f"sector={p.get('sector') or 'unknown'}"
+        for p in positions
+    ]
+
+    risk = risk or {}
+    risk_line = (
+        f"period={risk.get('period')} (data_start={risk.get('data_start')}, "
+        f"data_end={risk.get('data_end')}): volatility_pct={risk.get('volatility_pct')}, "
+        f"beta_to_spy={risk.get('beta_to_spy')}, correlation_to_spy={risk.get('correlation_to_spy')}, "
+        f"max_drawdown_pct={risk.get('max_drawdown_pct')}"
+        if risk.get("period") else "unavailable"
+    )
+
+    sector_flags = compute_sector_concentration(positions)
+    sector_flag_lines = [
+        f"{sector}: weight_pct={flag['weight_pct']}, market_value={_fmt_dollars(flag['market_value'])}, "
+        f"tickers={', '.join(flag['tickers'])}"
+        for sector, flag in sector_flags.items()
+    ]
+
+    prompt = (
+        "Below is a real stock portfolio's holdings and this app's own already-computed risk "
+        f"metrics (total portfolio value: {_fmt_dollars(total_value)}). Do not invent any numbers "
+        "not shown here, and do not consider any tickers not listed.\n\n"
+        "Holdings:\n" + "\n".join(lines) + "\n\n"
+        "Risk metrics:\n" + risk_line + "\n\n"
+        "Sector concentration flags (sectors at or above the app's concentration threshold):\n"
+        + ("\n".join(sector_flag_lines) if sector_flag_lines else "none") + "\n\n"
+        f"User question: {question}\n\n"
+        "Answer the question using only the data above. If the data above doesn't actually answer "
+        "the question, say plainly that you don't have enough data to answer it -- do not guess or "
+        "rely on general knowledge not shown here. Reference specific tickers and numbers from the "
+        "data where relevant."
+    )
+
+    try:
+        content, _ = invoke_with_fallback(llms, prompt)
+        return content
+    except Exception as e:
+        logger.warning("Portfolio Q&A failed (all providers): %s", e)
+        return None

@@ -24,6 +24,32 @@ def get_debug_logs():
     return "\n".join(DEBUG_LOGS)
 
 
+# ASK-2: the one explicit "don't guess" guardrail instruction, reused both
+# in the tool-calling agent's own system prompt and appended to the
+# post-tool summarization prompt in ask_meta_agent (that step is a second,
+# independent LLM call with its own instructions, so it needs the same
+# guardrail restated, not inherited). Mirrors the existing precedent in
+# Agent/filingAgent.py's "say so explicitly rather than guessing" line.
+DONT_GUESS_INSTRUCTION = (
+    "If the information available doesn't actually contain enough to answer the "
+    "specific question asked, say so plainly (e.g. \"I don't know\" or \"I don't have "
+    "enough data to answer that\") instead of guessing or relying on general knowledge "
+    "that isn't grounded in the data shown."
+)
+
+SYSTEM_PROMPT = f"""
+    You are a Wall Street equity analyst.
+    RULES:
+    - You MUST call at least 1 tool when relevant.
+    - You MAY call multiple tools when necessary.
+    - After tool calls, return a final investor-ready explanation grounded in those tool
+      results.
+    - NEVER output JSON unless asked.
+    - Write concise, readable English.
+    - {DONT_GUESS_INSTRUCTION}
+    """
+
+
 # ------------------------------------------------------------
 # BUILD META-AGENT
 # ------------------------------------------------------------
@@ -67,8 +93,16 @@ def build_agent(llm):
         """Return recent news, earnings results/guidance, and headline sentiment score for a
         ticker. Use this whenever the user asks what's driving the stock's price, including
         explaining a large recent move or an after-hours/pre-market jump."""
-        from Agent.newAgent import news_summary
-        return news_summary(ticker, llm=llm)
+        from Agent.newAgent import news_summary_with_sources
+        result = news_summary_with_sources(ticker, llm=llm)
+        # ASK-1: real article URLs, taken straight from the structured search
+        # response (never re-parsed out of the LLM's summary text, which
+        # drops/mangles them) and appended here in plain, non-LLM-generated
+        # text so the final answer can cite them verbatim.
+        if result["sources"]:
+            sources_block = "\n".join(f"- {s['title']}: {s['url']}" for s in result["sources"])
+            return f"{result['summary']}\n\nSources:\n{sources_block}"
+        return result["summary"]
 
     @tool
     def research_report(ticker: str):
@@ -92,22 +126,11 @@ def build_agent(llm):
         final_recommendation,
     ]
 
-    system_prompt = """
-    You are a Wall Street equity analyst.
-    RULES:
-    - You MUST call at least 1 tool when relevant.
-    - You MAY call multiple tools when necessary.
-    - After tool calls, ALWAYS return a final investor-ready explanation.
-    - NEVER return an empty message.
-    - NEVER output JSON unless asked.
-    - Write concise, readable English.
-    """
-
-    log_debug("BUILD_AGENT — SYSTEM PROMPT", system_prompt)
+    log_debug("BUILD_AGENT — SYSTEM PROMPT", SYSTEM_PROMPT)
     log_debug("BUILD_AGENT — TOOLS LOADED", str([t.name for t in tools]))
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
+        ("system", SYSTEM_PROMPT),
         ("human", "{input}")
     ])
 
@@ -155,6 +178,11 @@ def ask_meta_agent(meta_agent, ticker: str, question: str) -> str:
         if raw_response.tool_calls:
             # Agent decided to invoke a tool — must execute manually!
             tool_outputs = []
+            failed_tools = []  # ASK-2: tracked separately from tool_outputs so a
+            # failure is never summarized as if it were real data (the prior
+            # behavior appended "Error executing {tool}: {e}" into the same
+            # list as successful results, leaving the summarization LLM no
+            # way to tell a fact from a failure).
 
             for call in raw_response.tool_calls:
                 tool_name = call["name"]
@@ -167,10 +195,28 @@ def ask_meta_agent(meta_agent, ticker: str, question: str) -> str:
                     result = tool_fn.run(args)
                     tool_outputs.append(f"Tool {tool_name} result:\n{result}")
                 except Exception as e:
-                    tool_outputs.append(f"Error executing {tool_name}: {e}")
+                    log_debug("TOOL_FAILED", f"{tool_name}: {e}")
+                    failed_tools.append(tool_name)
 
             combined = "\n\n".join(tool_outputs)
             log_debug("TOOL OUTPUT AGGREGATED", combined)
+
+            if not tool_outputs:
+                # Every tool that was called failed -- there is no real data
+                # to summarize, and asking the LLM to "summarize" nothing
+                # invites it to guess from general knowledge instead. Return
+                # an honest answer directly; never invoke the summarization
+                # LLM with zero real content.
+                return (
+                    "I don't have enough data to answer that — "
+                    f"{', '.join(failed_tools)} failed to return data for this request."
+                )
+
+            failed_note = (
+                f"\n\nNote: {', '.join(failed_tools)} failed and returned no data for this "
+                "request -- do not guess at what they might have shown."
+                if failed_tools else ""
+            )
 
             # Now ask the LLM to summarize tool results. Deliberately
             # `llm.invoke` (no tools bound), not `agent.invoke` — the
@@ -181,10 +227,20 @@ def ask_meta_agent(meta_agent, ticker: str, question: str) -> str:
             # "empty message" warning below on every such request. A
             # plain LLM call is structurally incapable of returning a
             # tool call, so this always produces text.
+            #
+            # This is a second, independent LLM call with its own
+            # instructions, so the don't-guess guardrail (SYSTEM_PROMPT)
+            # and the citation convention (a tool's own "Sources:" block,
+            # see news_sentiment above) have to be restated here -- neither
+            # is inherited from the first call.
             summary_prompt = f"""
-            Summarize the following tool outputs into a final investor-ready answer:
+            Summarize the following tool outputs into a final investor-ready answer.
+            {DONT_GUESS_INSTRUCTION}
+            When a claim relies on a tool's own "Sources:" list, cite at least one of
+            those sources (title or URL) in your answer. For any other claim, name
+            which tool/data it came from.
 
-            {combined}
+            {combined}{failed_note}
             """
 
             final_msg = llm.invoke(summary_prompt)

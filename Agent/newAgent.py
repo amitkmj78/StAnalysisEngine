@@ -2,7 +2,7 @@ import os
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 
-from services.web_search import search_text
+from services.web_search import format_results, search
 
 
 def _get_llm():
@@ -16,31 +16,33 @@ def _get_llm():
     return None
 
 
-
-def news_summary(ticker: str, llm=None) -> str:
-    """
-    Fetch real news using this app's own self-hosted search
-    (services.web_search — DuckDuckGo + real content extraction, replaces
-    the Tavily-backed version this used to be), then summarize & analyze
-    with LLM. Returns a detailed professional news intelligence brief.
-    """
-
+def _fetch_and_summarize(ticker: str, llm=None) -> tuple[str, list[dict]]:
+    """Shared by news_summary and news_summary_with_sources: fetches real
+    news via this app's own self-hosted search (services.web_search —
+    DuckDuckGo + real content extraction) and summarizes it with an LLM.
+    Returns (summary_text, sources) where sources is the real
+    [{"title", "url"}, ...] list taken directly from the structured search
+    response -- ASK-1's citations rely on this list, not on the LLM
+    preserving URLs through its own summarization (it reliably doesn't)."""
     query = (
         f"Latest breaking news, earnings report results (EPS, revenue, guidance), and other "
         f"market-moving headlines about {ticker} stock. Summarize factual content only."
     )
 
     try:
-        raw_news = search_text(query)
-        if not raw_news:
-            return f"No recent news found for {ticker}."
+        response = search(query, max_results=5, include_raw_content=False)
+        if not response.results:
+            return f"No recent news found for {ticker}.", []
+        raw_news = format_results(response)
     except Exception as e:
-        return f"Error fetching news: {e}"
+        return f"Error fetching news: {e}", []
+
+    sources = [{"title": r.title, "url": r.url} for r in response.results]
 
     # Step 2 — Use LLM to analyze & summarize
     llm_to_use = llm or _get_llm()
     if llm_to_use is None:
-        return raw_news  # fallback to raw text
+        return raw_news, sources  # fallback to raw text (still carries URLs inline)
 
     prompt = f"""
 You are a financial news analyst.
@@ -68,6 +70,29 @@ Do NOT hallucinate — use only info from the news.
 
     try:
         result = llm_to_use.invoke(prompt)
-        return result.content if hasattr(result, "content") else str(result)
+        summary = result.content if hasattr(result, "content") else str(result)
     except Exception as e:
-        return f"[LLM Error] {e}"
+        summary = f"[LLM Error] {e}"
+
+    return summary, sources
+
+
+def news_summary(ticker: str, llm=None) -> str:
+    """
+    Fetch real news and summarize & analyze with LLM. Returns a detailed
+    professional news intelligence brief. Unchanged contract for existing
+    callers (Agent/recommendAgent.py, services/analysis_service.py) —
+    see news_summary_with_sources for the version that also returns real
+    article URLs.
+    """
+    summary, _sources = _fetch_and_summarize(ticker, llm=llm)
+    return summary
+
+
+def news_summary_with_sources(ticker: str, llm=None) -> dict:
+    """Same summary as news_summary, plus the real article sources
+    ({"title", "url"}) taken straight from the search response -- used by
+    Agent/meta_agent.py's news_sentiment tool so citations in the final
+    chat answer are guaranteed-accurate URLs, not LLM-reconstructed ones."""
+    summary, sources = _fetch_and_summarize(ticker, llm=llm)
+    return {"summary": summary, "sources": sources}
