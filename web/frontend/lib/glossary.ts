@@ -708,6 +708,7 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
     body: [
       "Trailing ~3-month (63 trading day) price return, ranked against the rest of the universe — stronger recent momentum scores higher.",
       "Weighted 35% of the Short-Term score.",
+      "A strongly negative number here means this stock's recent 3-month return has lagged most of the universe; a strongly positive number means it's been one of the stronger recent performers. It's a read on recent price action, not a judgment on the business — a strong company can still show weak momentum after a pullback.",
     ],
   },
   reversal: {
@@ -715,6 +716,7 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
     body: [
       "14-day RSI, ranked against the rest of the universe with a lower RSI scoring higher — this factor rewards a stock that looks oversold (a potential bounce), the opposite of a pure momentum read.",
       "Weighted 25% of the Short-Term score.",
+      "A strongly negative number here means this stock's RSI is relatively high versus the universe — it isn't showing an oversold setup right now, which is a modest drag on the Short-Term score. That's a read on where price sits in its recent range, not a signal to sell: a stock can have \"high\" RSI simply because it's been performing well. A strongly positive number means the opposite — a relatively low RSI, an oversold read that's helping the score.",
     ],
   },
   earnings_surprise: {
@@ -722,6 +724,7 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
     body: [
       "How far the company's most recently reported quarter's actual EPS came in above or below the analyst consensus estimate, as a percent — a positive surprise scores higher.",
       "Weighted 20% of the Short-Term score.",
+      "A strongly negative number here means this stock's last reported quarter missed consensus EPS by more than its peers' surprises did; a strongly positive number means it beat by more. This is backward-looking — about the last reported quarter, not a forecast of the next one.",
     ],
   },
   earnings_revisions: {
@@ -729,6 +732,7 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
     body: [
       "How much analysts' current-quarter EPS estimate has moved over the trailing 30 days — estimates trending up (analysts turning more optimistic) scores higher.",
       "Weighted 20% of the Short-Term score.",
+      "A strongly negative number here means analysts have been cutting their near-term earnings estimate for this stock more than peers over the past month; a strongly positive number means estimates have been rising. It reflects analyst sentiment shifting, not this app's own view.",
     ],
   },
   value: {
@@ -736,6 +740,7 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
     body: [
       "Forward P/E (price ÷ next year's consensus EPS estimate), ranked against the rest of the universe with a lower (cheaper) multiple scoring higher.",
       "Weighted 30% of the Long-Term score.",
+      "A strongly negative number here means this stock's forward P/E is relatively expensive versus the universe; a strongly positive number means it's relatively cheap. A high multiple isn't automatically bad — it can reflect the market pricing in faster expected growth — it just scores lower on this one factor.",
     ],
   },
   growth: {
@@ -743,6 +748,7 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
     body: [
       "Average of trailing revenue growth % and earnings growth % (whichever is available) — faster growth scores higher.",
       "Weighted 25% of the Long-Term score.",
+      "A strongly negative number here means this stock's revenue/earnings growth has trailed the universe; a strongly positive number means it's grown faster than most peers.",
     ],
   },
   low_vol: {
@@ -750,6 +756,7 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
     body: [
       "Annualized volatility of daily returns over the trailing year, ranked with lower volatility scoring higher — this rewards a steadier stock, not necessarily a stronger one.",
       "Weighted 20% of the Long-Term score.",
+      "A strongly negative number here means this stock's price has been choppier than most of the universe over the past year; a strongly positive number means it's been comparatively steady. Higher volatility isn't inherently bad — it often comes with higher potential upside too — it's simply a bumpier ride.",
     ],
   },
   quality: {
@@ -757,6 +764,7 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
     body: [
       "Average of return on equity % and profit margin % (whichever is available) — stronger profitability scores higher.",
       "Weighted 25% of the Long-Term score.",
+      "A strongly negative number here means this stock's profitability (ROE/margin) trails the universe; a strongly positive number means it leads most peers on this measure.",
     ],
   },
 };
