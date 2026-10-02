@@ -125,6 +125,22 @@ def test_compute_sectors_omits_tickers_with_no_sector_info():
     assert result == {"AAPL": "Technology"}
 
 
+def test_compute_sectors_survives_one_ticker_raising():
+    # Live-caught: get_cached_info doesn't fail open on its own -- a
+    # yfinance-internal crash for a single ticker (bad/rate-limited
+    # response) must not take down every other ticker's result via
+    # ThreadPoolExecutor.map's result iteration.
+    def _side_effect(t):
+        if t == "BROKEN":
+            raise TypeError("object of type 'NoneType' has no len()")
+        return {"sector": "Technology"} if t == "AAPL" else {"sector": "Energy"}
+
+    with patch("services.portfolio_review_service.get_cached_info", side_effect=_side_effect):
+        result = compute_sectors(["AAPL", "BROKEN", "XOM"])
+    assert result == {"AAPL": "Technology", "XOM": "Energy"}
+    assert "BROKEN" not in result
+
+
 def test_compute_sector_concentration_flags_sector_above_threshold():
     positions = [
         {"ticker": "XLK", "sector": "Technology", "market_value": 4000.0},

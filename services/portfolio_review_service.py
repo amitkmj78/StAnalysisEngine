@@ -56,15 +56,34 @@ def compute_market_values(positions: list[dict]) -> dict[str, float]:
     }
 
 
+def _safe_get_cached_info(ticker: str) -> dict:
+    """get_cached_info doesn't fail open on its own (unlike
+    get_cached_dividends/get_cached_earnings_dates/
+    get_cached_fund_top_holdings, which do) -- live-caught via a real
+    yfinance-internal crash (TypeError: object of type 'NoneType' has no
+    len(), from a malformed/rate-limited .info response for a single
+    ticker) propagating out of compute_sectors' executor.map and taking
+    down the whole call, not just that one ticker. Same fix as
+    services/portfolio_health_service.py::_fetch_close_for_period and
+    web/backend/routers/portfolio.py::_safe_get_cached_info -- the third
+    live occurrence of this exact bug class."""
+    try:
+        return get_cached_info(ticker) or {}
+    except Exception as e:
+        logger.warning("compute_sectors: failed to fetch info for %s: %s", ticker, e)
+        return {}
+
+
 def compute_sectors(tickers: list[str]) -> dict[str, str]:
     """Real sector per ticker (get_cached_info — shared 15-minute cache,
     so this doesn't re-fetch a ticker another feature already pulled
     .info for recently), fanned out the same way as compute_market_values.
-    Tickers with no sector on file (funds/ETFs, mostly) are omitted."""
+    Tickers with no sector on file (funds/ETFs, mostly, or a ticker whose
+    fetch failed) are omitted."""
     if not tickers:
         return {}
     with ThreadPoolExecutor(max_workers=MAX_PARALLEL_REVIEW_FETCHES) as executor:
-        infos = list(executor.map(get_cached_info, tickers))
+        infos = list(executor.map(_safe_get_cached_info, tickers))
     return {
         ticker: info.get("sector")
         for ticker, info in zip(tickers, infos)
