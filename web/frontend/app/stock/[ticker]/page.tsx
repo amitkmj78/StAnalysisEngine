@@ -63,6 +63,23 @@ function signalAccentClass(signal: string): string {
   return "border-l-slate-300";
 }
 
+// The fixed 8-factor vocabulary behind the two-score system (services/
+// stock_score_service.py's SHORT_TERM_WEIGHTS/LONG_TERM_WEIGHTS) --
+// Top Drivers/Drags shows the raw snake_case factor key as-is today;
+// this prettifies it for display while MetricLabel (below) explains
+// what each factor actually measures, keyed on the same raw string so
+// it also works for "Why these scores"-style keys without a mapping.
+const FACTOR_LABELS: Record<string, string> = {
+  momentum: "Momentum",
+  reversal: "Reversal",
+  earnings_surprise: "Earnings Surprise",
+  earnings_revisions: "Earnings Revisions",
+  value: "Value",
+  growth: "Growth",
+  low_vol: "Low Volatility",
+  quality: "Quality",
+};
+
 function sentimentBadgeClass(label: string): string {
   if (label === "Bullish") return "bg-emerald-50 text-emerald-700";
   if (label === "Bearish") return "bg-red-50 text-red-700";
@@ -498,16 +515,26 @@ export default function StockScorePage() {
               {data.explanations.drivers.length === 0 ? (
                 <p className="mt-2 text-xs text-slate-400">No positive drivers today.</p>
               ) : (
-                <ul className="mt-2 flex flex-col gap-1.5">
-                  {data.explanations.drivers.map((d) => (
-                    <li key={d.factor} className="flex items-center justify-between gap-3 text-sm">
-                      <span className="text-slate-700">{d.factor}</span>
-                      <span className="shrink-0 font-mono text-xs font-semibold text-emerald-700">
-                        +{d.contribution.toFixed(1)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <ul className="mt-2 flex flex-col gap-1.5">
+                    {data.explanations.drivers.map((d) => (
+                      <li key={d.factor} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-slate-700">
+                          <MetricLabel term={d.factor}>{FACTOR_LABELS[d.factor] ?? d.factor}</MetricLabel>
+                        </span>
+                        <span className="shrink-0 font-mono text-xs font-semibold text-emerald-700">
+                          +{d.contribution.toFixed(1)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
+                    The number is each factor&apos;s contribution to its score: how far above/below the universe
+                    median it ranks, weighted by that factor&apos;s share of the composite. Pooled from both
+                    scores &mdash; a Short-Term factor&apos;s own 4 siblings sum to (Short-Term score &minus; 50),
+                    and a Long-Term factor&apos;s sum to (Long-Term score &minus; 50).
+                  </p>
+                </>
               )}
             </div>
             <div className="rounded-lg border border-l-4 border-slate-200 border-l-red-400 bg-white p-5">
@@ -518,7 +545,9 @@ export default function StockScorePage() {
                 <ul className="mt-2 flex flex-col gap-1.5">
                   {data.explanations.drags.map((d) => (
                     <li key={d.factor} className="flex items-center justify-between gap-3 text-sm">
-                      <span className="text-slate-700">{d.factor}</span>
+                      <span className="text-slate-700">
+                        <MetricLabel term={d.factor}>{FACTOR_LABELS[d.factor] ?? d.factor}</MetricLabel>
+                      </span>
                       <span className="shrink-0 font-mono text-xs font-semibold text-red-700">
                         {d.contribution.toFixed(1)}
                       </span>
@@ -533,8 +562,10 @@ export default function StockScorePage() {
             <div className="mt-4 flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
               <span className="font-medium">Since {weeklyChange.compared_to}:</span>
               <span>
-                {weeklyChange.change.factor} moved the most (
-                {weeklyChange.change.delta_contribution >= 0 ? "+" : ""}
+                <MetricLabel term={weeklyChange.change.factor}>
+                  {FACTOR_LABELS[weeklyChange.change.factor] ?? weeklyChange.change.factor}
+                </MetricLabel>{" "}
+                moved the most ({weeklyChange.change.delta_contribution >= 0 ? "+" : ""}
                 {weeklyChange.change.delta_contribution.toFixed(1)} pts contribution)
               </span>
             </div>

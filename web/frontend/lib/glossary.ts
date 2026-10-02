@@ -695,4 +695,68 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
       "The stock's price change the trading day after this earnings report, with a BMO (before market open) or AMC (after market close) tag inferred from the report's timestamp — not a confirmed flag from the data provider.",
     ],
   },
+
+  // --- Two-score factors (Top Drivers/Drags, "Why these scores", weekly
+  // change) --- the fixed 8-factor vocabulary behind services/stock_score_
+  // service.py's SHORT_TERM_WEIGHTS (momentum/reversal/earnings_surprise/
+  // earnings_revisions) and LONG_TERM_WEIGHTS (value/growth/low_vol/
+  // quality). Keyed on the raw snake_case field name (same convention as
+  // signal-comparison's quant_signal etc.), since that's what the API
+  // actually returns and what every call site already has in hand.
+  momentum: {
+    title: "Momentum",
+    body: [
+      "Trailing ~3-month (63 trading day) price return, ranked against the rest of the universe — stronger recent momentum scores higher.",
+      "Weighted 35% of the Short-Term score.",
+    ],
+  },
+  reversal: {
+    title: "Reversal",
+    body: [
+      "14-day RSI, ranked against the rest of the universe with a lower RSI scoring higher — this factor rewards a stock that looks oversold (a potential bounce), the opposite of a pure momentum read.",
+      "Weighted 25% of the Short-Term score.",
+    ],
+  },
+  earnings_surprise: {
+    title: "Earnings Surprise",
+    body: [
+      "How far the company's most recently reported quarter's actual EPS came in above or below the analyst consensus estimate, as a percent — a positive surprise scores higher.",
+      "Weighted 20% of the Short-Term score.",
+    ],
+  },
+  earnings_revisions: {
+    title: "Earnings Revisions",
+    body: [
+      "How much analysts' current-quarter EPS estimate has moved over the trailing 30 days — estimates trending up (analysts turning more optimistic) scores higher.",
+      "Weighted 20% of the Short-Term score.",
+    ],
+  },
+  value: {
+    title: "Value",
+    body: [
+      "Forward P/E (price ÷ next year's consensus EPS estimate), ranked against the rest of the universe with a lower (cheaper) multiple scoring higher.",
+      "Weighted 30% of the Long-Term score.",
+    ],
+  },
+  growth: {
+    title: "Growth",
+    body: [
+      "Average of trailing revenue growth % and earnings growth % (whichever is available) — faster growth scores higher.",
+      "Weighted 25% of the Long-Term score.",
+    ],
+  },
+  low_vol: {
+    title: "Low Volatility",
+    body: [
+      "Annualized volatility of daily returns over the trailing year, ranked with lower volatility scoring higher — this rewards a steadier stock, not necessarily a stronger one.",
+      "Weighted 20% of the Long-Term score.",
+    ],
+  },
+  quality: {
+    title: "Quality",
+    body: [
+      "Average of return on equity % and profit margin % (whichever is available) — stronger profitability scores higher.",
+      "Weighted 25% of the Long-Term score.",
+    ],
+  },
 };
