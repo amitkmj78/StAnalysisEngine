@@ -1224,6 +1224,14 @@ export function disableVerifyPredictions() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/verify-predictions/disable", "POST");
 }
 
+export function enableMarketRegime() {
+  return apiSend<{ market_regime_enabled: boolean }>("/api/v1/admin/settings/market-regime/enable", "POST");
+}
+
+export function disableMarketRegime() {
+  return apiSend<{ market_regime_enabled: boolean }>("/api/v1/admin/settings/market-regime/disable", "POST");
+}
+
 export function enablePublishSignals() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/publish-signals/enable", "POST");
 }

@@ -11,6 +11,7 @@ from web.backend.app_settings import (
     FREE_TIER_LAG_DAYS_DEFAULT,
     FREE_TIER_LAG_DAYS_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
+    MARKET_REGIME_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
     PAPER_TRADING_KILL_SWITCH_KEY,
     PAPER_TRADING_MAX_ORDER_VALUE_DEFAULT,
@@ -99,6 +100,7 @@ async def get_settings():
             PAPER_TRADING_RESTRICTED_SYMBOLS_KEY, default=PAPER_TRADING_RESTRICTED_SYMBOLS_DEFAULT
         ),
         "stock_score_compute_enabled": await get_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, default=True),
+        "market_regime_enabled": await get_setting_bool(MARKET_REGIME_ENABLED_KEY, default=False),
     }
 
 
@@ -112,6 +114,22 @@ async def enable_verify_predictions():
 async def disable_verify_predictions():
     await set_setting_bool(VERIFY_PREDICTIONS_ENABLED_KEY, False)
     return {"verify_predictions_enabled": False}
+
+
+@router.post("/market-regime/enable")
+async def enable_market_regime():
+    """REG-1: turns on the daily scheduler job (services/market_regime_
+    service.py via _compute_market_regime_job) -- see MARKET_REGIME_
+    ENABLED_KEY's docstring in app_settings.py for why this defaults off
+    and needs a deliberate admin opt-in."""
+    await set_setting_bool(MARKET_REGIME_ENABLED_KEY, True)
+    return {"market_regime_enabled": True}
+
+
+@router.post("/market-regime/disable")
+async def disable_market_regime():
+    await set_setting_bool(MARKET_REGIME_ENABLED_KEY, False)
+    return {"market_regime_enabled": False}
 
 
 @router.post("/publish-signals/enable")

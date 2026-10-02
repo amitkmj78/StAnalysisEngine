@@ -1541,6 +1541,7 @@ export interface AdminSettings {
   basket_rebalance_enabled: boolean;
   saved_screen_alerts_enabled: boolean;
   stock_finder_cache_prewarm_enabled: boolean;
+  market_regime_enabled: boolean;
 }
 
 export interface BackupRun {
