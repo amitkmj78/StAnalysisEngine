@@ -15,6 +15,7 @@ from web.backend.app_settings import (
     FREE_TIER_LAG_DAYS_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     MARKET_REGIME_ENABLED_KEY,
+    MORNING_BRIEF_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
     PAPER_TRADING_KILL_SWITCH_KEY,
     PAPER_TRADING_MAX_ORDER_VALUE_DEFAULT,
@@ -109,6 +110,7 @@ async def get_settings():
             EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY, default=False
         ),
         "evening_recap_enabled": await get_setting_bool(EVENING_RECAP_ENABLED_KEY, default=False),
+        "morning_brief_enabled": await get_setting_bool(MORNING_BRIEF_ENABLED_KEY, default=False),
     }
 
 
@@ -189,6 +191,25 @@ async def enable_evening_recap():
 async def disable_evening_recap():
     await set_setting_bool(EVENING_RECAP_ENABLED_KEY, False)
     return {"evening_recap_enabled": False}
+
+
+@router.post("/morning-brief/enable")
+async def enable_morning_brief():
+    """BRF-1: turns on the daily (weekdays 07:00 ET) per-user morning
+    brief job (services/daily_brief_service.py via _send_morning_briefs_
+    job) -- see MORNING_BRIEF_ENABLED_KEY's docstring in app_settings.py
+    for why this defaults off: it makes real LLM calls (top news, capped
+    at 3/user/day) sharing the same daily quota as Filing/Earnings-
+    Release Summaries, on top of the usual "emails every user" opt-in
+    rationale."""
+    await set_setting_bool(MORNING_BRIEF_ENABLED_KEY, True)
+    return {"morning_brief_enabled": True}
+
+
+@router.post("/morning-brief/disable")
+async def disable_morning_brief():
+    await set_setting_bool(MORNING_BRIEF_ENABLED_KEY, False)
+    return {"morning_brief_enabled": False}
 
 
 @router.post("/publish-signals/enable")

@@ -1,6 +1,7 @@
+from datetime import date
 from unittest.mock import patch
 
-from services.daily_brief_service import build_evening_recap
+from services.daily_brief_service import _format_morning_brief, _select_news_tickers, build_evening_recap
 
 
 def _performance(rows, total_day_gain=None, total_day_gain_pct=None):
@@ -75,3 +76,86 @@ def test_build_evening_recap_caps_each_direction_at_three():
     contributors_section = result["text_body"].split("Top contributors:")[1]
     assert contributors_section.count("G") == 3
     assert "G3" not in contributors_section and "G4" not in contributors_section
+
+
+def _rows_with_gain(tickers_and_pct):
+    return [{"ticker": t, "day_gain": pct, "day_gain_pct": pct} for t, pct in tickers_and_pct]
+
+
+def test_select_news_tickers_prioritizes_signal_changes_then_movers():
+    rows = _rows_with_gain([("A", 1.0), ("B", 10.0), ("C", -5.0)])
+    signal_changes = [{"ticker": "A", "horizon": "short", "old_signal": "Hold", "new_signal": "Buy"}]
+    result = _select_news_tickers(rows, signal_changes)
+    assert result == ["A", "B", "C"]  # A first (signal change), then by |day_gain_pct| descending
+
+
+def test_select_news_tickers_dedupes_and_caps_at_three():
+    rows = _rows_with_gain([("A", 1.0), ("B", 10.0), ("C", -5.0), ("D", 20.0)])
+    signal_changes = [{"ticker": "A", "horizon": "short", "old_signal": "Hold", "new_signal": "Buy"}]
+    result = _select_news_tickers(rows, signal_changes)
+    assert len(result) == 3
+    assert result[0] == "A"  # not duplicated even though it's also a mover
+
+
+def test_format_morning_brief_returns_none_cases_render_independently():
+    # No positions-with-gain, no signal changes, no earnings, no regime, no news --
+    # each section should still render its own "nothing" line, not crash or vanish.
+    result = _format_morning_brief(
+        today=date(2026, 10, 2),
+        performance={"total_day_gain": None, "total_day_gain_pct": None},
+        rows_with_gain=[],
+        signal_change_rows=[],
+        earnings_today=[],
+        regime=None,
+        news_tickers=[],
+        sentiment_by_ticker={},
+    )
+    body = result["text_body"]
+    assert "No price data yet" in body
+    assert "Signal Changes:\n  None today." in body
+    assert "Earnings Today:\n  None today." in body
+    assert "No regime reading available yet." in body
+    assert "Nothing notable today." in body
+
+
+def test_format_morning_brief_renders_each_section_when_present():
+    result = _format_morning_brief(
+        today=date(2026, 10, 2),
+        performance={"total_day_gain": 42.0, "total_day_gain_pct": 1.2},
+        rows_with_gain=_rows_with_gain([("AAA", 3.0)]),
+        signal_change_rows=[{"ticker": "AAA", "horizon": "short", "old_signal": "Hold", "new_signal": "Buy"}],
+        earnings_today=[{"ticker": "BBB", "date": "2026-10-02", "market_timing": "before market open"}],
+        regime="Risk-On",
+        news_tickers=["AAA"],
+        sentiment_by_ticker={"AAA": {"label": "Bullish", "reasoning": "Strong guidance."}},
+    )
+    body = result["text_body"]
+    assert "+$42.00 (+1.20%)" in body
+    assert "AAA (Short-term): Hold → Buy" in body
+    assert "BBB: reports before market open" in body
+    assert "Risk-On" in body
+    assert "AAA (Bullish): Strong guidance." in body
+    assert "Morning brief for 2026-10-02" == result["subject"]
+
+
+def test_format_morning_brief_news_ticker_without_sentiment_shows_fallback():
+    result = _format_morning_brief(
+        today=date(2026, 10, 2),
+        performance={"total_day_gain": None, "total_day_gain_pct": None},
+        rows_with_gain=[],
+        signal_change_rows=[],
+        earnings_today=[],
+        regime=None,
+        news_tickers=["ZZZ"],
+        sentiment_by_ticker={},
+    )
+    assert "ZZZ: no sentiment reading available." in result["text_body"]
+
+
+def test_build_morning_brief_returns_none_with_no_positions():
+    import asyncio
+
+    from services.daily_brief_service import build_morning_brief
+
+    result = asyncio.run(build_morning_brief([], "user-1", [], []))
+    assert result is None

@@ -143,6 +143,14 @@ EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY = "earnings_release_summaries_enabled"
 # otherwise. Pure arithmetic (no LLM cost), unlike MORNING_BRIEF_ENABLED_
 # KEY below.
 EVENING_RECAP_ENABLED_KEY = "evening_recap_enabled"
+# BRF-1: gates services/daily_brief_service.py's build_morning_brief via
+# the scheduler's daily per-user job. Defaults OFF for the same reason
+# as EVENING_RECAP_ENABLED_KEY, plus its own extra risk: the "top news"
+# section calls score_tickers_sentiment (LLM cost, capped at 3 calls/
+# user/day), sharing the same daily provider quota as Filing/Earnings-
+# Release Summaries -- see FILING_SUMMARIES_ENABLED_KEY's docstring for
+# the real quota-exhaustion incident this is guarding against.
+MORNING_BRIEF_ENABLED_KEY = "morning_brief_enabled"
 # ALR-1: each of the three new alert-scan jobs gets its own deliberate
 # opt-in flag, same rationale as PORTFOLIO_DROP_ALERTS_ENABLED_KEY --
 # they write user-visible content and send email, so a deploy must not

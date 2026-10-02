@@ -8,11 +8,13 @@ import {
   disableEveningRecap,
   disableFilingSummaries,
   disableMarketRegime,
+  disableMorningBrief,
   disableVerifyPredictions,
   enableEarningsReleaseSummaries,
   enableEveningRecap,
   enableFilingSummaries,
   enableMarketRegime,
+  enableMorningBrief,
   enableVerifyPredictions,
   getAdminSettings,
 } from "@/lib/api";
@@ -69,6 +71,7 @@ export default function SchedulerControls() {
   const [filingSummariesEnabled, setFilingSummariesEnabled] = useState<boolean | null>(null);
   const [earningsReleaseSummariesEnabled, setEarningsReleaseSummariesEnabled] = useState<boolean | null>(null);
   const [eveningRecapEnabled, setEveningRecapEnabled] = useState<boolean | null>(null);
+  const [morningBriefEnabled, setMorningBriefEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -81,6 +84,7 @@ export default function SchedulerControls() {
       setFilingSummariesEnabled(settings.filing_summaries_enabled);
       setEarningsReleaseSummariesEnabled(settings.earnings_release_summaries_enabled);
       setEveningRecapEnabled(settings.evening_recap_enabled);
+      setMorningBriefEnabled(settings.morning_brief_enabled);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load scheduler settings.");
     }
@@ -157,6 +161,19 @@ export default function SchedulerControls() {
     }
   }
 
+  async function handleToggleMorningBrief() {
+    setBusyKey("morning-brief");
+    setError(null);
+    try {
+      const result = morningBriefEnabled ? await disableMorningBrief() : await enableMorningBrief();
+      setMorningBriefEnabled(result.morning_brief_enabled);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update scheduler setting.");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -199,6 +216,14 @@ export default function SchedulerControls() {
         enabled={eveningRecapEnabled}
         busy={busyKey === "evening-recap"}
         onToggle={handleToggleEveningRecap}
+      />
+
+      <JobToggleCard
+        title="Morning Brief"
+        description="Daily job (weekdays 07:00 ET) that emails every user with at least one position a 5-section brief meant to read in about 2 minutes: overnight moves, signal changes, earnings today, market regime, and top news on their 3 most-moved/changed tickers. The top-news section makes real LLM calls (capped at 3/user/day), sharing the same daily provider quota as Filing/Earnings-Release Summaries. Disabling it stops future briefs."
+        enabled={morningBriefEnabled}
+        busy={busyKey === "morning-brief"}
+        onToggle={handleToggleMorningBrief}
       />
     </div>
   );

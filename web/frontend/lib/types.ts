@@ -1689,6 +1689,7 @@ export interface AdminSettings {
   filing_summaries_enabled: boolean;
   earnings_release_summaries_enabled: boolean;
   evening_recap_enabled: boolean;
+  morning_brief_enabled: boolean;
 }
 
 export interface BackupRun {

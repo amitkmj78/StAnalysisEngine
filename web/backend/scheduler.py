@@ -8,7 +8,7 @@ from starlette.concurrency import run_in_threadpool
 from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.cost_drop_alert_service import scan_cost_drops
-from services.daily_brief_service import build_evening_recap
+from services.daily_brief_service import build_evening_recap, build_morning_brief
 from services.earnings_alert_service import scan_earnings_in_window
 from services.earnings_release_service import process_new_earnings_releases_for_ticker
 from services.email_service import APP_URL, send_admin_alert_email, send_digest_email, send_rankings_email
@@ -32,6 +32,7 @@ from web.backend.app_settings import (
     FILING_SUMMARIES_ENABLED_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     MARKET_REGIME_ENABLED_KEY,
+    MORNING_BRIEF_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
@@ -661,6 +662,75 @@ async def _compute_earnings_release_summaries_job() -> None:
         logger.info("Scheduler: earnings release summaries — %d new release(s) summarized", total_inserted)
 
 
+# Before the 9:30 ET open, with enough notice to actually read it first.
+MORNING_BRIEF_HOUR_ET = 7
+MORNING_BRIEF_MINUTE_ET = 0
+
+
+async def _send_morning_briefs_job() -> None:
+    """BRF-1: five-section morning brief (overnight moves, signal
+    changes, earnings today, market regime, top news) emailed to every
+    user with at least one position in an active portfolio. Off by
+    default — see MORNING_BRIEF_ENABLED_KEY's docstring in app_settings.py:
+    unlike evening_recap, this one does make LLM calls (top news), capped
+    at 3/user/day via daily_brief_service.MAX_TOP_NEWS_TICKERS, sharing
+    the same daily provider quota as Filing/Earnings-Release Summaries.
+    Routed through notification_dispatcher.dispatch_alert like every
+    other alert, same as evening_recap."""
+    if not await get_setting_bool(MORNING_BRIEF_ENABLED_KEY, default=False):
+        logger.info("Scheduler: morning_brief is disabled, skipping this run")
+        return
+
+    async with service_conn() as conn:
+        position_rows = await conn.fetch(
+            """
+            SELECT pp.user_id, pp.ticker, pp.shares, pp.avg_cost, pp.acquired_at
+            FROM portfolio_positions pp
+            JOIN portfolios p ON p.id = pp.portfolio_id
+            WHERE p.is_active AND pp.ticker IS NOT NULL AND pp.shares > 0
+            """
+        )
+        watchlist_rows = await conn.fetch(
+            "SELECT user_id, ticker FROM watchlist_alerts WHERE active AND source IS DISTINCT FROM 'portfolio_auto'"
+        )
+    if not position_rows:
+        return
+
+    positions_by_user: dict = {}
+    for row in position_rows:
+        positions_by_user.setdefault(row["user_id"], []).append(
+            {
+                "ticker": row["ticker"],
+                "shares": row["shares"],
+                "avg_cost": row["avg_cost"],
+                "acquired_at": row["acquired_at"],
+            }
+        )
+    watchlisted_by_user: dict = {}
+    for row in watchlist_rows:
+        watchlisted_by_user.setdefault(row["user_id"], []).append(row["ticker"])
+
+    llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
+    llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels) if labels else []
+    if not labels:
+        logger.info("Scheduler: morning_brief has no LLM provider configured, top news will be skipped")
+
+    dispatched = 0
+    for user_id, positions in positions_by_user.items():
+        try:
+            brief = await build_morning_brief(llms, str(user_id), positions, watchlisted_by_user.get(user_id, []))
+        except Exception as e:
+            logger.warning("Scheduler: morning_brief failed for user %s: %s", user_id, e)
+            continue
+        if brief is None:
+            continue
+        await dispatch_alert(str(user_id), None, "morning_brief", brief["subject"], brief["text_body"])
+        dispatched += 1
+
+    if dispatched:
+        logger.info("Scheduler: morning brief — %d email(s) dispatched", dispatched)
+
+
 # After the regular session's 16:00 ET close, with a few minutes for the
 # close itself and get_previous_close/get_effective_price to settle.
 EVENING_RECAP_HOUR_ET = 16
@@ -1086,6 +1156,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="compute_earnings_release_summaries",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _send_morning_briefs_job,
+        CronTrigger(
+            hour=MORNING_BRIEF_HOUR_ET, minute=MORNING_BRIEF_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="send_morning_briefs",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

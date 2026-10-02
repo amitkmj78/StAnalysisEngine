@@ -1306,6 +1306,14 @@ export function disableEveningRecap() {
   return apiSend<{ evening_recap_enabled: boolean }>("/api/v1/admin/settings/evening-recap/disable", "POST");
 }
 
+export function enableMorningBrief() {
+  return apiSend<{ morning_brief_enabled: boolean }>("/api/v1/admin/settings/morning-brief/enable", "POST");
+}
+
+export function disableMorningBrief() {
+  return apiSend<{ morning_brief_enabled: boolean }>("/api/v1/admin/settings/morning-brief/disable", "POST");
+}
+
 export function getEarningsReleaseSummary(ticker: string) {
   return apiFetch<EarningsReleaseSummaryResponse>(`/api/v1/earnings-releases/${encodeURIComponent(ticker)}`);
 }
