@@ -36,6 +36,7 @@ import type {
   DropAlertThreshold,
   DualBenchmarkComparison,
   EarningsCalendarResponse,
+  EarningsReleaseSummaryResponse,
   MarketRegimeResponse,
   EntryHistory,
   EntryPlan,
@@ -1283,6 +1284,22 @@ export function disableFilingSummaries() {
 
 export function getFilingSummaries(ticker: string) {
   return apiFetch<FilingSummariesResponse>(`/api/v1/filings/${encodeURIComponent(ticker)}`);
+}
+
+export function enableEarningsReleaseSummaries() {
+  return apiSend<{ earnings_release_summaries_enabled: boolean }>(
+    "/api/v1/admin/settings/earnings-release-summaries/enable", "POST"
+  );
+}
+
+export function disableEarningsReleaseSummaries() {
+  return apiSend<{ earnings_release_summaries_enabled: boolean }>(
+    "/api/v1/admin/settings/earnings-release-summaries/disable", "POST"
+  );
+}
+
+export function getEarningsReleaseSummary(ticker: string) {
+  return apiFetch<EarningsReleaseSummaryResponse>(`/api/v1/earnings-releases/${encodeURIComponent(ticker)}`);
 }
 
 export function enablePublishSignals() {

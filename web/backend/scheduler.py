@@ -9,6 +9,7 @@ from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.cost_drop_alert_service import scan_cost_drops
 from services.earnings_alert_service import scan_earnings_in_window
+from services.earnings_release_service import process_new_earnings_releases_for_ticker
 from services.email_service import APP_URL, send_admin_alert_email, send_digest_email, send_rankings_email
 from services.filing_summary_service import process_new_filings_for_ticker
 from services.market_regime_service import compute_and_persist_daily_regime
@@ -25,6 +26,7 @@ from web.backend.app_settings import (
     COST_DROP_ALERTS_ENABLED_KEY,
     DB_BACKUP_ENABLED_KEY,
     EARNINGS_ALERTS_ENABLED_KEY,
+    EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY,
     FILING_SUMMARIES_ENABLED_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     MARKET_REGIME_ENABLED_KEY,
@@ -110,6 +112,11 @@ MARKET_REGIME_MINUTE_ET = 10
 # run (filings mostly post during the trading day or shortly after).
 FILING_SUMMARIES_HOUR_ET = 20
 FILING_SUMMARIES_MINUTE_ET = 0
+# SUM-2: scheduled after SUM-1 so filing summaries get first claim on the
+# day's shared LLM provider quota (confirmed this matters: a real backfill
+# run this session hit Groq's daily token cap partway through).
+EARNINGS_RELEASE_SUMMARIES_HOUR_ET = 21
+EARNINGS_RELEASE_SUMMARIES_MINUTE_ET = 0
 # After the capture above lands today's rows — mostly picks up older
 # calls that just became due (a call is only evaluable once horizon_days
 # *trading* days have actually elapsed, so this rarely evaluates today's
@@ -615,6 +622,43 @@ async def _compute_filing_summaries_job() -> None:
         logger.info("Scheduler: filing summaries — %d new filing(s) summarized", total_inserted)
 
 
+async def _compute_earnings_release_summaries_job() -> None:
+    """SUM-2: real earnings press-release summaries (SEC EDGAR 8-K Exhibit
+    99.1 -- not a call transcript, see services/earnings_release_service.py's
+    NO_QA_CAVEAT), same owned/watchlisted ticker universe as the filing-
+    summaries job above. Off by default, and scheduled after it (see
+    EARNINGS_RELEASE_SUMMARIES_HOUR_ET/MINUTE_ET) so filing summaries get
+    first claim on the day's shared LLM provider quota."""
+    if not await get_setting_bool(EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY, default=False):
+        logger.info("Scheduler: earnings_release_summaries is disabled, skipping this run")
+        return
+
+    async with service_conn() as conn:
+        owned_rows = await conn.fetch("SELECT DISTINCT ticker FROM portfolio_positions")
+        watchlisted_rows = await conn.fetch(
+            "SELECT DISTINCT ticker FROM watchlist_alerts WHERE active AND source IS DISTINCT FROM 'portfolio_auto'"
+        )
+    tickers = sorted({r["ticker"] for r in owned_rows} | {r["ticker"] for r in watchlisted_rows})
+    if not tickers:
+        return
+
+    llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
+    if not labels:
+        logger.info("Scheduler: earnings_release_summaries has no LLM provider configured, skipping this run")
+        return
+    llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
+
+    total_inserted = 0
+    for ticker in tickers:
+        try:
+            total_inserted += await process_new_earnings_releases_for_ticker(llms, ticker)
+        except Exception as e:
+            logger.warning("Scheduler: earnings_release_summaries failed for %s: %s", ticker, e)
+
+    if total_inserted:
+        logger.info("Scheduler: earnings release summaries — %d new release(s) summarized", total_inserted)
+
+
 async def _evaluate_quant_signal_outcomes_job() -> None:
     """The live counterpart to the Quant Signal capture above: checks
     every already-captured call old enough to have a real exit price on
@@ -971,6 +1015,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="compute_filing_summaries",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _compute_earnings_release_summaries_job,
+        CronTrigger(
+            hour=EARNINGS_RELEASE_SUMMARIES_HOUR_ET, minute=EARNINGS_RELEASE_SUMMARIES_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="compute_earnings_release_summaries",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

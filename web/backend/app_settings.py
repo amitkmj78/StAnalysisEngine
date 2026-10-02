@@ -131,6 +131,11 @@ MARKET_REGIME_ENABLED_KEY = "market_regime_enabled"
 # KEY -- this one hits a real external (SEC EDGAR) API plus LLM cost on a
 # schedule, so deploying the code must not itself start making requests.
 FILING_SUMMARIES_ENABLED_KEY = "filing_summaries_enabled"
+# SUM-2: gates services/earnings_release_service.py's daily scheduler job.
+# Defaults OFF, same rationale as FILING_SUMMARIES_ENABLED_KEY -- also
+# shares that job's same daily LLM provider quota, so enabling both at
+# once increases the risk of either running out of budget on a given day.
+EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY = "earnings_release_summaries_enabled"
 # ALR-1: each of the three new alert-scan jobs gets its own deliberate
 # opt-in flag, same rationale as PORTFOLIO_DROP_ALERTS_ENABLED_KEY --
 # they write user-visible content and send email, so a deploy must not

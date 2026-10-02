@@ -32,6 +32,7 @@ from web.backend.routers import (
     chat,
     db_backup,
     earnings,
+    earnings_releases,
     entry_strategy,
     filings,
     index_fund,
@@ -116,6 +117,7 @@ app.include_router(signals.router)
 app.include_router(stock_scores.router)
 app.include_router(stock_detail.router)
 app.include_router(earnings.router)
+app.include_router(earnings_releases.router)
 app.include_router(filings.router)
 app.include_router(pit_prices.router)
 app.include_router(db_backup.router)

@@ -1564,6 +1564,19 @@ export interface FilingSummariesResponse {
   filings: FilingSummary[];
 }
 
+export interface EarningsReleaseSummary {
+  filing_date: string;
+  report_date: string | null;
+  document_url: string;
+  summary: string;
+  method: string;
+}
+
+export interface EarningsReleaseSummaryResponse {
+  ticker: string;
+  release: EarningsReleaseSummary | null;
+}
+
 // Admin — user approvals
 export interface AdminUser {
   id: string;
@@ -1674,6 +1687,7 @@ export interface AdminSettings {
   stock_finder_cache_prewarm_enabled: boolean;
   market_regime_enabled: boolean;
   filing_summaries_enabled: boolean;
+  earnings_release_summaries_enabled: boolean;
 }
 
 export interface BackupRun {

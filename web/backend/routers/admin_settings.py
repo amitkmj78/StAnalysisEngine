@@ -8,6 +8,7 @@ from web.backend.app_settings import (
     DAILY_QUOTA_DEFAULT,
     DAILY_QUOTA_KEY,
     DB_BACKUP_ENABLED_KEY,
+    EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY,
     FILING_SUMMARIES_ENABLED_KEY,
     FREE_TIER_LAG_DAYS_DEFAULT,
     FREE_TIER_LAG_DAYS_KEY,
@@ -103,6 +104,9 @@ async def get_settings():
         "stock_score_compute_enabled": await get_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, default=True),
         "market_regime_enabled": await get_setting_bool(MARKET_REGIME_ENABLED_KEY, default=False),
         "filing_summaries_enabled": await get_setting_bool(FILING_SUMMARIES_ENABLED_KEY, default=False),
+        "earnings_release_summaries_enabled": await get_setting_bool(
+            EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY, default=False
+        ),
     }
 
 
@@ -149,6 +153,23 @@ async def enable_filing_summaries():
 async def disable_filing_summaries():
     await set_setting_bool(FILING_SUMMARIES_ENABLED_KEY, False)
     return {"filing_summaries_enabled": False}
+
+
+@router.post("/earnings-release-summaries/enable")
+async def enable_earnings_release_summaries():
+    """SUM-2: turns on the daily scheduler job (services/earnings_release_
+    service.py via _compute_earnings_release_summaries_job) -- see
+    EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY's docstring in app_settings.py
+    for why this defaults off and shares the filing-summaries job's LLM
+    quota."""
+    await set_setting_bool(EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY, True)
+    return {"earnings_release_summaries_enabled": True}
+
+
+@router.post("/earnings-release-summaries/disable")
+async def disable_earnings_release_summaries():
+    await set_setting_bool(EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY, False)
+    return {"earnings_release_summaries_enabled": False}
 
 
 @router.post("/publish-signals/enable")

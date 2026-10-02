@@ -102,15 +102,22 @@ def get_cik_for_ticker(ticker: str) -> Optional[str]:
 
 
 @ttl_cache(maxsize=256, ttl_seconds=FILINGS_LIST_TTL_SECONDS)
-def get_recent_filings(cik: str, form_types: tuple = ("10-K", "10-Q")) -> list[dict]:
-    """Real filing history for a company, straight from SEC's own submissions
-    JSON -- [{"form", "accession_number", "filing_date", "report_date",
-    "primary_document"}, ...], filtered to form_types, newest first."""
+def _fetch_submissions_recent(cik: str) -> dict:
+    """The raw `filings.recent` parallel-array dict from SEC's submissions
+    JSON -- shared fetch behind get_recent_filings and get_recent_8k_filings
+    so both filter the same cached response instead of each re-fetching."""
     response = httpx.get(
         f"https://data.sec.gov/submissions/CIK{cik}.json", headers=_headers(), timeout=REQUEST_TIMEOUT_SECONDS
     )
     response.raise_for_status()
-    recent = response.json()["filings"]["recent"]
+    return response.json()["filings"]["recent"]
+
+
+def get_recent_filings(cik: str, form_types: tuple = ("10-K", "10-Q")) -> list[dict]:
+    """Real filing history for a company, straight from SEC's own submissions
+    JSON -- [{"form", "accession_number", "filing_date", "report_date",
+    "primary_document"}, ...], filtered to form_types, newest first."""
+    recent = _fetch_submissions_recent(cik)
 
     filings = []
     for i, form in enumerate(recent["form"]):
@@ -127,6 +134,68 @@ def get_recent_filings(cik: str, form_types: tuple = ("10-K", "10-Q")) -> list[d
         )
     filings.sort(key=lambda f: f["filing_date"], reverse=True)
     return filings
+
+
+# SUM-2: "Results of Operations and Financial Condition" -- verified against
+# real, current Apple and Microsoft 8-K filings that this item code reliably
+# tags an earnings-release 8-K (both had items "2.02,9.01"; 9.01 just means
+# "has an exhibit attached", not specific to earnings).
+EARNINGS_8K_ITEM = "2.02"
+
+
+def get_recent_8k_filings(cik: str) -> list[dict]:
+    """Earnings-announcement 8-Ks only (item 2.02), newest first -- same
+    shape as get_recent_filings. `primary_document` here is the 8-K cover
+    form, NOT the earnings press release itself -- verified against real
+    filings that the release is a separate exhibit document, only
+    discoverable via find_exhibit_991_document below."""
+    recent = _fetch_submissions_recent(cik)
+
+    filings = []
+    for i, form in enumerate(recent["form"]):
+        if form != "8-K":
+            continue
+        items = [x.strip() for x in (recent["items"][i] or "").split(",")]
+        if EARNINGS_8K_ITEM not in items:
+            continue
+        filings.append(
+            {
+                "accession_number": recent["accessionNumber"][i],
+                "filing_date": recent["filingDate"][i],
+                "report_date": recent["reportDate"][i],
+                "primary_document": recent["primaryDocument"][i],
+            }
+        )
+    filings.sort(key=lambda f: f["filing_date"], reverse=True)
+    return filings
+
+
+def find_exhibit_991_document(cik: str, accession_number: str) -> Optional[str]:
+    """The earnings press release's own filename within an 8-K filing --
+    verified against real Apple ("a8-kex991q3202606272026.htm") and
+    Microsoft ("msft-ex99_1.htm") filings that despite very different
+    naming conventions, both are findable by a loose "ex99" substring
+    match in the filing's own document index. Prefers a name containing
+    "1" over "2" when both exist (Exhibit 99.1 is the press release;
+    99.2 is sometimes separate prepared remarks/slides). Returns None if
+    no such document exists in this filing -- some 8-Ks genuinely don't
+    have one in this shape; caller skips, not an error."""
+    accession_no_dashes = accession_number.replace("-", "")
+    cik_no_leading_zeros = str(int(cik))
+    url = f"https://www.sec.gov/Archives/edgar/data/{cik_no_leading_zeros}/{accession_no_dashes}/index.json"
+    try:
+        response = httpx.get(url, headers=_headers(), timeout=REQUEST_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        names = [item["name"] for item in response.json()["directory"]["item"]]
+    except Exception as e:
+        logger.warning("edgar: failed to fetch filing index %s: %s", url, e)
+        return None
+
+    candidates = [name for name in names if re.search(r"ex.?-?99", name, re.IGNORECASE)]
+    if not candidates:
+        return None
+    preferred = [name for name in candidates if "1" in name]
+    return (preferred or candidates)[0]
 
 
 def filing_document_url(cik: str, accession_number: str, primary_document: str) -> str:

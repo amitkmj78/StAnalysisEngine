@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 
 import {
   ApiError,
+  getEarningsReleaseSummary,
   getFilingSummaries,
   getPortfolioPositions,
   getPortfolios,
@@ -20,6 +21,7 @@ import {
   getTwoScoreWeeklyChange,
 } from "@/lib/api";
 import type {
+  EarningsReleaseSummaryResponse,
   FilingSummariesResponse,
   Portfolio,
   PortfolioPosition,
@@ -258,6 +260,8 @@ export default function StockScorePage() {
   // fresh LLM cost at request time, so (unlike sentiment above) this is
   // safe to auto-fetch with the rest of the page.
   const [filingSummaries, setFilingSummaries] = useState<FilingSummariesResponse | null>(null);
+  // SUM-2: same "already computed" reasoning as filingSummaries above.
+  const [earningsRelease, setEarningsRelease] = useState<EarningsReleaseSummaryResponse | null>(null);
 
   // Every portfolio, fetched once -- both the holdings picker and "Your
   // Position" below need the full list, not just GET /portfolio/positions'
@@ -328,10 +332,12 @@ export default function StockScorePage() {
     setSentiment(null);
     setSentimentError(null);
     setFilingSummaries(null);
+    setEarningsRelease(null);
     getStockDetail(ticker).then(setDetail).catch(() => setDetail(null));
     getStockSignalHistory(ticker).then(setSignalHistory).catch(() => setSignalHistory(null));
     getStockPeers(ticker).then(setPeers).catch(() => setPeers(null));
     getFilingSummaries(ticker).then(setFilingSummaries).catch(() => setFilingSummaries(null));
+    getEarningsReleaseSummary(ticker).then(setEarningsRelease).catch(() => setEarningsRelease(null));
   }, [ticker]);
 
   // Checked against every portfolio -- GET /stock/{ticker}/position with
@@ -813,6 +819,31 @@ export default function StockScorePage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {earningsRelease?.release && (
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-900">Earnings Release Summary</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+              8-K press release · filed {earningsRelease.release.filing_date}
+            </p>
+            <a
+              href={earningsRelease.release.document_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium text-indigo-600 hover:underline"
+            >
+              View full press release on SEC.gov
+            </a>
+          </div>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+            {earningsRelease.release.summary}
+          </p>
+          <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {earningsRelease.release.method}
+          </p>
         </div>
       )}
 

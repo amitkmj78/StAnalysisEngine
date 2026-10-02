@@ -1320,6 +1320,27 @@ create table if not exists filing_summaries (
 );
 create index if not exists filing_summaries_ticker_form_idx on filing_summaries(ticker, form_type, filing_date desc);
 
+-- SUM-2: real earnings press-release summaries, straight from SEC EDGAR's
+-- 8-K Exhibit 99.1 (services/earnings_release_service.py) -- the press
+-- release only, NOT a transcript of the earnings call (EDGAR doesn't have
+-- one; see that module's NO_QA_CAVEAT). Unique on (ticker, accession_
+-- number) is permanent-caching idempotency -- a published release never
+-- changes, so once summarized it's summarized for good.
+create table if not exists earnings_release_summaries (
+  id bigint generated always as identity primary key,
+  ticker text not null,
+  cik text not null,
+  accession_number text not null,
+  filing_date date not null,
+  report_date date,
+  document_url text not null,
+  summary text not null,
+  method text not null,
+  created_at timestamptz not null default now(),
+  unique (ticker, accession_number)
+);
+create index if not exists earnings_release_summaries_ticker_date_idx on earnings_release_summaries(ticker, filing_date desc);
+
 -- Plaid brokerage integration: one row per linked institution (a "Link"
 -- connection). access_token_encrypted is Fernet ciphertext (see
 -- web/backend/crypto_utils.py) -- never plaintext at rest, and never
@@ -1549,6 +1570,8 @@ grant select on ticker_sentiment_snapshots to app_user;
 grant select, insert on ticker_sentiment_snapshots to app_service;
 grant select on filing_summaries to app_user;
 grant select, insert on filing_summaries to app_service;
+grant select on earnings_release_summaries to app_user;
+grant select, insert on earnings_release_summaries to app_service;
 -- update needed: scan_portfolios_for_drops refreshes an already-alerted
 -- row in place (see web/backend/portfolio_alerts.py) rather than only
 -- ever inserting new ones.

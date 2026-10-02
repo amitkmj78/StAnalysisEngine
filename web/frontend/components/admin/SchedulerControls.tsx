@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 
 import {
   ApiError,
+  disableEarningsReleaseSummaries,
   disableFilingSummaries,
   disableMarketRegime,
   disableVerifyPredictions,
+  enableEarningsReleaseSummaries,
   enableFilingSummaries,
   enableMarketRegime,
   enableVerifyPredictions,
@@ -63,6 +65,7 @@ export default function SchedulerControls() {
   const [verifyEnabled, setVerifyEnabled] = useState<boolean | null>(null);
   const [regimeEnabled, setRegimeEnabled] = useState<boolean | null>(null);
   const [filingSummariesEnabled, setFilingSummariesEnabled] = useState<boolean | null>(null);
+  const [earningsReleaseSummariesEnabled, setEarningsReleaseSummariesEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -73,6 +76,7 @@ export default function SchedulerControls() {
       setVerifyEnabled(settings.verify_predictions_enabled);
       setRegimeEnabled(settings.market_regime_enabled);
       setFilingSummariesEnabled(settings.filing_summaries_enabled);
+      setEarningsReleaseSummariesEnabled(settings.earnings_release_summaries_enabled);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load scheduler settings.");
     }
@@ -121,6 +125,21 @@ export default function SchedulerControls() {
     }
   }
 
+  async function handleToggleEarningsReleaseSummaries() {
+    setBusyKey("earnings-release-summaries");
+    setError(null);
+    try {
+      const result = earningsReleaseSummariesEnabled
+        ? await disableEarningsReleaseSummaries()
+        : await enableEarningsReleaseSummaries();
+      setEarningsReleaseSummariesEnabled(result.earnings_release_summaries_enabled);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update scheduler setting.");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -147,6 +166,14 @@ export default function SchedulerControls() {
         enabled={filingSummariesEnabled}
         busy={busyKey === "filing-summaries"}
         onToggle={handleToggleFilingSummaries}
+      />
+
+      <JobToggleCard
+        title="Earnings Release Summaries"
+        description="Daily job (weekdays 21:00 ET, after filing summaries) that checks SEC EDGAR for each ticker's new 8-K earnings press release and summarizes it — the press release only, not a transcript of the call (EDGAR doesn't have one, so analyst Q&A is never covered). Shares the same daily LLM provider quota as Filing Summaries, so enabling both increases the odds either one hits its daily limit. Disabling it stops new checks; existing summaries stay visible."
+        enabled={earningsReleaseSummariesEnabled}
+        busy={busyKey === "earnings-release-summaries"}
+        onToggle={handleToggleEarningsReleaseSummaries}
       />
     </div>
   );
