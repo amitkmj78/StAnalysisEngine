@@ -1014,6 +1014,13 @@ export default function PortfolioPage() {
                                       >
                                         Quant vs Analyst
                                       </Link>
+                                      <Link
+                                        href="/guides/signals"
+                                        className="text-[#2f5d50] hover:underline"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        What do signals mean?
+                                      </Link>
                                     </div>
                                   </DetailStat>
                                 </div>

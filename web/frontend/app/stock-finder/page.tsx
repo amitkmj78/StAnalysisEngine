@@ -681,7 +681,10 @@ export default function StockFinderPage() {
         </h1>
         <p className={`mt-1 max-w-2xl text-sm ${PF.muted}`}>
           Rank a stock universe by goal, or score one ticker directly. Filter, customize columns, and save screens
-          to reuse later.
+          to reuse later.{" "}
+          <Link href="/guides/signals" className="text-indigo-600 hover:underline">
+            Learn more about reading signals →
+          </Link>
         </p>
 
         <form onSubmit={runSearch} className={`mt-6 flex flex-wrap items-end gap-3 ${PF.card} p-4`}>

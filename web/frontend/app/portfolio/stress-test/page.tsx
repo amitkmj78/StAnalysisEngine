@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import {
   ApiError,
@@ -207,7 +208,10 @@ export default function StressTestPage() {
         <h1 className="text-2xl font-semibold text-slate-900">Stress Test</h1>
         <p className="mt-1 text-sm text-slate-500">
           Estimated impact of market shocks on your real holdings — every result is an estimate, and shows exactly
-          how it was computed directly underneath it, never just a number.
+          how it was computed directly underneath it, never just a number.{" "}
+          <Link href="/guides/risk" className="text-indigo-600 hover:underline">
+            Learn more about risk →
+          </Link>
         </p>
       </div>
 

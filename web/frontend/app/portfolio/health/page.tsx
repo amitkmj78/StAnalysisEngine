@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import {
   ApiError,
@@ -26,7 +27,7 @@ function SkeletonBlock({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />;
 }
 
-function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Card({ title, subtitle, children }: { title: string; subtitle?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5">
       <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
@@ -131,7 +132,17 @@ export default function PortfolioHealthPage() {
       </div>
 
       <div className="mt-6 flex flex-col gap-6">
-        <Card title="Concentration & Sector Weights" subtitle="Largest positions, and your sector mix vs. the S&P 500.">
+        <Card
+          title="Concentration & Sector Weights"
+          subtitle={
+            <>
+              Largest positions, and your sector mix vs. the S&P 500.{" "}
+              <Link href="/guides/diversification" className="text-indigo-600 hover:underline">
+                Learn more →
+              </Link>
+            </>
+          }
+        >
           {concentrationLoading && (
             <div className="flex flex-col gap-2">
               <SkeletonBlock className="h-20" />
@@ -223,7 +234,17 @@ export default function PortfolioHealthPage() {
           )}
         </Card>
 
-        <Card title="Risk" subtitle="Volatility, beta, correlation to the S&P 500, and max drawdown, using daily data.">
+        <Card
+          title="Risk"
+          subtitle={
+            <>
+              Volatility, beta, correlation to the S&P 500, and max drawdown, using daily data.{" "}
+              <Link href="/guides/risk" className="text-indigo-600 hover:underline">
+                Learn more →
+              </Link>
+            </>
+          }
+        >
           {riskLoading && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <SkeletonBlock className="h-32" />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import EntryChart from "@/components/entry/EntryChart";
 import MetricLabel from "@/components/MetricLabel";
@@ -162,7 +163,10 @@ export default function EntryPage() {
     <div className="mx-auto max-w-5xl px-4 py-8">
       <h1 className="text-2xl font-semibold text-slate-900">Entry Signals</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Scan for the strongest current entry setups, or check one ticker for a buy-zone view.
+        Scan for the strongest current entry setups, or check one ticker for a buy-zone view.{" "}
+        <Link href="/guides/signals" className="text-indigo-600 hover:underline">
+          Learn more about reading signals →
+        </Link>
       </p>
 
       <form onSubmit={runSearch} className="mt-6 flex flex-wrap items-end gap-3">

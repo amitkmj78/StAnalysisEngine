@@ -50,6 +50,7 @@ const NAV: NavEntry[] = [
       { href: "/alerts/settings", label: "Settings" },
     ],
   },
+  { label: "Guides", href: "/guides" },
   { label: "Assistant", href: "/chat" },
 ];
 
@@ -139,6 +140,7 @@ export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin:
   // prefix so the nav still highlights while browsing any other ticker.
   function matchesNavItem(href: string): boolean {
     if (href.startsWith("/stock/")) return pathname.startsWith("/stock/");
+    if (href === "/guides") return pathname.startsWith("/guides");
     return pathname === href;
   }
 
