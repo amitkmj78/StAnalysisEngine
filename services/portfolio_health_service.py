@@ -64,8 +64,17 @@ def _fetch_close_for_period(ticker: str, period: str) -> pd.Series:
     return hist["Close"] if not hist.empty else pd.Series(dtype=float)
 
 
-def compute_portfolio_risk_metrics(positions: list[dict], period: str) -> dict:
-    """positions: [{"ticker", "market_value"}]. Adapts stock_finder_
+def compute_portfolio_beta(positions: list[dict], benchmark_ticker: str, period: str) -> dict:
+    """Generic form of compute_portfolio_risk_metrics below, parameterized
+    on benchmark_ticker instead of hardcoded SPY -- same blended-return +
+    np.cov/np.corrcoef technique, byte-for-byte. compute_portfolio_risk_
+    metrics (HLT-2, already shipped) is now a thin SPY-specific wrapper
+    over this; STR-1/STR-2 (services/stress_test_service.py) call this
+    directly with TLT/USO/XLK/SPY/sector-ETF benchmarks. Returns
+    generically-named keys (beta, correlation, excluded_from_benchmark)
+    since this is no longer SPY-only.
+
+    positions: [{"ticker", "market_value"}]. Adapts stock_finder_
     service.compute_basket_risk_preview's covariance pattern (weighted-
     blend per-holding daily returns, np.cov for beta) -- adapted rather
     than called directly because that function expects a basket
@@ -79,41 +88,34 @@ def compute_portfolio_risk_metrics(positions: list[dict], period: str) -> dict:
     a holding with shorter history can shrink the effective window below
     the nominal "1y"/"3y" ask, and HLT-2 requires stating the period
     actually used, not the period requested."""
+    empty_result = {
+        "period": period, "data_start": None, "data_end": None,
+        "volatility_pct": None, "beta": None, "correlation": None,
+        "max_drawdown_pct": None, "excluded_from_benchmark": [],
+    }
     if not positions:
-        return {
-            "period": period, "data_start": None, "data_end": None,
-            "volatility_pct": None, "beta_to_spy": None, "correlation_to_spy": None,
-            "max_drawdown_pct": None, "excluded_from_risk": [],
-        }
+        return empty_result
 
     tickers = [p["ticker"] for p in positions]
     with ThreadPoolExecutor(max_workers=MAX_PARALLEL_HEALTH_FETCHES) as executor:
         closes_list = list(executor.map(lambda t: _fetch_close_for_period(t, period), tickers))
     closes = {t: s for t, s in zip(tickers, closes_list) if not s.empty}
-    spy_close = _fetch_close_for_period(BENCHMARK_TICKER, period)
+    bench_close = _fetch_close_for_period(benchmark_ticker, period)
 
-    excluded_from_risk = [t for t in tickers if t not in closes]
-    if not closes or spy_close.empty:
-        return {
-            "period": period, "data_start": None, "data_end": None,
-            "volatility_pct": None, "beta_to_spy": None, "correlation_to_spy": None,
-            "max_drawdown_pct": None, "excluded_from_risk": excluded_from_risk,
-        }
+    excluded_from_benchmark = [t for t in tickers if t not in closes]
+    if not closes or bench_close.empty:
+        return {**empty_result, "excluded_from_benchmark": excluded_from_benchmark}
 
-    price_df = pd.DataFrame({**closes, "__SPY__": spy_close}).dropna(how="any")
+    price_df = pd.DataFrame({**closes, "__BENCH__": bench_close}).dropna(how="any")
     kept_tickers = [t for t in closes if t in price_df.columns]
-    excluded_from_risk += [t for t in tickers if t not in kept_tickers and t not in excluded_from_risk]
+    excluded_from_benchmark += [t for t in tickers if t not in kept_tickers and t not in excluded_from_benchmark]
 
     if price_df.empty or len(kept_tickers) == 0:
-        return {
-            "period": period, "data_start": None, "data_end": None,
-            "volatility_pct": None, "beta_to_spy": None, "correlation_to_spy": None,
-            "max_drawdown_pct": None, "excluded_from_risk": excluded_from_risk,
-        }
+        return {**empty_result, "excluded_from_benchmark": excluded_from_benchmark}
 
     returns_df = price_df[kept_tickers].pct_change().dropna()
-    spy_returns = price_df["__SPY__"].pct_change().dropna()
-    returns_df, spy_returns = returns_df.align(spy_returns, join="inner", axis=0)
+    bench_returns = price_df["__BENCH__"].pct_change().dropna()
+    returns_df, bench_returns = returns_df.align(bench_returns, join="inner", axis=0)
 
     value_by_ticker = {p["ticker"]: p["market_value"] for p in positions}
     weights = pd.Series({t: value_by_ticker.get(t, 0.0) for t in kept_tickers})
@@ -122,21 +124,17 @@ def compute_portfolio_risk_metrics(positions: list[dict], period: str) -> dict:
     blended = (returns_df[kept_tickers] * weights).sum(axis=1)
 
     if blended.empty:
-        return {
-            "period": period, "data_start": None, "data_end": None,
-            "volatility_pct": None, "beta_to_spy": None, "correlation_to_spy": None,
-            "max_drawdown_pct": None, "excluded_from_risk": excluded_from_risk,
-        }
+        return {**empty_result, "excluded_from_benchmark": excluded_from_benchmark}
 
     volatility_pct = float(blended.std() * np.sqrt(252) * 100)
-    spy_aligned = spy_returns.loc[blended.index]
-    if blended.var() and spy_aligned.var():
-        cov = np.cov(blended, spy_aligned, ddof=1)
-        beta_to_spy = float(cov[0, 1] / cov[1, 1])
-        correlation_to_spy = float(np.corrcoef(blended, spy_aligned)[0, 1])
+    bench_aligned = bench_returns.loc[blended.index]
+    if blended.var() and bench_aligned.var():
+        cov = np.cov(blended, bench_aligned, ddof=1)
+        beta = float(cov[0, 1] / cov[1, 1])
+        correlation = float(np.corrcoef(blended, bench_aligned)[0, 1])
     else:
-        beta_to_spy = None
-        correlation_to_spy = None
+        beta = None
+        correlation = None
     drawdown = max_drawdown_pct((blended * 100).tolist())
 
     return {
@@ -144,10 +142,24 @@ def compute_portfolio_risk_metrics(positions: list[dict], period: str) -> dict:
         "data_start": blended.index[0].date().isoformat(),
         "data_end": blended.index[-1].date().isoformat(),
         "volatility_pct": round(volatility_pct, 2) if volatility_pct is not None else None,
-        "beta_to_spy": round(beta_to_spy, 3) if beta_to_spy is not None else None,
-        "correlation_to_spy": round(correlation_to_spy, 3) if correlation_to_spy is not None else None,
+        "beta": round(beta, 3) if beta is not None else None,
+        "correlation": round(correlation, 3) if correlation is not None else None,
         "max_drawdown_pct": drawdown,
-        "excluded_from_risk": excluded_from_risk,
+        "excluded_from_benchmark": excluded_from_benchmark,
+    }
+
+
+def compute_portfolio_risk_metrics(positions: list[dict], period: str) -> dict:
+    """Unchanged output contract (HLT-2's already-shipped frontend/tests
+    depend on these exact keys) -- now a thin SPY-specific wrapper over
+    compute_portfolio_beta."""
+    r = compute_portfolio_beta(positions, BENCHMARK_TICKER, period)
+    return {
+        "period": r["period"], "data_start": r["data_start"], "data_end": r["data_end"],
+        "volatility_pct": r["volatility_pct"],
+        "beta_to_spy": r["beta"], "correlation_to_spy": r["correlation"],
+        "max_drawdown_pct": r["max_drawdown_pct"],
+        "excluded_from_risk": r["excluded_from_benchmark"],
     }
 
 

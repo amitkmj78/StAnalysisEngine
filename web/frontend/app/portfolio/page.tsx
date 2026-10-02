@@ -654,6 +654,7 @@ export default function PortfolioPage() {
               { label: "Build Diversified Basket", href: "/portfolio/build-index" },
               { label: "Compare vs. Best Fund", href: "/portfolio/compare" },
               { label: "Portfolio Health Check", href: "/portfolio/health" },
+              { label: "Stress Test", href: "/portfolio/stress-test" },
               { label: "Paper Trading", href: "/portfolio/paper-trading" },
             ]}
           />

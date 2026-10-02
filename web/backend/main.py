@@ -49,6 +49,7 @@ from web.backend.routers import (
     stock_finder,
     stock_scores,
     strategies,
+    stress_test,
     subscriptions,
     trade_journal,
     watchlist,
@@ -97,6 +98,7 @@ app.include_router(monthly_plan.router)
 app.include_router(strategies.router)
 app.include_router(trade_journal.router)
 app.include_router(portfolio.router)
+app.include_router(stress_test.router)
 app.include_router(plaid_integration.router)
 app.include_router(paper_trading.router)
 app.include_router(chat.router)

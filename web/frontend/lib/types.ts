@@ -1018,6 +1018,114 @@ export interface PortfolioHealthRiskResponse {
   windows: { "1Y": PortfolioRiskWindow; "3Y": PortfolioRiskWindow };
 }
 
+// STR-1/2/3 — Scenario and Stress Tests. Every result carries its own
+// `method` string (STR-3): rendered directly under the result, same
+// amber-box convention as TOP10_DISCLOSURE/WASH_SALE_DISCLOSURE.
+export interface StressTestPreset {
+  preset_key: string;
+  label: string;
+  benchmark_ticker: string;
+  shock_pct: number;
+  method: string;
+}
+
+export interface StressTestReplay {
+  replay_key: string;
+  label: string;
+  window_start: string;
+  window_end: string;
+  method: string;
+}
+
+export interface StressTestPresetsResponse {
+  presets: StressTestPreset[];
+  replays: StressTestReplay[];
+}
+
+export interface StressTestPresetResult {
+  kind: "preset";
+  preset_key: string;
+  label: string;
+  method: string;
+  benchmark_ticker: string;
+  shock_pct: number;
+  beta: number | null;
+  period: string;
+  data_start: string | null;
+  data_end: string | null;
+  total_market_value: number;
+  estimated_pct_impact: number | null;
+  estimated_dollar_impact: number | null;
+  excluded_from_beta: string[];
+}
+
+export interface StressTestReplayHolding {
+  ticker: string;
+  market_value: number;
+  estimated_pct_impact: number | null;
+  estimated_dollar_impact: number | null;
+  method_used: "actual" | "excluded_no_history_for_window";
+}
+
+export interface StressTestReplayResult {
+  kind: "replay";
+  replay_key: string;
+  label: string;
+  method: string;
+  window_start: string;
+  window_end: string;
+  total_market_value: number;
+  estimated_pct_impact: number | null;
+  estimated_dollar_impact: number | null;
+  excluded_holdings: string[];
+  holdings: StressTestReplayHolding[];
+}
+
+export interface StressTestRunResponse {
+  as_of: string;
+  result: StressTestPresetResult | StressTestReplayResult;
+}
+
+export type ScenarioComponentKind = "sector" | "factor";
+
+export interface ScenarioComponent {
+  kind: ScenarioComponentKind;
+  label: string;
+  sector?: string | null;
+  benchmark_ticker?: string | null;
+  shock_pct: number;
+}
+
+export interface CustomScenarioComponentResult {
+  label: string;
+  kind: ScenarioComponentKind;
+  method: string;
+  estimated_dollar_impact: number | null;
+  estimated_pct_impact: number | null;
+}
+
+export interface CustomScenarioResult {
+  kind: "custom";
+  components: CustomScenarioComponentResult[];
+  total_market_value: number;
+  total_estimated_dollar_impact: number | null;
+  total_estimated_pct_impact: number | null;
+  method: string;
+}
+
+export interface CustomScenarioRunResponse {
+  as_of: string;
+  result: CustomScenarioResult;
+}
+
+export interface SavedStressScenario {
+  id: number;
+  user_id: string;
+  name: string;
+  shock_config: ScenarioComponent[];
+  saved_at: string;
+}
+
 export interface CombinedExposureRow {
   ticker: string;
   direct_value: number;

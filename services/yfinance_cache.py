@@ -68,6 +68,34 @@ def get_cached_history(
     return fetch_with_backoff(_fetch).dropna()
 
 
+# STR-1's historical-replay stress tests need a FIXED date range (e.g.
+# 2008-09-01..2009-03-09), not a trailing period string -- a closed
+# historical window never changes, so a much longer TTL than
+# CACHE_TTL_SECONDS is safe and avoids re-fetching the same range on
+# every stress-test run. Finite (not infinite) to keep this module's one
+# caching mechanism (@ttl_cache everywhere) rather than introducing a
+# second cache type for one feature.
+RANGE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 180  # ~6 months
+
+
+@ttl_cache(maxsize=256, ttl_seconds=RANGE_CACHE_TTL_SECONDS)
+def get_cached_history_range(ticker: str, start: str, end: str, auto_adjust: bool = True) -> pd.DataFrame:
+    """Shared yf.Ticker(ticker).history(start=start, end=end, ...) -- new
+    plumbing for STR-1's historical-replay stress tests. Nothing else in
+    this module supports a date-range fetch (get_cached_history above
+    only accepts a trailing period string); the only prior start=/end=
+    usage anywhere in this repo is services/trade_storage.py's uncached
+    legacy sqlite path. start/end are ISO date strings ("2008-09-01").
+    Does NOT fail open (same as get_cached_history above) -- callers wrap
+    this in their own per-ticker try/except in a bounded fan-out, same
+    convention as portfolio_health_service.py::_fetch_close_for_period."""
+
+    def _fetch():
+        return yf.Ticker(ticker).history(start=start, end=end, auto_adjust=auto_adjust)
+
+    return fetch_with_backoff(_fetch).dropna()
+
+
 @ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
 def get_cached_earnings_dates(ticker: str) -> pd.DataFrame:
     """Shared yf.Ticker(ticker).get_earnings_dates() -- genuinely new

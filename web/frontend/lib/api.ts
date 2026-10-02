@@ -99,6 +99,8 @@ import type {
   SavedScreen,
   SavedScreenAlert,
   SavedStrategyPlan,
+  SavedStressScenario,
+  ScenarioComponent,
   SignalOutcomesResponse,
   TrackRecordResponse,
   SolveMode,
@@ -112,6 +114,9 @@ import type {
   StockSentimentResponse,
   StockSignalHistoryResponse,
   StrategiesSummaryResponse,
+  StressTestPresetsResponse,
+  StressTestRunResponse,
+  CustomScenarioRunResponse,
   TickerSearchResult,
   TopPerformersResponse,
   Trade,
@@ -936,6 +941,40 @@ export function getPortfolioHealthTaxLossHarvesting(portfolioId?: number) {
     "/api/v1/portfolio/health/tax-loss-harvesting",
     portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined,
   );
+}
+
+export function getStressTestPresets() {
+  return apiFetch<StressTestPresetsResponse>("/api/v1/portfolio/stress-test/presets");
+}
+
+export function runStressTest(kind: "preset" | "replay", key: string, portfolioId?: number) {
+  return apiFetch<StressTestRunResponse>("/api/v1/portfolio/stress-test/run", {
+    kind,
+    key,
+    ...(portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : {}),
+  });
+}
+
+export function runCustomScenario(components: ScenarioComponent[], portfolioId?: number) {
+  return apiSend<CustomScenarioRunResponse>("/api/v1/portfolio/stress-test/custom", "POST", {
+    components,
+    portfolio_id: portfolioId,
+  });
+}
+
+export function saveStressScenario(name: string, shockConfig: ScenarioComponent[]) {
+  return apiSend<{ scenario: SavedStressScenario }>("/api/v1/portfolio/stress-test/scenarios", "POST", {
+    name,
+    shock_config: shockConfig,
+  });
+}
+
+export function listStressScenarios() {
+  return apiFetch<{ scenarios: SavedStressScenario[] }>("/api/v1/portfolio/stress-test/scenarios");
+}
+
+export function deleteStressScenario(scenarioId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/portfolio/stress-test/scenarios/${scenarioId}`, "DELETE");
 }
 
 export function setPortfolioAccountType(portfolioId: number, accountType: string) {

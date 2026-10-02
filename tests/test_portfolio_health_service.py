@@ -17,6 +17,7 @@ from services.portfolio_health_service import (
     compute_fee_drag,
     compute_fund_coverage_pct,
     compute_look_through_exposure,
+    compute_portfolio_beta,
     compute_portfolio_dividend_income,
     compute_portfolio_risk_metrics,
     compute_portfolio_sector_weights,
@@ -64,6 +65,39 @@ def test_compute_portfolio_risk_metrics_beta_and_correlation_match_construction(
     assert result["period"] == "1y"
     assert result["data_start"] is not None
     assert result["data_end"] is not None
+
+
+def test_compute_portfolio_beta_generic_benchmark_matches_spy_wrapper(monkeypatch):
+    # Regression guard for the compute_portfolio_risk_metrics extraction
+    # (STR-1): calling the new generic function directly with "SPY" as
+    # the benchmark must agree exactly with the now-thin SPY-specific
+    # wrapper it's built from -- same math, just renamed/remapped keys.
+    spy_moves = [0.01, -0.02, 0.015, -0.005, 0.02, -0.01, 0.008, -0.012, 0.005, 0.01] * 5
+    spy_prices = [100.0]
+    for m in spy_moves:
+        spy_prices.append(spy_prices[-1] * (1 + m))
+    stock_prices = [50.0]
+    for m in spy_moves:
+        stock_prices.append(stock_prices[-1] * (1 + 1.5 * m))
+
+    def fake_history(ticker, period, auto_adjust=True):
+        if ticker == "SPY":
+            return pd.DataFrame({"Close": _prices(spy_prices)})
+        return pd.DataFrame({"Close": _prices(stock_prices)})
+
+    monkeypatch.setattr(phs, "get_cached_history", fake_history)
+
+    positions = [{"ticker": "LEVERED", "market_value": 10_000.0}]
+    beta_result = compute_portfolio_beta(positions, "SPY", period="1y")
+    risk_result = compute_portfolio_risk_metrics(positions, period="1y")
+
+    assert beta_result["beta"] == risk_result["beta_to_spy"]
+    assert beta_result["correlation"] == risk_result["correlation_to_spy"]
+    assert beta_result["excluded_from_benchmark"] == risk_result["excluded_from_risk"]
+    assert beta_result["data_start"] == risk_result["data_start"]
+    assert beta_result["data_end"] == risk_result["data_end"]
+    assert beta_result["volatility_pct"] == risk_result["volatility_pct"]
+    assert beta_result["max_drawdown_pct"] == risk_result["max_drawdown_pct"]
 
 
 def test_compute_portfolio_risk_metrics_identical_to_spy_gives_beta_and_correlation_one(monkeypatch):

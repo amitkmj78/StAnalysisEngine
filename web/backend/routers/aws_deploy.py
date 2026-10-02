@@ -801,6 +801,26 @@ create policy saved_screens_isolation on saved_screens for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- STR-2: custom stress-test scenarios the user builds and reruns. Mirrors
+-- saved_screens' shape/RLS exactly -- rerun is entirely client-side (load
+-- shock_config into the builder form, call the same compute endpoint a
+-- brand-new scenario would use), same precedent as stock-finder's saved
+-- screens. Named saved_stress_scenarios, not saved_scenarios -- this app
+-- already uses "scenario" for goal-plan-solver modes elsewhere.
+create table if not exists saved_stress_scenarios (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  name text not null,
+  shock_config jsonb not null default '[]'::jsonb,
+  saved_at timestamptz not null default now()
+);
+create index if not exists saved_stress_scenarios_user_idx on saved_stress_scenarios(user_id, saved_at desc);
+alter table saved_stress_scenarios enable row level security;
+drop policy if exists saved_stress_scenarios_isolation on saved_stress_scenarios;
+create policy saved_stress_scenarios_isolation on saved_stress_scenarios for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 -- SCN-3: one row per saved screen per day it's checked, written by the
 -- nightly scan (see services/saved_screen_alert_service.py). `membership`
 -- is the full set of tickers matching that screen as of check_date --
@@ -1433,7 +1453,7 @@ $$;
 
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
-grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens, saved_portfolio_goals, portfolio_insights_snapshots, saved_monthly_plans to app_user;
+grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens, saved_portfolio_goals, portfolio_insights_snapshots, saved_monthly_plans, saved_stress_scenarios to app_user;
 grant select, update on portfolio_drop_alerts to app_user;
 grant select, update on basket_rebalance_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
