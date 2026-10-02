@@ -9,6 +9,7 @@ from web.backend.app_settings import (
     DAILY_QUOTA_KEY,
     DB_BACKUP_ENABLED_KEY,
     EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY,
+    EVENING_RECAP_ENABLED_KEY,
     FILING_SUMMARIES_ENABLED_KEY,
     FREE_TIER_LAG_DAYS_DEFAULT,
     FREE_TIER_LAG_DAYS_KEY,
@@ -107,6 +108,7 @@ async def get_settings():
         "earnings_release_summaries_enabled": await get_setting_bool(
             EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY, default=False
         ),
+        "evening_recap_enabled": await get_setting_bool(EVENING_RECAP_ENABLED_KEY, default=False),
     }
 
 
@@ -170,6 +172,23 @@ async def enable_earnings_release_summaries():
 async def disable_earnings_release_summaries():
     await set_setting_bool(EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY, False)
     return {"earnings_release_summaries_enabled": False}
+
+
+@router.post("/evening-recap/enable")
+async def enable_evening_recap():
+    """BRF-2: turns on the daily (weekdays 16:30 ET) per-user evening
+    recap job (services/daily_brief_service.py via _send_evening_recaps_
+    job) -- see EVENING_RECAP_ENABLED_KEY's docstring in app_settings.py
+    for why this defaults off and needs a deliberate admin opt-in (emails
+    every user with a position)."""
+    await set_setting_bool(EVENING_RECAP_ENABLED_KEY, True)
+    return {"evening_recap_enabled": True}
+
+
+@router.post("/evening-recap/disable")
+async def disable_evening_recap():
+    await set_setting_bool(EVENING_RECAP_ENABLED_KEY, False)
+    return {"evening_recap_enabled": False}
 
 
 @router.post("/publish-signals/enable")

@@ -1688,6 +1688,7 @@ export interface AdminSettings {
   market_regime_enabled: boolean;
   filing_summaries_enabled: boolean;
   earnings_release_summaries_enabled: boolean;
+  evening_recap_enabled: boolean;
 }
 
 export interface BackupRun {

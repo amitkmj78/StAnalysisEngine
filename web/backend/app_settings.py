@@ -136,6 +136,13 @@ FILING_SUMMARIES_ENABLED_KEY = "filing_summaries_enabled"
 # shares that job's same daily LLM provider quota, so enabling both at
 # once increases the risk of either running out of budget on a given day.
 EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY = "earnings_release_summaries_enabled"
+# BRF-2: gates services/daily_brief_service.py's build_evening_recap via
+# the scheduler's daily per-user job. Defaults OFF, same deliberate-opt-
+# in rationale as every other scheduled job -- this emails every user
+# with at least one position on a schedule the moment it's deployed
+# otherwise. Pure arithmetic (no LLM cost), unlike MORNING_BRIEF_ENABLED_
+# KEY below.
+EVENING_RECAP_ENABLED_KEY = "evening_recap_enabled"
 # ALR-1: each of the three new alert-scan jobs gets its own deliberate
 # opt-in flag, same rationale as PORTFOLIO_DROP_ALERTS_ENABLED_KEY --
 # they write user-visible content and send email, so a deploy must not

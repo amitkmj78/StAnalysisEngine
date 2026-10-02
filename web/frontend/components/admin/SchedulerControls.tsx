@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import {
   ApiError,
   disableEarningsReleaseSummaries,
+  disableEveningRecap,
   disableFilingSummaries,
   disableMarketRegime,
   disableVerifyPredictions,
   enableEarningsReleaseSummaries,
+  enableEveningRecap,
   enableFilingSummaries,
   enableMarketRegime,
   enableVerifyPredictions,
@@ -66,6 +68,7 @@ export default function SchedulerControls() {
   const [regimeEnabled, setRegimeEnabled] = useState<boolean | null>(null);
   const [filingSummariesEnabled, setFilingSummariesEnabled] = useState<boolean | null>(null);
   const [earningsReleaseSummariesEnabled, setEarningsReleaseSummariesEnabled] = useState<boolean | null>(null);
+  const [eveningRecapEnabled, setEveningRecapEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -77,6 +80,7 @@ export default function SchedulerControls() {
       setRegimeEnabled(settings.market_regime_enabled);
       setFilingSummariesEnabled(settings.filing_summaries_enabled);
       setEarningsReleaseSummariesEnabled(settings.earnings_release_summaries_enabled);
+      setEveningRecapEnabled(settings.evening_recap_enabled);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load scheduler settings.");
     }
@@ -140,6 +144,19 @@ export default function SchedulerControls() {
     }
   }
 
+  async function handleToggleEveningRecap() {
+    setBusyKey("evening-recap");
+    setError(null);
+    try {
+      const result = eveningRecapEnabled ? await disableEveningRecap() : await enableEveningRecap();
+      setEveningRecapEnabled(result.evening_recap_enabled);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update scheduler setting.");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -174,6 +191,14 @@ export default function SchedulerControls() {
         enabled={earningsReleaseSummariesEnabled}
         busy={busyKey === "earnings-release-summaries"}
         onToggle={handleToggleEarningsReleaseSummaries}
+      />
+
+      <JobToggleCard
+        title="Evening Recap"
+        description="Daily job (weekdays 16:30 ET) that emails every user with at least one position a same-day recap: portfolio vs. SPY today, plus the day's top contributors/detractors by holding. Pure arithmetic, no LLM cost. Delivery honors each user's quiet hours and digest preference like any other alert. Disabling it stops future recaps."
+        enabled={eveningRecapEnabled}
+        busy={busyKey === "evening-recap"}
+        onToggle={handleToggleEveningRecap}
       />
     </div>
   );

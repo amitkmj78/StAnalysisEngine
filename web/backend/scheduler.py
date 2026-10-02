@@ -8,12 +8,13 @@ from starlette.concurrency import run_in_threadpool
 from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.cost_drop_alert_service import scan_cost_drops
+from services.daily_brief_service import build_evening_recap
 from services.earnings_alert_service import scan_earnings_in_window
 from services.earnings_release_service import process_new_earnings_releases_for_ticker
 from services.email_service import APP_URL, send_admin_alert_email, send_digest_email, send_rankings_email
 from services.filing_summary_service import process_new_filings_for_ticker
 from services.market_regime_service import compute_and_persist_daily_regime
-from services.notification_dispatcher import EASTERN, is_within_quiet_hours
+from services.notification_dispatcher import EASTERN, dispatch_alert, is_within_quiet_hours
 from services.prediction_verification_service import verify_prediction
 from services.signal_change_alert_service import scan_signal_changes
 from services.saved_screen_alert_service import scan_saved_screens_for_membership_changes
@@ -27,6 +28,7 @@ from web.backend.app_settings import (
     DB_BACKUP_ENABLED_KEY,
     EARNINGS_ALERTS_ENABLED_KEY,
     EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY,
+    EVENING_RECAP_ENABLED_KEY,
     FILING_SUMMARIES_ENABLED_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     MARKET_REGIME_ENABLED_KEY,
@@ -659,6 +661,64 @@ async def _compute_earnings_release_summaries_job() -> None:
         logger.info("Scheduler: earnings release summaries — %d new release(s) summarized", total_inserted)
 
 
+# After the regular session's 16:00 ET close, with a few minutes for the
+# close itself and get_previous_close/get_effective_price to settle.
+EVENING_RECAP_HOUR_ET = 16
+EVENING_RECAP_MINUTE_ET = 30
+
+
+async def _send_evening_recaps_job() -> None:
+    """BRF-2: today's portfolio move vs. SPY plus contribution by
+    holding, emailed to every user with at least one position in an
+    active portfolio. Off by default — see EVENING_RECAP_ENABLED_KEY's
+    docstring in app_settings.py. Pure arithmetic (compute_portfolio_
+    performance), no LLM cost. Routed through notification_dispatcher.
+    dispatch_alert (ticker=None, alert_type="evening_recap") rather than
+    emailing directly, so quiet hours/digest/channel preference apply
+    the same as any other alert."""
+    if not await get_setting_bool(EVENING_RECAP_ENABLED_KEY, default=False):
+        logger.info("Scheduler: evening_recap is disabled, skipping this run")
+        return
+
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT pp.user_id, pp.ticker, pp.shares, pp.avg_cost, pp.acquired_at
+            FROM portfolio_positions pp
+            JOIN portfolios p ON p.id = pp.portfolio_id
+            WHERE p.is_active AND pp.ticker IS NOT NULL AND pp.shares > 0
+            """
+        )
+    if not rows:
+        return
+
+    positions_by_user: dict = {}
+    for row in rows:
+        positions_by_user.setdefault(row["user_id"], []).append(
+            {
+                "ticker": row["ticker"],
+                "shares": row["shares"],
+                "avg_cost": row["avg_cost"],
+                "acquired_at": row["acquired_at"],
+            }
+        )
+
+    dispatched = 0
+    for user_id, positions in positions_by_user.items():
+        try:
+            recap = await run_in_threadpool(build_evening_recap, positions)
+        except Exception as e:
+            logger.warning("Scheduler: evening_recap failed for user %s: %s", user_id, e)
+            continue
+        if recap is None:
+            continue
+        await dispatch_alert(str(user_id), None, "evening_recap", recap["subject"], recap["text_body"])
+        dispatched += 1
+
+    if dispatched:
+        logger.info("Scheduler: evening recap — %d email(s) dispatched", dispatched)
+
+
 async def _evaluate_quant_signal_outcomes_job() -> None:
     """The live counterpart to the Quant Signal capture above: checks
     every already-captured call old enough to have a real exit price on
@@ -1026,6 +1086,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="compute_earnings_release_summaries",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _send_evening_recaps_job,
+        CronTrigger(
+            hour=EVENING_RECAP_HOUR_ET, minute=EVENING_RECAP_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="send_evening_recaps",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

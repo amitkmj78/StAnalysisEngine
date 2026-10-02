@@ -1298,6 +1298,14 @@ export function disableEarningsReleaseSummaries() {
   );
 }
 
+export function enableEveningRecap() {
+  return apiSend<{ evening_recap_enabled: boolean }>("/api/v1/admin/settings/evening-recap/enable", "POST");
+}
+
+export function disableEveningRecap() {
+  return apiSend<{ evening_recap_enabled: boolean }>("/api/v1/admin/settings/evening-recap/disable", "POST");
+}
+
 export function getEarningsReleaseSummary(ticker: string) {
   return apiFetch<EarningsReleaseSummaryResponse>(`/api/v1/earnings-releases/${encodeURIComponent(ticker)}`);
 }
