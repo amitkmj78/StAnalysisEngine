@@ -41,6 +41,7 @@ import RebalanceAlertsPanel from "@/components/portfolio/RebalanceAlertsPanel";
 import MarketNewsTicker from "@/components/MarketNewsTicker";
 import PortfolioReviewCard from "@/components/portfolio/PortfolioReviewCard";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import MetricLabel from "@/components/MetricLabel";
 
 // Scoped to this page only -- the rest of the site keeps its existing
 // Geist font (see app/layout.tsx) and slate palette. "Ledger" direction
@@ -74,94 +75,6 @@ function goodBad(v: number | null | undefined): string {
   if (v === null || v === undefined) return PF.muted;
   return v >= 0 ? PF.good : PF.bad;
 }
-
-const PERFORMANCE_COLUMN_INFO: Record<string, ColumnInfo> = {
-  Ticker: {
-    title: "Ticker",
-    body: [
-      "The position's stock/fund symbol. A percentage badge next to it means this position is concentrated — it makes up a large enough share of your portfolio's total value that it's driving most of the swings.",
-    ],
-  },
-  Signal: {
-    title: "Signal",
-    body: [
-      "BUY, SELL, or HOLD for this ticker, from the same composite ranking used on the Stock Screener — a relative read against other tickers in its universe, not a standalone prediction.",
-      "Blank means the signal hasn't loaded yet or isn't available for this ticker.",
-    ],
-  },
-  "Momentum Rank": {
-    title: "Momentum Rank",
-    body: [
-      "Where this ticker ranks by trailing return within its universe (e.g. \"#3 of 24\") — lower is stronger recent momentum relative to its peers.",
-      "Not shown for tickers outside the app's covered universes.",
-    ],
-  },
-  "Next-Day Forecast": {
-    title: "Next-Day Forecast",
-    body: [
-      "The Predict-page model's projected price 1 trading day out, and the implied percent change from today's price — the same underlying forecast as Signal, read at its earliest point rather than a second prediction.",
-      "A standalone, per-ticker statistical projection — not a guarantee, and not the same thing as Momentum Rank's relative comparison against other tickers.",
-    ],
-  },
-  "5-Day Forecast": {
-    title: "5-Day Forecast",
-    body: [
-      "The Predict-page model's projected price 5 trading days out, and the implied percent change from today's price — the same underlying forecast as Signal, read at an earlier point on its curve rather than a second prediction.",
-      "A standalone, per-ticker statistical projection — not a guarantee, and not the same thing as Momentum Rank's relative comparison against other tickers.",
-    ],
-  },
-  "10-Day Forecast": {
-    title: "10-Day Forecast",
-    body: [
-      "The Predict-page model's projected price 10 trading days out, and the implied percent change from today's price. Signal (BUY/SELL/HOLD) is derived from this same 10-day figure.",
-    ],
-  },
-  Shares: {
-    title: "Shares",
-    body: ["The quantity you hold, as entered manually or imported from your CSV — not adjusted for any splits since import."],
-  },
-  "Price Now": {
-    title: "Price Now",
-    body: [
-      "The latest trade price used for this row's value/gain figures. When the market is in pre-market or after-hours and a quote is available, this is that session's price, not the regular session's stale close — a badge marks it, and the regular-session price is shown underneath for reference.",
-    ],
-  },
-  "Market Value": {
-    title: "Market Value",
-    body: [
-      "What this position is worth right now: Shares × Price Now. Summed across every holding, this is the same number shown in the Total Value figure above.",
-    ],
-  },
-  Today: {
-    title: "Today",
-    body: [
-      "Today's dollar and percent gain/loss versus yesterday's regular-session close: (Price Now − Previous Close) × Shares — the standard \"day P&L\" figure most brokerages show.",
-      "While the market is in pre-market or after-hours, this uses that session's price, so it reflects the after-hours move too, not just the regular session's.",
-    ],
-  },
-  "Price 30D Ago": {
-    title: "Price 30D Ago",
-    body: ["The closing price approximately 30 calendar days back — the reference point for the 30D Diff column."],
-  },
-  "30D Diff": {
-    title: "30D Diff",
-    body: [
-      "Dollar and percent change in this position's value over the last 30 days: (Price Now − Price 30D Ago) × Shares.",
-      "This is about recent price movement, not your original purchase — see Gain vs. Paid for that.",
-    ],
-  },
-  "Avg Cost Paid": {
-    title: "Avg Cost Paid",
-    body: ["Your average cost basis per share, as entered manually or computed from your imported CSV activity."],
-  },
-  "Gain vs. Paid": {
-    title: "Gain vs. Paid",
-    body: [
-      "Dollar and percent gain/loss versus what you actually paid: (Price Now − Avg Cost Paid) × Shares.",
-      "Unlike 30D Diff, this reflects your entire holding period, not just the last 30 days.",
-    ],
-  },
-};
 
 const LIVE_READ_INFO: ColumnInfo = {
   title: "Signal, Sentiment & Live Read",
@@ -293,7 +206,6 @@ export default function PortfolioPage() {
   const [insightsError, setInsightsError] = useState<string | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [sentiment, setSentiment] = useState<Record<string, TickerSentiment>>({});
-  const [performanceInfoColumn, setPerformanceInfoColumn] = useState<string | null>(null);
   const [showLiveReadInfo, setShowLiveReadInfo] = useState(false);
   // Collapsed by default — with 15+ positions, every row's full Short-/
   // Long-Term Plan text (each with its own bullets, Stance, and Live
@@ -914,14 +826,30 @@ export default function PortfolioPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#ddd8cd] bg-[#efebe3] text-left text-[10.5px] font-semibold uppercase tracking-wide text-[#857d6e]">
-                    <th className="px-4 py-3">Ticker</th>
-                    <th className="px-4 py-3">Signal</th>
-                    <th className="px-4 py-3 text-right">Shares</th>
-                    <th className="px-4 py-3 text-right">Avg Cost</th>
-                    <th className="px-4 py-3 text-right">Price</th>
-                    <th className="px-4 py-3 text-right">Value</th>
-                    <th className="px-4 py-3 text-right">Today</th>
-                    <th className="px-4 py-3 text-right">Since Cost</th>
+                    <th className="px-4 py-3">
+                      <MetricLabel term="Position Ticker">Ticker</MetricLabel>
+                    </th>
+                    <th className="px-4 py-3">
+                      <MetricLabel term="Portfolio Signal">Signal</MetricLabel>
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <MetricLabel>Shares</MetricLabel>
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <MetricLabel term="Avg Cost Paid">Avg Cost</MetricLabel>
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <MetricLabel term="Price Now">Price</MetricLabel>
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <MetricLabel term="Market Value">Value</MetricLabel>
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <MetricLabel>Today</MetricLabel>
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <MetricLabel term="Gain vs. Paid">Since Cost</MetricLabel>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1219,12 +1147,6 @@ export default function PortfolioPage() {
           <p className={`mt-3 rounded-md border border-[#e4c9c5] bg-[#fbeceb] px-3 py-2 text-sm ${PF.bad}`}>{positionActionError}</p>
         )}
 
-        {performanceInfoColumn && PERFORMANCE_COLUMN_INFO[performanceInfoColumn] && (
-          <InfoModal
-            info={PERFORMANCE_COLUMN_INFO[performanceInfoColumn]}
-            onClose={() => setPerformanceInfoColumn(null)}
-          />
-        )}
 
         {showLiveReadInfo && <InfoModal info={LIVE_READ_INFO} onClose={() => setShowLiveReadInfo(false)} />}
       </div>
@@ -1355,7 +1277,7 @@ function DetailStat({ label, tone, children }: { label: string; tone?: number | 
   return (
     <div>
       <p className="font-mono text-[10px] uppercase tracking-wide text-[#857d6e]" style={MONO_FONT}>
-        {label}
+        <MetricLabel>{label}</MetricLabel>
       </p>
       <p className={`mt-0.5 text-sm font-semibold ${valueClass}`} style={MONO_FONT}>
         {children}

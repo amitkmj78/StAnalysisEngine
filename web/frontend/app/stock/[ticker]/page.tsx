@@ -37,6 +37,7 @@ import type {
   TwoScoreWeeklyChangeResponse,
 } from "@/lib/types";
 import Sparkline from "@/components/portfolio/Sparkline";
+import MetricLabel from "@/components/MetricLabel";
 import FactorDrilldownModal from "@/components/stock-detail/FactorDrilldownModal";
 import PriceHistoryChart from "@/components/stock-detail/PriceHistoryChart";
 import TickerSearchInput from "@/components/TickerSearchInput";
@@ -579,19 +580,19 @@ export default function StockScorePage() {
           <h3 className="text-sm font-semibold text-slate-900">Key Stats</h3>
           {detail ? (
             <dl className="mt-2 grid grid-cols-2 gap-y-2 text-sm">
-              <dt className="text-slate-500">Sector</dt>
+              <dt className="text-slate-500"><MetricLabel>Sector</MetricLabel></dt>
               <dd className="text-right text-slate-900">{detail.sector ?? "—"}</dd>
-              <dt className="text-slate-500">Forward P/E</dt>
+              <dt className="text-slate-500"><MetricLabel term="Forward PE">Forward P/E</MetricLabel></dt>
               <dd className="text-right text-slate-900">
                 {detail.fundamentals.forward_pe !== null ? detail.fundamentals.forward_pe.toFixed(1) : "—"}
               </dd>
-              <dt className="text-slate-500">Revenue Growth</dt>
+              <dt className="text-slate-500"><MetricLabel term="Revenue Growth %">Revenue Growth</MetricLabel></dt>
               <dd className="text-right text-slate-900">
                 {detail.fundamentals.revenue_growth_pct !== null
                   ? `${detail.fundamentals.revenue_growth_pct.toFixed(1)}%`
                   : "—"}
               </dd>
-              <dt className="text-slate-500">Earnings Growth</dt>
+              <dt className="text-slate-500"><MetricLabel term="Earnings Growth %">Earnings Growth</MetricLabel></dt>
               <dd className="text-right text-slate-900">
                 {detail.fundamentals.earnings_growth_pct !== null
                   ? `${detail.fundamentals.earnings_growth_pct.toFixed(1)}%`
@@ -652,11 +653,11 @@ export default function StockScorePage() {
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                   <th className="px-2 py-1.5">Date</th>
-                  <th className="px-2 py-1.5">EPS Est.</th>
-                  <th className="px-2 py-1.5">EPS Actual</th>
-                  <th className="px-2 py-1.5">Beat / Miss</th>
-                  <th className="px-2 py-1.5">Revenue</th>
-                  <th className="px-2 py-1.5">Next-Day Move</th>
+                  <th className="px-2 py-1.5"><MetricLabel>EPS Est.</MetricLabel></th>
+                  <th className="px-2 py-1.5"><MetricLabel>EPS Actual</MetricLabel></th>
+                  <th className="px-2 py-1.5"><MetricLabel>Beat / Miss</MetricLabel></th>
+                  <th className="px-2 py-1.5"><MetricLabel term="Earnings Revenue">Revenue</MetricLabel></th>
+                  <th className="px-2 py-1.5"><MetricLabel>Next-Day Move</MetricLabel></th>
                 </tr>
               </thead>
               <tbody>
@@ -798,7 +799,9 @@ export default function StockScorePage() {
                     </div>
                   )}
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Shares</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                      <MetricLabel>Shares</MetricLabel>
+                    </p>
                     <p className="mt-0.5 text-lg font-semibold text-slate-900">
                       {pos.shares !== null && pos.shares !== undefined
                         ? Number(pos.shares.toFixed(4)).toString()
@@ -806,11 +809,15 @@ export default function StockScorePage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Avg Cost</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                      <MetricLabel term="Avg Cost Paid">Avg Cost</MetricLabel>
+                    </p>
                     <p className="mt-0.5 text-lg font-semibold text-slate-900">${pos.avg_cost?.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Gain/Loss</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                      <MetricLabel>Gain/Loss</MetricLabel>
+                    </p>
                     <p
                       className={`mt-0.5 text-lg font-semibold ${
                         (pos.gain_loss_pct ?? 0) >= 0 ? "text-emerald-700" : "text-red-700"
@@ -822,7 +829,9 @@ export default function StockScorePage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Portfolio Weight</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                      <MetricLabel term="Weight">Portfolio Weight</MetricLabel>
+                    </p>
                     <p className="mt-0.5 text-lg font-semibold text-slate-900">
                       {pos.weight_pct !== null && pos.weight_pct !== undefined ? `${pos.weight_pct.toFixed(1)}%` : "—"}
                     </p>

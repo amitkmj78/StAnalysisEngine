@@ -3,49 +3,12 @@
 import { useEffect, useState } from "react";
 
 import EntryChart from "@/components/entry/EntryChart";
-import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import MetricLabel from "@/components/MetricLabel";
+import MetricTile from "@/components/MetricTile";
 import { ApiError, getEntryPlan, getEntryScan, getEntryUniverses } from "@/lib/api";
 import type { EntryHistory, EntryPlan, EntryScanRow } from "@/lib/types";
 
 const SCAN_COLUMNS = ["Ticker", "Signal", "Quant Signal", "Entry Score", "Current Price", "Entry Low", "Entry High", "Stop Loss", "First Target", "RSI"];
-
-const COLUMN_INFO: Record<string, ColumnInfo> = {
-  "Entry Score": {
-    title: "Entry Score",
-    body: [
-      "A score built from this ticker's own technical setup right now — not a percentile rank against other tickers like the Screener's Score, so it can be compared across different scans and doesn't shift just because the universe changed. 100 is a strong, well-rounded setup; a genuinely exceptional one (strong on every factor at once) can score above it — there's no artificial ceiling hiding real differences between setups.",
-      "Signal strength — up to 90 points: the Signal label (Wait = 0, Wait for Pullback = 1, Watch for Reversal = 2, Breakout Entry = 3, Buy on Pullback = 4, Buy Now = 5) times 18.",
-      "RSI closeness to 52 — up to 20 points: full 20 at RSI exactly 52 (strong momentum without being overheated), losing a point per unit away, reaching 0 once RSI is 20+ points from 52 in either direction.",
-      "Bullish short-term momentum — +14 if present, except for \"Buy Now\"/\"Breakout Entry\" where it's already required to earn that label (counted once via signal strength, not twice).",
-      "Short-term uptrend — +14 if present, except for \"Buy Now\"/\"Wait for Pullback\" where it's already required to earn that label.",
-      "Long-term uptrend — +10 if present, except for \"Buy on Pullback\" where it's already required to earn that label.",
-      "Proximity to a level — near 20-day support: +12 (except for \"Buy on Pullback\", already required). Otherwise, near a breakout level: +8 (except for \"Breakout Entry\", already required). Only one of these ever applies.",
-      "Above-average volume — up to +12: 0 at today's volume equal to its 20-day average, scaling up to the full 12 points once volume is 60%+ above that average.",
-      "The exceptions above matter: a stock's signal label already implies certain conditions (e.g. \"Buy Now\" requires an uptrend with momentum), so re-awarding those same points on top would double-count the same evidence. The remaining points only come from genuine extra strength beyond what the label already guarantees — nothing here is capped, so two stocks with the same signal can still show meaningfully different scores.",
-    ],
-  },
-  Signal: {
-    title: "Signal — what each label means",
-    body: [
-      "\"Buy Now\" — short-term uptrend with supportive momentum, and price isn't overextended (RSI below 70). The most straightforward setup.",
-      "\"Buy on Pullback\" — the longer-term trend is still intact, and price has pulled back near recent support.",
-      "\"Breakout Entry\" — price is pressing against recent resistance with supportive momentum, close to breaking out.",
-      "\"Watch for Reversal\" — the stock looks oversold (RSI 35 or below). Washed out, but wait for confirmation before entering.",
-      "\"Wait for Pullback\" — the trend is healthy, but price looks stretched (RSI 70+). Healthy trend, risky entry point right now.",
-      "\"Wait\" — no clear edge either way; the setup is mixed.",
-      "Ranked strongest to weakest for scan ordering: Buy Now → Buy on Pullback → Breakout Entry → Watch for Reversal → Wait for Pullback → Wait.",
-    ],
-  },
-  "Quant Signal": {
-    title: "Quant Signal — a second, independent opinion",
-    body: [
-      "BUY / HOLD / SELL from this app's own forecasting model — the same signal shown on the Predict page and the Stock Screener. Completely separate from the \"Signal\" column: that one reads the current technical setup (trend, RSI, support/resistance); this one is a 10-day price forecast.",
-      "When they agree, that's two independent methods pointing the same direction. When they disagree, that's worth a closer look, not a reason to distrust one or the other.",
-      "In a scan, this comes from the most recent daily capture (fast to look up for many tickers at once) rather than being recomputed live, so it can be a few hours old. Checking a single ticker always computes it fresh.",
-      "Shown as \"—\" when no capture exists yet for that ticker (a capture gap) rather than hidden.",
-    ],
-  },
-};
 
 const SORTABLE_NUMERIC_COLUMNS = new Set(["Entry Score", "Current Price", "Entry Low", "Entry High", "Stop Loss", "First Target", "RSI"]);
 
@@ -134,7 +97,6 @@ export default function EntryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
-  const [infoColumn, setInfoColumn] = useState<string | null>(null);
 
   useEffect(() => {
     getEntryUniverses(assetType)
@@ -279,18 +241,18 @@ export default function EntryPage() {
               </div>
               <div className="flex items-center gap-2">
                 <SignalBadge signal={winner.Signal} className="px-3 py-1 text-sm" />
-                <InfoIcon onClick={() => setInfoColumn("Signal")} />
+                <MetricLabel term="Entry Signal" />
               </div>
             </div>
             <div className="mt-3 flex items-center gap-3">
               <span className="text-xs font-medium text-slate-500">Entry Score</span>
               <EntryScoreBar score={Number(winner["Entry Score"])} />
-              <InfoIcon onClick={() => setInfoColumn("Entry Score")} />
+              <MetricLabel term="Entry Score" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Entry Score" value={`${winner["Entry Score"]}`} onInfoClick={() => setInfoColumn("Entry Score")} />
+            <MetricTile label="Entry Score" value={`${winner["Entry Score"]}`} />
             <MetricTile label="Current Price" value={`$${Number(winner["Current Price"]).toFixed(2)}`} />
             <MetricTile label="Entry Low" value={`$${Number(winner["Entry Low"]).toFixed(2)}`} />
             <MetricTile label="Entry High" value={`$${Number(winner["Entry High"]).toFixed(2)}`} />
@@ -313,9 +275,13 @@ export default function EntryPage() {
                         {col}
                         {sortColumn === col && <span className="text-slate-400">{sortDir === "desc" ? "↓" : "↑"}</span>}
                       </button>
-                      {COLUMN_INFO[col] && (
-                        <InfoIcon title={`What is ${col}?`} onClick={() => setInfoColumn(col)} />
-                      )}
+                      {/* "Signal"/"Quant Signal" are keyed distinctly here
+                          ("Entry Signal"/"Entry Quant Signal") from the
+                          Portfolio/Stock Finder pages' own same-named
+                          columns, which mean different things. */}
+                      <MetricLabel
+                        term={col === "Signal" ? "Entry Signal" : col === "Quant Signal" ? "Entry Quant Signal" : col}
+                      />
                     </th>
                   ))}
                 </tr>
@@ -384,17 +350,17 @@ export default function EntryPage() {
               <h2 className="text-lg font-semibold text-slate-900">{singlePlan.ticker} Entry Snapshot</h2>
               <div className="flex items-center gap-2">
                 <SignalBadge signal={singlePlan.signal} />
-                <InfoIcon onClick={() => setInfoColumn("Signal")} />
+                <MetricLabel term="Entry Signal" />
                 <span className="text-slate-300">·</span>
                 <QuantSignalBadge signal={singlePlan.quant_signal} />
-                <InfoIcon title="What is Quant Signal?" onClick={() => setInfoColumn("Quant Signal")} />
+                <MetricLabel term="Entry Quant Signal" />
               </div>
             </div>
             <p className="mt-2 text-sm text-slate-600">{singlePlan.summary}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Entry Score" value={`${singlePlan.entry_score}`} onInfoClick={() => setInfoColumn("Entry Score")} />
+            <MetricTile label="Entry Score" value={`${singlePlan.entry_score}`} />
             <MetricTile label="Current Price" value={`$${singlePlan.current_price.toFixed(2)}`} />
             <MetricTile label="Entry Zone" value={`$${singlePlan.ideal_entry_low.toFixed(2)} – $${singlePlan.ideal_entry_high.toFixed(2)}`} />
             <MetricTile label="Breakout" value={`$${singlePlan.breakout_entry.toFixed(2)}`} />
@@ -424,7 +390,7 @@ export default function EntryPage() {
             <div className="rounded-lg border border-slate-200 bg-white p-5">
               <h3 className="flex items-center gap-1.5 font-semibold text-slate-900">
                 Quant Forecast
-                <InfoIcon title="What is Quant Signal?" onClick={() => setInfoColumn("Quant Signal")} />
+                <MetricLabel term="Entry Quant Signal" />
               </h3>
               {singlePlan.quant_signal ? (
                 <>
@@ -446,23 +412,7 @@ export default function EntryPage() {
         </div>
       )}
 
-      {infoColumn && COLUMN_INFO[infoColumn] && (
-        <InfoModal info={COLUMN_INFO[infoColumn]} onClose={() => setInfoColumn(null)} />
-      )}
     </div>
-  );
-}
-
-function InfoIcon({ onClick, title }: { onClick: () => void; title?: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title ?? "What does this mean?"}
-      className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
-    >
-      i
-    </button>
   );
 }
 
@@ -481,22 +431,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function MetricTile({
-  label,
-  value,
-  onInfoClick,
-}: {
-  label: string;
-  value: string;
-  onInfoClick?: () => void;
-}) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="flex items-center gap-1 text-xs text-slate-500">
-        {label}
-        {onInfoClick && <InfoIcon title={`What is ${label}?`} onClick={onInfoClick} />}
-      </p>
-      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
-    </div>
-  );
-}

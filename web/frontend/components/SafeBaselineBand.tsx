@@ -2,24 +2,12 @@
 
 import { useEffect, useState } from "react";
 
-import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import MetricLabel from "@/components/MetricLabel";
 import { ApiError, deleteBaselineSnapshot, getBaselineBand, getBaselineHistory, saveBaselineSnapshot } from "@/lib/api";
 import type { BaselineBand, SavedBaselineSnapshot } from "@/lib/types";
 
 const HORIZONS = [10, 30, 60, 90];
 const CONFIDENCES = [0.9, 0.95];
-
-const METHOD_INFO: ColumnInfo = {
-  title: "Safe Baseline Price Band — what this is",
-  body: [
-    "A report card on the past, not a prediction of the future. It looks at years of this ticker's real price history and asks: every time someone bought at a given price and held for N trading days, what actually happened — how far did it typically dip, and how far did it typically run?",
-    "Floor and Ceiling: historically, price has rarely moved outside this range within the horizon you picked. Accumulation Zone and Distribution Zone: a \"typical\" dip and a \"typical\" rally — where a normal pullback has bottomed, or a normal run has topped out. Median Path is simply today's price, unmodified — an anchor, not a forecast.",
-    "How people use it: if the price falls into the Accumulation Zone, that's historically a normal-to-deep pullback, not usually a sign something's broken. If it's already above the Distribution Zone, it's already had a historically strong run, with typically less room left before a pause.",
-    "The trust-check numbers below the band tell you how much history this is built on (\"Samples\") and how well-calibrated it's been (\"Breach Rate\" — how often price has actually broken the floor vs. how often the math expected it to).",
-    "The most important caveat: this only looks at price history. It knows nothing about earnings, news, or what's happening with the company right now — treat it as one input, not the whole picture.",
-    "Different from Predict's forecast confidence interval (model-based) or Entry Signals' stop/target (an ATR heuristic) — each uses a different method, so don't expect the numbers to match across pages.",
-  ],
-};
 
 export default function SafeBaselineBand({ ticker }: { ticker: string }) {
   const [horizon, setHorizon] = useState(30);
@@ -28,7 +16,6 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [insufficientHistory, setInsufficientHistory] = useState<string | null>(null);
-  const [showInfo, setShowInfo] = useState(false);
 
   const [history, setHistory] = useState<SavedBaselineSnapshot[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -121,14 +108,7 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
           <h3 className="font-semibold text-[#1f2420]">Safe Baseline Price Band</h3>
-          <button
-            type="button"
-            onClick={() => setShowInfo(true)}
-            title="What is the Safe Baseline Price Band?"
-            className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#ddd8cd] text-[9px] font-normal text-[#a39b8b] hover:border-[#857d6e] hover:text-[#1f2420]"
-          >
-            i
-          </button>
+          <MetricLabel term="Safe Baseline Price Band" />
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
@@ -280,7 +260,6 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
         </div>
       )}
 
-      {showInfo && <InfoModal info={METHOD_INFO} onClose={() => setShowInfo(false)} />}
     </div>
   );
 }

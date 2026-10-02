@@ -20,6 +20,7 @@ import type {
   StressTestPresetsResponse,
   StressTestReplayResult,
 } from "@/lib/types";
+import MetricLabel from "@/components/MetricLabel";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import { useUrlState } from "@/lib/useUrlState";
 
@@ -263,7 +264,8 @@ export default function StressTestPage() {
                     </div>
                     {state.data.beta !== null && (
                       <p className="mt-1 text-xs text-slate-500">
-                        Beta to {state.data.benchmark_ticker}: {state.data.beta.toFixed(2)} · {state.data.data_start}
+                        <MetricLabel term="Beta to Benchmark">Beta</MetricLabel> to {state.data.benchmark_ticker}:{" "}
+                        {state.data.beta.toFixed(2)} · {state.data.data_start}
                         {" – "}
                         {state.data.data_end}
                       </p>
@@ -329,10 +331,10 @@ export default function StressTestPage() {
                       <table className="min-w-full text-xs">
                         <thead>
                           <tr className="border-b border-slate-200 text-left uppercase tracking-wide text-slate-500">
-                            <th className="py-1 pr-3">Ticker</th>
-                            <th className="py-1 pr-3 text-right">Market Value</th>
-                            <th className="py-1 pr-3 text-right">%</th>
-                            <th className="py-1 text-right">$</th>
+                            <th className="py-1 pr-3"><MetricLabel>Ticker</MetricLabel></th>
+                            <th className="py-1 pr-3 text-right"><MetricLabel term="Replay Market Value">Market Value</MetricLabel></th>
+                            <th className="py-1 pr-3 text-right"><MetricLabel term="Replay %">%</MetricLabel></th>
+                            <th className="py-1 text-right"><MetricLabel term="Replay $">$</MetricLabel></th>
                           </tr>
                         </thead>
                         <tbody>

@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import Link from "next/link";
 
-import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import MetricLabel from "@/components/MetricLabel";
 import Sparkline from "@/components/portfolio/Sparkline";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import {
@@ -221,175 +221,6 @@ function filtersActive(f: FilterState): boolean {
 
 const SIGNAL_VALUES = ["Buy", "Hold", "Trim"];
 
-const COLUMN_INFO: Record<string, ColumnInfo> = {
-  Ticker: {
-    title: "Ticker",
-    body: ["The stock's exchange symbol — click Forecast or Watchlist on any row to act on it without retyping."],
-  },
-  Name: {
-    title: "Name",
-    body: ["The company or fund's short name, as reported by the data provider."],
-  },
-  Sector: {
-    title: "Sector",
-    body: ["The GICS sector this ticker is classified under. Use the Sector filter to narrow results to one or more sectors."],
-  },
-  Price: {
-    title: "Price",
-    body: ["The latest available trade price at the time this scan ran (cached up to an hour — see the note above the table)."],
-  },
-  Score: {
-    title: "Score",
-    body: [
-      "A 0–100 blend of several metrics, each normalized against the other tickers in this result set (the best value in the current list scores highest on that metric, the worst scores lowest) — it's a relative ranking within this run, not an absolute grade. Re-running with a different universe can change a ticker's score even if nothing about the ticker itself changed.",
-      "The metrics and their weights depend on the Goal you picked — see the weights strip above the table for the exact breakdown of whichever Goal is active.",
-      "Filters below narrow which rows are shown, but never change how Score is computed — scores stay comparable across different filter selections since they're calculated before filtering.",
-    ],
-  },
-  "Quant Signal": {
-    title: "Quant Signal",
-    body: [
-      "The same BUY/HOLD/SELL signal shown on the Predict page — a gradient-boosted model trained on this ticker's own recent price/technical history, forecasting 10 days ahead. BUY means the forecast implies at least +5% expected return; SELL means -5% or worse; HOLD is in between.",
-      "A completely different, independent computation from Score above — Score is a relative rank against this result set's other tickers; Quant Signal is a standalone per-ticker forecast, the same one you'd get analyzing this ticker alone on /predict.",
-      "Loaded on demand per row (click \"Load\") rather than for the whole scan, since it means training a fresh model per ticker — too slow to run automatically across a large universe.",
-    ],
-  },
-  "Analyst Rating": {
-    title: "Analyst Rating",
-    body: [
-      "Real, third-party Wall Street analyst consensus and price targets — straight from the data provider, nothing computed or modeled by this app. Shows the consensus rating (e.g. Buy, Hold, Sell), how many analysts contributed, a buy% derived from Yahoo's 1 (Strong Buy) to 5 (Strong Sell) consensus scale, and the mean/high/low 12-month price targets.",
-      "Not available for every ticker — small caps, ETFs, and funds often have no analyst coverage at all, which shows as \"No coverage\" rather than a guessed value.",
-      "Loaded on demand per row, same as Quant Signal — a separate network call per ticker.",
-    ],
-  },
-  "Market Cap ($B)": {
-    title: "Market Cap ($B)",
-    body: ["Market capitalization in billions of dollars — share price × shares outstanding, as reported by the data provider."],
-  },
-  "Forward PE": {
-    title: "Forward P/E",
-    body: [
-      "Price divided by analysts' consensus estimate of next year's earnings per share — a lower number generally means the stock is cheaper relative to its expected earnings.",
-      "Only used in the \"Long Term\" Score (8%, lower is better). Not meaningful for companies expected to have negative earnings.",
-    ],
-  },
-  "Dividend Yield %": {
-    title: "Dividend Yield %",
-    body: ["Trailing 12-month dividend payments as a percent of the current price, as reported by the data provider. Shows \"N/A\" when the provider has no dividend data for this ticker (typically non-dividend-payers). Not used in either Score — display/filter only."],
-  },
-  "Revenue Growth %": {
-    title: "Revenue Growth %",
-    body: ["Year-over-year revenue growth, as reported by the data provider. Used in the \"Long Term\" Score (12%)."],
-  },
-  "Earnings Growth %": {
-    title: "Earnings Growth %",
-    body: ["Year-over-year earnings growth, as reported by the data provider. Used in the \"Long Term\" Score (10%)."],
-  },
-  "1M Return %": {
-    title: "1-Month Return",
-    body: ["Price change over the trailing ~21 trading days. Used in the \"Short Term\" Score (25%)."],
-  },
-  "3M Return %": {
-    title: "3-Month Return",
-    body: ["Price change over the trailing ~63 trading days. Used in the \"Short Term\" Score (30%, the single largest weight in that goal)."],
-  },
-  "6M Return %": {
-    title: "6-Month Return",
-    body: ["Price change over the trailing ~126 trading days. Used in the \"Long Term\" Score (12%)."],
-  },
-  "1Y Return %": {
-    title: "1-Year Return",
-    body: ["Price change over the trailing ~252 trading days. Used in the \"Long Term\" Score (28%, the single largest weight in that goal)."],
-  },
-  "3Y Annualized %": {
-    title: "3-Year Annualized Return",
-    body: ["Total 3-year return converted to an annualized (per-year) rate. Used in the \"Long Term\" Score (20%)."],
-  },
-  "Return 10D %": {
-    title: "10-Day Return",
-    body: ["Literal trailing 10-trading-day price change. Display-only — not part of either Score, and computed separately from the 1M/3M/6M/1Y columns above to keep this reading distinct from that composite."],
-  },
-  "Return 30D %": {
-    title: "30-Day Return",
-    body: ["Literal trailing 30-trading-day price change. Display-only — not part of either Score."],
-  },
-  "Return 60D %": {
-    title: "60-Day Return",
-    body: ["Literal trailing 60-trading-day price change. Display-only — not part of either Score."],
-  },
-  "Return 90D %": {
-    title: "90-Day Return",
-    body: ["Literal trailing 90-trading-day price change. Display-only — not part of either Score."],
-  },
-  RSI: {
-    title: "RSI — Relative Strength Index",
-    body: [
-      "Measures how fast and how much a stock's price has moved recently, on a 0–100 scale, based on the ratio of average recent gains to average recent losses.",
-      "Above 70 is often considered overbought (may be due for a pullback). Below 30 is often considered oversold (may be due for a bounce). Around 50 is neutral momentum.",
-      "This app computes it over a standard 14-day window.",
-      "It doesn't just reward high RSI: the ranking score prefers RSI near 55 — strong momentum without being overheated — and penalizes distance from 55 in either direction. A stock at RSI 90 scores worse than one at RSI 55, same as a weak stock sitting at RSI 20.",
-      "It's only used for the \"Short Term\" goal (15% of that score). \"Long Term\" ranking doesn't use RSI at all — it weights fundamentals and multi-year returns instead.",
-    ],
-  },
-  "RSI Balance": {
-    title: "RSI Balance",
-    body: ["The raw RSI value transformed into the 0–100 score actually used in Score: 100 minus 3× the distance from RSI 55, floored at 0 — see the RSI column's own explanation for why 55 (not 100) is the target."],
-  },
-  "MACD Strength": {
-    title: "MACD Strength",
-    body: ["The gap between the MACD line and its signal line, scaled — positive means the MACD is above its signal line (often read as bullish momentum). Used in the \"Short Term\" Score (15%)."],
-  },
-  "Volume Strength %": {
-    title: "Volume Strength %",
-    body: ["Today's trading volume vs. its own trailing 20-day average, as a percent change — positive means unusually high volume. Used in the \"Short Term\" Score (10%)."],
-  },
-  "6M Volatility %": {
-    title: "6-Month Volatility",
-    body: ["Annualized standard deviation of daily returns over the trailing 6 months — higher means choppier price action. Used in the \"Short Term\" Score (5%, lower is better)."],
-  },
-  "1Y Max Drawdown %": {
-    title: "1-Year Max Drawdown",
-    body: ["The largest peak-to-trough decline over the trailing year. Used in the \"Long Term\" Score (10%, lower is better)."],
-  },
-  "Spark 90D": {
-    title: "90-Day Sparkline",
-    body: [
-      "The trailing 90 trading days' closing price, min–max normalized to fit a small inline shape — a quick visual of the recent trend, not a chart with axes or exact values.",
-      "Colored by this row's 1-Month Return: green if positive, red if negative. Not sortable and not used in either Score — display only.",
-    ],
-  },
-  "Short-Term Score": {
-    title: "Short-Term Score",
-    body: [
-      "The 0–100 short-term score computed nightly by this app's two-score ranking engine (momentum, short-term reversal, earnings surprise, earnings revisions) — the same number shown on a ticker's own Score page.",
-      "A completely different computation from the Score column above: Score is a live, goal-weighted rank against just this result set; Short-Term Score is Stage A's daily composite, comparable across every day and every screen. \"N/A\" means this ticker hasn't been scored yet.",
-    ],
-  },
-  "Short-Term Signal": {
-    title: "Short-Term Signal",
-    body: ["Buy/Hold/Trim derived from the Short-Term Score's percentile against the rest of the universe — see the Short-Term Score column."],
-  },
-  "Long-Term Score": {
-    title: "Long-Term Score",
-    body: [
-      "The 0–100 long-term score computed nightly by this app's two-score ranking engine (value, growth, low volatility, quality) — the same number shown on a ticker's own Score page.",
-      "Same disambiguation as Short-Term Score: a different, daily-computed number from the goal-weighted Score column above.",
-    ],
-  },
-  "Long-Term Signal": {
-    title: "Long-Term Signal",
-    body: ["Buy/Hold/Trim derived from the Long-Term Score's percentile against the rest of the universe — see the Long-Term Score column."],
-  },
-  Owned: {
-    title: "Owned",
-    body: ["Whether this ticker is a position in any of your portfolios right now."],
-  },
-  Watchlisted: {
-    title: "Watchlisted",
-    body: ["Whether you have an active price alert on this ticker that you set up yourself. Excludes alerts this app auto-creates when you add a position to a portfolio, so this stays a distinct signal from Owned."],
-  },
-};
-
 export default function StockFinderPage() {
   const [mode, setMode] = useState<"rank" | "score">("rank");
   const [goal, setGoal] = useState("Short Term");
@@ -402,7 +233,6 @@ export default function StockFinderPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [sortKeys, setSortKeys] = useState<SortKey[]>([]);
-  const [infoColumn, setInfoColumn] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
@@ -955,7 +785,7 @@ export default function StockFinderPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <MetricTile label="Score" value={`${winner.Score}/100`} onInfoClick={() => setInfoColumn("Score")} />
+              <MetricTile label="Score" value={`${winner.Score}/100`} />
               <MetricTile label="Price" value={`$${Number(winner.Price).toFixed(2)}`} />
               <MetricTile label="Sector" value={String(winner.Sector)} />
               <MetricTile
@@ -1354,16 +1184,7 @@ export default function StockFinderPage() {
                                   </span>
                                 </button>
                               )}
-                              {COLUMN_INFO[col] && (
-                                <button
-                                  type="button"
-                                  onClick={() => setInfoColumn(col)}
-                                  title={`What is ${col}?`}
-                                  className={`flex h-4 w-4 items-center justify-center rounded-full border ${PF.line} text-[10px] font-normal normal-case ${PF.muted} hover:border-[#2f5d50] hover:text-[#2f5d50]`}
-                                >
-                                  i
-                                </button>
-                              )}
+                              <MetricLabel term={col} />
                             </div>
                           </th>
                         );
@@ -1587,7 +1408,6 @@ export default function StockFinderPage() {
           </div>
         )}
 
-        {infoColumn && COLUMN_INFO[infoColumn] && <InfoModal info={COLUMN_INFO[infoColumn]} onClose={() => setInfoColumn(null)} />}
       </div>
     </div>
   );
@@ -1638,28 +1458,16 @@ function RangeFilter({
 function MetricTile({
   label,
   value,
-  onInfoClick,
   tone,
 }: {
   label: string;
   value: string;
-  onInfoClick?: () => void;
   tone?: string;
 }) {
   return (
     <div className={`${PF.card} p-3`}>
       <p className={`flex items-center gap-1 text-xs ${PF.muted}`}>
-        {label}
-        {onInfoClick && (
-          <button
-            type="button"
-            onClick={onInfoClick}
-            title={`What is ${label}?`}
-            className={`flex h-4 w-4 items-center justify-center rounded-full border ${PF.line} text-[10px] font-normal normal-case ${PF.muted} hover:border-[#2f5d50] hover:text-[#2f5d50]`}
-          >
-            i
-          </button>
-        )}
+        <MetricLabel>{label}</MetricLabel>
       </p>
       <p className={`mt-1 text-lg font-semibold ${tone ?? ""}`} style={{ fontFamily: "var(--font-pf-display)" }}>
         {value}

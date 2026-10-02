@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import type { ColumnInfo } from "@/components/InfoModal";
+import MetricLabel from "@/components/MetricLabel";
 import MonteCarloChart from "@/components/strategies/MonteCarloChart";
 import {
   ApiError,
@@ -23,17 +24,6 @@ import type {
   StrategiesSummaryResponse,
   StrategyPickRow,
 } from "@/lib/types";
-
-const KPI_INFO: Record<string, ColumnInfo> = {
-  historic_return: {
-    title: "Historic Annualized Return",
-    body: [
-      "This is the pick's own trailing 3-year annualized return (CAGR), computed straight from price history — how much it actually grew per year, on average, over the last 3 years.",
-      "It is a raw historical fact about that one ticker, not the weighted Ranking Score below it — a pick can have a huge historic return but a middling score if it scores poorly on the other factors (cost, valuation, drawdown, etc).",
-      "Past performance like this does not guarantee future results, especially for a single stock rather than a diversified fund.",
-    ],
-  },
-};
 
 const SOLVE_MODE_LABELS: Record<SolveMode, string> = {
   required_return: "Required return",
@@ -130,7 +120,6 @@ export default function StrategiesPage() {
   const [data, setData] = useState<StrategiesSummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeKpiInfo, setActiveKpiInfo] = useState<ColumnInfo | null>(null);
 
   const [startingCapitalTouched, setStartingCapitalTouched] = useState(false);
 
@@ -570,12 +559,12 @@ export default function StrategiesPage() {
                         <KpiLine
                           label="Ranking score"
                           value={`${pick.score.toFixed(1)}/100`}
-                          onInfoClick={() => setActiveKpiInfo(scoreInfo(pick))}
+                          info={scoreInfo(pick)}
                         />
                         <KpiLine
                           label="3-year annualized return"
                           value={pick.annual_return_pct !== null ? `${pick.annual_return_pct.toFixed(2)}%` : "N/A"}
-                          onInfoClick={() => setActiveKpiInfo(KPI_INFO.historic_return)}
+                          term="Historic Annualized Return"
                         />
 
                         {weightedMetrics.length > 0 && (
@@ -611,7 +600,6 @@ export default function StrategiesPage() {
         </div>
       )}
 
-      {activeKpiInfo && <InfoModal info={activeKpiInfo} onClose={() => setActiveKpiInfo(null)} />}
     </div>
   );
 }
@@ -719,20 +707,13 @@ function MonteCarloPanel({ plan }: { plan: GoalPlan }) {
   );
 }
 
-function KpiLine({ label, value, onInfoClick }: { label: string; value: string; onInfoClick: () => void }) {
+function KpiLine({ label, value, term, info }: { label: string; value: string; term?: string; info?: ColumnInfo }) {
   return (
     <p className="flex items-center gap-1.5 text-sm text-slate-600">
       <span>
         {label}: {value}
       </span>
-      <button
-        type="button"
-        onClick={onInfoClick}
-        title={`What is ${label}?`}
-        className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal text-slate-400 hover:border-slate-500 hover:text-slate-700"
-      >
-        i
-      </button>
+      <MetricLabel term={term} info={info} />
     </p>
   );
 }

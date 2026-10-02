@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-import InfoModal, { ColumnInfo } from "@/components/InfoModal";
+import MetricLabel from "@/components/MetricLabel";
 import {
   ApiError,
   getCurrentPrice,
@@ -23,55 +23,6 @@ import type {
 type SignalFilter = "ALL" | "BUY" | "SELL" | "HOLD";
 type StabilityFilter = "ALL" | "STABLE" | "UNSTABLE";
 type SortKey = "ticker" | "quant_expected_return_pct" | "analyst_buy_pct" | "analyst_count" | "signal_flip_count";
-
-const COLUMN_INFO: Record<string, ColumnInfo> = {
-  quant_signal: {
-    title: "Quant Signal",
-    body: [
-      "The app's own model's BUY/HOLD/SELL call, based on a 10-trading-day price forecast.",
-      "BUY requires an expected return of at least +5%, SELL at most -5%, both measured after the raw " +
-        "model output is deliberately damped toward zero — the model's raw predictions lost to a simple " +
-        "\"no change\" forecast in backtesting, so the damping and wide neutral band are intentional, not a bug. " +
-        "Most tickers land in HOLD by design.",
-    ],
-  },
-  quant_expected_return_pct: {
-    title: "Quant Expected Return",
-    body: ["The model's forecasted return over the next 10 trading days, after damping. This is what the BUY/SELL threshold is measured against."],
-  },
-  quant_target_price: {
-    title: "Quant Target Price",
-    body: ["The model's forecasted price 10 trading days out, implied by the expected return above."],
-  },
-  analyst_consensus: {
-    title: "Analyst Consensus",
-    body: ["Real, third-party Wall Street analyst consensus rating for this ticker (e.g. Buy, Hold, Sell), sourced from Yahoo Finance — independent of this app's own model."],
-  },
-  analyst_buy_pct: {
-    title: "Analyst Buy %",
-    body: ["Share of covering analysts rating this ticker a Buy or Strong Buy."],
-  },
-  analyst_target_mean: {
-    title: "Analyst Target (Mean)",
-    body: ["The average of covering analysts' individual price targets."],
-  },
-  signal_flip_count: {
-    title: "Flips",
-    body: [
-      "How many times this ticker's Quant Signal has changed (BUY/HOLD/SELL) over its trailing captured history (up to 30 days).",
-      "\"Unstable\" means it's flipped 3+ times — treat today's signal with less confidence, since it hasn't settled on a view.",
-      "Click \"Why?\" next to any flip count to see exactly when the signal last changed and what moved — the model's expected return, target price, and the actual last close around that date. Pulled from the real captured history, not an AI guess.",
-    ],
-  },
-  current_price: {
-    title: "Current Price",
-    body: [
-      "A live quote, fetched on demand — distinct from Last Close, which is the price at the moment this signal was captured (as of the date shown at the top of the page).",
-      "The % shown next to it is the real move since the signal was captured, so you can see at a glance whether the price is actually tracking the model's call or has gone the other way.",
-      "Click \"Get AI Context\" after loading this to have the explanation address that move directly, alongside the usual technical picture.",
-    ],
-  },
-};
 
 function signalBadgeClass(signal: string): string {
   if (signal === "BUY") return "bg-emerald-50 text-emerald-700";
@@ -116,8 +67,8 @@ const THRESHOLD_NOTE: Record<string, string> = {
 // Pure, non-LLM: the model didn't "explain" this, the captured history
 // just shows what actually happened — where the signal was before, where
 // it is now, and what moved (expected return, which is what BUY/SELL/
-// HOLD is thresholded against). See COLUMN_INFO.quant_signal for the
-// +5%/-5% rule this is describing.
+// HOLD is thresholded against). See lib/glossary.ts's "Signal Comparison:
+// Quant Signal" entry for the +5%/-5% rule this is describing.
 function describeLastFlip(history: QuantSignalHistoryPoint[]): string | null {
   for (let i = history.length - 1; i > 0; i--) {
     const to = history[i];
@@ -153,7 +104,6 @@ export default function SignalComparisonPage() {
   const [sortKey, setSortKey] = useState<SortKey>("quant_expected_return_pct");
   const [sortDesc, setSortDesc] = useState(true);
 
-  const [openInfo, setOpenInfo] = useState<string | null>(null);
   const [narratives, setNarratives] = useState<Record<string, NarrativeState>>({});
   const [flips, setFlips] = useState<Record<string, FlipState>>({});
   const [prices, setPrices] = useState<Record<string, PriceState>>({});
@@ -232,22 +182,19 @@ export default function SignalComparisonPage() {
     }
   }
 
-  const columnInfo = useMemo<Record<string, ColumnInfo>>(() => {
-    if (!outcomes) return COLUMN_INFO;
+  // Request-specific addition to the static "Signal Comparison: Quant
+  // Signal" glossary entry -- a real track record only available once
+  // `outcomes` has loaded, so it can't live in the static glossary itself.
+  // Passed to MetricLabel's extraBody.
+  const quantSignalExtraBody = useMemo<string[]>(() => {
+    if (!outcomes) return [];
     const { BUY, SELL, HOLD } = outcomes.summary;
-    return {
-      ...COLUMN_INFO,
-      quant_signal: {
-        ...COLUMN_INFO.quant_signal,
-        body: [
-          ...COLUMN_INFO.quant_signal.body,
-          `Real track record so far, over the ${outcomes.horizon_days}-trading-day horizon this signal is ` +
-            `thresholded against: BUY calls have been ${formatTrackRecord(BUY)}, SELL calls ${formatTrackRecord(SELL)}, ` +
-            `HOLD calls ${formatTrackRecord(HOLD)}. BUY/SELL fire rarely (the extreme tail of the forecast), so a ` +
-            "small n here means treat any single call with real caution, not confidence.",
-        ],
-      },
-    };
+    return [
+      `Real track record so far, over the ${outcomes.horizon_days}-trading-day horizon this signal is ` +
+        `thresholded against: BUY calls have been ${formatTrackRecord(BUY)}, SELL calls ${formatTrackRecord(SELL)}, ` +
+        `HOLD calls ${formatTrackRecord(HOLD)}. BUY/SELL fire rarely (the extreme tail of the forecast), so a ` +
+        "small n here means treat any single call with real caution, not confidence.",
+    ];
   }, [outcomes]);
 
   const counts = useMemo(() => {
@@ -294,15 +241,7 @@ export default function SignalComparisonPage() {
             {label}
             {sortKey === sortKeyName && <span className="ml-1">{sortDesc ? "↓" : "↑"}</span>}
           </button>
-          {info && (
-            <button
-              onClick={() => setOpenInfo(info)}
-              className="text-slate-400 hover:text-slate-600"
-              aria-label={`About ${label}`}
-            >
-              ⓘ
-            </button>
-          )}
+          {info && <MetricLabel term={info} />}
         </div>
       </th>
     );
@@ -393,33 +332,37 @@ export default function SignalComparisonPage() {
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-left">
                       <div className="flex items-center gap-1">
                         Signal
-                        <button onClick={() => setOpenInfo("quant_signal")} className="text-slate-400 hover:text-slate-600" aria-label="About Signal">
-                          ⓘ
-                        </button>
+                        <MetricLabel term="quant_signal" extraBody={quantSignalExtraBody} />
                       </div>
                     </th>
                     <SortableTh label="Exp. Return" sortKeyName="quant_expected_return_pct" info="quant_expected_return_pct" />
                     <SortableTh label="Flips" sortKeyName="signal_flip_count" info="signal_flip_count" />
-                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">Target</th>
+                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        Target
+                        <MetricLabel term="quant_target_price" />
+                      </div>
+                    </th>
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">Last Close</th>
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
                         Current Price
-                        <button onClick={() => setOpenInfo("current_price")} className="text-slate-400 hover:text-slate-600" aria-label="About Current Price">
-                          ⓘ
-                        </button>
+                        <MetricLabel term="current_price" />
                       </div>
                     </th>
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-left">
                       <div className="flex items-center gap-1">
                         Analyst Consensus
-                        <button onClick={() => setOpenInfo("analyst_consensus")} className="text-slate-400 hover:text-slate-600" aria-label="About Analyst Consensus">
-                          ⓘ
-                        </button>
+                        <MetricLabel term="analyst_consensus" />
                       </div>
                     </th>
                     <SortableTh label="Buy %" sortKeyName="analyst_buy_pct" info="analyst_buy_pct" />
-                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">Target (Mean)</th>
+                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        Target (Mean)
+                        <MetricLabel term="analyst_target_mean" />
+                      </div>
+                    </th>
                     <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-left">AI Context</th>
                   </tr>
                 </thead>
@@ -612,9 +555,6 @@ export default function SignalComparisonPage() {
         </>
       )}
 
-      {openInfo && columnInfo[openInfo] && (
-        <InfoModal info={columnInfo[openInfo]} onClose={() => setOpenInfo(null)} />
-      )}
     </div>
   );
 }

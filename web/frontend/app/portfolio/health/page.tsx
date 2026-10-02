@@ -18,6 +18,7 @@ import type {
   PortfolioHealthTaxLossHarvestingResponse,
   PortfolioRiskWindow,
 } from "@/lib/types";
+import MetricLabel from "@/components/MetricLabel";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import { useUrlState } from "@/lib/useUrlState";
 
@@ -149,9 +150,9 @@ export default function PortfolioHealthPage() {
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                          <th className="px-2 py-1.5">Ticker</th>
-                          <th className="px-2 py-1.5">Weight</th>
-                          <th className="px-2 py-1.5">Concentrated</th>
+                          <th className="px-2 py-1.5"><MetricLabel>Ticker</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Weight</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Concentrated</MetricLabel></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -190,10 +191,10 @@ export default function PortfolioHealthPage() {
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                          <th className="px-2 py-1.5">Sector</th>
-                          <th className="px-2 py-1.5">Your Portfolio</th>
-                          <th className="px-2 py-1.5">S&amp;P 500</th>
-                          <th className="px-2 py-1.5">Gap</th>
+                          <th className="px-2 py-1.5"><MetricLabel>Sector</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Your Portfolio</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel term="S&P 500">S&amp;P 500</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Gap</MetricLabel></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -270,11 +271,11 @@ export default function PortfolioHealthPage() {
                   <table className="min-w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                        <th className="px-2 py-1.5">Ticker</th>
-                        <th className="px-2 py-1.5">Direct</th>
-                        <th className="px-2 py-1.5">Via Funds</th>
-                        <th className="px-2 py-1.5">Combined</th>
-                        <th className="px-2 py-1.5">Weight</th>
+                        <th className="px-2 py-1.5"><MetricLabel>Ticker</MetricLabel></th>
+                        <th className="px-2 py-1.5"><MetricLabel>Direct</MetricLabel></th>
+                        <th className="px-2 py-1.5"><MetricLabel>Via Funds</MetricLabel></th>
+                        <th className="px-2 py-1.5"><MetricLabel>Combined</MetricLabel></th>
+                        <th className="px-2 py-1.5"><MetricLabel term="Combined Weight">Weight</MetricLabel></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -311,10 +312,10 @@ export default function PortfolioHealthPage() {
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                          <th className="px-2 py-1.5">Sector</th>
-                          <th className="px-2 py-1.5">Your Portfolio</th>
-                          <th className="px-2 py-1.5">S&amp;P 500</th>
-                          <th className="px-2 py-1.5">Gap</th>
+                          <th className="px-2 py-1.5"><MetricLabel>Sector</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Your Portfolio</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel term="S&P 500">S&amp;P 500</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Gap</MetricLabel></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -356,7 +357,9 @@ export default function PortfolioHealthPage() {
               <div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Trailing (last 12mo)</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <MetricLabel term="Trailing">Trailing (last 12mo)</MetricLabel>
+                    </p>
                     <p className="mt-1 text-xl font-semibold text-slate-900">
                       {incomeFees.dividends.total_trailing_income !== null
                         ? `$${incomeFees.dividends.total_trailing_income.toLocaleString()}`
@@ -364,7 +367,9 @@ export default function PortfolioHealthPage() {
                     </p>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Projected (annual)</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <MetricLabel term="Projected">Projected (annual)</MetricLabel>
+                    </p>
                     <p className="mt-1 text-xl font-semibold text-slate-900">
                       {incomeFees.dividends.total_projected_income !== null
                         ? `$${incomeFees.dividends.total_projected_income.toLocaleString()}`
@@ -378,9 +383,9 @@ export default function PortfolioHealthPage() {
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                          <th className="px-2 py-1.5">Ticker</th>
-                          <th className="px-2 py-1.5">Trailing</th>
-                          <th className="px-2 py-1.5">Projected</th>
+                          <th className="px-2 py-1.5"><MetricLabel>Ticker</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Trailing</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Projected</MetricLabel></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -418,10 +423,10 @@ export default function PortfolioHealthPage() {
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                          <th className="px-2 py-1.5">Fund</th>
-                          <th className="px-2 py-1.5">Value</th>
-                          <th className="px-2 py-1.5">Expense Ratio</th>
-                          <th className="px-2 py-1.5">Annual Drag</th>
+                          <th className="px-2 py-1.5"><MetricLabel>Fund</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Value</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel term="Expense Ratio %">Expense Ratio</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Annual Drag</MetricLabel></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -469,11 +474,11 @@ export default function PortfolioHealthPage() {
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-                          <th className="px-2 py-1.5">Ticker</th>
-                          <th className="px-2 py-1.5">Shares</th>
-                          <th className="px-2 py-1.5">Avg Cost</th>
-                          <th className="px-2 py-1.5">Current Price</th>
-                          <th className="px-2 py-1.5">Loss</th>
+                          <th className="px-2 py-1.5"><MetricLabel>Ticker</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Shares</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel term="Avg Cost Paid">Avg Cost</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Current Price</MetricLabel></th>
+                          <th className="px-2 py-1.5"><MetricLabel>Loss</MetricLabel></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -513,17 +518,17 @@ function RiskWindowTile({ label, window }: { label: string; window: PortfolioRis
         )}
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
-        <dt className="text-slate-500">Volatility</dt>
+        <dt className="text-slate-500"><MetricLabel>Volatility</MetricLabel></dt>
         <dd className="text-right text-slate-900">
           {window.volatility_pct !== null ? `${window.volatility_pct.toFixed(1)}%` : "—"}
         </dd>
-        <dt className="text-slate-500">Beta (vs. SPY)</dt>
+        <dt className="text-slate-500"><MetricLabel>Beta (vs. SPY)</MetricLabel></dt>
         <dd className="text-right text-slate-900">{window.beta_to_spy !== null ? window.beta_to_spy.toFixed(2) : "—"}</dd>
-        <dt className="text-slate-500">Correlation (vs. SPY)</dt>
+        <dt className="text-slate-500"><MetricLabel>Correlation (vs. SPY)</MetricLabel></dt>
         <dd className="text-right text-slate-900">
           {window.correlation_to_spy !== null ? window.correlation_to_spy.toFixed(2) : "—"}
         </dd>
-        <dt className="text-slate-500">Max drawdown</dt>
+        <dt className="text-slate-500"><MetricLabel>Max drawdown</MetricLabel></dt>
         <dd className="text-right text-slate-900">
           {window.max_drawdown_pct !== null ? `${window.max_drawdown_pct.toFixed(1)}%` : "—"}
         </dd>

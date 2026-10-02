@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
-import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import type { ColumnInfo } from "@/components/InfoModal";
+import MetricLabel from "@/components/MetricLabel";
 import MarketNewsTicker from "@/components/MarketNewsTicker";
 import PortfolioMoversWidget from "@/components/PortfolioMoversWidget";
 import SafeBaselineBand from "@/components/SafeBaselineBand";
@@ -60,9 +61,12 @@ function goodBad(v: number | null | undefined): string {
   return v >= 0 ? "text-[#2f6b4f]" : "text-[#a23b34]";
 }
 
-function getMetricInfo(daysAhead: number): Record<string, ColumnInfo> {
+// Genuinely dynamic (the title/body text itself changes with the selected
+// forecast horizon), so it can't live as a static lib/glossary.ts entry --
+// passed to MetricLabel's `info` override prop. RMSE/MAE/MAPE below don't
+// vary with daysAhead, so those are static glossary entries instead.
+function getSignalInfo(daysAhead: number): ColumnInfo {
   return {
-  signal: {
     title: `${daysAhead}-Day Signal — what it means`,
     body: [
       `BUY, HOLD, or SELL, derived directly from the model's own ${daysAhead}-day forecast versus today's close — nothing else feeds into it.`,
@@ -71,28 +75,6 @@ function getMetricInfo(daysAhead: number): Record<string, ColumnInfo> {
       "HOLD: the forecast falls between -5% and +5% — not enough expected movement either way to call it.",
       "It's a simple threshold read on the model's own point forecast, not a separate signal-generation model — so it's only as reliable as the forecast itself (see the backtest accuracy below).",
     ],
-  },
-  rmse: {
-    title: "RMSE — Root Mean Squared Error",
-    body: [
-      "The typical size of the model's miss, in dollars, across the walk-forward backtest window.",
-      "Squares each day's error before averaging, then square-roots the result — which weights big misses more heavily than small ones. A model that's usually close but occasionally way off will show a higher RMSE than its MAE.",
-      "Shown next to the naive baseline's own RMSE below, so you can see whether the model's typical miss is bigger or smaller than just assuming no price change.",
-    ],
-  },
-  mae: {
-    title: "MAE — Mean Absolute Error",
-    body: [
-      "The average size of the model's miss, in dollars, treating every day's error equally regardless of whether it was a small miss or a large one (unlike RMSE, which penalizes large misses more).",
-      "If RMSE is noticeably higher than MAE, that's a sign the model has a few bad days that are much worse than its typical miss, rather than being uniformly a little off.",
-    ],
-  },
-  mape: {
-    title: "MAPE — Mean Absolute Percentage Error",
-    body: [
-      "The average miss expressed as a percentage of the actual price, rather than in dollars — this is what makes it comparable across tickers at very different price levels (a $5 miss means very different things for a $20 stock vs. a $500 stock).",
-    ],
-  },
   };
 }
 
@@ -115,7 +97,6 @@ export default function PredictPage() {
   const [data, setData] = useState<PredictionSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeInfo, setActiveInfo] = useState<string | null>(null);
 
   const [providers, setProviders] = useState<string[]>([]);
   const [provider, setProvider] = useState("");
@@ -508,6 +489,7 @@ export default function PredictPage() {
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-2 rounded-full bg-[#efece4] px-3.5 py-1 text-[13px] font-bold text-[#6b6459]">
                       {data.signal.signal} &middot; {shownDaysAhead}-day signal
+                      <MetricLabel info={getSignalInfo(shownDaysAhead)} />
                     </span>
                     {data.signal.signal_flip_count !== null && (
                       <span
@@ -584,9 +566,9 @@ export default function PredictPage() {
                     <BacktestChart ticker={data.ticker} backtest={data.backtest} />
                   </div>
                   <div className="grid grid-cols-1 gap-3 border-t border-[#ede9df] p-4 sm:grid-cols-3">
-                    <MetricTile label="RMSE" value={data.metrics.rmse.toFixed(2)} onInfoClick={() => setActiveInfo("rmse")} />
-                    <MetricTile label="MAE" value={data.metrics.mae.toFixed(2)} onInfoClick={() => setActiveInfo("mae")} />
-                    <MetricTile label="MAPE" value={`${data.metrics.mape.toFixed(2)}%`} onInfoClick={() => setActiveInfo("mape")} />
+                    <MetricTile label="RMSE" value={data.metrics.rmse.toFixed(2)} />
+                    <MetricTile label="MAE" value={data.metrics.mae.toFixed(2)} />
+                    <MetricTile label="MAPE" value={`${data.metrics.mape.toFixed(2)}%`} />
                   </div>
 
                   {data.metrics.naive_rmse !== null && data.metrics.naive_rmse !== undefined && (
@@ -1080,29 +1062,16 @@ export default function PredictPage() {
           </div>
         )}
 
-        {activeInfo && getMetricInfo(shownDaysAhead)[activeInfo] && (
-          <InfoModal info={getMetricInfo(shownDaysAhead)[activeInfo]} onClose={() => setActiveInfo(null)} />
-        )}
       </div>
     </div>
   );
 }
 
-function MetricTile({ label, value, onInfoClick }: { label: string; value: string; onInfoClick?: () => void }) {
+function MetricTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-[#ddd8cd] bg-white p-3">
       <p className="flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-wide text-[#857d6e]">
-        {label}
-        {onInfoClick && (
-          <button
-            type="button"
-            onClick={onInfoClick}
-            title={`What is ${label}?`}
-            className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#ddd8cd] text-[9px] font-normal normal-case text-[#a39b8b] hover:border-[#857d6e] hover:text-[#1f2420]"
-          >
-            i
-          </button>
-        )}
+        <MetricLabel>{label}</MetricLabel>
       </p>
       <p className="mt-1 text-xl font-semibold text-[#1f2420]" style={MONO_FONT}>
         {value}

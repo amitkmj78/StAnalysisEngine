@@ -2,7 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 
-import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
+import MetricLabel from "@/components/MetricLabel";
+import MetricTile from "@/components/MetricTile";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import { ApiError, getFundCategories, getFundGoals, getFundRanking, getFundScore } from "@/lib/api";
 import type { FundGoal, FundRankRow } from "@/lib/types";
@@ -40,77 +41,6 @@ const ALL_COLUMNS: { key: string; label: string; defaultVisible: boolean }[] = [
   { key: "Inception Date", label: "Inception Date", defaultVisible: false },
 ];
 
-const COLUMN_INFO: Record<string, ColumnInfo> = {
-  Score: {
-    title: "Score",
-    body: [
-      "A relative rank within this fund's own category: every metric is z-scored against the other funds in the same Category before weighting, so a fund is only ever compared to real peers — a bond fund is never scored against an equity fund's volatility.",
-      "It isn't a 0–100 grade. 0 means \"about average for its category\" on the metrics that matter to this Goal; positive means better than its peers, negative means worse — and the further from 0, the bigger the gap. A very small peer group (a handful of nearly-identical funds plus one real outlier) can push a Score well beyond ±100.",
-      "The metrics and weights depend on the Goal you picked — see the weights strip above the table for the exact breakdown of whichever Goal is active.",
-      "Expand a row (the ▸ on the left) to see the Return/Risk/Cost/Liquidity sub-scores and the raw metric behind each.",
-    ],
-  },
-  "Expense Ratio %": {
-    title: "Expense Ratio",
-    body: [
-      "The fund's annual operating fee, as a percentage of your invested assets — pulled live from Yahoo Finance's fund data for each ticker.",
-      "It's deducted automatically from the fund's returns over the year, so a higher expense ratio quietly eats into your net return every year you hold it, compounding over time. Lower is better.",
-    ],
-  },
-  "Tracking Difference %": {
-    title: "Tracking Difference",
-    body: [
-      "This fund's CAGR minus its benchmark index's own CAGR over the selected window — how much the fund gave up (or gained) versus the index it tracks, beyond the stated expense ratio.",
-      "Only computed for funds mapped to a benchmark with an unambiguous, free index ticker (the major S&P/Nasdaq/Russell indices). Everything else — Dow-Jones-branded, MSCI/FTSE international, and every bond index — shows N/A rather than a guessed number.",
-    ],
-  },
-  "Assets ($B)": {
-    title: "Fund Assets (AUM)",
-    body: ["Total net assets under management, in billions — a rough proxy for how liquid and established a fund is."],
-  },
-  "Avg Daily Volume": {
-    title: "Average Daily Volume",
-    body: ["Shares traded per day on average (3-month average where available) — higher volume generally means tighter spreads and easier entry/exit at the quoted price."],
-  },
-  "Bid/Ask Spread %": {
-    title: "Bid/Ask Spread (live)",
-    body: [
-      "A live snapshot of (ask − bid) / midpoint, taken at the time the data was last refreshed — not a historical median, since no historical bid/ask series exists via this data source.",
-      "Smaller is better: it's roughly what you give up in one round-trip just from the spread, separate from any commission.",
-    ],
-  },
-  "CAGR (Window) %": {
-    title: "CAGR (selected window)",
-    body: ["Compound annual growth rate over the currently selected Window, using total return with dividends reinvested — not a simple average of yearly returns."],
-  },
-  "Max Drawdown (Window) %": {
-    title: "Max Drawdown (selected window)",
-    body: ["The largest peak-to-trough decline within the selected Window — how much this fund lost from its best point before recovering, expressed as a positive percentage."],
-  },
-  "Std Dev (Window) %": {
-    title: "Std. Dev. (selected window)",
-    body: ["Annualized standard deviation of daily returns over the selected Window — a measure of how bumpy the ride was, not of long-run direction."],
-  },
-  "Sharpe (Window)": {
-    title: "Sharpe Ratio (selected window)",
-    body: ["Annualized return divided by annualized volatility over the selected Window, assuming a 0% risk-free rate. Higher means more return per unit of risk taken."],
-  },
-  "Sortino (Window)": {
-    title: "Sortino Ratio (selected window)",
-    body: ["Like Sharpe, but only penalizes downside volatility (losing days), not all volatility — a fund that's volatile only on the way up scores better here than on Sharpe."],
-  },
-  "Distribution Yield %": {
-    title: "Distribution Yield",
-    body: ["The fund's trailing distribution yield, pulled live from Yahoo Finance."],
-  },
-  "Turnover %": {
-    title: "Turnover",
-    body: [
-      "Annual holdings turnover ratio, as disclosed by the fund. This figure is not reliably available via this data source for most funds — including large, well-known funds like SPY and BND — so it shows N/A far more often than not. Shown anyway rather than hidden, so the gap is visible.",
-    ],
-  },
-};
-
 function windowLabel(w: string) {
   return WINDOW_OPTIONS.find((o) => o.value === w)?.label ?? w;
 }
@@ -144,7 +74,6 @@ export default function IndexFundPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [infoColumn, setInfoColumn] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     new Set(ALL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key)),
@@ -407,15 +336,17 @@ export default function IndexFundPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Score" value={`${winner.Score >= 0 ? "+" : ""}${winner.Score}`} onInfoClick={() => setInfoColumn("Score")} />
+            <MetricTile label="Score" value={`${winner.Score >= 0 ? "+" : ""}${winner.Score}`} term="Fund Score" />
             <MetricTile label="Price" value={`$${Number(winner.Price).toFixed(2)}`} />
             <MetricTile
               label="Expense Ratio"
               value={winner["Expense Ratio %"] != null ? `${Number(winner["Expense Ratio %"]).toFixed(2)}%` : "N/A"}
+              term="Expense Ratio %"
             />
             <MetricTile
               label="CAGR (Window)"
               value={winner["CAGR (Window) %"] != null ? `${Number(winner["CAGR (Window) %"]).toFixed(1)}%` : "N/A"}
+              term="CAGR (Window) %"
             />
           </div>
         </div>
@@ -447,7 +378,6 @@ export default function IndexFundPage() {
                     sortColumn={sortColumn}
                     sortDirection={sortDirection}
                     onSort={handleSort}
-                    onInfoClick={setInfoColumn}
                     expandedRows={expandedRows}
                     onToggleRow={toggleRow}
                   />
@@ -460,15 +390,12 @@ export default function IndexFundPage() {
                   sortColumn={sortColumn}
                   sortDirection={sortDirection}
                   onSort={handleSort}
-                  onInfoClick={setInfoColumn}
                   expandedRows={expandedRows}
                   onToggleRow={toggleRow}
                 />
               )}
         </div>
       )}
-
-      {infoColumn && COLUMN_INFO[infoColumn] && <InfoModal info={COLUMN_INFO[infoColumn]} onClose={() => setInfoColumn(null)} />}
     </div>
   );
 }
@@ -479,7 +406,6 @@ function FundTable({
   sortColumn,
   sortDirection,
   onSort,
-  onInfoClick,
   expandedRows,
   onToggleRow,
 }: {
@@ -488,7 +414,6 @@ function FundTable({
   sortColumn: string | null;
   sortDirection: SortDirection;
   onSort: (col: string) => void;
-  onInfoClick: (col: string) => void;
   expandedRows: Set<string>;
   onToggleRow: (ticker: string) => void;
 }) {
@@ -511,16 +436,10 @@ function FundTable({
                       {sortColumn === col.key ? (sortDirection === "asc" ? "▲" : "▼") : ""}
                     </span>
                   </button>
-                  {COLUMN_INFO[col.key] && (
-                    <button
-                      type="button"
-                      onClick={() => onInfoClick(col.key)}
-                      title={`What is ${col.label}?`}
-                      className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
-                    >
-                      i
-                    </button>
-                  )}
+                  {/* "Score" means something different here (a fund's
+                      category-relative z-score) than Stock Finder's own
+                      "Score" column -- keyed distinctly in the glossary. */}
+                  <MetricLabel term={col.key === "Score" ? "Fund Score" : col.key} />
                 </div>
               </th>
             ))}
@@ -610,31 +529,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function MetricTile({
-  label,
-  value,
-  onInfoClick,
-}: {
-  label: string;
-  value: string;
-  onInfoClick?: () => void;
-}) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <p className="flex items-center gap-1 text-xs text-slate-500">
-        {label}
-        {onInfoClick && (
-          <button
-            type="button"
-            onClick={onInfoClick}
-            title={`What is ${label}?`}
-            className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
-          >
-            i
-          </button>
-        )}
-      </p>
-      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
-    </div>
-  );
-}
