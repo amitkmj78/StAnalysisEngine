@@ -42,8 +42,15 @@ FILINGS_LIST_TTL_SECONDS = 60 * 60 * 6  # reflects *today's* new filings, refres
 
 # Each extracted section is capped so the summarization prompt stays a
 # reasonable size -- real MD&A/Risk Factors sections can run tens of
-# thousands of characters. Truncation is reported by the caller, not hidden.
-MAX_SECTION_CHARS = 15000
+# thousands of characters. A diff prompt includes up to 4 of these blocks
+# (2 items x current+previous) -- live-tested against this app's actual
+# configured LLM providers and found that even the "cheap" free-tier Groq
+# model this app falls back to caps requests at 8000 tokens/minute; 15000
+# chars/section produced a real ~13,000-token prompt that was rejected
+# every time. 4000 chars (matching services/web_search/extract.py's own
+# MAX_CONTENT_CHARS) keeps 4 blocks comfortably under that limit.
+# Truncation is reported by the caller, not hidden.
+MAX_SECTION_CHARS = 4000
 
 # item label -> a short marker from that item's SEC-standardized canonical
 # title (Regulation S-K uses the same item titles across virtually every
