@@ -19,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 
 from services import alpaca_trading_client
 from services.alpaca_trading_client import AlpacaTradingError
-from services.backtest_engine import DAYS_PER_YEAR, cumulative_pct, max_drawdown_pct
+from services.backtest_engine import DAYS_PER_YEAR, cumulative_pct, max_drawdown_pct, sharpe, sortino
 from web.backend.crypto_utils import decrypt_token
 from web.backend.db import service_conn
 
@@ -31,6 +31,18 @@ JOIN_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 JOIN_CODE_LENGTH = 6
 
 MIN_SNAPSHOTS_FOR_PERFORMANCE = 2
+# Sharpe, Sortino and Calmar on fewer days than this are mostly noise, so the
+# leaderboard shows the return but leaves the risk-adjusted score blank.
+MIN_DAYS_FOR_RISK_SCORE = 5
+
+SCORING_METHODS = {
+    "return": "Raw return",
+    "sharpe": "Sharpe ratio",
+    "sortino": "Sortino ratio",
+    "calmar": "Calmar (return / max drawdown)",
+    "excess_spy": "Excess return vs S&P 500",
+}
+DEFAULT_SCORING = "return"
 
 
 def generate_join_code() -> str:
@@ -75,12 +87,34 @@ def compute_member_performance(equity_snapshots: list[dict], start_date: date, e
     if len(daily_returns_pct) >= 2:
         volatility_pct = round(float(np.std(daily_returns_pct, ddof=1)) * np.sqrt(DAYS_PER_YEAR), 2)
 
+    total_return = cumulative_pct(daily_returns_pct)
+    drawdown = max_drawdown_pct(daily_returns_pct)
+    risk_scored = days_of_data >= MIN_DAYS_FOR_RISK_SCORE
+    calmar = None
+    if risk_scored and total_return is not None and drawdown:
+        calmar = round(total_return / abs(drawdown), 2)
+
     return {
-        "return_pct": cumulative_pct(daily_returns_pct),
-        "max_drawdown_pct": max_drawdown_pct(daily_returns_pct),
+        "return_pct": total_return,
+        "max_drawdown_pct": drawdown,
         "annualized_volatility_pct": volatility_pct,
+        "sharpe": sharpe(daily_returns_pct, 0.0, DAYS_PER_YEAR) if risk_scored else None,
+        "sortino": sortino(daily_returns_pct, 0.0, DAYS_PER_YEAR) if risk_scored else None,
+        "calmar": calmar,
         "days_of_data": days_of_data,
     }
+
+
+def score_for(method: str, performance: dict, spy_return_pct: Optional[float]) -> Optional[float]:
+    """The single number a leaderboard sorts by. None means "not scored yet",
+    which sorts last rather than being guessed."""
+    if method == "excess_spy":
+        if performance.get("return_pct") is None or spy_return_pct is None:
+            return None
+        return round(performance["return_pct"] - spy_return_pct, 2)
+    if method in ("sharpe", "sortino", "calmar"):
+        return performance.get(method)
+    return performance.get("return_pct")
 
 
 async def capture_equity_for_account(account: dict) -> bool:

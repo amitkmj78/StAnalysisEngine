@@ -1499,6 +1499,10 @@ create table if not exists challenges (
   created_at timestamptz not null default now(),
   check (end_date > start_date)
 );
+-- Ranking method the creator picks (see services/challenge_service.py SCORING_METHODS).
+alter table challenges add column if not exists scoring text not null default 'return';
+alter table challenges drop constraint if exists challenges_scoring_check;
+alter table challenges add constraint challenges_scoring_check check (scoring in ('return','sharpe','sortino','calmar','excess_spy'));
 
 create table if not exists challenge_members (
   challenge_id bigint not null references challenges(id) on delete cascade,

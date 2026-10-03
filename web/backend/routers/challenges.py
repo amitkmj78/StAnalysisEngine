@@ -21,8 +21,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from starlette.concurrency import run_in_threadpool
 
-from services.challenge_service import compute_member_performance, generate_join_code
+from services.challenge_service import (
+    DEFAULT_SCORING,
+    SCORING_METHODS,
+    compute_member_performance,
+    generate_join_code,
+    score_for,
+)
 from services.email_service import APP_URL, send_alert_email
+from services.yfinance_cache import get_cached_history
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn
 from web.backend.rate_limit import enforce_daily_quota, limiter
@@ -64,6 +71,7 @@ class CreateChallengeRequest(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    scoring: str = DEFAULT_SCORING
 
 
 class JoinChallengeRequest(BaseModel):
@@ -106,6 +114,8 @@ async def create_challenge(request: Request, body: CreateChallengeRequest):
     end_date = body.end_date or default_end
     if end_date <= start_date:
         raise HTTPException(400, "end_date must be after start_date.")
+    if body.scoring not in SCORING_METHODS:
+        raise HTTPException(400, f"scoring must be one of: {', '.join(SCORING_METHODS)}.")
 
     async with service_conn() as conn:
         await _require_paper_account(conn, user_id)
@@ -120,10 +130,10 @@ async def create_challenge(request: Request, body: CreateChallengeRequest):
         async with conn.transaction():
             challenge_id = await conn.fetchval(
                 """
-                INSERT INTO challenges (name, created_by, join_code, start_date, end_date)
-                VALUES ($1, $2::uuid, $3, $4, $5) RETURNING id
+                INSERT INTO challenges (name, created_by, join_code, start_date, end_date, scoring)
+                VALUES ($1, $2::uuid, $3, $4, $5, $6) RETURNING id
                 """,
-                body.name, user_id, join_code, start_date, end_date,
+                body.name, user_id, join_code, start_date, end_date, body.scoring,
             )
             await conn.execute(
                 "INSERT INTO challenge_members (challenge_id, user_id) VALUES ($1, $2::uuid)",
@@ -310,6 +320,7 @@ async def get_challenge(request: Request, challenge_id: int):
     return {
         "id": challenge["id"], "name": challenge["name"], "join_code": challenge["join_code"],
         "start_date": str(challenge["start_date"]), "end_date": str(challenge["end_date"]),
+        "scoring": challenge["scoring"], "scoring_label": SCORING_METHODS[challenge["scoring"]],
         "members": [mask_email(r["email"]) for r in member_rows],
     }
 
@@ -428,7 +439,7 @@ async def get_challenge_leaderboard(request: Request, challenge_id: int):
     user_id = request.state.user["id"]
     async with service_conn() as conn:
         await _require_membership(conn, challenge_id, user_id)
-        challenge = await conn.fetchrow("SELECT start_date, end_date FROM challenges WHERE id = $1", challenge_id)
+        challenge = await conn.fetchrow("SELECT start_date, end_date, scoring FROM challenges WHERE id = $1", challenge_id)
         if challenge is None:
             raise HTTPException(404, "Challenge not found.")
         start_date, end_date = challenge["start_date"], min(challenge["end_date"], date.today())
@@ -467,8 +478,35 @@ async def get_challenge_leaderboard(request: Request, challenge_id: int):
             )
             entries.append({"member": mask_email(member["email"]), "has_paper_account": True, **performance})
 
-    entries.sort(key=lambda e: (e["return_pct"] is None, -(e["return_pct"] or 0)))
-    return {"start_date": str(start_date), "end_date": str(end_date), "entries": entries}
+    spy_return = await _spy_return_pct(start_date, end_date)
+    method = challenge["scoring"]
+    for e in entries:
+        e["vs_spy_pct"] = (
+            round(e["return_pct"] - spy_return, 2)
+            if e.get("return_pct") is not None and spy_return is not None else None
+        )
+        e["score"] = score_for(method, e, spy_return)
+
+    entries.sort(key=lambda e: (e["score"] is None, -(e["score"] or 0)))
+    return {
+        "start_date": str(start_date), "end_date": str(end_date),
+        "scoring": method, "scoring_label": SCORING_METHODS[method],
+        "spy_return_pct": spy_return, "entries": entries,
+    }
+
+
+async def _spy_return_pct(start_date: date, end_date: date) -> Optional[float]:
+    """SPY over the same window the members are measured on: first close on or
+    after start, last close on or before end. None if price data is missing,
+    so excess-return columns go blank instead of guessing."""
+    try:
+        closes = (await run_in_threadpool(get_cached_history, "SPY", "2y", True))["Close"]
+    except Exception:  # noqa: BLE001 -- benchmark is context; never fail the leaderboard over it
+        return None
+    window = closes.loc[str(start_date): str(end_date)]
+    if len(window) < 2:
+        return None
+    return round((float(window.iloc[-1]) / float(window.iloc[0]) - 1.0) * 100.0, 2)
 
 
 @router.delete("/{challenge_id}/leave")

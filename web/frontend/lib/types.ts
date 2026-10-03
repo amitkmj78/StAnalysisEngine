@@ -2287,6 +2287,11 @@ export interface ChallengeDetail {
 export interface ChallengeLeaderboardEntry {
   member: string;
   has_paper_account: boolean;
+  vs_spy_pct: number | null;
+  score: number | null;
+  sharpe: number | null;
+  sortino: number | null;
+  calmar: number | null;
   return_pct: number | null;
   max_drawdown_pct: number | null;
   annualized_volatility_pct: number | null;
@@ -2296,6 +2301,9 @@ export interface ChallengeLeaderboardEntry {
 export interface ChallengeLeaderboardResponse {
   start_date: string;
   end_date: string;
+  scoring: string;
+  scoring_label: string;
+  spy_return_pct: number | null;
   entries: ChallengeLeaderboardEntry[];
 }
 

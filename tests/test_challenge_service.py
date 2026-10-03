@@ -1,6 +1,7 @@
 from datetime import date
 
 from services.challenge_service import (
+    score_for,
     JOIN_CODE_ALPHABET,
     JOIN_CODE_LENGTH,
     compute_member_performance,
@@ -77,3 +78,34 @@ def test_compute_member_performance_unsorted_input_still_computed_correctly():
     ]
     result = compute_member_performance(snapshots, date(2026, 10, 1), date(2026, 10, 31))
     assert result["return_pct"] == 2.01
+
+
+def test_risk_scores_blank_with_too_few_days():
+    snaps = [_snap("2026-10-01", 100000.0), _snap("2026-10-02", 101000.0), _snap("2026-10-03", 99000.0)]
+    result = compute_member_performance(snaps, date(2026, 10, 1), date(2026, 10, 31))
+    assert result["sharpe"] is None and result["sortino"] is None and result["calmar"] is None
+    assert result["return_pct"] is not None
+
+
+def test_calmar_is_return_over_max_drawdown():
+    snaps = [_snap(f"2026-10-{d:02d}", e) for d, e in
+             [(1, 100000.0), (2, 110000.0), (3, 88000.0), (4, 120000.0), (5, 115000.0), (6, 121000.0)]]
+    result = compute_member_performance(snaps, date(2026, 10, 1), date(2026, 10, 31))
+    assert result["max_drawdown_pct"] == -20.0
+    assert result["calmar"] == round(result["return_pct"] / 20.0, 2)
+
+
+def test_score_for_return_and_excess_vs_spy():
+    perf = {"return_pct": 5.0, "sharpe": 1.2, "sortino": 1.5, "calmar": 2.0}
+    assert score_for("return", perf, 2.0) == 5.0
+    assert score_for("excess_spy", perf, 2.0) == 3.0
+    assert score_for("sharpe", perf, 2.0) == 1.2
+
+
+def test_excess_return_is_unscored_without_spy_data():
+    assert score_for("excess_spy", {"return_pct": 5.0}, None) is None
+    assert score_for("excess_spy", {"return_pct": None}, 2.0) is None
+
+
+def test_unknown_method_falls_back_to_raw_return():
+    assert score_for("nonsense", {"return_pct": 4.0}, None) == 4.0

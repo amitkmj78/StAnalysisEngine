@@ -13,12 +13,18 @@ import {
   leaveChallenge,
   listDiscoverableUsers,
 } from "@/lib/api";
-import type { ChallengeDetail, ChallengeLeaderboardEntry, DiscoverableUser } from "@/lib/types";
+import type { ChallengeDetail, ChallengeLeaderboardEntry, ChallengeLeaderboardResponse, DiscoverableUser } from "@/lib/types";
 
 function fmtPct(v: number | null): string {
   if (v === null) return "—";
   const sign = v >= 0 ? "+" : "";
   return `${sign}${v.toFixed(2)}%`;
+}
+
+function fmtScore(v: number | null, scoring: string): string {
+  if (v === null) return "—";
+  if (scoring === "return" || scoring === "excess_spy") return fmtPct(v);
+  return v.toFixed(2);
 }
 
 const MIN_DAYS_FOR_CONFIDENT_READING = 5;
@@ -29,7 +35,8 @@ export default function ChallengeDetailPage() {
   const challengeId = Number(params.id);
 
   const [challenge, setChallenge] = useState<ChallengeDetail | null | undefined>(undefined);
-  const [entries, setEntries] = useState<ChallengeLeaderboardEntry[]>([]);
+  const [board, setBoard] = useState<ChallengeLeaderboardResponse | null>(null);
+  const entries: ChallengeLeaderboardEntry[] = board?.entries ?? [];
   const [discoverableUsers, setDiscoverableUsers] = useState<DiscoverableUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -50,7 +57,7 @@ export default function ChallengeDetailPage() {
         }
       });
     getChallengeLeaderboard(challengeId)
-      .then((res) => setEntries(res.entries))
+      .then((res) => setBoard(res))
       .catch(() => {});
     listDiscoverableUsers(challengeId)
       .then((res) => setDiscoverableUsers(res.users))
@@ -221,7 +228,9 @@ export default function ChallengeDetailPage() {
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3">Rank</th>
               <th className="px-4 py-3">Member</th>
+              <th className="px-4 py-3 text-right">Score</th>
               <th className="px-4 py-3 text-right">Return</th>
+              <th className="px-4 py-3 text-right">vs S&amp;P 500</th>
               <th className="px-4 py-3 text-right">Max Drawdown</th>
               <th className="px-4 py-3 text-right">Volatility</th>
               <th className="px-4 py-3 text-right">Days of Data</th>
@@ -232,8 +241,11 @@ export default function ChallengeDetailPage() {
               <tr key={`${i}-${e.member}`} className="border-b border-slate-100 last:border-0">
                 <td className="px-4 py-3 text-slate-500">{i + 1}</td>
                 <td className="px-4 py-3 text-slate-900">{e.member}</td>
+                <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                  {fmtScore(e.score, board?.scoring ?? "return")}
+                </td>
                 {e.return_pct === null ? (
-                  <td colSpan={4} className="px-4 py-3 text-sm text-slate-600">
+                  <td colSpan={5} className="px-4 py-3 text-sm text-slate-600">
                     {!e.has_paper_account ? (
                       <span>
                         No linked paper account.{" "}
@@ -254,6 +266,13 @@ export default function ChallengeDetailPage() {
                     >
                       {fmtPct(e.return_pct)}
                     </td>
+                    <td
+                      className={`px-4 py-3 text-right ${
+                        e.vs_spy_pct === null ? "text-slate-400" : e.vs_spy_pct >= 0 ? "text-emerald-600" : "text-red-600"
+                      }`}
+                    >
+                      {fmtPct(e.vs_spy_pct)}
+                    </td>
                     <td className="px-4 py-3 text-right text-slate-700">{fmtPct(e.max_drawdown_pct)}</td>
                     <td className="px-4 py-3 text-right text-slate-700">{fmtPct(e.annualized_volatility_pct)}</td>
                     <td className="px-4 py-3 text-right text-slate-500">
@@ -271,6 +290,12 @@ export default function ChallengeDetailPage() {
           </tbody>
         </table>
       </div>
+      {board && (
+        <p className="mt-2 text-xs text-slate-500">
+          Ranked by <span className="font-medium">{board.scoring_label}</span>. S&amp;P 500 over this window:{" "}
+          {fmtPct(board.spy_return_pct)}.
+        </p>
+      )}
       <p className="mt-2 text-xs text-slate-400">
         Return and max drawdown are computed from each member&apos;s linked paper-trading account, from the first
         snapshot on/after this challenge started to the latest on/before today (or when it ended). A member with no

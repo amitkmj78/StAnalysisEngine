@@ -29,6 +29,7 @@ export default function ChallengesPage() {
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [scoring, setScoring] = useState("return");
   const [creating, setCreating] = useState(false);
 
   const [joinCode, setJoinCode] = useState("");
@@ -65,11 +66,13 @@ export default function ChallengesPage() {
         name: name.trim(),
         start_date: startDate || undefined,
         end_date: endDate || undefined,
+        scoring,
       });
       setNote(`Created "${res.name}". Share join code ${res.join_code} with friends.`);
       setName("");
       setStartDate("");
       setEndDate("");
+      setScoring("return");
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not create this challenge.");
@@ -236,6 +239,20 @@ export default function ChallengesPage() {
                 className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
               />
             </div>
+            <label className="flex flex-col gap-1 text-xs text-slate-500">
+              Ranked by
+              <select
+                value={scoring}
+                onChange={(e) => setScoring(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900"
+              >
+                <option value="return">Raw return</option>
+                <option value="excess_spy">Excess return vs S&amp;P 500</option>
+                <option value="sharpe">Sharpe ratio (return vs volatility)</option>
+                <option value="sortino">Sortino ratio (return vs downside)</option>
+                <option value="calmar">Calmar (return / max drawdown)</option>
+              </select>
+            </label>
             <button
               type="submit"
               disabled={creating}
