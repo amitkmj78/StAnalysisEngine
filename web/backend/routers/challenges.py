@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from starlette.concurrency import run_in_threadpool
 
+from services.challenge_leaderboard import build_leaderboard
 from services.challenge_service import (
     DEFAULT_SCORING,
     SCORING_METHODS,
@@ -39,11 +40,6 @@ from web.backend.rate_limit import enforce_daily_quota, limiter
 router = APIRouter(prefix="/api/v1/challenges", tags=["challenges"], dependencies=[Depends(verify_bearer_token)])
 
 
-def mask_email(email: str) -> str:
-    """Members see each other on leaderboards; a full address is only ever
-    shown to its owner. Keeps enough of the local part to recognise a friend."""
-    local, _, domain = email.partition("@")
-    return f"{local[:2]}***@{domain}" if domain else "***"
 
 
 def _current_month_bounds() -> tuple[date, date]:
@@ -432,90 +428,17 @@ async def invite_by_email(request: Request, challenge_id: int, body: InviteEmail
 
 @router.get("/{challenge_id}/leaderboard")
 async def get_challenge_leaderboard(request: Request, challenge_id: int):
-    """Returns return_pct/max_drawdown_pct/annualized_volatility_pct/
-    days_of_data per member, sorted by return_pct descending (members
-    with no computable return sort last, not hidden -- see
-    challenge_service.compute_member_performance's own docstring on why
-    thin data is disclosed rather than faked or dropped). Never returns
-    a member's raw equity -- only the percentages compute_member_
-    performance derives from it."""
+    """Per-member return, drawdown, volatility, score and badges. Members appear
+    only by masked label, and raw equity never leaves the server."""
     user_id = request.state.user["id"]
     async with service_conn() as conn:
         await _require_membership(conn, challenge_id, user_id)
-        challenge = await conn.fetchrow(
-            "SELECT start_date, end_date, scoring, include_quant_model FROM challenges WHERE id = $1", challenge_id
-        )
-        if challenge is None:
-            raise HTTPException(404, "Challenge not found.")
-        start_date, end_date = challenge["start_date"], min(challenge["end_date"], date.today())
-
-        member_rows = await conn.fetch(
-            """
-            SELECT m.user_id, u.email, a.id AS alpaca_paper_account_id
-            FROM challenge_members m
-            JOIN users u ON u.id = m.user_id
-            LEFT JOIN alpaca_paper_accounts a ON a.user_id = m.user_id
-            WHERE m.challenge_id = $1
-            """,
-            challenge_id,
-        )
-
-        entries = []
-        for member in member_rows:
-            if member["alpaca_paper_account_id"] is None:
-                entries.append({
-                    "member": mask_email(member["email"]), "has_paper_account": False, "is_model": False,
-                    "return_pct": None, "max_drawdown_pct": None,
-                    "annualized_volatility_pct": None, "days_of_data": 0,
-                })
-                continue
-
-            snapshot_rows = await conn.fetch(
-                """
-                SELECT as_of_date, equity FROM paper_account_equity_snapshots
-                WHERE alpaca_paper_account_id = $1 AND as_of_date BETWEEN $2 AND $3
-                """,
-                member["alpaca_paper_account_id"], start_date, end_date,
-            )
-            performance = compute_member_performance(
-                [{"as_of_date": r["as_of_date"], "equity": r["equity"]} for r in snapshot_rows],
-                start_date, end_date,
-            )
-            entries.append({"member": mask_email(member["email"]), "has_paper_account": True, "is_model": False, **performance})
-
-    if challenge["include_quant_model"]:
-        model_perf = compute_member_performance(await model_snapshots(start_date, end_date), start_date, end_date)
-        entries.append({"member": MODEL_MEMBER_LABEL, "has_paper_account": True, "is_model": True, **model_perf})
-
-    spy_return = await _spy_return_pct(start_date, end_date)
-    method = challenge["scoring"]
-    for e in entries:
-        e["vs_spy_pct"] = (
-            round(e["return_pct"] - spy_return, 2)
-            if e.get("return_pct") is not None and spy_return is not None else None
-        )
-        e["score"] = score_for(method, e, spy_return)
-
-    entries.sort(key=lambda e: (e["score"] is None, -(e["score"] or 0)))
-    return {
-        "start_date": str(start_date), "end_date": str(end_date),
-        "scoring": method, "scoring_label": SCORING_METHODS[method],
-        "spy_return_pct": spy_return, "entries": entries,
-    }
-
-
-async def _spy_return_pct(start_date: date, end_date: date) -> Optional[float]:
-    """SPY over the same window the members are measured on: first close on or
-    after start, last close on or before end. None if price data is missing,
-    so excess-return columns go blank instead of guessing."""
-    try:
-        closes = (await run_in_threadpool(get_cached_history, "SPY", "2y", True))["Close"]
-    except Exception:  # noqa: BLE001 -- benchmark is context; never fail the leaderboard over it
-        return None
-    window = closes.loc[str(start_date): str(end_date)]
-    if len(window) < 2:
-        return None
-    return round((float(window.iloc[-1]) / float(window.iloc[0]) - 1.0) * 100.0, 2)
+    board = await build_leaderboard(challenge_id)
+    if board is None:
+        raise HTTPException(404, "Challenge not found.")
+    for entry in board["entries"]:
+        entry.pop("user_id", None)
+    return board
 
 
 @router.get("/{challenge_id}/equity-curves")

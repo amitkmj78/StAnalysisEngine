@@ -1691,6 +1691,7 @@ export interface AdminSettings {
   evening_recap_enabled: boolean;
   morning_brief_enabled: boolean;
   paper_account_equity_capture_enabled: boolean;
+  challenge_notifications_enabled: boolean;
 }
 
 export interface BackupRun {
@@ -2284,10 +2285,16 @@ export interface ChallengeDetail {
   members: string[];
 }
 
+export interface ChallengeBadge {
+  badge: string;
+  detail: string;
+}
+
 export interface ChallengeLeaderboardEntry {
   member: string;
   has_paper_account: boolean;
   is_model: boolean;
+  badges: ChallengeBadge[];
   vs_spy_pct: number | null;
   score: number | null;
   sharpe: number | null;
@@ -2305,6 +2312,7 @@ export interface ChallengeLeaderboardResponse {
   scoring: string;
   scoring_label: string;
   spy_return_pct: number | null;
+  ended: boolean;
   entries: ChallengeLeaderboardEntry[];
 }
 

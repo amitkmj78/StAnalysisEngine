@@ -261,3 +261,8 @@ AGENT_ENABLED_KEY = "agent_enabled"
 # Global emergency stop for every user's agent (AGT-3). Per-user kills live on
 # agent_user_settings.kill_engaged.
 AGENT_KILL_SWITCH_KEY = "agent_kill_switch"
+
+# Challenge notifications (daily rank, passed-you, ending reminder, final
+# result). Off by default: this emails members on a schedule, so it needs a
+# deliberate admin opt-in, same as every other scheduled alert.
+CHALLENGE_NOTIFICATIONS_ENABLED_KEY = "challenge_notifications_enabled"

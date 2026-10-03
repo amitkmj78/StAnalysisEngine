@@ -17,6 +17,7 @@ from web.backend.app_settings import (
     MARKET_REGIME_ENABLED_KEY,
     MORNING_BRIEF_ENABLED_KEY,
     PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY,
+    CHALLENGE_NOTIFICATIONS_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
     PAPER_TRADING_KILL_SWITCH_KEY,
     PAPER_TRADING_MAX_ORDER_VALUE_DEFAULT,
@@ -112,6 +113,7 @@ async def get_settings():
         ),
         "evening_recap_enabled": await get_setting_bool(EVENING_RECAP_ENABLED_KEY, default=False),
         "morning_brief_enabled": await get_setting_bool(MORNING_BRIEF_ENABLED_KEY, default=False),
+        "challenge_notifications_enabled": await get_setting_bool(CHALLENGE_NOTIFICATIONS_ENABLED_KEY, default=False),
         "paper_account_equity_capture_enabled": await get_setting_bool(
             PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY, default=False
         ),
@@ -214,6 +216,19 @@ async def enable_morning_brief():
 async def disable_morning_brief():
     await set_setting_bool(MORNING_BRIEF_ENABLED_KEY, False)
     return {"morning_brief_enabled": False}
+
+
+@router.post("/challenge-notifications/enable")
+async def enable_challenge_notifications():
+    """Turns on the daily (weekdays 16:40 ET) challenge rank emails and alerts."""
+    await set_setting_bool(CHALLENGE_NOTIFICATIONS_ENABLED_KEY, True)
+    return {"challenge_notifications_enabled": True}
+
+
+@router.post("/challenge-notifications/disable")
+async def disable_challenge_notifications():
+    await set_setting_bool(CHALLENGE_NOTIFICATIONS_ENABLED_KEY, False)
+    return {"challenge_notifications_enabled": False}
 
 
 @router.post("/paper-account-equity-capture/enable")

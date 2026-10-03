@@ -9,6 +9,7 @@ from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.cost_drop_alert_service import scan_cost_drops
 from services.agent.runner import run_agent_for_user
+from services.challenge_notifications import run_challenge_notifications
 from services.challenge_service import capture_equity_for_account
 from services.daily_brief_service import build_evening_recap, build_morning_brief
 from services.earnings_alert_service import scan_earnings_in_window
@@ -36,6 +37,7 @@ from web.backend.app_settings import (
     MARKET_REGIME_ENABLED_KEY,
     MORNING_BRIEF_ENABLED_KEY,
     AGENT_ENABLED_KEY,
+    CHALLENGE_NOTIFICATIONS_ENABLED_KEY,
     PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
@@ -424,6 +426,22 @@ async def _run_trading_agents_job() -> None:
         except Exception as e:  # noqa: BLE001
             logger.warning("Scheduler: trading agent failed for user %s: %s", row["user_id"], e)
 
+
+# After the 16:20 ET equity capture, so today's snapshots feed the ranks.
+CHALLENGE_NOTIFICATIONS_HOUR_ET = 16
+CHALLENGE_NOTIFICATIONS_MINUTE_ET = 40
+
+
+async def _send_challenge_notifications_job() -> None:
+    """Challenge rank emails and alerts. Off by default (CHALLENGE_NOTIFICATIONS_
+    ENABLED_KEY). Every message is claimed once per member, kind and day, so a
+    rerun cannot double-send."""
+    if not await get_setting_bool(CHALLENGE_NOTIFICATIONS_ENABLED_KEY, default=False):
+        logger.info("Scheduler: challenge notifications are disabled, skipping this run")
+        return
+    sent = await run_challenge_notifications()
+    if sent:
+        logger.info("Scheduler: sent %d challenge notification(s)", sent)
 
 # After close (16:00 ET) with a few minutes' buffer, same spacing
 # rationale as the other post-close captures already scheduled here.
@@ -1239,6 +1257,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="send_evening_recaps",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _send_challenge_notifications_job,
+        CronTrigger(
+            hour=CHALLENGE_NOTIFICATIONS_HOUR_ET, minute=CHALLENGE_NOTIFICATIONS_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="send_challenge_notifications",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

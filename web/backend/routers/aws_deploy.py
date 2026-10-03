@@ -1624,6 +1624,27 @@ create policy agent_order_events_isolation on agent_order_events
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+create table if not exists challenge_rank_history (
+  challenge_id bigint not null references challenges(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  as_of_date date not null,
+  rank integer not null,
+  score real,
+  primary key (challenge_id, user_id, as_of_date)
+);
+
+-- One row per (challenge, member, kind, day): the notification job claims it
+-- before sending, so a rerun the same day cannot send twice.
+create table if not exists challenge_notification_log (
+  id bigint generated always as identity primary key,
+  challenge_id bigint not null references challenges(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  kind text not null,
+  as_of_date date not null,
+  created_at timestamptz not null default now(),
+  unique (challenge_id, user_id, kind, as_of_date)
+);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -1718,6 +1739,8 @@ grant select, insert on agent_runs to app_service;
 grant select on agent_runs to app_user;
 grant select, insert on agent_order_events to app_service;
 grant select on agent_order_events to app_user;
+grant select, insert on challenge_rank_history to app_service;
+grant select, insert on challenge_notification_log to app_service;
 grant select, insert on challenges to app_service;
 grant select, insert, delete on challenge_members to app_service;
 grant select, insert on paper_account_equity_snapshots to app_service;

@@ -17,6 +17,8 @@ import {
   enableMarketRegime,
   enableMorningBrief,
   enablePaperAccountEquityCapture,
+  enableChallengeNotifications,
+  disableChallengeNotifications,
   enableVerifyPredictions,
   getAdminSettings,
 } from "@/lib/api";
@@ -75,6 +77,7 @@ export default function SchedulerControls() {
   const [eveningRecapEnabled, setEveningRecapEnabled] = useState<boolean | null>(null);
   const [morningBriefEnabled, setMorningBriefEnabled] = useState<boolean | null>(null);
   const [paperAccountEquityCaptureEnabled, setPaperAccountEquityCaptureEnabled] = useState<boolean | null>(null);
+  const [challengeNotificationsEnabled, setChallengeNotificationsEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -89,6 +92,7 @@ export default function SchedulerControls() {
       setEveningRecapEnabled(settings.evening_recap_enabled);
       setMorningBriefEnabled(settings.morning_brief_enabled);
       setPaperAccountEquityCaptureEnabled(settings.paper_account_equity_capture_enabled);
+      setChallengeNotificationsEnabled(settings.challenge_notifications_enabled);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load scheduler settings.");
     }
@@ -178,6 +182,21 @@ export default function SchedulerControls() {
     }
   }
 
+  async function handleToggleChallengeNotifications() {
+    setBusyKey("challenge-notifications");
+    setError(null);
+    try {
+      const result = challengeNotificationsEnabled
+        ? await disableChallengeNotifications()
+        : await enableChallengeNotifications();
+      setChallengeNotificationsEnabled(result.challenge_notifications_enabled);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update scheduler setting.");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   async function handleTogglePaperAccountEquityCapture() {
     setBusyKey("paper-account-equity-capture");
     setError(null);
@@ -251,6 +270,14 @@ export default function SchedulerControls() {
         enabled={paperAccountEquityCaptureEnabled}
         busy={busyKey === "paper-account-equity-capture"}
         onToggle={handleTogglePaperAccountEquityCapture}
+      />
+
+      <JobToggleCard
+        title="Challenge Notifications"
+        description="Daily job (weekdays 16:40 ET) that emails challenge members their rank, alerts them when someone passes them, reminds them two days before a challenge ends, and posts the final result the day after. Each message goes out once per member per day and respects their quiet hours and alert preferences. Disabling it stops new messages."
+        enabled={challengeNotificationsEnabled}
+        busy={busyKey === "challenge-notifications"}
+        onToggle={handleToggleChallengeNotifications}
       />
     </div>
   );

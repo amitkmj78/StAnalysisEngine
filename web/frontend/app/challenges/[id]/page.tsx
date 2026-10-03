@@ -255,6 +255,15 @@ export default function ChallengeDetailPage() {
                 <td className="px-4 py-3 text-slate-900">
                   {e.member}
                   {e.is_model && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">hypothetical</span>}
+                  {e.badges.map((b) => (
+                    <span
+                      key={b.badge}
+                      title={b.detail}
+                      className="ml-1.5 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
+                    >
+                      {b.badge}
+                    </span>
+                  ))}
                 </td>
                 <td className="px-4 py-3 text-right font-semibold text-slate-900">
                   {fmtScore(e.score, board?.scoring ?? "return")}

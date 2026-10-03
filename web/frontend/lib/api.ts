@@ -1823,3 +1823,15 @@ export function adminSetAgentKill(engaged: boolean) {
 export function getChallengeEquityCurves(challengeId: number) {
   return apiFetch<ChallengeEquityCurves>(`/api/v1/challenges/${challengeId}/equity-curves`);
 }
+
+export function enableChallengeNotifications() {
+  return apiSend<{ challenge_notifications_enabled: boolean }>(
+    "/api/v1/admin/settings/challenge-notifications/enable", "POST"
+  );
+}
+
+export function disableChallengeNotifications() {
+  return apiSend<{ challenge_notifications_enabled: boolean }>(
+    "/api/v1/admin/settings/challenge-notifications/disable", "POST"
+  );
+}

@@ -45,6 +45,13 @@ SCORING_METHODS = {
 DEFAULT_SCORING = "return"
 
 
+def mask_email(email: str) -> str:
+    """Members see each other on leaderboards; a full address is only ever
+    shown to its owner. Keeps enough of the local part to recognise a friend."""
+    local, _, domain = email.partition("@")
+    return f"{local[:2]}***@{domain}" if domain else "***"
+
+
 def generate_join_code() -> str:
     return "".join(secrets.choice(JOIN_CODE_ALPHABET) for _ in range(JOIN_CODE_LENGTH))
 
