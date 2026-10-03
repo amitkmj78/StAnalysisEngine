@@ -186,7 +186,7 @@ export default function ChallengesPage() {
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-4"
             >
               <p className="text-sm text-slate-900">
-                <span className="font-medium">{invite.invited_by_email}</span> invited you to{" "}
+                <span className="font-medium">{invite.invited_by_label}</span> invited you to{" "}
                 <span className="font-medium">{invite.challenge_name}</span>
               </p>
               <div className="flex gap-2">

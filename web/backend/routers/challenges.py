@@ -30,6 +30,13 @@ from web.backend.rate_limit import enforce_daily_quota, limiter
 router = APIRouter(prefix="/api/v1/challenges", tags=["challenges"], dependencies=[Depends(verify_bearer_token)])
 
 
+def mask_email(email: str) -> str:
+    """Members see each other on leaderboards; a full address is only ever
+    shown to its owner. Keeps enough of the local part to recognise a friend."""
+    local, _, domain = email.partition("@")
+    return f"{local[:2]}***@{domain}" if domain else "***"
+
+
 def _current_month_bounds() -> tuple[date, date]:
     today = date.today()
     start = date(today.year, today.month, 1)
@@ -205,7 +212,7 @@ async def list_my_invites(request: Request):
         "invites": [
             {
                 "id": r["id"], "challenge_id": r["challenge_id"], "challenge_name": r["challenge_name"],
-                "invited_by_email": r["invited_by_email"], "created_at": r["created_at"].isoformat(),
+                "invited_by_label": mask_email(r["invited_by_email"]), "created_at": r["created_at"].isoformat(),
             }
             for r in rows
         ]
@@ -303,7 +310,7 @@ async def get_challenge(request: Request, challenge_id: int):
     return {
         "id": challenge["id"], "name": challenge["name"], "join_code": challenge["join_code"],
         "start_date": str(challenge["start_date"]), "end_date": str(challenge["end_date"]),
-        "members": [r["email"] for r in member_rows],
+        "members": [mask_email(r["email"]) for r in member_rows],
     }
 
 
@@ -328,7 +335,7 @@ async def list_discoverable_users(request: Request, challenge_id: int):
             """,
             user_id, challenge_id,
         )
-    return {"users": [{"id": str(r["id"]), "email": r["email"]} for r in rows]}
+    return {"users": [{"id": str(r["id"]), "label": mask_email(r["email"])} for r in rows]}
 
 
 @router.post("/{challenge_id}/invite-user")
@@ -369,7 +376,7 @@ async def invite_user(request: Request, challenge_id: int, body: InviteUserReque
 
     subject, text_body = _invite_email_body(challenge["name"], challenge["join_code"], inviter["email"])
     await run_in_threadpool(send_alert_email, target["email"], subject, text_body)
-    return {"ok": True, "invited_email": target["email"]}
+    return {"ok": True, "invited_label": mask_email(target["email"])}
 
 
 @router.post("/{challenge_id}/invite-email")
@@ -441,7 +448,8 @@ async def get_challenge_leaderboard(request: Request, challenge_id: int):
         for member in member_rows:
             if member["alpaca_paper_account_id"] is None:
                 entries.append({
-                    "email": member["email"], "return_pct": None, "max_drawdown_pct": None,
+                    "member": mask_email(member["email"]), "has_paper_account": False,
+                    "return_pct": None, "max_drawdown_pct": None,
                     "annualized_volatility_pct": None, "days_of_data": 0,
                 })
                 continue
@@ -457,7 +465,7 @@ async def get_challenge_leaderboard(request: Request, challenge_id: int):
                 [{"as_of_date": r["as_of_date"], "equity": r["equity"]} for r in snapshot_rows],
                 start_date, end_date,
             )
-            entries.append({"email": member["email"], **performance})
+            entries.append({"member": mask_email(member["email"]), "has_paper_account": True, **performance})
 
     entries.sort(key=lambda e: (e["return_pct"] is None, -(e["return_pct"] or 0)))
     return {"start_date": str(start_date), "end_date": str(end_date), "entries": entries}

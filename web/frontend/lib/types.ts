@@ -2285,7 +2285,8 @@ export interface ChallengeDetail {
 }
 
 export interface ChallengeLeaderboardEntry {
-  email: string;
+  member: string;
+  has_paper_account: boolean;
   return_pct: number | null;
   max_drawdown_pct: number | null;
   annualized_volatility_pct: number | null;
@@ -2302,13 +2303,13 @@ export interface ChallengeInvite {
   id: number;
   challenge_id: number;
   challenge_name: string;
-  invited_by_email: string;
+  invited_by_label: string;
   created_at: string;
 }
 
 export interface DiscoverableUser {
   id: string;
-  email: string;
+  label: string;
 }
 
 export interface AgentEvent {

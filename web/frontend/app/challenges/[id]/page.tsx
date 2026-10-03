@@ -79,7 +79,7 @@ export default function ChallengeDetailPage() {
     setNote(null);
     try {
       await inviteUserToChallenge(challengeId, user.id);
-      setNote(`Invited ${user.email}.`);
+      setNote(`Invited ${user.label}.`);
       setDiscoverableUsers((prev) => prev.filter((u) => u.id !== user.id));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not send that invite.");
@@ -200,7 +200,7 @@ export default function ChallengeDetailPage() {
             <div className="mt-2 flex flex-col gap-1.5">
               {discoverableUsers.map((u) => (
                 <div key={u.id} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-1.5">
-                  <span className="text-sm text-slate-700">{u.email}</span>
+                  <span className="text-sm text-slate-700">{u.label}</span>
                   <button
                     onClick={() => handleInviteUser(u)}
                     disabled={invitingUserId === u.id}
@@ -229,26 +229,43 @@ export default function ChallengeDetailPage() {
           </thead>
           <tbody>
             {entries.map((e, i) => (
-              <tr key={e.email} className="border-b border-slate-100 last:border-0">
+              <tr key={`${i}-${e.member}`} className="border-b border-slate-100 last:border-0">
                 <td className="px-4 py-3 text-slate-500">{i + 1}</td>
-                <td className="px-4 py-3 text-slate-900">{e.email}</td>
-                <td
-                  className={`px-4 py-3 text-right font-medium ${
-                    e.return_pct === null ? "text-slate-400" : e.return_pct >= 0 ? "text-emerald-600" : "text-red-600"
-                  }`}
-                >
-                  {fmtPct(e.return_pct)}
-                </td>
-                <td className="px-4 py-3 text-right text-slate-700">{fmtPct(e.max_drawdown_pct)}</td>
-                <td className="px-4 py-3 text-right text-slate-700">{fmtPct(e.annualized_volatility_pct)}</td>
-                <td className="px-4 py-3 text-right text-slate-500">
-                  {e.days_of_data}
-                  {e.days_of_data > 0 && e.days_of_data < MIN_DAYS_FOR_CONFIDENT_READING && (
-                    <span title="Early data -- interpret with caution" className="ml-1 text-amber-500">
-                      ⚠
-                    </span>
-                  )}
-                </td>
+                <td className="px-4 py-3 text-slate-900">{e.member}</td>
+                {e.return_pct === null ? (
+                  <td colSpan={4} className="px-4 py-3 text-sm text-slate-600">
+                    {!e.has_paper_account ? (
+                      <span>
+                        No linked paper account.{" "}
+                        <Link href="/portfolio/paper-trading" className="font-medium text-indigo-600 hover:underline">
+                          Link paper account
+                        </Link>
+                      </span>
+                    ) : (
+                      <span>First snapshot after market close today. Returns appear once there are two.</span>
+                    )}
+                  </td>
+                ) : (
+                  <>
+                    <td
+                      className={`px-4 py-3 text-right font-medium ${
+                        e.return_pct >= 0 ? "text-emerald-600" : "text-red-600"
+                      }`}
+                    >
+                      {fmtPct(e.return_pct)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-700">{fmtPct(e.max_drawdown_pct)}</td>
+                    <td className="px-4 py-3 text-right text-slate-700">{fmtPct(e.annualized_volatility_pct)}</td>
+                    <td className="px-4 py-3 text-right text-slate-500">
+                      {e.days_of_data}
+                      {e.days_of_data > 0 && e.days_of_data < MIN_DAYS_FOR_CONFIDENT_READING && (
+                        <span title="Early data -- interpret with caution" className="ml-1 text-amber-500">
+                          ⚠
+                        </span>
+                      )}
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
