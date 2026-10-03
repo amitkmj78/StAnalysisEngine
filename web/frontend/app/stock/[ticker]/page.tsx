@@ -480,7 +480,7 @@ export default function StockScorePage() {
           recentDividends={detail?.recent_dividends ?? []}
           signalChanges={signalChanges}
           signalHistory={signalHistory}
-          sectorEtf={data ? SECTOR_ETF_BY_NAME[data.sector_key] ?? null : null}
+          sectorEtf={SECTOR_ETF_BY_NAME[detail?.sector ?? data?.sector_key ?? ""] ?? null}
         />
       </div>
 
