@@ -1501,6 +1501,7 @@ create table if not exists challenges (
 );
 -- Ranking method the creator picks (see services/challenge_service.py SCORING_METHODS).
 alter table challenges add column if not exists scoring text not null default 'return';
+alter table challenges add column if not exists include_quant_model boolean not null default false;
 alter table challenges drop constraint if exists challenges_scoring_check;
 alter table challenges add constraint challenges_scoring_check check (scoring in ('return','sharpe','sortino','calmar','excess_spy'));
 

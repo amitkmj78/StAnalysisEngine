@@ -30,6 +30,7 @@ from services.challenge_service import (
     score_for,
 )
 from services.email_service import APP_URL, send_alert_email
+from services.quant_model_service import MODEL_MEMBER_LABEL, model_snapshots
 from services.yfinance_cache import get_cached_history
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn
@@ -73,6 +74,7 @@ class CreateChallengeRequest(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     scoring: str = DEFAULT_SCORING
+    include_quant_model: bool = False
 
 
 class JoinChallengeRequest(BaseModel):
@@ -131,10 +133,10 @@ async def create_challenge(request: Request, body: CreateChallengeRequest):
         async with conn.transaction():
             challenge_id = await conn.fetchval(
                 """
-                INSERT INTO challenges (name, created_by, join_code, start_date, end_date, scoring)
-                VALUES ($1, $2::uuid, $3, $4, $5, $6) RETURNING id
+                INSERT INTO challenges (name, created_by, join_code, start_date, end_date, scoring, include_quant_model)
+                VALUES ($1, $2::uuid, $3, $4, $5, $6, $7) RETURNING id
                 """,
-                body.name, user_id, join_code, start_date, end_date, body.scoring,
+                body.name, user_id, join_code, start_date, end_date, body.scoring, body.include_quant_model,
             )
             await conn.execute(
                 "INSERT INTO challenge_members (challenge_id, user_id) VALUES ($1, $2::uuid)",
@@ -440,7 +442,9 @@ async def get_challenge_leaderboard(request: Request, challenge_id: int):
     user_id = request.state.user["id"]
     async with service_conn() as conn:
         await _require_membership(conn, challenge_id, user_id)
-        challenge = await conn.fetchrow("SELECT start_date, end_date, scoring FROM challenges WHERE id = $1", challenge_id)
+        challenge = await conn.fetchrow(
+            "SELECT start_date, end_date, scoring, include_quant_model FROM challenges WHERE id = $1", challenge_id
+        )
         if challenge is None:
             raise HTTPException(404, "Challenge not found.")
         start_date, end_date = challenge["start_date"], min(challenge["end_date"], date.today())
@@ -460,7 +464,7 @@ async def get_challenge_leaderboard(request: Request, challenge_id: int):
         for member in member_rows:
             if member["alpaca_paper_account_id"] is None:
                 entries.append({
-                    "member": mask_email(member["email"]), "has_paper_account": False,
+                    "member": mask_email(member["email"]), "has_paper_account": False, "is_model": False,
                     "return_pct": None, "max_drawdown_pct": None,
                     "annualized_volatility_pct": None, "days_of_data": 0,
                 })
@@ -477,7 +481,11 @@ async def get_challenge_leaderboard(request: Request, challenge_id: int):
                 [{"as_of_date": r["as_of_date"], "equity": r["equity"]} for r in snapshot_rows],
                 start_date, end_date,
             )
-            entries.append({"member": mask_email(member["email"]), "has_paper_account": True, **performance})
+            entries.append({"member": mask_email(member["email"]), "has_paper_account": True, "is_model": False, **performance})
+
+    if challenge["include_quant_model"]:
+        model_perf = compute_member_performance(await model_snapshots(start_date, end_date), start_date, end_date)
+        entries.append({"member": MODEL_MEMBER_LABEL, "has_paper_account": True, "is_model": True, **model_perf})
 
     spy_return = await _spy_return_pct(start_date, end_date)
     method = challenge["scoring"]
@@ -518,7 +526,9 @@ async def get_challenge_equity_curves(request: Request, challenge_id: int):
     user_id = request.state.user["id"]
     async with service_conn() as conn:
         await _require_membership(conn, challenge_id, user_id)
-        challenge = await conn.fetchrow("SELECT start_date, end_date FROM challenges WHERE id = $1", challenge_id)
+        challenge = await conn.fetchrow(
+            "SELECT start_date, end_date, include_quant_model FROM challenges WHERE id = $1", challenge_id
+        )
         if challenge is None:
             raise HTTPException(404, "Challenge not found.")
         start_date, end_date = challenge["start_date"], min(challenge["end_date"], date.today())
@@ -545,6 +555,10 @@ async def get_challenge_equity_curves(request: Request, challenge_id: int):
                 )
                 points = rebase_to_100([(r["as_of_date"], r["equity"]) for r in rows])
             members.append({"member": mask_email(m["email"]), "points": points})
+
+    if challenge["include_quant_model"]:
+        model_snaps = await model_snapshots(start_date, end_date)
+        members.append({"member": MODEL_MEMBER_LABEL, "points": rebase_to_100([(x["as_of_date"], x["equity"]) for x in model_snaps])})
 
     spy_points = await _spy_rebased_points(start_date, end_date)
     return {"start_date": str(start_date), "end_date": str(end_date), "spy": spy_points, "members": members}

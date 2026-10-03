@@ -771,7 +771,13 @@ export function listChallenges() {
   return apiFetch<{ challenges: Challenge[] }>("/api/v1/challenges");
 }
 
-export function createChallenge(body: { name: string; start_date?: string; end_date?: string; scoring?: string }) {
+export function createChallenge(body: {
+  name: string;
+  start_date?: string;
+  end_date?: string;
+  scoring?: string;
+  include_quant_model?: boolean;
+}) {
   return apiSend<{ id: number; name: string; join_code: string; start_date: string; end_date: string }>(
     "/api/v1/challenges", "POST", body
   );

@@ -30,6 +30,7 @@ export default function ChallengesPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [scoring, setScoring] = useState("return");
+  const [includeModel, setIncludeModel] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const [joinCode, setJoinCode] = useState("");
@@ -67,12 +68,14 @@ export default function ChallengesPage() {
         start_date: startDate || undefined,
         end_date: endDate || undefined,
         scoring,
+        include_quant_model: includeModel,
       });
       setNote(`Created "${res.name}". Share join code ${res.join_code} with friends.`);
       setName("");
       setStartDate("");
       setEndDate("");
       setScoring("return");
+      setIncludeModel(false);
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not create this challenge.");
@@ -252,6 +255,17 @@ export default function ChallengesPage() {
                 <option value="sortino">Sortino ratio (return vs downside)</option>
                 <option value="calmar">Calmar (return / max drawdown)</option>
               </select>
+            </label>
+            <label className="flex items-start gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={includeModel}
+                onChange={(e) => setIncludeModel(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span>
+                Include the quant model as a member. It appears as a hypothetical daily portfolio of its published picks, not a live account.
+              </span>
             </label>
             <button
               type="submit"

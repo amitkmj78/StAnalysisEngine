@@ -2287,6 +2287,7 @@ export interface ChallengeDetail {
 export interface ChallengeLeaderboardEntry {
   member: string;
   has_paper_account: boolean;
+  is_model: boolean;
   vs_spy_pct: number | null;
   score: number | null;
   sharpe: number | null;

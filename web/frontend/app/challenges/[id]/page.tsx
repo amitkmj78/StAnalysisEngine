@@ -252,13 +252,18 @@ export default function ChallengeDetailPage() {
             {entries.map((e, i) => (
               <tr key={`${i}-${e.member}`} className="border-b border-slate-100 last:border-0">
                 <td className="px-4 py-3 text-slate-500">{i + 1}</td>
-                <td className="px-4 py-3 text-slate-900">{e.member}</td>
+                <td className="px-4 py-3 text-slate-900">
+                  {e.member}
+                  {e.is_model && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">hypothetical</span>}
+                </td>
                 <td className="px-4 py-3 text-right font-semibold text-slate-900">
                   {fmtScore(e.score, board?.scoring ?? "return")}
                 </td>
                 {e.return_pct === null ? (
                   <td colSpan={5} className="px-4 py-3 text-sm text-slate-600">
-                    {!e.has_paper_account ? (
+                    {e.is_model ? (
+                      <span>No published picks cover this window yet.</span>
+                    ) : !e.has_paper_account ? (
                       <span>
                         No linked paper account.{" "}
                         <Link href="/portfolio/paper-trading" className="font-medium text-indigo-600 hover:underline">
