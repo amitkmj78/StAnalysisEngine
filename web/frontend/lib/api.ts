@@ -23,7 +23,9 @@ import type {
   BasketRebalanceAlert,
   Challenge,
   ChallengeDetail,
+  ChallengeInvite,
   ChallengeLeaderboardResponse,
+  DiscoverableUser,
   ChatAskParams,
   ChatAskResponse,
   ChatProvidersResponse,
@@ -788,6 +790,40 @@ export function getChallengeLeaderboard(challengeId: number) {
 
 export function leaveChallenge(challengeId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/challenges/${challengeId}/leave`, "DELETE");
+}
+
+export function getDiscoverability() {
+  return apiFetch<{ discoverable: boolean }>("/api/v1/challenges/discoverability");
+}
+
+export function setDiscoverability(discoverable: boolean) {
+  return apiSend<{ discoverable: boolean }>("/api/v1/challenges/discoverability", "POST", { discoverable });
+}
+
+export function listMyChallengeInvites() {
+  return apiFetch<{ invites: ChallengeInvite[] }>("/api/v1/challenges/invites");
+}
+
+export function acceptChallengeInvite(inviteId: number) {
+  return apiSend<{ ok: boolean; challenge_id: number }>(`/api/v1/challenges/invites/${inviteId}/accept`, "POST");
+}
+
+export function declineChallengeInvite(inviteId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/challenges/invites/${inviteId}/decline`, "POST");
+}
+
+export function listDiscoverableUsers(challengeId: number) {
+  return apiFetch<{ users: DiscoverableUser[] }>(`/api/v1/challenges/${challengeId}/discoverable-users`);
+}
+
+export function inviteUserToChallenge(challengeId: number, userId: string) {
+  return apiSend<{ ok: boolean; invited_email: string }>(`/api/v1/challenges/${challengeId}/invite-user`, "POST", {
+    user_id: userId,
+  });
+}
+
+export function inviteEmailToChallenge(challengeId: number, email: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/challenges/${challengeId}/invite-email`, "POST", { email });
 }
 
 // Phase 1 ("Trust") two-score system. Named getTwoScore (not getStockScore

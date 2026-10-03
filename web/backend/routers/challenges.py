@@ -18,9 +18,11 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
+from starlette.concurrency import run_in_threadpool
 
 from services.challenge_service import compute_member_performance, generate_join_code
+from services.email_service import APP_URL, send_alert_email
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn
 from web.backend.rate_limit import enforce_daily_quota, limiter
@@ -59,6 +61,31 @@ class CreateChallengeRequest(BaseModel):
 
 class JoinChallengeRequest(BaseModel):
     join_code: str = Field(min_length=1, max_length=20)
+
+
+class DiscoverabilityRequest(BaseModel):
+    discoverable: bool
+
+
+class InviteUserRequest(BaseModel):
+    user_id: str
+
+
+class InviteEmailRequest(BaseModel):
+    email: EmailStr
+
+
+def _invite_email_body(challenge_name: str, join_code: str, inviter_email: str) -> tuple[str, str]:
+    subject = f"{inviter_email} invited you to the \"{challenge_name}\" challenge"
+    body = (
+        f"{inviter_email} invited you to join their paper-trading challenge, \"{challenge_name}\", "
+        f"on StAnalysisEngine.\n\n"
+        f"Join code: {join_code}\n"
+        f"Join here: {APP_URL}/challenges?join={join_code}\n\n"
+        f"You'll need a linked paper-trading account (free, simulated money) to show up on the leaderboard --"
+        f" the join page has a link to set one up if you don't have one yet."
+    )
+    return subject, body
 
 
 @router.post("")
@@ -137,6 +164,100 @@ async def join_challenge(request: Request, body: JoinChallengeRequest):
     }
 
 
+@router.get("/discoverability")
+async def get_discoverability(request: Request):
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        value = await conn.fetchval(
+            "SELECT discoverable_for_challenges FROM users WHERE id = $1::uuid", user_id
+        )
+    return {"discoverable": bool(value)}
+
+
+@router.post("/discoverability")
+@limiter.limit("10/minute")
+async def set_discoverability(request: Request, body: DiscoverabilityRequest):
+    await enforce_daily_quota(request, "challenges/discoverability")
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        await conn.execute(
+            "UPDATE users SET discoverable_for_challenges = $1 WHERE id = $2::uuid", body.discoverable, user_id
+        )
+    return {"discoverable": body.discoverable}
+
+
+@router.get("/invites")
+async def list_my_invites(request: Request):
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT i.id, i.challenge_id, c.name AS challenge_name, u.email AS invited_by_email, i.created_at
+            FROM challenge_invites i
+            JOIN challenges c ON c.id = i.challenge_id
+            JOIN users u ON u.id = i.invited_by
+            WHERE i.invited_user_id = $1::uuid AND i.status = 'pending'
+            ORDER BY i.created_at DESC
+            """,
+            user_id,
+        )
+    return {
+        "invites": [
+            {
+                "id": r["id"], "challenge_id": r["challenge_id"], "challenge_name": r["challenge_name"],
+                "invited_by_email": r["invited_by_email"], "created_at": r["created_at"].isoformat(),
+            }
+            for r in rows
+        ]
+    }
+
+
+@router.post("/invites/{invite_id}/accept")
+@limiter.limit("10/minute")
+async def accept_invite(request: Request, invite_id: int):
+    await enforce_daily_quota(request, "challenges/invites/accept")
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        invite = await conn.fetchrow(
+            "SELECT challenge_id FROM challenge_invites WHERE id = $1 AND invited_user_id = $2::uuid AND status = 'pending'",
+            invite_id, user_id,
+        )
+        if invite is None:
+            raise HTTPException(404, "No pending invite found.")
+        await _require_paper_account(conn, user_id)
+
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE challenge_invites SET status = 'accepted', responded_at = now() WHERE id = $1", invite_id
+            )
+            await conn.execute(
+                """
+                INSERT INTO challenge_members (challenge_id, user_id) VALUES ($1, $2::uuid)
+                ON CONFLICT (challenge_id, user_id) DO NOTHING
+                """,
+                invite["challenge_id"], user_id,
+            )
+    return {"ok": True, "challenge_id": invite["challenge_id"]}
+
+
+@router.post("/invites/{invite_id}/decline")
+@limiter.limit("10/minute")
+async def decline_invite(request: Request, invite_id: int):
+    await enforce_daily_quota(request, "challenges/invites/decline")
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        result = await conn.execute(
+            """
+            UPDATE challenge_invites SET status = 'declined', responded_at = now()
+            WHERE id = $1 AND invited_user_id = $2::uuid AND status = 'pending'
+            """,
+            invite_id, user_id,
+        )
+    if result == "UPDATE 0":
+        raise HTTPException(404, "No pending invite found.")
+    return {"ok": True}
+
+
 @router.get("")
 async def list_my_challenges(request: Request):
     user_id = request.state.user["id"]
@@ -184,6 +305,108 @@ async def get_challenge(request: Request, challenge_id: int):
         "start_date": str(challenge["start_date"]), "end_date": str(challenge["end_date"]),
         "members": [r["email"] for r in member_rows],
     }
+
+
+@router.get("/{challenge_id}/discoverable-users")
+async def list_discoverable_users(request: Request, challenge_id: int):
+    """"Connect with the community": every user who's opted in (default
+    on -- see discoverable_for_challenges's docstring in aws_deploy.py),
+    minus the caller, minus whoever's already a member or already has a
+    pending invite for this specific challenge."""
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        await _require_membership(conn, challenge_id, user_id)
+        rows = await conn.fetch(
+            """
+            SELECT u.id, u.email FROM users u
+            WHERE u.discoverable_for_challenges AND u.id != $1::uuid
+              AND u.id NOT IN (SELECT user_id FROM challenge_members WHERE challenge_id = $2)
+              AND u.id NOT IN (
+                SELECT invited_user_id FROM challenge_invites WHERE challenge_id = $2 AND status = 'pending'
+              )
+            ORDER BY u.email
+            """,
+            user_id, challenge_id,
+        )
+    return {"users": [{"id": str(r["id"]), "email": r["email"]} for r in rows]}
+
+
+@router.post("/{challenge_id}/invite-user")
+@limiter.limit("10/minute")
+async def invite_user(request: Request, challenge_id: int, body: InviteUserRequest):
+    await enforce_daily_quota(request, "challenges/invite-user")
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        await _require_membership(conn, challenge_id, user_id)
+        challenge = await conn.fetchrow("SELECT name, join_code FROM challenges WHERE id = $1", challenge_id)
+        if challenge is None:
+            raise HTTPException(404, "Challenge not found.")
+        inviter = await conn.fetchrow("SELECT email FROM users WHERE id = $1::uuid", user_id)
+
+        target = await conn.fetchrow(
+            "SELECT email FROM users WHERE id = $1::uuid AND discoverable_for_challenges", body.user_id
+        )
+        if target is None:
+            raise HTTPException(404, "That user isn't available to invite.")
+
+        already_member = await conn.fetchval(
+            "SELECT 1 FROM challenge_members WHERE challenge_id = $1 AND user_id = $2::uuid",
+            challenge_id, body.user_id,
+        )
+        if already_member is not None:
+            raise HTTPException(409, "That person is already in this challenge.")
+
+        inserted = await conn.fetchval(
+            """
+            INSERT INTO challenge_invites (challenge_id, invited_user_id, invited_by)
+            VALUES ($1, $2::uuid, $3::uuid)
+            ON CONFLICT (challenge_id, invited_user_id) DO NOTHING RETURNING id
+            """,
+            challenge_id, body.user_id, user_id,
+        )
+        if inserted is None:
+            raise HTTPException(409, "That person already has a pending invite to this challenge.")
+
+    subject, text_body = _invite_email_body(challenge["name"], challenge["join_code"], inviter["email"])
+    await run_in_threadpool(send_alert_email, target["email"], subject, text_body)
+    return {"ok": True, "invited_email": target["email"]}
+
+
+@router.post("/{challenge_id}/invite-email")
+@limiter.limit("10/minute")
+async def invite_by_email(request: Request, challenge_id: int, body: InviteEmailRequest):
+    """Email a join link/code to anyone, with or without an account. If
+    the address matches an existing, discoverable user, this also
+    creates the same pending request as invite-user above, so accepting
+    just requires clicking the link in the email rather than re-finding
+    the challenge by code -- a found/not-found account state isn't
+    distinguished in the response, since this isn't a security-relevant
+    enumeration surface, just a UX nicety."""
+    await enforce_daily_quota(request, "challenges/invite-email")
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        await _require_membership(conn, challenge_id, user_id)
+        challenge = await conn.fetchrow("SELECT name, join_code FROM challenges WHERE id = $1", challenge_id)
+        if challenge is None:
+            raise HTTPException(404, "Challenge not found.")
+        inviter = await conn.fetchrow("SELECT email FROM users WHERE id = $1::uuid", user_id)
+
+        target = await conn.fetchrow(
+            "SELECT id FROM users WHERE email = $1 AND discoverable_for_challenges", body.email.lower()
+        )
+        if target is not None:
+            await conn.execute(
+                """
+                INSERT INTO challenge_invites (challenge_id, invited_user_id, invited_by)
+                VALUES ($1, $2::uuid, $3::uuid)
+                ON CONFLICT (challenge_id, invited_user_id) DO NOTHING
+                """,
+                challenge_id, target["id"], user_id,
+            )
+
+    subject, text_body = _invite_email_body(challenge["name"], challenge["join_code"], inviter["email"])
+    await run_in_threadpool(send_alert_email, body.email, subject, text_body)
+    return {"ok": True}
 
 
 @router.get("/{challenge_id}/leaderboard")

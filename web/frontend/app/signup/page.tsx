@@ -47,6 +47,18 @@ export default async function SignupPage({
           autoComplete="new-password"
           className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
         />
+        <label className="flex items-start gap-2 text-sm text-slate-600">
+          <input
+            name="discoverable_for_challenges"
+            type="checkbox"
+            defaultChecked
+            className="mt-0.5 h-4 w-4 rounded border-slate-300"
+          />
+          <span>
+            I want to take part in public challenges and be discoverable so other members can invite me to
+            connect. You can turn this off anytime from the Challenges page.
+          </span>
+        </label>
         <button
           type="submit"
           className="mt-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"

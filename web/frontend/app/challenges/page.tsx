@@ -2,12 +2,27 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
-import { ApiError, createChallenge, joinChallenge, listChallenges } from "@/lib/api";
-import type { Challenge } from "@/lib/types";
+import {
+  acceptChallengeInvite,
+  ApiError,
+  createChallenge,
+  declineChallengeInvite,
+  getDiscoverability,
+  joinChallenge,
+  listChallenges,
+  listMyChallengeInvites,
+  setDiscoverability,
+} from "@/lib/api";
+import type { Challenge, ChallengeInvite } from "@/lib/types";
 
 export default function ChallengesPage() {
+  const searchParams = useSearchParams();
+
   const [challenges, setChallenges] = useState<Challenge[] | undefined>(undefined); // undefined = loading
+  const [invites, setInvites] = useState<ChallengeInvite[]>([]);
+  const [discoverable, setDiscoverableState] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -18,15 +33,26 @@ export default function ChallengesPage() {
 
   const [joinCode, setJoinCode] = useState("");
   const [joining, setJoining] = useState(false);
+  const [respondingTo, setRespondingTo] = useState<number | null>(null);
+  const [togglingDiscoverable, setTogglingDiscoverable] = useState(false);
 
   function load() {
     listChallenges()
       .then((res) => setChallenges(res.challenges))
       .catch((err) => setError(err instanceof ApiError ? err.message : "Could not load your challenges."));
+    listMyChallengeInvites()
+      .then((res) => setInvites(res.invites))
+      .catch(() => {});
+    getDiscoverability()
+      .then((res) => setDiscoverableState(res.discoverable))
+      .catch(() => {});
   }
 
   useEffect(() => {
     load();
+    const joinParam = searchParams.get("join");
+    if (joinParam) setJoinCode(joinParam.toUpperCase());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleCreate(e: React.FormEvent) {
@@ -69,6 +95,48 @@ export default function ChallengesPage() {
     }
   }
 
+  async function handleAcceptInvite(invite: ChallengeInvite) {
+    setRespondingTo(invite.id);
+    setError(null);
+    setNote(null);
+    try {
+      await acceptChallengeInvite(invite.id);
+      setNote(`Joined "${invite.challenge_name}".`);
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not accept this invite.");
+    } finally {
+      setRespondingTo(null);
+    }
+  }
+
+  async function handleDeclineInvite(invite: ChallengeInvite) {
+    setRespondingTo(invite.id);
+    setError(null);
+    try {
+      await declineChallengeInvite(invite.id);
+      setInvites((prev) => prev.filter((i) => i.id !== invite.id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not decline this invite.");
+    } finally {
+      setRespondingTo(null);
+    }
+  }
+
+  async function handleToggleDiscoverable() {
+    if (discoverable === null) return;
+    setTogglingDiscoverable(true);
+    setError(null);
+    try {
+      const res = await setDiscoverability(!discoverable);
+      setDiscoverableState(res.discoverable);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not update this setting.");
+    } finally {
+      setTogglingDiscoverable(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -90,6 +158,57 @@ export default function ChallengesPage() {
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {note && <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{note}</p>}
+
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-md bg-slate-50 px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-slate-900">Discoverable to connect with the community</p>
+          <p className="text-xs text-slate-500">
+            When on, other members can find and invite you to their challenges.
+          </p>
+        </div>
+        <button
+          onClick={handleToggleDiscoverable}
+          disabled={discoverable === null || togglingDiscoverable}
+          className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50 ${
+            discoverable ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"
+          }`}
+        >
+          {togglingDiscoverable ? "Updating…" : discoverable ? "On" : "Off"}
+        </button>
+      </div>
+
+      {invites.length > 0 && (
+        <div className="mt-4 flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-slate-900">Invitations</h2>
+          {invites.map((invite) => (
+            <div
+              key={invite.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-4"
+            >
+              <p className="text-sm text-slate-900">
+                <span className="font-medium">{invite.invited_by_email}</span> invited you to{" "}
+                <span className="font-medium">{invite.challenge_name}</span>
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleAcceptInvite(invite)}
+                  disabled={respondingTo === invite.id}
+                  className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={() => handleDeclineInvite(invite)}
+                  disabled={respondingTo === invite.id}
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-50"
+                >
+                  Decline
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <form onSubmit={handleCreate} className="rounded-lg border border-slate-200 bg-white p-5">

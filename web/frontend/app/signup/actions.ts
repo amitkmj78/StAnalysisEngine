@@ -13,6 +13,9 @@ const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 export async function signup(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
+  // Unchecked checkboxes don't appear in FormData at all -- their absence
+  // (not "false") means opted out.
+  const discoverableForChallenges = formData.get("discoverable_for_challenges") !== null;
 
   // See app/login/actions.ts — this fetch is server-to-server, so the
   // real visitor IP has to be forwarded explicitly from the incoming
@@ -26,7 +29,7 @@ export async function signup(formData: FormData) {
       "Content-Type": "application/json",
       ...(forwardedFor ? { "X-Forwarded-For": forwardedFor } : {}),
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, discoverable_for_challenges: discoverableForChallenges }),
   });
 
   if (!res.ok) {

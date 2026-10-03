@@ -66,6 +66,10 @@ def _set_session_cookie(response: Response, token: str) -> None:
 class SignupRequest(BaseModel):
     email: EmailStr
     password: str
+    # PPR-2: defaults checked, same public-by-default posture every
+    # existing account was migrated to -- an explicit, visible choice at
+    # signup rather than a silent inherited column default.
+    discoverable_for_challenges: bool = True
 
 
 class LoginRequest(BaseModel):
@@ -96,10 +100,14 @@ async def signup(request: Request, body: SignupRequest, response: Response):
     async with service_conn() as conn:
         try:
             row = await conn.fetchrow(
-                "INSERT INTO users (email, password_hash, approved) VALUES ($1, $2, $3) RETURNING id, email, approved",
+                """
+                INSERT INTO users (email, password_hash, approved, discoverable_for_challenges)
+                VALUES ($1, $2, $3, $4) RETURNING id, email, approved
+                """,
                 body.email.lower(),
                 password_hash,
                 approved,
+                body.discoverable_for_challenges,
             )
         except asyncpg.UniqueViolationError:
             raise HTTPException(409, "An account with that email already exists.")

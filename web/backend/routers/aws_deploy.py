@@ -1531,6 +1531,31 @@ create policy paper_account_equity_snapshots_isolation on paper_account_equity_s
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- Defaults true: launched with every existing account opted in so the
+-- "connect with the community" directory isn't empty on day one. New
+-- signups get an explicit, visible checkbox (defaulting checked, same
+-- public-by-default posture) instead of silently inheriting this
+-- column default -- see auth.py's /signup, which passes the checkbox
+-- value explicitly rather than relying on this default applying.
+alter table users add column if not exists discoverable_for_challenges boolean not null default true;
+
+-- A request, not an auto-join: invited_user_id must explicitly accept
+-- before challenge_members gets a row, same consent principle as the
+-- join-code flow (nobody is added to a group without their own action).
+-- No RLS, same "only ever touched via service_conn() with its own
+-- explicit checks" shape as challenges/challenge_members above.
+create table if not exists challenge_invites (
+  id bigint generated always as identity primary key,
+  challenge_id bigint not null references challenges(id) on delete cascade,
+  invited_user_id uuid not null references users(id) on delete cascade,
+  invited_by uuid not null references users(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined')),
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  unique (challenge_id, invited_user_id)
+);
+create index if not exists challenge_invites_invited_user_idx on challenge_invites(invited_user_id, status);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -1624,6 +1649,7 @@ grant select, insert on challenges to app_service;
 grant select, insert, delete on challenge_members to app_service;
 grant select, insert on paper_account_equity_snapshots to app_service;
 grant select on paper_account_equity_snapshots to app_user;
+grant select, insert, update on challenge_invites to app_service;
 -- update needed: scan_portfolios_for_drops refreshes an already-alerted
 -- row in place (see web/backend/portfolio_alerts.py) rather than only
 -- ever inserting new ones.

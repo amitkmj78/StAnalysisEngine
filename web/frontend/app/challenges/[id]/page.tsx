@@ -4,8 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
-import { ApiError, getChallenge, getChallengeLeaderboard, leaveChallenge } from "@/lib/api";
-import type { ChallengeDetail, ChallengeLeaderboardEntry } from "@/lib/types";
+import {
+  ApiError,
+  getChallenge,
+  getChallengeLeaderboard,
+  inviteEmailToChallenge,
+  inviteUserToChallenge,
+  leaveChallenge,
+  listDiscoverableUsers,
+} from "@/lib/api";
+import type { ChallengeDetail, ChallengeLeaderboardEntry, DiscoverableUser } from "@/lib/types";
 
 function fmtPct(v: number | null): string {
   if (v === null) return "—";
@@ -22,9 +30,14 @@ export default function ChallengeDetailPage() {
 
   const [challenge, setChallenge] = useState<ChallengeDetail | null | undefined>(undefined);
   const [entries, setEntries] = useState<ChallengeLeaderboardEntry[]>([]);
+  const [discoverableUsers, setDiscoverableUsers] = useState<DiscoverableUser[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [sendingEmailInvite, setSendingEmailInvite] = useState(false);
 
   function load() {
     getChallenge(challengeId)
@@ -38,6 +51,9 @@ export default function ChallengeDetailPage() {
       });
     getChallengeLeaderboard(challengeId)
       .then((res) => setEntries(res.entries))
+      .catch(() => {});
+    listDiscoverableUsers(challengeId)
+      .then((res) => setDiscoverableUsers(res.users))
       .catch(() => {});
   }
 
@@ -54,6 +70,37 @@ export default function ChallengeDetailPage() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // clipboard access denied -- the code is still visible on screen to copy by hand
+    }
+  }
+
+  async function handleInviteUser(user: DiscoverableUser) {
+    setInvitingUserId(user.id);
+    setError(null);
+    setNote(null);
+    try {
+      await inviteUserToChallenge(challengeId, user.id);
+      setNote(`Invited ${user.email}.`);
+      setDiscoverableUsers((prev) => prev.filter((u) => u.id !== user.id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not send that invite.");
+    } finally {
+      setInvitingUserId(null);
+    }
+  }
+
+  async function handleInviteEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setSendingEmailInvite(true);
+    setError(null);
+    setNote(null);
+    try {
+      await inviteEmailToChallenge(challengeId, inviteEmail.trim());
+      setNote(`Sent an invite to ${inviteEmail.trim()}.`);
+      setInviteEmail("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not send that invite.");
+    } finally {
+      setSendingEmailInvite(false);
     }
   }
 
@@ -114,6 +161,7 @@ export default function ChallengeDetailPage() {
       </div>
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {note && <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{note}</p>}
 
       <div className="mt-4 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
         <span className="text-slate-500">Join code:</span>
@@ -121,6 +169,50 @@ export default function ChallengeDetailPage() {
         <button onClick={handleCopyCode} className="ml-auto text-xs font-medium text-indigo-600 hover:underline">
           {copied ? "Copied!" : "Copy"}
         </button>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
+        <h2 className="text-sm font-semibold text-slate-900">Invite someone</h2>
+
+        <form onSubmit={handleInviteEmail} className="mt-2 flex gap-2">
+          <input
+            type="email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            placeholder="Friend's email"
+            required
+            className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+          />
+          <button
+            type="submit"
+            disabled={sendingEmailInvite}
+            className="shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {sendingEmailInvite ? "Sending…" : "Email invite"}
+          </button>
+        </form>
+
+        {discoverableUsers.length > 0 && (
+          <div className="mt-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              Connect with the community
+            </p>
+            <div className="mt-2 flex flex-col gap-1.5">
+              {discoverableUsers.map((u) => (
+                <div key={u.id} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-1.5">
+                  <span className="text-sm text-slate-700">{u.email}</span>
+                  <button
+                    onClick={() => handleInviteUser(u)}
+                    disabled={invitingUserId === u.id}
+                    className="text-xs font-medium text-indigo-600 hover:underline disabled:opacity-50"
+                  >
+                    {invitingUserId === u.id ? "Inviting…" : "Invite"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200 bg-white">

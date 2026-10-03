@@ -2297,3 +2297,16 @@ export interface ChallengeLeaderboardResponse {
   end_date: string;
   entries: ChallengeLeaderboardEntry[];
 }
+
+export interface ChallengeInvite {
+  id: number;
+  challenge_id: number;
+  challenge_name: string;
+  invited_by_email: string;
+  created_at: string;
+}
+
+export interface DiscoverableUser {
+  id: string;
+  email: string;
+}
