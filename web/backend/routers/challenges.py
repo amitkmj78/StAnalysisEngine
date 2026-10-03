@@ -23,6 +23,7 @@ from starlette.concurrency import run_in_threadpool
 
 from services.challenge_leaderboard import build_leaderboard
 from services.challenge_service import (
+    mask_email,
     DEFAULT_SCORING,
     SCORING_METHODS,
     rebase_to_100,
