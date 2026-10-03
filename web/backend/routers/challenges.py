@@ -24,6 +24,7 @@ from starlette.concurrency import run_in_threadpool
 from services.challenge_service import (
     DEFAULT_SCORING,
     SCORING_METHODS,
+    rebase_to_100,
     compute_member_performance,
     generate_join_code,
     score_for,
@@ -507,6 +508,55 @@ async def _spy_return_pct(start_date: date, end_date: date) -> Optional[float]:
     if len(window) < 2:
         return None
     return round((float(window.iloc[-1]) / float(window.iloc[0]) - 1.0) * 100.0, 2)
+
+
+@router.get("/{challenge_id}/equity-curves")
+async def get_challenge_equity_curves(request: Request, challenge_id: int):
+    """Each member's account value rebased to 100 on the first snapshot of the
+    window, with SPY rebased the same way over the same dates. Only these
+    rebased values leave the server, never a raw equity figure."""
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        await _require_membership(conn, challenge_id, user_id)
+        challenge = await conn.fetchrow("SELECT start_date, end_date FROM challenges WHERE id = $1", challenge_id)
+        if challenge is None:
+            raise HTTPException(404, "Challenge not found.")
+        start_date, end_date = challenge["start_date"], min(challenge["end_date"], date.today())
+        member_rows = await conn.fetch(
+            """
+            SELECT u.email, a.id AS alpaca_paper_account_id
+            FROM challenge_members m JOIN users u ON u.id = m.user_id
+            LEFT JOIN alpaca_paper_accounts a ON a.user_id = m.user_id
+            WHERE m.challenge_id = $1
+            """,
+            challenge_id,
+        )
+        members = []
+        for m in member_rows:
+            points: list[dict] = []
+            if m["alpaca_paper_account_id"] is not None:
+                rows = await conn.fetch(
+                    """
+                    SELECT as_of_date, equity FROM paper_account_equity_snapshots
+                    WHERE alpaca_paper_account_id = $1 AND as_of_date BETWEEN $2 AND $3
+                    ORDER BY as_of_date
+                    """,
+                    m["alpaca_paper_account_id"], start_date, end_date,
+                )
+                points = rebase_to_100([(r["as_of_date"], r["equity"]) for r in rows])
+            members.append({"member": mask_email(m["email"]), "points": points})
+
+    spy_points = await _spy_rebased_points(start_date, end_date)
+    return {"start_date": str(start_date), "end_date": str(end_date), "spy": spy_points, "members": members}
+
+
+async def _spy_rebased_points(start_date: date, end_date: date) -> list[dict]:
+    try:
+        closes = (await run_in_threadpool(get_cached_history, "SPY", "2y", True))["Close"]
+    except Exception:  # noqa: BLE001
+        return []
+    window = closes.loc[str(start_date): str(end_date)].dropna()
+    return rebase_to_100([(idx.date(), v) for idx, v in window.items()])
 
 
 @router.delete("/{challenge_id}/leave")

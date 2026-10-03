@@ -105,6 +105,17 @@ def compute_member_performance(equity_snapshots: list[dict], start_date: date, e
     }
 
 
+def rebase_to_100(points: list[tuple[date, float]]) -> list[dict]:
+    """Rebases a (date, value) series so its first value is 100. Input need not
+    be sorted; a zero or missing first value gives no series rather than a
+    division by zero."""
+    ordered = sorted((d, float(v)) for d, v in points if v is not None)
+    if not ordered or ordered[0][1] == 0:
+        return []
+    base = ordered[0][1]
+    return [{"date": d.isoformat(), "value": round(v / base * 100.0, 2)} for d, v in ordered]
+
+
 def score_for(method: str, performance: dict, spy_return_pct: Optional[float]) -> Optional[float]:
     """The single number a leaderboard sorts by. None means "not scored yet",
     which sorts last rather than being guessed."""

@@ -1,6 +1,7 @@
 from datetime import date
 
 from services.challenge_service import (
+    rebase_to_100,
     score_for,
     JOIN_CODE_ALPHABET,
     JOIN_CODE_LENGTH,
@@ -109,3 +110,14 @@ def test_excess_return_is_unscored_without_spy_data():
 
 def test_unknown_method_falls_back_to_raw_return():
     assert score_for("nonsense", {"return_pct": 4.0}, None) == 4.0
+
+
+def test_rebase_starts_at_100_and_tracks_moves():
+    series = rebase_to_100([(date(2026, 10, 2), 110.0), (date(2026, 10, 1), 100.0), (date(2026, 10, 3), 95.0)])
+    assert [p["value"] for p in series] == [100.0, 110.0, 95.0]
+    assert series[0]["date"] == "2026-10-01"
+
+
+def test_rebase_handles_empty_and_zero_base():
+    assert rebase_to_100([]) == []
+    assert rebase_to_100([(date(2026, 10, 1), 0.0), (date(2026, 10, 2), 5.0)]) == []

@@ -23,6 +23,7 @@ import type {
   BasketRebalanceAlert,
   Challenge,
   ChallengeDetail,
+  ChallengeEquityCurves,
   ChallengeInvite,
   ChallengeLeaderboardResponse,
   DiscoverableUser,
@@ -1811,4 +1812,8 @@ export function adminSetAgentGlobal(enabled: boolean) {
 
 export function adminSetAgentKill(engaged: boolean) {
   return apiSend<{ agent_kill_switch: boolean }>("/api/v1/admin/trading-agent/kill-switch", "POST", { engaged });
+}
+
+export function getChallengeEquityCurves(challengeId: number) {
+  return apiFetch<ChallengeEquityCurves>(`/api/v1/challenges/${challengeId}/equity-curves`);
 }

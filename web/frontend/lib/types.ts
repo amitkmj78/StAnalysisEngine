@@ -2379,3 +2379,15 @@ export interface TradingAgentStatus {
   } | null;
   latest_run: { run: AgentRunSummary; events: AgentEvent[] } | null;
 }
+
+export interface EquityPoint {
+  date: string;
+  value: number;
+}
+
+export interface ChallengeEquityCurves {
+  start_date: string;
+  end_date: string;
+  spy: EquityPoint[];
+  members: { member: string; points: EquityPoint[] }[];
+}

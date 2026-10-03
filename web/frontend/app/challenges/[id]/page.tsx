@@ -7,13 +7,21 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ApiError,
   getChallenge,
+  getChallengeEquityCurves,
   getChallengeLeaderboard,
   inviteEmailToChallenge,
   inviteUserToChallenge,
   leaveChallenge,
   listDiscoverableUsers,
 } from "@/lib/api";
-import type { ChallengeDetail, ChallengeLeaderboardEntry, ChallengeLeaderboardResponse, DiscoverableUser } from "@/lib/types";
+import type {
+  ChallengeDetail,
+  ChallengeEquityCurves,
+  ChallengeLeaderboardEntry,
+  ChallengeLeaderboardResponse,
+  DiscoverableUser,
+} from "@/lib/types";
+import EquityCurveChart from "@/components/challenges/EquityCurveChart";
 
 function fmtPct(v: number | null): string {
   if (v === null) return "—";
@@ -36,6 +44,7 @@ export default function ChallengeDetailPage() {
 
   const [challenge, setChallenge] = useState<ChallengeDetail | null | undefined>(undefined);
   const [board, setBoard] = useState<ChallengeLeaderboardResponse | null>(null);
+  const [curves, setCurves] = useState<ChallengeEquityCurves | null>(null);
   const entries: ChallengeLeaderboardEntry[] = board?.entries ?? [];
   const [discoverableUsers, setDiscoverableUsers] = useState<DiscoverableUser[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +65,9 @@ export default function ChallengeDetailPage() {
           setError(err instanceof ApiError ? err.message : "Could not load this challenge.");
         }
       });
+    getChallengeEquityCurves(challengeId)
+      .then(setCurves)
+      .catch(() => {});
     getChallengeLeaderboard(challengeId)
       .then((res) => setBoard(res))
       .catch(() => {});
@@ -290,6 +302,14 @@ export default function ChallengeDetailPage() {
           </tbody>
         </table>
       </div>
+      {curves && (
+        <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-slate-900">Equity curves</h2>
+          <div className="mt-3">
+            <EquityCurveChart data={curves} />
+          </div>
+        </section>
+      )}
       {board && (
         <p className="mt-2 text-xs text-slate-500">
           Ranked by <span className="font-medium">{board.scoring_label}</span>. S&amp;P 500 over this window:{" "}
