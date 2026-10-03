@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from services.market_internals_service import compute_internals_score
-from services.market_regime_service import REGIME_GATE_DISCLOSURE, _compute_regime_frame
+from services.market_regime_service import REGIME_GATE_DISCLOSURE, REGIME_METHODOLOGY, _compute_regime_frame
 
 _PERSIST_COLUMNS = [
     "as_of_date", "internals_score", "mds", "regime_raw", "regime_confirmed",
@@ -33,10 +33,16 @@ def _flat_internals(n, breadth=50.0, vix=18.0, vix3m=19.0, xly_xlp=1.0, hyg_ief=
 # Regression guard: this is the crux fact the whole feature's disclosure
 # exists to convey — it must never be softened, paraphrased away, or
 # dropped by a future edit to market_regime_service.py.
-def test_regime_gate_disclosure_contains_the_gfc_finding():
-    assert "-7.91" in REGIME_GATE_DISCLOSURE
-    assert "2008" in REGIME_GATE_DISCLOSURE or "2007" in REGIME_GATE_DISCLOSURE
-    assert "gate" in REGIME_GATE_DISCLOSURE.lower()
+def test_regime_gate_disclosure_keeps_the_not_validated_message_in_plain_language():
+    assert "not been validated" in REGIME_GATE_DISCLOSURE
+    assert "not as a recommendation" in REGIME_GATE_DISCLOSURE
+
+
+def test_methodology_keeps_the_gfc_finding_and_no_internal_paths():
+    full = " ".join(REGIME_METHODOLOGY)
+    assert "-7.91" in full
+    assert "2008" in full
+    assert "docs/" not in REGIME_GATE_DISCLOSURE and "docs/" not in full
 
 
 def test_compute_regime_frame_skips_warmup_rows_entirely():

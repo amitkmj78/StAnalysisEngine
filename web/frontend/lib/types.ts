@@ -1444,7 +1444,22 @@ export interface MarketRegimeResponse {
   data_completeness?: number;
   conflict_flag?: boolean;
   components?: MarketRegimeComponents;
+  dimensions?: MarketRegimeDimensions;
   disclosure?: string;
+  methodology?: string[];
+}
+
+export interface RegimeReading {
+  score?: number | null;
+  text: string;
+}
+
+export interface MarketRegimeDimensions {
+  rates?: RegimeReading;
+  credit?: RegimeReading;
+  breadth?: RegimeReading;
+  divergence?: RegimeReading & { flag?: boolean | null };
+  risk_appetite?: RegimeReading;
 }
 
 export interface StockDetailResponse {

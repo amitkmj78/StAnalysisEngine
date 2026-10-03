@@ -52,6 +52,9 @@ SECTOR_ETFS = {
 }
 
 INTERNALS_AUX_TICKERS = ["^VIX", "^VIX3M", "XLY", "XLP", "HYG", "IEF", "RSP", "SPY"]
+# Display-only rates inputs for the regime banner dimensions (REG-4). Kept out of
+# INTERNALS_AUX_TICKERS so they can never change the scored internals inputs.
+DIMENSION_RATE_TICKERS = ["^TNX", "^MOVE"]
 
 
 def _fetch_close_series(ticker: str, period: str) -> pd.Series | None:
@@ -132,6 +135,29 @@ def fetch_market_internals_history(period: str = "3y") -> pd.DataFrame:
     return df[
         ["breadth_50dma", "breadth_200dma", "vix", "vix3m", "xly_xlp", "hyg_ief", "rsp_spy", "spy_close"]
     ].dropna()
+
+
+@ttl_cache(maxsize=2, ttl_seconds=900)
+def fetch_rates_and_move_history(period: str = "3y") -> pd.DataFrame:
+    """10-year Treasury yield (percent) and the MOVE rates-volatility index."""
+    closes = _fetch_closes_parallel(DIMENSION_RATE_TICKERS, period)
+    if not closes:
+        return pd.DataFrame()
+    raw = pd.DataFrame(closes)
+    return pd.DataFrame({"tnx": raw["^TNX"], "move": raw["^MOVE"]})
+
+
+def fetch_dimension_frame(period: str = "3y") -> pd.DataFrame:
+    """Internals history plus the rates inputs, for the display-only regime
+    dimensions. Rates are carried forward at most two sessions, so a holiday in
+    the rates feed does not blank the latest reading."""
+    internals = fetch_market_internals_history(period)
+    if internals.empty:
+        return pd.DataFrame()
+    rates = fetch_rates_and_move_history(period)
+    if rates.empty:
+        return internals
+    return internals.join(rates, how="left").ffill(limit=2)
 
 
 @ttl_cache(maxsize=2, ttl_seconds=900)

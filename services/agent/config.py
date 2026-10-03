@@ -17,7 +17,7 @@ class AgentConfig:
     max_sector_pct: float = 25.0
     max_positions: int = 20
     regime_exposure_pct: Mapping[str, float] = field(
-        default_factory=lambda: {"Risk-On": 100.0, "Neutral": 80.0, "Cautious": 50.0, "Risk-Off": 20.0}
+        default_factory=lambda: {"Risk-On": 100.0, "Constructive": 90.0, "Neutral": 80.0, "Cautious": 50.0, "Risk-Off": 20.0}
     )
     daily_loss_limit_pct: float = 2.0
     drawdown_breaker_pct: float = 10.0

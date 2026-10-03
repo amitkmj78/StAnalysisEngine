@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import { getMarketRegime } from "@/lib/api";
 import type { MarketRegimeResponse } from "@/lib/types";
@@ -49,6 +50,15 @@ export default function RegimeBanner() {
   }
 
   const { breadth, volatility, trend, risk_appetite } = data.components ?? {};
+  const readings = data.dimensions
+    ? [
+        { key: "rates", label: "Rates", reading: data.dimensions.rates },
+        { key: "credit", label: "Credit", reading: data.dimensions.credit },
+        { key: "breadth", label: "Breadth", reading: data.dimensions.breadth },
+        { key: "divergence", label: "Divergence", reading: data.dimensions.divergence },
+        { key: "risk_appetite", label: "Risk appetite", reading: data.dimensions.risk_appetite },
+      ].filter((r) => r.reading?.text)
+    : [];
 
   return (
     <div className={`border-b px-4 py-2 text-xs ${regimeClass(data.regime)}`}>
@@ -79,13 +89,30 @@ export default function RegimeBanner() {
           onClick={() => setExpanded((e) => !e)}
           className="ml-auto shrink-0 underline decoration-dotted underline-offset-2"
         >
-          {expanded ? "Hide validation history" : "⚠ Unvalidated signal — see why"}
+          {expanded ? "Hide readings" : "⚠ Unvalidated signal — see readings"}
         </button>
       </div>
       {expanded && (
-        <p className="mx-auto mt-1 max-w-6xl text-[11px] leading-relaxed opacity-90">
-          {data.disclosure}
-        </p>
+        <div className="mx-auto mt-1 max-w-6xl text-[11px] leading-relaxed opacity-90">
+          <p>
+            {data.disclosure}{" "}
+            <Link href="/regime/methodology" className="underline decoration-dotted underline-offset-2">
+              How it was tested
+            </Link>
+          </p>
+          {readings.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-1">
+              {readings.map((r) => (
+                <li
+                  key={r.key}
+                  className={r.key === "divergence" && (r.reading as { flag?: boolean | null } | undefined)?.flag ? "font-semibold" : undefined}
+                >
+                  <span className="font-medium">{r.label}:</span> {r.reading?.text}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       {data.regime === "Risk-Off" && (
         // REG-3: a site-wide echo of the same per-signal caution note on

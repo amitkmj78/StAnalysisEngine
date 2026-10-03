@@ -28,7 +28,7 @@ def _cand(ticker="AAA", sector="Tech", price=110.0, signal="Buy", sma200=100.0,
 
 # --- regime caps (AGT-15) ---
 
-@pytest.mark.parametrize("label,expected", [("Risk-On", 100.0), ("Neutral", 80.0), ("Cautious", 50.0), ("Risk-Off", 20.0)])
+@pytest.mark.parametrize("label,expected", [("Risk-On", 100.0), ("Constructive", 90.0), ("Neutral", 80.0), ("Cautious", 50.0), ("Risk-Off", 20.0)])
 def test_regime_caps_match_spec(label, expected):
     cap, _ = regime_cap_pct(label)
     assert cap == expected
@@ -265,3 +265,10 @@ def test_annualized_volatility_needs_enough_history():
     assert annualized_volatility_pct(pd.Series(np.linspace(1, 2, 30)), 63) is None
     flat = pd.Series(np.full(100, 50.0))
     assert annualized_volatility_pct(flat, 63) == 0.0
+
+
+def test_every_label_the_banner_can_show_has_its_own_cap():
+    from services.market_internals_service import REGIME_BANDS
+    for _, _, label in REGIME_BANDS:
+        cap, reason = regime_cap_pct(label)
+        assert label in reason, f"{label} fell through to the fallback cap"

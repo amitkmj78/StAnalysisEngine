@@ -17,7 +17,8 @@ from typing import Optional
 import pandas as pd
 from starlette.concurrency import run_in_threadpool
 
-from services.market_data_service import fetch_market_internals_history
+from services.market_data_service import fetch_dimension_frame, fetch_market_internals_history
+from services.regime_dimensions import regime_dimensions
 from services.market_internals_service import (
     apply_hysteresis,
     compute_composite_score,
@@ -29,22 +30,37 @@ from web.backend.db import service_conn
 
 logger = logging.getLogger(__name__)
 
-# Shown permanently alongside the regime banner/endpoint — see
-# market_internals_service.py's module docstring for why this must never
-# be softened, hidden, or removed by a future change here. The -7.91%/
-# p<0.0001 figures are sourced from docs/market-direction-sentiment-
-# requirements.md §9c ("Attempt 3, the decisive one").
+# Shown permanently beside the regime banner. Plain language (REG-12); the
+# statistics and test windows are on the methodology page below. This line must
+# keep saying the signal is not validated and was shown anyway -- see
+# market_internals_service.py's module docstring.
 REGIME_GATE_DISCLOSURE = (
-    "This regime signal has failed its own release gate three times in backtesting "
-    "and is shown with that caveat, not because it has been validated. In its most "
-    "recent test, isolating the 2008 financial crisis (2007-06 through 2009-06), "
-    "extreme internals stress predicted a further -7.91% over the next 21 days "
-    "(n=24, p<0.0001 after correcting for overlapping-window autocorrelation) -- "
-    "the opposite of a 'buy the fear' signal, and a case where the Risk-On/Risk-Off "
-    "framing below would have compounded losses rather than flagged an opportunity. "
-    "See docs/market-direction-sentiment-requirements.md §9 for the full "
-    "validation history. This is a condition label, not a recommendation."
+    "This signal has not been validated. Its own tests failed three times, so it is "
+    "shown for information only, not as a recommendation. How it was tested is on the "
+    "methodology page."
 )
+
+# The full statistics behind the disclosure, for the methodology page (REG-12).
+# The -7.91% / p<0.0001 figures come from the spec's §9c backtest (Attempt 3).
+REGIME_METHODOLOGY = [
+    "The regime signal failed its own release gate three times in backtesting. In its most recent "
+    "test, isolating the 2008 financial crisis (2007-06 through 2009-06), extreme internals stress "
+    "predicted a further -7.91% over the next 21 days (n=24, p<0.0001 after correcting for "
+    "overlapping-window autocorrelation). That is the opposite of a 'buy the fear' signal, and the "
+    "Risk-On/Risk-Off framing would have compounded losses rather than flagged an opportunity. "
+    "This is a condition label, not a recommendation.",
+    "Forward-risk test (REG-10), run once on the stored labels and market history, with the test "
+    "agreed before the run and no thresholds changed afterwards. Label test: insufficient data -- "
+    "the history has 25 Cautious days and no Risk-On days, so the comparison cannot be made. "
+    "Divergence test: insufficient data -- 7 flagged days against 526 unflagged. Of the groups that "
+    "could be compared, Cautious days showed higher average forward 21-day volatility (15.95%) than "
+    "Neutral (12.03%) and Constructive (10.53%). Forward windows overlap, so days are not "
+    "independent, and no significance is claimed.",
+    "Breadth history (REG-11) is built from the current S&P 500 universe. Stocks that have since left "
+    "the index are not included, so breadth history is subject to survivorship bias.",
+    "The rates, credit, and breadth readings beside the banner are display-only. They do not change "
+    "the regime label or the trading agent's caps.",
+]
 
 _PERSIST_COLUMNS = [
     "as_of_date", "internals_score", "mds", "regime_raw", "regime_confirmed",
@@ -192,6 +208,8 @@ async def get_regime_snapshot() -> Optional[dict]:
 
     history = await run_in_threadpool(fetch_market_internals_history, "3y")
     components = compute_internals_components(history) if not history.empty else {}
+    dimension_history = await run_in_threadpool(fetch_dimension_frame, "3y")
+    dimensions = regime_dimensions(dimension_history) if not dimension_history.empty else {}
 
     return {
         "as_of_date": row["as_of_date"].isoformat(),
@@ -202,5 +220,7 @@ async def get_regime_snapshot() -> Optional[dict]:
         "data_completeness": row["data_completeness"],
         "conflict_flag": row["conflict_flag"],
         "components": components,
+        "dimensions": dimensions,
         "disclosure": REGIME_GATE_DISCLOSURE,
+        "methodology": REGIME_METHODOLOGY,
     }
