@@ -2,7 +2,7 @@ from datetime import date
 
 import pandas as pd
 
-from services.quant_model_service import daily_model_returns, equity_snapshots_from_returns
+from services.quant_model_service import as_calendar_dates, daily_model_returns, equity_snapshots_from_returns
 
 IDX = pd.to_datetime(["2026-10-01", "2026-10-02", "2026-10-05"])
 
@@ -38,3 +38,10 @@ def test_day_with_nothing_priced_is_skipped_not_guessed():
 def test_equity_chain_compounds_from_rebase_point():
     snaps = equity_snapshots_from_returns([(date(2026, 10, 2), 10.0), (date(2026, 10, 5), -10.0)])
     assert [round(s["equity"], 2) for s in snaps] == [11000.0, 9900.0]
+
+
+def test_tz_aware_price_index_matches_plain_publication_dates():
+    tz_index = pd.DatetimeIndex(["2026-10-01", "2026-10-02"]).tz_localize("America/New_York")
+    closes = {"A": as_calendar_dates(pd.Series([100.0, 110.0], index=tz_index))}
+    picks = {date(2026, 10, 1): ["A"], date(2026, 10, 2): ["A"]}
+    assert daily_model_returns(picks, closes, cost_bps_one_way=0) == [(date(2026, 10, 2), 10.0)]

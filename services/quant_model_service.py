@@ -61,6 +61,16 @@ def daily_model_returns(
     return out
 
 
+def as_calendar_dates(series: pd.Series) -> pd.Series:
+    """Price history is indexed at New York midnight (timezone-aware), while
+    publication dates are plain dates. Lookups only match on plain calendar
+    dates, so every series is normalised to that before use."""
+    index = series.index
+    if getattr(index, "tz", None) is not None:
+        index = index.tz_localize(None)
+    return pd.Series(series.values, index=index.normalize())
+
+
 def equity_snapshots_from_returns(returns: list[tuple[date, float]]) -> list[dict]:
     """Turns daily % returns into the {as_of_date, equity} shape that
     compute_member_performance and rebase_to_100 already take, compounding
@@ -108,7 +118,7 @@ async def model_snapshots(start: date, end: date) -> list[dict]:
     for t in tickers:
         try:
             frame = await run_in_threadpool(get_cached_history, t, "1y", True)
-            closes[t] = frame["Close"].dropna()
+            closes[t] = as_calendar_dates(frame["Close"].dropna())
         except Exception:  # noqa: BLE001 -- a missing ticker drops out of the mean; never fail the board
             continue
     chain = equity_snapshots_from_returns(daily_model_returns(picks, closes))
