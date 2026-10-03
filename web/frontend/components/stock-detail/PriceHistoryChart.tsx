@@ -596,18 +596,6 @@ export default function PriceHistoryChart({
           )}
         </div>
       )}
-      {isDaily && !compareActive && (
-        <p className="mt-2 text-xs">
-          <a
-            href={`https://www.tradingview.com/symbols/${encodeURIComponent(ticker)}/`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-700 underline-offset-2 hover:underline"
-          >
-            Open {ticker} in TradingView
-          </a>
-        </p>
-      )}
     </div>
   );
 }
