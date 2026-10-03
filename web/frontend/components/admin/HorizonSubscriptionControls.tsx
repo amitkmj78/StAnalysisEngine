@@ -97,10 +97,7 @@ export default function HorizonSubscriptionControls() {
           <h2 className="font-semibold text-slate-900">Horizon 1 — Impersonal Research Subscription</h2>
           <p className="mt-1 text-sm text-slate-600">
             Paid-subscription layer on top of the public track record (RS-1 through RS-6). Built and
-            testable, but gated per{" "}
-            <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">
-              docs/signal-licensing-whitelabel-requirements.md.pdf
-            </code>{" "}
+            testable, but gated per the signal-licensing requirements (licensing and white-label terms), reviewed by counsel.{" "}
             — Gate 0→1 requires ≥6 months of continuous live publication and{" "}
             <strong>written counsel confirmation</strong> that this sits within the publisher&apos;s
             exclusion (CMP-03). This toggle does not and cannot verify either — it is a raw switch.
