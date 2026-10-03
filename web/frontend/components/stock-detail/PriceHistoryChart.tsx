@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { Data, Layout } from "plotly.js";
+import MetricLabel from "@/components/MetricLabel";
 import PlotlyChart from "@/components/PlotlyChart";
+import { CHART_CONTROL_INFO } from "@/components/stock-detail/chartControlInfo";
 import { getStockPriceHistory } from "@/lib/api";
 import type {
   StockPriceHistoryRange,
@@ -127,6 +129,12 @@ function buildMarkerTrace(
     name: opts.name,
     marker: { symbol: opts.symbol, size: 10, color: opts.color, line: { color: "#ffffff", width: 1 } },
   };
+}
+
+// Info icon beside a control. Looked up by the control's label, lowercased.
+function infoIcon(key: string) {
+  const info = CHART_CONTROL_INFO[key.toLowerCase()];
+  return info ? <MetricLabel info={info} /> : null;
 }
 
 export default function PriceHistoryChart({
@@ -470,8 +478,8 @@ export default function PriceHistoryChart({
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         {CHART_TYPES.map((c) => (
+          <Fragment key={c.key}>
           <button
-            key={c.key}
             onClick={() => setChartType(c.key)}
             aria-pressed={chartType === c.key}
             disabled={compareActive}
@@ -483,6 +491,8 @@ export default function PriceHistoryChart({
           >
             {c.label}
           </button>
+          {infoIcon(c.label)}
+          </Fragment>
         ))}
         <button
           onClick={() => setLogScale((v) => !v)}
@@ -494,6 +504,7 @@ export default function PriceHistoryChart({
         >
           Log scale
         </button>
+        {infoIcon("Log scale")}
         <button
           onClick={() => setCompare((v) => !v)}
           aria-pressed={compare}
@@ -504,13 +515,14 @@ export default function PriceHistoryChart({
         >
           Compare SPY{sectorEtf ? ` and ${sectorEtf}` : ""}
         </button>
+        <MetricLabel info={CHART_CONTROL_INFO["compare"]} />
       </div>
 
       {isDaily && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
           {OVERLAYS.map((o) => (
+            <Fragment key={o.key}>
             <button
-              key={o.key}
               onClick={() => toggle(o.key)}
               aria-pressed={active.has(o.key)}
               disabled={!indicators || compareActive}
@@ -520,10 +532,12 @@ export default function PriceHistoryChart({
             >
               {o.label}
             </button>
+            {infoIcon(o.label)}
+            </Fragment>
           ))}
           {PANELS.map((p) => (
+            <Fragment key={p.key}>
             <button
-              key={p.key}
               onClick={() => toggle(p.key)}
               aria-pressed={active.has(p.key)}
               disabled={compareActive || (p.key === "volume" ? !hasVolume : !indicators)}
@@ -533,8 +547,11 @@ export default function PriceHistoryChart({
             >
               {p.label}
             </button>
+            {infoIcon(p.label)}
+            </Fragment>
           ))}
           {hasScore && (
+            <Fragment>
             <button
               onClick={() => setShowScore((v) => !v)}
               aria-pressed={showScore}
@@ -545,6 +562,8 @@ export default function PriceHistoryChart({
             >
               Score history
             </button>
+            <MetricLabel info={CHART_CONTROL_INFO["score history"]} />
+            </Fragment>
           )}
         </div>
       )}
