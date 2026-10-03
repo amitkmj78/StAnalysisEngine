@@ -9,12 +9,14 @@ import {
   disableFilingSummaries,
   disableMarketRegime,
   disableMorningBrief,
+  disablePaperAccountEquityCapture,
   disableVerifyPredictions,
   enableEarningsReleaseSummaries,
   enableEveningRecap,
   enableFilingSummaries,
   enableMarketRegime,
   enableMorningBrief,
+  enablePaperAccountEquityCapture,
   enableVerifyPredictions,
   getAdminSettings,
 } from "@/lib/api";
@@ -72,6 +74,7 @@ export default function SchedulerControls() {
   const [earningsReleaseSummariesEnabled, setEarningsReleaseSummariesEnabled] = useState<boolean | null>(null);
   const [eveningRecapEnabled, setEveningRecapEnabled] = useState<boolean | null>(null);
   const [morningBriefEnabled, setMorningBriefEnabled] = useState<boolean | null>(null);
+  const [paperAccountEquityCaptureEnabled, setPaperAccountEquityCaptureEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -85,6 +88,7 @@ export default function SchedulerControls() {
       setEarningsReleaseSummariesEnabled(settings.earnings_release_summaries_enabled);
       setEveningRecapEnabled(settings.evening_recap_enabled);
       setMorningBriefEnabled(settings.morning_brief_enabled);
+      setPaperAccountEquityCaptureEnabled(settings.paper_account_equity_capture_enabled);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load scheduler settings.");
     }
@@ -174,6 +178,21 @@ export default function SchedulerControls() {
     }
   }
 
+  async function handleTogglePaperAccountEquityCapture() {
+    setBusyKey("paper-account-equity-capture");
+    setError(null);
+    try {
+      const result = paperAccountEquityCaptureEnabled
+        ? await disablePaperAccountEquityCapture()
+        : await enablePaperAccountEquityCapture();
+      setPaperAccountEquityCaptureEnabled(result.paper_account_equity_capture_enabled);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update scheduler setting.");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -224,6 +243,14 @@ export default function SchedulerControls() {
         enabled={morningBriefEnabled}
         busy={busyKey === "morning-brief"}
         onToggle={handleToggleMorningBrief}
+      />
+
+      <JobToggleCard
+        title="Paper-Account Equity Capture"
+        description="Daily job (weekdays 16:20 ET) that records one equity snapshot per linked paper-trading account, using that user's own stored Alpaca credentials. This is what Challenge leaderboards use to compute return and risk over a challenge's date range -- without it, every leaderboard row shows 'not enough data yet.' Disabling it stops new snapshots; past ones stay usable."
+        enabled={paperAccountEquityCaptureEnabled}
+        busy={busyKey === "paper-account-equity-capture"}
+        onToggle={handleTogglePaperAccountEquityCapture}
       />
     </div>
   );

@@ -21,6 +21,9 @@ import type {
   BackupStatus,
   BaselineBand,
   BasketRebalanceAlert,
+  Challenge,
+  ChallengeDetail,
+  ChallengeLeaderboardResponse,
   ChatAskParams,
   ChatAskResponse,
   ChatProvidersResponse,
@@ -759,6 +762,34 @@ export function submitPaperOrder(body: SubmitPaperOrderRequest) {
   return apiSend<{ order: PaperOrder; note?: string }>("/api/v1/paper-trading/orders", "POST", body);
 }
 
+export function listChallenges() {
+  return apiFetch<{ challenges: Challenge[] }>("/api/v1/challenges");
+}
+
+export function createChallenge(body: { name: string; start_date?: string; end_date?: string }) {
+  return apiSend<{ id: number; name: string; join_code: string; start_date: string; end_date: string }>(
+    "/api/v1/challenges", "POST", body
+  );
+}
+
+export function joinChallenge(joinCode: string) {
+  return apiSend<{ id: number; name: string; start_date: string; end_date: string }>(
+    "/api/v1/challenges/join", "POST", { join_code: joinCode }
+  );
+}
+
+export function getChallenge(challengeId: number) {
+  return apiFetch<ChallengeDetail>(`/api/v1/challenges/${challengeId}`);
+}
+
+export function getChallengeLeaderboard(challengeId: number) {
+  return apiFetch<ChallengeLeaderboardResponse>(`/api/v1/challenges/${challengeId}/leaderboard`);
+}
+
+export function leaveChallenge(challengeId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/challenges/${challengeId}/leave`, "DELETE");
+}
+
 // Phase 1 ("Trust") two-score system. Named getTwoScore (not getStockScore
 // -- that name is already taken above by the unrelated Stock Finder
 // per-goal score lookup).
@@ -1312,6 +1343,18 @@ export function enableMorningBrief() {
 
 export function disableMorningBrief() {
   return apiSend<{ morning_brief_enabled: boolean }>("/api/v1/admin/settings/morning-brief/disable", "POST");
+}
+
+export function enablePaperAccountEquityCapture() {
+  return apiSend<{ paper_account_equity_capture_enabled: boolean }>(
+    "/api/v1/admin/settings/paper-account-equity-capture/enable", "POST"
+  );
+}
+
+export function disablePaperAccountEquityCapture() {
+  return apiSend<{ paper_account_equity_capture_enabled: boolean }>(
+    "/api/v1/admin/settings/paper-account-equity-capture/disable", "POST"
+  );
 }
 
 export function getEarningsReleaseSummary(ticker: string) {

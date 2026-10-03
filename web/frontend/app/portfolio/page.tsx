@@ -568,6 +568,7 @@ export default function PortfolioPage() {
               { label: "Portfolio Health Check", href: "/portfolio/health" },
               { label: "Stress Test", href: "/portfolio/stress-test" },
               { label: "Paper Trading", href: "/portfolio/paper-trading" },
+              { label: "Challenges", href: "/challenges" },
             ]}
           />
           <div className="flex flex-wrap gap-2">

@@ -1483,6 +1483,54 @@ create policy paper_order_audit_log_isolation on paper_order_audit_log
 alter table portfolio_positions add column if not exists alpaca_paper_account_id bigint references alpaca_paper_accounts(id) on delete cascade;
 alter table portfolio_strategies add column if not exists alpaca_paper_account_id bigint references alpaca_paper_accounts(id) on delete cascade;
 
+-- PPR-2: monthly paper-trading challenges with a friend leaderboard.
+-- No RLS on challenges/challenge_members -- these are only ever touched
+-- via service_conn() from web/backend/routers/challenges.py, which does
+-- its own explicit membership/ownership checks (same "shared data, no
+-- policy" shape as ticker_sentiment_snapshots/earnings_release_summaries
+-- above). app_user gets no grant on either table at all.
+create table if not exists challenges (
+  id bigint generated always as identity primary key,
+  name text not null,
+  created_by uuid not null references users(id) on delete cascade,
+  join_code text not null unique,
+  start_date date not null,
+  end_date date not null,
+  created_at timestamptz not null default now(),
+  check (end_date > start_date)
+);
+
+create table if not exists challenge_members (
+  challenge_id bigint not null references challenges(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (challenge_id, user_id)
+);
+create index if not exists challenge_members_user_idx on challenge_members(user_id);
+
+-- Daily equity snapshot per linked paper-trading account -- the return
+-- series a challenge leaderboard needs (a single live balance isn't
+-- enough to show risk, only a point-in-time number). Keeps standard
+-- self-scoped RLS like any other private financial-data table; the
+-- leaderboard endpoint reads other members' rows via service_conn()
+-- (bypasses RLS) but only ever returns computed percentages derived
+-- from this table, never these raw equity values, to other members.
+create table if not exists paper_account_equity_snapshots (
+  id bigint generated always as identity primary key,
+  alpaca_paper_account_id bigint not null references alpaca_paper_accounts(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  as_of_date date not null,
+  equity real not null,
+  created_at timestamptz not null default now(),
+  unique (alpaca_paper_account_id, as_of_date)
+);
+create index if not exists paper_account_equity_snapshots_user_idx on paper_account_equity_snapshots(user_id, as_of_date);
+alter table paper_account_equity_snapshots enable row level security;
+drop policy if exists paper_account_equity_snapshots_isolation on paper_account_equity_snapshots;
+create policy paper_account_equity_snapshots_isolation on paper_account_equity_snapshots
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -1572,6 +1620,10 @@ grant select on filing_summaries to app_user;
 grant select, insert on filing_summaries to app_service;
 grant select on earnings_release_summaries to app_user;
 grant select, insert on earnings_release_summaries to app_service;
+grant select, insert on challenges to app_service;
+grant select, insert, delete on challenge_members to app_service;
+grant select, insert on paper_account_equity_snapshots to app_service;
+grant select on paper_account_equity_snapshots to app_user;
 -- update needed: scan_portfolios_for_drops refreshes an already-alerted
 -- row in place (see web/backend/portfolio_alerts.py) rather than only
 -- ever inserting new ones.

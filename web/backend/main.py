@@ -29,6 +29,7 @@ from web.backend.routers import (
     auth,
     aws_deploy,
     baseline,
+    challenges,
     chat,
     db_backup,
     earnings,
@@ -103,6 +104,7 @@ app.include_router(portfolio.router)
 app.include_router(stress_test.router)
 app.include_router(plaid_integration.router)
 app.include_router(paper_trading.router)
+app.include_router(challenges.router)
 app.include_router(chat.router)
 app.include_router(aws_deploy.router)
 app.include_router(search.router)

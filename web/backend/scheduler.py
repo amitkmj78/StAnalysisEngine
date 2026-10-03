@@ -8,6 +8,7 @@ from starlette.concurrency import run_in_threadpool
 from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.cost_drop_alert_service import scan_cost_drops
+from services.challenge_service import capture_equity_for_account
 from services.daily_brief_service import build_evening_recap, build_morning_brief
 from services.earnings_alert_service import scan_earnings_in_window
 from services.earnings_release_service import process_new_earnings_releases_for_ticker
@@ -33,6 +34,7 @@ from web.backend.app_settings import (
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     MARKET_REGIME_ENABLED_KEY,
     MORNING_BRIEF_ENABLED_KEY,
+    PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
     PIT_PRICE_CAPTURE_ENABLED_KEY,
@@ -395,6 +397,39 @@ async def _sync_paper_positions_job() -> None:
     synced = await sync_positions_and_cash()
     if synced:
         logger.info("Scheduler: synced %d paper-trading positions", synced)
+
+
+# After close (16:00 ET) with a few minutes' buffer, same spacing
+# rationale as the other post-close captures already scheduled here.
+PAPER_ACCOUNT_EQUITY_CAPTURE_HOUR_ET = 16
+PAPER_ACCOUNT_EQUITY_CAPTURE_MINUTE_ET = 20
+
+
+async def _capture_paper_account_equity_job() -> None:
+    """PPR-2: one equity snapshot per linked paper-trading account per
+    day -- the return series a challenge leaderboard needs to show risk,
+    not just a single live balance. Off by default, its own flag
+    separate from PAPER_TRADING_ENABLED_KEY (see PAPER_ACCOUNT_EQUITY_
+    CAPTURE_ENABLED_KEY's docstring in app_settings.py) since this is a
+    distinct feature's data capture, not paper-trading's own order flow.
+    Mirrors sync_positions_and_cash's exact loop shape (service_conn()
+    fetch of every active account, per-account try/except already
+    inside capture_equity_for_account so one bad key doesn't stop the
+    rest)."""
+    if not await get_setting_bool(PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY, default=False):
+        logger.info("Scheduler: paper_account_equity_capture is disabled, skipping this run")
+        return
+    async with service_conn() as conn:
+        rows = await conn.fetch("SELECT * FROM alpaca_paper_accounts WHERE status = 'active'")
+    captured = 0
+    for row in rows:
+        try:
+            if await capture_equity_for_account(dict(row)):
+                captured += 1
+        except Exception as e:
+            logger.warning("Scheduler: paper_account_equity_capture failed for account %s: %s", row["id"], e)
+    if captured:
+        logger.info("Scheduler: captured %d paper-account equity snapshot(s)", captured)
 
 
 async def _check_basket_rebalances_monthly_job() -> None:
@@ -1178,6 +1213,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="send_evening_recaps",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _capture_paper_account_equity_job,
+        CronTrigger(
+            hour=PAPER_ACCOUNT_EQUITY_CAPTURE_HOUR_ET, minute=PAPER_ACCOUNT_EQUITY_CAPTURE_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="capture_paper_account_equity",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

@@ -16,6 +16,7 @@ from web.backend.app_settings import (
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     MARKET_REGIME_ENABLED_KEY,
     MORNING_BRIEF_ENABLED_KEY,
+    PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
     PAPER_TRADING_KILL_SWITCH_KEY,
     PAPER_TRADING_MAX_ORDER_VALUE_DEFAULT,
@@ -111,6 +112,9 @@ async def get_settings():
         ),
         "evening_recap_enabled": await get_setting_bool(EVENING_RECAP_ENABLED_KEY, default=False),
         "morning_brief_enabled": await get_setting_bool(MORNING_BRIEF_ENABLED_KEY, default=False),
+        "paper_account_equity_capture_enabled": await get_setting_bool(
+            PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY, default=False
+        ),
     }
 
 
@@ -210,6 +214,24 @@ async def enable_morning_brief():
 async def disable_morning_brief():
     await set_setting_bool(MORNING_BRIEF_ENABLED_KEY, False)
     return {"morning_brief_enabled": False}
+
+
+@router.post("/paper-account-equity-capture/enable")
+async def enable_paper_account_equity_capture():
+    """PPR-2: turns on the daily (weekdays 16:20 ET) per-paper-account
+    equity snapshot job (services/challenge_service.py via
+    _capture_paper_account_equity_job) -- see PAPER_ACCOUNT_EQUITY_
+    CAPTURE_ENABLED_KEY's docstring in app_settings.py for why this
+    defaults off (hits live Alpaca credentials). Challenge leaderboards
+    show "not enough data yet" for every member until this is on."""
+    await set_setting_bool(PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY, True)
+    return {"paper_account_equity_capture_enabled": True}
+
+
+@router.post("/paper-account-equity-capture/disable")
+async def disable_paper_account_equity_capture():
+    await set_setting_bool(PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY, False)
+    return {"paper_account_equity_capture_enabled": False}
 
 
 @router.post("/publish-signals/enable")

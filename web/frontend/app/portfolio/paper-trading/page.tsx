@@ -112,6 +112,9 @@ export default function PaperTradingPage() {
             Practice placing orders with simulated money through Alpaca&apos;s paper-trading sandbox. No real money is
             ever involved.
           </p>
+          <Link href="/challenges" className="mt-1 inline-block text-sm text-indigo-600 hover:underline">
+            Compete with friends using this account →
+          </Link>
         </div>
         <Link href="/portfolio" className="text-sm font-medium text-slate-600 hover:underline">
           ← Back to Portfolio

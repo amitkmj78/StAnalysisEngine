@@ -1690,6 +1690,7 @@ export interface AdminSettings {
   earnings_release_summaries_enabled: boolean;
   evening_recap_enabled: boolean;
   morning_brief_enabled: boolean;
+  paper_account_equity_capture_enabled: boolean;
 }
 
 export interface BackupRun {
@@ -2264,4 +2265,35 @@ export interface MarketNewsItem {
 export interface MarketNewsResponse {
   items: MarketNewsItem[];
   source: "yahoo" | "duckduckgo";
+}
+
+export interface Challenge {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+  member_count: number;
+}
+
+export interface ChallengeDetail {
+  id: number;
+  name: string;
+  join_code: string;
+  start_date: string;
+  end_date: string;
+  members: string[];
+}
+
+export interface ChallengeLeaderboardEntry {
+  email: string;
+  return_pct: number | null;
+  max_drawdown_pct: number | null;
+  annualized_volatility_pct: number | null;
+  days_of_data: number;
+}
+
+export interface ChallengeLeaderboardResponse {
+  start_date: string;
+  end_date: string;
+  entries: ChallengeLeaderboardEntry[];
 }

@@ -151,6 +151,13 @@ EVENING_RECAP_ENABLED_KEY = "evening_recap_enabled"
 # Release Summaries -- see FILING_SUMMARIES_ENABLED_KEY's docstring for
 # the real quota-exhaustion incident this is guarding against.
 MORNING_BRIEF_ENABLED_KEY = "morning_brief_enabled"
+# PPR-2: gates services/challenge_service.py's capture_equity_for_account
+# via the scheduler's daily per-paper-account job. Defaults OFF, same
+# deliberate-opt-in rationale as PAPER_TRADING_ENABLED_KEY -- this hits a
+# real external (Alpaca) API using each user's own stored paper-trading
+# credentials on a schedule. Challenge leaderboards simply show "not
+# enough data yet" for every member until an admin turns this on.
+PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY = "paper_account_equity_capture_enabled"
 # ALR-1: each of the three new alert-scan jobs gets its own deliberate
 # opt-in flag, same rationale as PORTFOLIO_DROP_ALERTS_ENABLED_KEY --
 # they write user-visible content and send email, so a deploy must not
