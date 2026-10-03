@@ -41,7 +41,8 @@ import type {
 import Sparkline from "@/components/portfolio/Sparkline";
 import MetricLabel from "@/components/MetricLabel";
 import FactorDrilldownModal from "@/components/stock-detail/FactorDrilldownModal";
-import PriceHistoryChart from "@/components/stock-detail/PriceHistoryChart";
+import PriceHistoryChart, { SECTOR_ETF_BY_NAME } from "@/components/stock-detail/PriceHistoryChart";
+import EvidencePanel from "@/components/stock-detail/EvidencePanel";
 import TickerSearchInput from "@/components/TickerSearchInput";
 
 function signalBadgeClass(signal: string): string {
@@ -478,8 +479,23 @@ export default function StockScorePage() {
           pastEarnings={detail?.past_earnings ?? []}
           recentDividends={detail?.recent_dividends ?? []}
           signalChanges={signalChanges}
+          signalHistory={signalHistory}
+          sectorEtf={data ? SECTOR_ETF_BY_NAME[data.sector_key] ?? null : null}
         />
       </div>
+
+      {data && (
+        <div className="mt-6">
+          <EvidencePanel
+            drivers={data.explanations.drivers.map((d) => ({ label: FACTOR_LABELS[d.factor] ?? d.factor, contribution: d.contribution }))}
+            drags={data.explanations.drags.map((d) => ({ label: FACTOR_LABELS[d.factor] ?? d.factor, contribution: d.contribution }))}
+            sectorKey={data.sector_key}
+            shortSectorRank={data.short_sector_rank}
+            longSectorRank={data.long_sector_rank}
+            regime={data.regime}
+          />
+        </div>
+      )}
 
       {loading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
       {error && <p className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

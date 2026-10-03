@@ -1489,10 +1489,34 @@ export interface StockDetailResponse {
 
 export type StockPriceHistoryRange = "1D" | "5D" | "1M" | "6M" | "1Y" | "5Y";
 
+export interface StockPriceHistoryRow {
+  date: string;
+  close: number;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  volume: number | null;
+}
+
+// CHT-3: one array per indicator, aligned to `history` rows. null = warm-up or missing.
+export interface StockChartIndicators {
+  sma_20: (number | null)[];
+  sma_50: (number | null)[];
+  sma_200: (number | null)[];
+  ema_20: (number | null)[];
+  bollinger: { upper: (number | null)[]; mid: (number | null)[]; lower: (number | null)[] };
+  vwap: (number | null)[];
+  rsi_14: (number | null)[];
+  macd: { macd: (number | null)[]; signal: (number | null)[]; histogram: (number | null)[] };
+  atr_14: (number | null)[];
+  obv: (number | null)[];
+}
+
 export interface StockPriceHistoryResponse {
   ticker: string;
   range: StockPriceHistoryRange;
-  history: { date: string; close: number }[];
+  history: StockPriceHistoryRow[];
+  indicators: StockChartIndicators | null;
 }
 
 export interface StockPositionResponse {

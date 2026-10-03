@@ -12,6 +12,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 
+from services import chart_indicators as ci
 from services.cache_utils import ttl_cache
 from services.data_service import get_latest_price
 from services.ranking_utils import compute_position_concentration
@@ -103,6 +104,36 @@ async def get_stock_detail(request: Request, ticker: str):
     }
 
 
+def _indicator_values(series: pd.Series) -> list:
+    return [None if pd.isna(v) else round(float(v), 4) for v in series]
+
+
+def _chart_indicators(history: pd.DataFrame) -> dict | None:
+    """CHT-3: indicators over the rows returned for this range, so a 1Y request
+    has at most a year of warm-up history. Rows inside a window's warm-up
+    (e.g. the first 199 bars of a 200-day average) are null, not zero."""
+    if history.empty or not {"High", "Low", "Volume"}.issubset(history.columns):
+        return None
+    close = history["Close"].astype(float)
+    high = history["High"].astype(float)
+    low = history["Low"].astype(float)
+    volume = history["Volume"].astype(float)
+    bands = ci.bollinger(close)
+    macd_frame = ci.macd(close)
+    return {
+        "sma_20": _indicator_values(ci.sma(close, 20)),
+        "sma_50": _indicator_values(ci.sma(close, 50)),
+        "sma_200": _indicator_values(ci.sma(close, 200)),
+        "ema_20": _indicator_values(ci.ema(close, 20)),
+        "bollinger": {k: _indicator_values(bands[k]) for k in ("upper", "mid", "lower")},
+        "vwap": _indicator_values(ci.vwap(high, low, close, volume)),
+        "rsi_14": _indicator_values(ci.rsi(close, 14)),
+        "macd": {k: _indicator_values(macd_frame[k]) for k in ("macd", "signal", "histogram")},
+        "atr_14": _indicator_values(ci.atr(high, low, close, 14)),
+        "obv": _indicator_values(ci.obv(close, volume)),
+    }
+
+
 @router.get("/{ticker}/price-history")
 @limiter.limit("60/minute")
 async def get_stock_price_history(request: Request, ticker: str, range: str = Query("1Y")):
@@ -127,8 +158,17 @@ async def get_stock_price_history(request: Request, ticker: str, range: str = Qu
     return {
         "ticker": ticker,
         "range": range,
+        # Daily ranges only: the intraday VWAP would be anchored to the first 5-minute bar.
+        "indicators": None if intraday else _chart_indicators(history),
         "history": [
-            {"date": ts.isoformat() if intraday else ts.date().isoformat(), "close": round(float(row["Close"]), 2)}
+            {
+                "date": ts.isoformat() if intraday else ts.date().isoformat(),
+                "close": round(float(row["Close"]), 2),
+                "open": round(float(row["Open"]), 2) if "Open" in row else None,
+                "high": round(float(row["High"]), 2) if "High" in row else None,
+                "low": round(float(row["Low"]), 2) if "Low" in row else None,
+                "volume": float(row["Volume"]) if "Volume" in row else None,
+            }
             for ts, row in history.iterrows()
         ],
     }
