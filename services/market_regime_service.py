@@ -18,7 +18,7 @@ import pandas as pd
 from starlette.concurrency import run_in_threadpool
 
 from services.market_data_service import fetch_dimension_frame, fetch_market_internals_history
-from services.regime_dimensions import regime_dimensions
+from services.regime_dimensions import investor_takeaways, regime_dimensions
 from services.market_internals_service import (
     apply_hysteresis,
     compute_composite_score,
@@ -210,6 +210,7 @@ async def get_regime_snapshot() -> Optional[dict]:
     components = compute_internals_components(history) if not history.empty else {}
     dimension_history = await run_in_threadpool(fetch_dimension_frame, "3y")
     dimensions = regime_dimensions(dimension_history) if not dimension_history.empty else {}
+    takeaways = investor_takeaways(dimensions, row["regime_confirmed"]) if dimensions else []
 
     return {
         "as_of_date": row["as_of_date"].isoformat(),
@@ -221,6 +222,7 @@ async def get_regime_snapshot() -> Optional[dict]:
         "conflict_flag": row["conflict_flag"],
         "components": components,
         "dimensions": dimensions,
+        "takeaways": takeaways,
         "disclosure": REGIME_GATE_DISCLOSURE,
         "methodology": REGIME_METHODOLOGY,
     }

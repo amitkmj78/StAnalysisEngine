@@ -100,6 +100,16 @@ export default function RegimeBanner() {
               How it was tested
             </Link>
           </p>
+          {(data.takeaways?.length ?? 0) > 0 && (
+            <div className="mt-2">
+              <p className="font-semibold">What this suggests</p>
+              <ul className="mt-1 flex list-disc flex-col gap-1 pl-4">
+                {data.takeaways?.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {readings.length > 0 && (
             <ul className="mt-2 flex flex-col gap-1">
               {readings.map((r) => (

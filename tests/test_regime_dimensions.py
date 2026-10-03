@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from services.regime_dimensions import (
+    investor_takeaways,
     credit_reading,
     divergence_flag,
     rates_reading,
@@ -107,3 +108,23 @@ def test_risk_appetite_names_ratio_and_window_in_text():
     r = risk_appetite_reading(df)
     assert "Equal-weight vs S&P 500" in r["text"] and "last 3 months" in r["text"]
     assert r["change_pct"] < 0
+
+
+def test_takeaways_flag_rising_rates_and_narrow_breadth_with_no_trade_language():
+    dims = {
+        "rates": {"score": -1}, "credit": {"score": 1}, "breadth": {"pct_above_50dma": 24.7},
+        "divergence": {"flag": True}, "risk_appetite": {"change_pct": -4.7},
+    }
+    text = " ".join(investor_takeaways(dims, "Neutral")).lower()
+    assert "borrowing costs are rising" in text
+    assert "gains are narrow" in text
+    assert "concentrated" in text
+    assert "not personal advice" in text
+    for banned in ("buy ", "sell ", "move your money"):
+        assert banned not in text
+
+
+def test_takeaways_defensive_label_suggests_reviewing_risk_level():
+    lines = investor_takeaways({"breadth": {"pct_above_50dma": 60.0}}, "Cautious")
+    assert any("review your risk level" in line for line in lines)
+    assert any("Most stocks are participating" in line for line in lines)

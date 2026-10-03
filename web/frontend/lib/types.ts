@@ -1445,6 +1445,7 @@ export interface MarketRegimeResponse {
   conflict_flag?: boolean;
   components?: MarketRegimeComponents;
   dimensions?: MarketRegimeDimensions;
+  takeaways?: string[];
   disclosure?: string;
   methodology?: string[];
 }

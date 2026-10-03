@@ -111,7 +111,7 @@ def divergence_flag(df: pd.DataFrame) -> dict:
     spy_50 = float(spy.tail(50).mean())
     flag = spy_now > spy_50 and b50 < DIVERGENCE_BREADTH_PCT
     if flag:
-        text = (f"Divergence: SPY is above its 50-day average, but only {b50:.1f}% of S&P 500 stocks are above "
+        text = (f"SPY is above its 50-day average, but only {b50:.1f}% of S&P 500 stocks are above "
                 f"theirs (flag below {DIVERGENCE_BREADTH_PCT:.0f}%).")
     else:
         text = (f"No divergence: {b50:.1f}% of S&P 500 stocks are above their 50-day average "
@@ -141,3 +141,52 @@ def regime_dimensions(df: pd.DataFrame) -> dict:
         "divergence": divergence_flag(df),
         "risk_appetite": risk_appetite_reading(df),
     }
+
+
+NARROW_BREADTH_PCT = 35.0
+
+
+def investor_takeaways(dimensions: dict, regime: Optional[str]) -> list[str]:
+    """Plain-language 'what this suggests' lines for a typical investor, built from
+    fixed rules over the readings. Informational only: no buy, sell or
+    allocation instructions, and nothing here is personal advice."""
+    lines: list[str] = []
+    rates = dimensions.get("rates") or {}
+    credit = dimensions.get("credit") or {}
+    breadth = dimensions.get("breadth") or {}
+    divergence = dimensions.get("divergence") or {}
+    appetite = dimensions.get("risk_appetite") or {}
+
+    if rates.get("score") == -1:
+        lines.append("Borrowing costs are rising. That can pressure stock prices, especially for fast-growing "
+                     "companies and those carrying a lot of debt.")
+    elif rates.get("score") == 1:
+        lines.append("Borrowing costs are falling, which usually supports stock prices.")
+
+    if credit.get("score") == -1:
+        lines.append("Lenders are getting more cautious about riskier borrowers, an early sign of stress in the market.")
+    elif credit.get("score") == 1:
+        lines.append("Lenders are still willing to back riskier borrowers, which supports the market.")
+
+    pct50 = breadth.get("pct_above_50dma")
+    if pct50 is not None and pct50 < NARROW_BREADTH_PCT:
+        lines.append(f"Gains are narrow: only {pct50:.0f}% of S&P 500 stocks are above their 50-day average. "
+                     "Returns may depend on a small group of large companies.")
+    elif pct50 is not None and pct50 >= 50:
+        lines.append(f"Most stocks are participating: {pct50:.0f}% are above their 50-day average.")
+
+    if divergence.get("flag"):
+        lines.append("The index is rising while most stocks lag. The app's tests have not shown that this reliably "
+                     "comes before declines, but it is a good moment to check how concentrated your own holdings are.")
+
+    if appetite.get("change_pct") is not None and appetite["change_pct"] < 0:
+        lines.append("Investors have been favouring large index names over the broad market, a mild sign of caution.")
+
+    if regime == "Neutral" and not lines:
+        lines.append("The readings are mixed, with no strong signal either way.")
+    elif regime in ("Cautious", "Risk-Off"):
+        lines.append("The overall reading is defensive, so it is a reasonable time to review your risk level.")
+
+    lines.append("This is general information, not personal advice. Check your own concentration and time horizon "
+                 "before making any decision.")
+    return lines
