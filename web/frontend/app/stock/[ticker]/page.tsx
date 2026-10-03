@@ -43,6 +43,7 @@ import MetricLabel from "@/components/MetricLabel";
 import FactorDrilldownModal from "@/components/stock-detail/FactorDrilldownModal";
 import PriceHistoryChart, { SECTOR_ETF_BY_NAME } from "@/components/stock-detail/PriceHistoryChart";
 import EvidencePanel from "@/components/stock-detail/EvidencePanel";
+import FilingSummaryText from "@/components/stock-detail/FilingSummaryText";
 import TickerSearchInput from "@/components/TickerSearchInput";
 
 function signalBadgeClass(signal: string): string {
@@ -830,7 +831,9 @@ export default function StockScorePage() {
                     View full filing on SEC.gov
                   </a>
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{f.summary}</p>
+                <div className="mt-2">
+                  <FilingSummaryText text={f.summary} />
+                </div>
                 <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{f.method}</p>
               </div>
             ))}
@@ -854,9 +857,9 @@ export default function StockScorePage() {
               View full press release on SEC.gov
             </a>
           </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-            {earningsRelease.release.summary}
-          </p>
+          <div className="mt-2">
+            <FilingSummaryText text={earningsRelease.release.summary} />
+          </div>
           <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
             {earningsRelease.release.method}
           </p>
