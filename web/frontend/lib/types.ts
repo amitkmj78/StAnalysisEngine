@@ -2310,3 +2310,63 @@ export interface DiscoverableUser {
   id: string;
   email: string;
 }
+
+export interface AgentEvent {
+  event_type: string;
+  ticker: string | null;
+  side: string | null;
+  qty: number | null;
+  est_value: number | null;
+  trigger: string | null;
+  reason: string;
+  alpaca_order_id?: string | null;
+  created_at: string;
+}
+
+export interface AgentRunSummary {
+  id: number;
+  mode: string;
+  status: string;
+  regime: string | null;
+  exposure_cap_pct: number | null;
+  equity: number | null;
+  risk_state: string | null;
+  config_version: string;
+  reason: string | null;
+  created_at: string;
+  events: AgentEvent[];
+}
+
+export interface TradingAgentStatus {
+  enabled: boolean;
+  mode: "plan" | "paper" | "live";
+  kill_engaged: boolean;
+  global_enabled: boolean;
+  global_kill_engaged: boolean;
+  breaker_latched: boolean;
+  peak_equity: number | null;
+  config_version: string;
+  limits: {
+    max_position_pct: number;
+    max_sector_pct: number;
+    max_positions: number;
+    daily_loss_limit_pct: number;
+    drawdown_breaker_pct: number;
+  };
+  regime: { label: string | null; exposure_cap_pct: number; reason: string; disclosure: string };
+  live: { allowed: boolean; reason: string };
+  disclosure: string;
+  broker: { positions: { ticker: string; qty: number; market_value: number; stop: { qty: string; trail_percent: string } | null }[] } | { error: string } | null;
+  performance_paper: {
+    days_of_data: number;
+    note?: string;
+    return_pct?: number | null;
+    annualized_volatility_pct?: number | null;
+    max_drawdown_pct?: number | null;
+    sharpe?: number | null;
+    spy_return_pct?: number | null;
+    costs_paid?: string;
+    worst_month?: string;
+  } | null;
+  latest_run: { run: AgentRunSummary; events: AgentEvent[] } | null;
+}

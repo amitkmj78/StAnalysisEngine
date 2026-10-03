@@ -253,3 +253,11 @@ async def set_setting_int(key: str, value: int) -> None:
             """,
             key, str(value),
         )
+
+# Phase 4 trading agent. Global switch for the scheduled run; defaults OFF so
+# deploying the code never starts placing orders. Per-user enablement lives in
+# agent_user_settings and requires an admin with a compliance reference.
+AGENT_ENABLED_KEY = "agent_enabled"
+# Global emergency stop for every user's agent (AGT-3). Per-user kills live on
+# agent_user_settings.kill_engaged.
+AGENT_KILL_SWITCH_KEY = "agent_kill_switch"

@@ -8,6 +8,7 @@ from starlette.concurrency import run_in_threadpool
 from services.alert_engine_service import evaluate_alert
 from services.basket_rebalance_service import scan_baskets_for_rebalance
 from services.cost_drop_alert_service import scan_cost_drops
+from services.agent.runner import run_agent_for_user
 from services.challenge_service import capture_equity_for_account
 from services.daily_brief_service import build_evening_recap, build_morning_brief
 from services.earnings_alert_service import scan_earnings_in_window
@@ -34,6 +35,7 @@ from web.backend.app_settings import (
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     MARKET_REGIME_ENABLED_KEY,
     MORNING_BRIEF_ENABLED_KEY,
+    AGENT_ENABLED_KEY,
     PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
@@ -397,6 +399,30 @@ async def _sync_paper_positions_job() -> None:
     synced = await sync_positions_and_cash()
     if synced:
         logger.info("Scheduler: synced %d paper-trading positions", synced)
+
+
+# 15:45 ET: ten minutes before the close, so the run sees the day's
+# regime and scores and any order still has a session to fill in.
+TRADING_AGENT_HOUR_ET = 15
+TRADING_AGENT_MINUTE_ET = 45
+
+
+async def _run_trading_agents_job() -> None:
+    """Phase 4: runs the trading agent for every user an admin has enabled.
+    Off by default (AGENT_ENABLED_KEY). The runner itself refuses to place
+    orders outside paper mode and while the broker's market is closed.
+    One user's failure is isolated and never stops the rest."""
+    if not await get_setting_bool(AGENT_ENABLED_KEY, default=False):
+        logger.info("Scheduler: trading agent is disabled, skipping this run")
+        return
+    async with service_conn() as conn:
+        rows = await conn.fetch("SELECT user_id FROM agent_user_settings WHERE enabled")
+    for row in rows:
+        try:
+            result = await run_agent_for_user(str(row["user_id"]), trigger="scheduled")
+            logger.info("Scheduler: trading agent for user %s -> %s", row["user_id"], result.get("status"))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Scheduler: trading agent failed for user %s: %s", row["user_id"], e)
 
 
 # After close (16:00 ET) with a few minutes' buffer, same spacing
@@ -1216,6 +1242,17 @@ def start_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _run_trading_agents_job,
+        CronTrigger(
+            hour=TRADING_AGENT_HOUR_ET, minute=TRADING_AGENT_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="run_trading_agents",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=600,
     )
     _scheduler.add_job(
         _capture_paper_account_equity_job,

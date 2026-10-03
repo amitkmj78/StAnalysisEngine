@@ -162,3 +162,45 @@ def list_positions(key_id: str, secret_key: str) -> list[dict]:
     )
     _raise_for_status(response)
     return response.json()
+
+
+def submit_trailing_stop(
+    key_id: str,
+    secret_key: str,
+    *,
+    client_order_id: str,
+    ticker: str,
+    qty: float,
+    trail_percent: float,
+) -> dict:
+    """POST /v2/orders as a broker-side trailing sell stop (AGT-16). GTC so
+    the stop outlives the trading day and keeps protecting the position even
+    if this app is down."""
+    payload = {
+        "symbol": ticker,
+        "qty": str(qty),
+        "side": "sell",
+        "type": "trailing_stop",
+        "trail_percent": str(trail_percent),
+        "time_in_force": "gtc",
+        "client_order_id": client_order_id,
+    }
+    response = httpx.post(
+        f"{ALPACA_PAPER_TRADING_BASE_URL}/orders",
+        headers=_headers(key_id, secret_key),
+        json=payload,
+        timeout=_TIMEOUT,
+    )
+    _raise_for_status(response)
+    return response.json()
+
+
+def cancel_order(key_id: str, secret_key: str, alpaca_order_id: str) -> None:
+    """DELETE /v2/orders/{id}. Alpaca answers 204 on success; a 422 means the
+    order already closed and is surfaced to the caller as AlpacaTradingError."""
+    response = httpx.delete(
+        f"{ALPACA_PAPER_TRADING_BASE_URL}/orders/{alpaca_order_id}",
+        headers=_headers(key_id, secret_key),
+        timeout=_TIMEOUT,
+    )
+    _raise_for_status(response)

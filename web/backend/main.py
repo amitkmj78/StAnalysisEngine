@@ -55,6 +55,7 @@ from web.backend.routers import (
     stress_test,
     subscriptions,
     trade_journal,
+    trading_agent,
     watchlist,
     web_search,
 )
@@ -105,6 +106,8 @@ app.include_router(stress_test.router)
 app.include_router(plaid_integration.router)
 app.include_router(paper_trading.router)
 app.include_router(challenges.router)
+app.include_router(trading_agent.user_router)
+app.include_router(trading_agent.admin_router)
 app.include_router(chat.router)
 app.include_router(aws_deploy.router)
 app.include_router(search.router)

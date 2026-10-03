@@ -26,6 +26,8 @@ import type {
   ChallengeInvite,
   ChallengeLeaderboardResponse,
   DiscoverableUser,
+  AgentRunSummary,
+  TradingAgentStatus,
   ChatAskParams,
   ChatAskResponse,
   ChatProvidersResponse,
@@ -1767,4 +1769,46 @@ export function runWebSearch(query: string, maxResults = 5, includeRawContent = 
 
 export function getHotMarketNews() {
   return apiFetch<MarketNewsResponse>("/api/v1/news/hot");
+}
+
+export function getTradingAgentStatus() {
+  return apiFetch<TradingAgentStatus>("/api/v1/trading-agent/status");
+}
+
+export function getTradingAgentJournal(limit = 20) {
+  return apiFetch<{ runs: AgentRunSummary[] }>("/api/v1/trading-agent/journal", { limit: String(limit) });
+}
+
+export function runAgentPlanPreview() {
+  return apiSend<Record<string, unknown>>("/api/v1/trading-agent/run-plan", "POST");
+}
+
+export function setAgentMode(mode: "plan" | "paper") {
+  return apiSend<{ mode: string }>("/api/v1/trading-agent/mode", "POST", { mode });
+}
+
+export function setAgentKill(engaged: boolean) {
+  return apiSend<{ kill_engaged: boolean }>("/api/v1/trading-agent/kill", "POST", { engaged });
+}
+
+export function resetAgentBreaker() {
+  return apiSend<{ breaker_latched: boolean }>("/api/v1/trading-agent/reset-breaker", "POST");
+}
+
+export function adminEnableAgentUser(email: string, complianceReference: string) {
+  return apiSend<{ ok: boolean }>("/api/v1/admin/trading-agent/users/enable", "POST", {
+    email, compliance_reference: complianceReference,
+  });
+}
+
+export function adminDisableAgentUser(email: string) {
+  return apiSend<{ ok: boolean }>("/api/v1/admin/trading-agent/users/disable", "POST", { email });
+}
+
+export function adminSetAgentGlobal(enabled: boolean) {
+  return apiSend<{ agent_enabled: boolean }>("/api/v1/admin/trading-agent/global", "POST", { enabled });
+}
+
+export function adminSetAgentKill(engaged: boolean) {
+  return apiSend<{ agent_kill_switch: boolean }>("/api/v1/admin/trading-agent/kill-switch", "POST", { engaged });
 }

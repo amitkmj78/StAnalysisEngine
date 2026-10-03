@@ -1556,6 +1556,69 @@ create table if not exists challenge_invites (
 );
 create index if not exists challenge_invites_invited_user_idx on challenge_invites(invited_user_id, status);
 
+-- Trading agent (Phase 4). Per-user gate and breaker state: mutable, so
+-- app_service gets update. Agent journal tables below are insert-only by
+-- grant (no update/delete for any app role), same convention as
+-- paper_order_audit_log: status changes are new event rows, never edits.
+create table if not exists agent_user_settings (
+  user_id uuid primary key references users(id) on delete cascade,
+  enabled boolean not null default false,
+  mode text not null default 'plan' check (mode in ('plan', 'paper', 'live')),
+  compliance_reference text,
+  enabled_by uuid references users(id),
+  enabled_at timestamptz,
+  peak_equity real,
+  breaker_latched boolean not null default false,
+  breaker_latched_at timestamptz,
+  kill_engaged boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists agent_runs (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  mode text not null check (mode in ('plan', 'paper', 'live')),
+  status text not null check (status in ('started', 'skipped')),
+  regime text,
+  exposure_cap_pct real,
+  equity real,
+  last_equity real,
+  risk_state text,
+  config_version text not null,
+  reason text,
+  created_at timestamptz not null default now()
+);
+create index if not exists agent_runs_user_idx on agent_runs(user_id, created_at desc);
+alter table agent_runs enable row level security;
+drop policy if exists agent_runs_isolation on agent_runs;
+create policy agent_runs_isolation on agent_runs
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+create table if not exists agent_order_events (
+  id bigint generated always as identity primary key,
+  run_id bigint not null references agent_runs(id),
+  user_id uuid not null references users(id) on delete cascade,
+  event_type text not null,
+  ticker text,
+  side text,
+  qty real,
+  est_price real,
+  est_value real,
+  trigger text,
+  reason text not null,
+  alpaca_order_id text,
+  client_order_id text,
+  detail jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists agent_order_events_run_idx on agent_order_events(run_id, created_at);
+alter table agent_order_events enable row level security;
+drop policy if exists agent_order_events_isolation on agent_order_events;
+create policy agent_order_events_isolation on agent_order_events
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 do $$
 begin
   if not exists (select from pg_roles where rolname = 'app_user') then
@@ -1645,6 +1708,11 @@ grant select on filing_summaries to app_user;
 grant select, insert on filing_summaries to app_service;
 grant select on earnings_release_summaries to app_user;
 grant select, insert on earnings_release_summaries to app_service;
+grant select, insert, update on agent_user_settings to app_service;
+grant select, insert on agent_runs to app_service;
+grant select on agent_runs to app_user;
+grant select, insert on agent_order_events to app_service;
+grant select on agent_order_events to app_user;
 grant select, insert on challenges to app_service;
 grant select, insert, delete on challenge_members to app_service;
 grant select, insert on paper_account_equity_snapshots to app_service;
