@@ -2517,18 +2517,64 @@ export interface StrategyMetrics {
   worst_month_pct?: number | null;
 }
 
+export interface StrategyCheck {
+  status: "pass" | "caution" | "fail";
+  label: string;
+  detail: string;
+}
+
+export interface StrategyTradeRow {
+  ticker: string;
+  entry_date: string;
+  entry_price: number;
+  exit_date: string;
+  exit_price: number;
+  exit_reason: string;
+  holding_days: number;
+  return_pct: number;
+}
+
 export interface StrategyBacktestResponse {
   period: { start: string; end: string; sessions: number };
   tickers: string[];
   costs: { cost_bps_per_side: number; slippage_bps_per_side: number };
+  cooldown_sessions: number;
+  protective_exit: {
+    stop_loss_pct: number | null;
+    trailing_stop_pct: number | null;
+    atr_stop_k: number | null;
+    time_stop_sessions: number | null;
+    take_profit_pct: number | null;
+    waived: boolean;
+  };
   trades: number;
-  trades_per_year: number;
+  trades_per_year: number | null;
+  churn_pct: number;
+  cost_drag: { total_costs_pct_of_equity: number; cagr_points: number | null };
+  exposure_pct: number;
+  win_rate_pct: number | null;
+  avg_win_pct: number | null;
+  avg_loss_pct: number | null;
   strategy: StrategyMetrics;
+  basket: StrategyMetrics;
+  benchmark_spy: StrategyMetrics;
   in_sample: StrategyMetrics;
   out_of_sample: StrategyMetrics;
-  benchmark_spy: StrategyMetrics;
+  per_ticker_contribution: Record<string, number>;
+  top_ticker: { ticker: string; share_pct: number; flag: boolean } | null;
   variants_tried: number;
-  warnings: string[];
+  chance_sharpe_bar: number | null;
+  checks: StrategyCheck[];
+  verdict: {
+    benchmark: "basket" | "spy";
+    excess_cagr_pct: number | null;
+    sharpe_vs_basket: number | null;
+    sharpe_vs_spy: number | null;
+    beats_benchmark_after_costs: boolean;
+  };
+  trade_log: StrategyTradeRow[];
+  equity_curve: { dates: string[]; strategy: number[]; basket: number[] };
+  state_warnings: string[];
   caveats: string[];
   disclaimer: string;
 }

@@ -1857,6 +1857,14 @@ export function getSimilarSetups(ticker: string) {
 }
 
 // STB-1..5: no-code strategy backtest. Past prices only; nothing is placed.
-export function runStrategyBacktest(body: { tickers: string[]; entry: StrategyRuleInput[]; exit: StrategyRuleInput[] }) {
+export function runStrategyBacktest(body: {
+  tickers: string[];
+  entry: StrategyRuleInput[];
+  exit: StrategyRuleInput[];
+  exits?: { stop_loss_pct?: number; trailing_stop_pct?: number; time_stop_sessions?: number };
+  waive_protective_exit?: boolean;
+  cooldown_sessions?: number;
+  verdict_benchmark?: "basket" | "spy";
+}) {
   return apiSend<StrategyBacktestResponse>("/api/v1/strategy-builder/backtest", "POST", body);
 }
