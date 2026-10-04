@@ -392,15 +392,6 @@ def get_stock_finder_table(universe_key: str) -> pd.DataFrame:
 
 
 def _build_peer_row(ticker_symbol: str) -> dict | None:
-    """One retry: a temporary data-source failure must not silently drop a ticker from the peer table."""
-    row = _build_peer_row_once(ticker_symbol)
-    if row is None:
-        time.sleep(0.5)
-        row = _build_peer_row_once(ticker_symbol)
-    return row
-
-
-def _build_peer_row_once(ticker_symbol: str) -> dict | None:
     """Lightweight counterpart to _build_stock_row, for DET-5's peer
     matching (services.stock_detail_service.select_peers) -- Ticker/
     Name/GICS Sector/Market Cap are all sourced from .info alone, so
@@ -432,6 +423,9 @@ def get_peer_lookup_table(universe_key: str) -> pd.DataFrame:
     DET-5 never uses). Same 1-hour table-level cache as
     get_stock_finder_table, but each entry is materially cheaper to
     build on a cold cache."""
+    cached = _PEER_TABLE_CACHE.get(universe_key)
+    if cached and time.monotonic() - cached[0] < PEER_TABLE_TTL_SECONDS:
+        return cached[1]
     tickers = _universe_tickers(universe_key)
     rows: List[dict] = []
     with ThreadPoolExecutor(max_workers=MAX_PARALLEL_FETCHES) as executor:
@@ -440,7 +434,15 @@ def get_peer_lookup_table(universe_key: str) -> pd.DataFrame:
             row = future.result()
             if row is not None:
                 rows.append(row)
-    return pd.DataFrame(rows)
+    table = pd.DataFrame(rows)
+    # Only keep a complete table: a partly built one (lookups failed) would give wrong peers for an hour.
+    if tickers and len(rows) >= 0.95 * len(tickers):
+        _PEER_TABLE_CACHE[universe_key] = (time.monotonic(), table)
+    return table
+
+
+_PEER_TABLE_CACHE: dict = {}
+PEER_TABLE_TTL_SECONDS = 3600
 
 
 # Maps a compare-page/momentum window code to the already-computed
