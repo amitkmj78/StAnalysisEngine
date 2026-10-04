@@ -6,6 +6,7 @@ from starlette.concurrency import run_in_threadpool
 
 from Agent.meta_agent import ask_meta_agent, build_agent
 
+from services.cited_analyst_service import answer_cited
 from services.general_assistant_service import answer_general_question
 from services.portfolio_health_service import compute_portfolio_risk_metrics
 from services.portfolio_review_service import answer_portfolio_question, compute_sectors
@@ -30,6 +31,8 @@ class ChatRequest(BaseModel):
     portfolio_id: Optional[int] = None
     question: str
     provider: Optional[str] = None
+    # DIF-8: answer only from cited stored sources, saying 'No clear cause found' when they don't cover it.
+    cited: bool = False
 
 
 @router.post("/ask")
@@ -53,7 +56,21 @@ async def ask(request: Request, body: ChatRequest):
     llms = ordered_llms(provider, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
 
     sources: list[dict] = []
-    if body.scope == "general":
+    if body.cited and body.scope != "general":
+        user_id = request.state.user["id"]
+        if body.scope == "portfolio":
+            async with user_conn(user_id) as conn:
+                resolved_id = await _resolve_portfolio_id(conn, user_id, body.portfolio_id)
+            answer, actual_llm, sources = await answer_cited(
+                body.question.strip(), llms, user_id=user_id, portfolio_id=resolved_id,
+            )
+            result_ticker = "PORTFOLIO"
+        else:
+            if not body.ticker or not body.ticker.strip():
+                raise HTTPException(422, "ticker is required when scope is 'ticker'")
+            result_ticker = body.ticker.strip().upper()
+            answer, actual_llm, sources = await answer_cited(body.question.strip(), llms, ticker=result_ticker)
+    elif body.scope == "general":
         # No ticker or portfolio: answered from retrieved stored research (services/general_assistant_service.py).
         answer, actual_llm, sources = await answer_general_question(body.question.strip(), llms)
         result_ticker = "GENERAL"

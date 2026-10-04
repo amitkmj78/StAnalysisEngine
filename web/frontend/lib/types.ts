@@ -1592,6 +1592,7 @@ export interface ChatAskParams {
   portfolio_id?: number;
   question: string;
   provider?: string;
+  cited?: boolean;
 }
 
 export interface FilingSummary {

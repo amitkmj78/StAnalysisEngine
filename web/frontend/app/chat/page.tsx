@@ -12,6 +12,8 @@ type Scope = "ticker" | "portfolio" | "general";
 
 export default function ChatPage() {
   const [scope, setScope] = useState<Scope>("ticker");
+  // DIF-8: cited mode answers only from stored sources and says "No clear cause found" when they don't cover it.
+  const [cited, setCited] = useState(false);
   const [providers, setProviders] = useState<string[]>([]);
   const [provider, setProvider] = useState("");
   const [ticker, setTicker] = useState("AAPL");
@@ -40,10 +42,10 @@ export default function ChatPage() {
     try {
       const res = await askMetaAgent(
         scope === "portfolio"
-          ? { scope, portfolio_id: portfolioId ?? undefined, question: question.trim(), provider: provider || undefined }
+          ? { scope, portfolio_id: portfolioId ?? undefined, question: question.trim(), provider: provider || undefined, cited }
           : scope === "general"
             ? { scope, question: question.trim(), provider: provider || undefined }
-            : { scope, ticker: ticker.trim().toUpperCase(), question: question.trim(), provider: provider || undefined }
+            : { scope, ticker: ticker.trim().toUpperCase(), question: question.trim(), provider: provider || undefined, cited }
       );
       setResult(res);
     } catch (err) {
@@ -96,6 +98,21 @@ export default function ChatPage() {
           General question
         </button>
       </div>
+
+      {scope !== "general" && (
+        <label className="mt-3 flex items-start gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={cited}
+            onChange={(e) => setCited(e.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            Cited answer only. Uses stored app data and dated filings, lists each source, and says &ldquo;No clear cause
+            found&rdquo; when they don&apos;t explain it.
+          </span>
+        </label>
+      )}
 
       <form onSubmit={ask} className="mt-4 flex flex-col gap-3">
         <div className="flex flex-wrap items-end gap-3">
@@ -157,7 +174,7 @@ export default function ChatPage() {
             {result.ticker === "PORTFOLIO" ? "Your Portfolio" : result.ticker === "GENERAL" ? "General question" : result.ticker} · {result.provider}
           </p>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{result.answer}</p>
-          {result.ticker === "GENERAL" && (
+          {(result.ticker === "GENERAL" || (result.sources && result.sources.length > 0)) && (
             <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
               Answers come from stored data and the app&apos;s model outputs. They are not investment advice.
             </p>
