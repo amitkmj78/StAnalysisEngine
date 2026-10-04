@@ -14,6 +14,9 @@ export default function EvidencePanel({
   shortSectorRank,
   longSectorRank,
   regime,
+  asOfDate,
+  shortScore,
+  longScore,
 }: {
   drivers: Driver[];
   drags: Driver[];
@@ -21,6 +24,9 @@ export default function EvidencePanel({
   shortSectorRank: { rank: number; of: number } | null;
   longSectorRank: { rank: number; of: number } | null;
   regime: string | null;
+  asOfDate: string;
+  shortScore: number | null;
+  longScore: number | null;
 }) {
   const topDrivers = drivers.slice(0, 3);
   const topDrags = drags.slice(0, 2);
@@ -28,7 +34,14 @@ export default function EvidencePanel({
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5">
-      <h3 className="text-sm font-semibold text-slate-900">Evidence</h3>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-slate-900">Evidence</h3>
+        <p className="text-xs text-slate-500">
+          As of {asOfDate}: short-term{" "}
+          <span className="font-mono font-semibold text-slate-800">{shortScore?.toFixed(1) ?? "n/a"}</span>, long-term{" "}
+          <span className="font-mono font-semibold text-slate-800">{longScore?.toFixed(1) ?? "n/a"}</span>
+        </p>
+      </div>
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Pushing the score up</p>

@@ -494,6 +494,9 @@ export default function StockScorePage() {
             shortSectorRank={data.short_sector_rank}
             longSectorRank={data.long_sector_rank}
             regime={data.regime}
+            asOfDate={data.as_of_date}
+            shortScore={data.short_score}
+            longScore={data.long_score}
           />
         </div>
       )}

@@ -3,7 +3,7 @@ Series, so each one can be checked against a hand-worked value.
 
 Conventions, stated because they change the numbers:
 - EMA uses span-based smoothing (alpha = 2 / (n + 1)), the common charting default.
-- RSI and ATR use simple rolling means for ATR and Wilder smoothing for RSI.
+- RSI and ATR use Wilder smoothing (alpha = 1/n), the standard definition and the one TradingView uses.
 - Bollinger bands use the population standard deviation (ddof = 0).
 - VWAP is anchored to the first bar of the series; the daily chart has no session reset.
 - OBV starts at zero on the first bar.
@@ -22,8 +22,10 @@ def ema(close: pd.Series, n: int) -> pd.Series:
 
 
 def rsi(close: pd.Series, n: int = 14) -> pd.Series:
-    """Wilder's RSI. Rising-only history gives 100, falling-only gives 0."""
-    change = close.diff()
+    """Wilder's RSI. Rising-only history gives 100, falling-only gives 0.
+    The first bar has no prior close, so its change counts as zero (the
+    convention used by the standard reference implementation)."""
+    change = close.diff().fillna(0.0)
     gain = change.clip(lower=0)
     loss = -change.clip(upper=0)
     avg_gain = gain.ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
@@ -55,10 +57,19 @@ def vwap(high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series) -
 
 
 def atr(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 14) -> pd.Series:
-    """Simple mean of true range, the same convention as services/agent/indicators.atr."""
+    """Wilder's ATR: seeded with the simple mean of the first n true ranges, then
+    atr_i = (atr_{i-1} * (n - 1) + TR_i) / n. This is the chart's definition; the
+    trading agent's services/agent/indicators.atr uses a simple mean and is a
+    separate function, left unchanged."""
     prev_close = close.shift(1)
     true_range = pd.concat([high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
-    return true_range.rolling(n).mean().rename("atr")
+    values = true_range.to_numpy(dtype=float)
+    out = np.full(len(values), np.nan)
+    if len(values) >= n:
+        out[n - 1] = values[:n].mean()
+        for i in range(n, len(values)):
+            out[i] = (out[i - 1] * (n - 1) + values[i]) / n
+    return pd.Series(out, index=close.index, name="atr")
 
 
 def obv(close: pd.Series, volume: pd.Series) -> pd.Series:

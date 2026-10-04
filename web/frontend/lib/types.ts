@@ -1545,6 +1545,9 @@ export interface StockSignalHistoryResponse {
     long_signal: TwoScoreSignal;
     short_outcome: SignalOutcome | null;
     long_outcome: SignalOutcome | null;
+    // DIF-1: stored confidence and short-term reasons for that day (absent on older responses).
+    short_confidence?: { label: string; score: number | null } | null;
+    short_reasons?: { drivers: { factor: string; contribution: number }[]; drags: { factor: string; contribution: number }[] } | null;
   }[];
   note: string;
 }

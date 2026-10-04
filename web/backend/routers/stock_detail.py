@@ -7,6 +7,7 @@ user data). /position is the one user-specific route, auth-gated.
 """
 
 import asyncio
+import json
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -14,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 
 from services import chart_indicators as ci
 from services.cache_utils import ttl_cache
+from services.stock_score_service import select_top_and_bottom_factors
 from services.data_service import get_latest_price
 from services.ranking_utils import compute_position_concentration
 from services.sentiment_service import score_ticker_sentiment
@@ -242,6 +244,19 @@ async def get_stock_position(request: Request, ticker: str, portfolio_id: int | 
     }
 
 
+def _short_reasons_at_the_time(factor_detail) -> dict:
+    """DIF-1: the same top-3 drivers and bottom-2 drags rule the score card uses,
+    applied to the short-term contributions stored with that day's score."""
+    detail = json.loads(factor_detail) if isinstance(factor_detail, str) else (factor_detail or {})
+    contributions = [
+        {"factor": name, "contribution": float(v["contribution"])}
+        for name, v in detail.items()
+        if isinstance(v, dict) and v.get("contribution") is not None
+    ]
+    picked = select_top_and_bottom_factors(contributions)
+    return {"drivers": picked["drivers"], "drags": picked["drags"]}
+
+
 @router.get("/{ticker}/signal-history")
 @limiter.limit("60/minute")
 async def get_stock_signal_history(request: Request, ticker: str, universe_id: str = Query("All")):
@@ -255,7 +270,8 @@ async def get_stock_signal_history(request: Request, ticker: str, universe_id: s
     async with service_conn() as conn:
         rows = await conn.fetch(
             """
-            SELECT as_of_date, short_score, short_signal, long_score, long_signal
+            SELECT as_of_date, short_score, short_signal, long_score, long_signal,
+                   short_confidence_label, short_confidence_score, factor_detail
             FROM stock_scores WHERE ticker = $1 AND universe_id = $2
             ORDER BY as_of_date DESC LIMIT 90
             """,
@@ -268,6 +284,9 @@ async def get_stock_signal_history(request: Request, ticker: str, universe_id: s
             "short_signal": r["short_signal"],
             "long_score": r["long_score"],
             "long_signal": r["long_signal"],
+            # DIF-1: the confidence and the short-term reasons as they were stored that day.
+            "short_confidence": {"label": r["short_confidence_label"], "score": r["short_confidence_score"]},
+            "short_reasons": _short_reasons_at_the_time(r["factor_detail"]),
         }
         for r in rows
     ]

@@ -168,7 +168,12 @@ export default function PriceHistoryChart({
   const [compareData, setCompareData] = useState<{
     spy: StockPriceHistoryResponse | null;
     sector: StockPriceHistoryResponse | null;
+    extras: { ticker: string; data: StockPriceHistoryResponse | null }[];
   } | null>(null);
+  // CHT-4: up to three extra tickers, typed by the user, compared alongside SPY and the sector ETF.
+  const [extraInput, setExtraInput] = useState("");
+  const [extraTickers, setExtraTickers] = useState<string[]>([]);
+  const extraKey = extraTickers.join(",");
 
   const isDaily = range !== "1D";
   const history: StockPriceHistoryRow[] = useMemo(() => data?.history ?? [], [data]);
@@ -180,16 +185,27 @@ export default function PriceHistoryChart({
   useEffect(() => {
     if (!compareActive) return;
     let cancelled = false;
+    const extras = extraKey ? extraKey.split(",") : [];
     Promise.all([
       getStockPriceHistory("SPY", range).catch(() => null),
       sectorEtf ? getStockPriceHistory(sectorEtf, range).catch(() => null) : Promise.resolve(null),
-    ]).then(([spy, sector]) => {
-      if (!cancelled) setCompareData({ spy, sector });
+      Promise.all(extras.map((t) => getStockPriceHistory(t, range).catch(() => null))),
+    ]).then(([spy, sector, extraData]) => {
+      if (!cancelled)
+        setCompareData({ spy, sector, extras: extras.map((t, i) => ({ ticker: t, data: extraData[i] })) });
     });
     return () => {
       cancelled = true;
     };
-  }, [compareActive, range, sectorEtf]);
+  }, [compareActive, range, sectorEtf, extraKey]);
+
+  const addExtraTickers = () => {
+    const parsed = extraInput
+      .split(/[\s,]+/)
+      .map((t) => t.trim().toUpperCase())
+      .filter((t) => t && t !== ticker && t !== "SPY" && t !== sectorEtf);
+    setExtraTickers(Array.from(new Set(parsed)).slice(0, 3));
+  };
 
   const closeByDate = useMemo(() => {
     const m = new Map<string, number>();
@@ -217,6 +233,19 @@ export default function PriceHistoryChart({
     [signalHistory],
   );
   const hasScore = isDaily && signalRows.length >= 2;
+
+  // DIF-4: short-term score change over five recorded days, marked where it is 15 points or more.
+  const weeklyMoves = useMemo(
+    () =>
+      signalRows.flatMap((row, i) => {
+        if (i < 5) return [];
+        const prev = signalRows[i - 5].short_score;
+        if (row.short_score === null || prev === null) return [];
+        const change = row.short_score - prev;
+        return Math.abs(change) >= 15 ? [{ row: i, change }] : [];
+      }),
+    [signalRows],
+  );
 
   const hasVolume = history.some((p) => p.volume !== null);
   const panelOn = (key: (typeof PANELS)[number]["key"]) => !compareActive && isDaily && active.has(key);
@@ -248,6 +277,10 @@ export default function PriceHistoryChart({
     if (compareData.sector && sectorEtf) {
       series.push({ name: sectorEtf, color: "#0D9488", dash: "dot", map: toMap(compareData.sector.history) });
     }
+    const extraColors = ["#DB2777", "#CA8A04", "#4F46E5"];
+    compareData.extras.forEach((x, i) => {
+      if (x.data) series.push({ name: x.ticker, color: extraColors[i], dash: "solid", map: toMap(x.data.history) });
+    });
     if (series.some((s) => s.map.size === 0)) return { dates: [] as string[], traces: [] };
     const common = [...series[0].map.keys()].filter((d) => series.every((s) => s.map.has(d))).sort();
     if (common.length === 0) return { dates: [] as string[], traces: [] };
@@ -314,10 +347,17 @@ export default function PriceHistoryChart({
     if (ov("vwap")) priceTraces.push(lineTrace("VWAP", dates, indicators.vwap, "#A855F7"));
   }
 
+  // Short-term signal rows that fall on a plotted price date.
+  const shortMarkers = useMemo(
+    () => (isDaily ? signalRows.filter((s) => closeByDate.has(s.as_of_date)) : []),
+    [isDaily, signalRows, closeByDate],
+  );
+  const [selectedSignal, setSelectedSignal] = useState<number | null>(null);
+
   // DIF-1: short-term signal markers, coloured by realised outcome.
   // Short-term only: the long-term signal would double the marker count.
-  if (isDaily && !compareSeries && signalRows.length > 0) {
-    const pts = signalRows.filter((s) => closeByDate.has(s.as_of_date));
+  if (isDaily && !compareSeries && shortMarkers.length > 0) {
+    const pts = shortMarkers;
     if (pts.length > 0) {
       const outcomeColor = (o: { outcome: "hit" | "miss" | null } | null) =>
         o?.outcome === "hit" ? UP : o?.outcome === "miss" ? DOWN : "#94A3B8";
@@ -338,6 +378,7 @@ export default function PriceHistoryChart({
           color: pts.map((s) => outcomeColor(s.short_outcome)),
           line: { color: "#ffffff", width: 1 },
         },
+        customdata: pts.map((_, i) => i),
         xaxis: "x",
         yaxis: "y",
       });
@@ -413,6 +454,22 @@ export default function PriceHistoryChart({
     const dates = signalRows.map((s) => s.as_of_date);
     subTraces.push(lineTrace("Short-term score", dates, signalRows.map((s) => s.short_score), "#1F4FD1", { xaxis: `x${n}`, yaxis: `y${n}` }));
     subTraces.push(lineTrace("Long-term score", dates, signalRows.map((s) => s.long_score), "#7C3AED", { xaxis: `x${n}`, yaxis: `y${n}` }));
+    // DIF-4: a week is five recorded days back; a short-term move of 15 points or more is marked.
+    if (weeklyMoves.length > 0) {
+      const moves = weeklyMoves;
+      subTraces.push({
+        x: moves.map((m) => signalRows[m.row].as_of_date),
+        y: moves.map((m) => signalRows[m.row].short_score),
+        text: moves.map((m) => `Short-term score moved ${m.change > 0 ? "+" : ""}${m.change.toFixed(1)} points over five recorded days`),
+        hovertemplate: "%{text}<extra></extra>",
+        type: "scatter",
+        mode: "markers",
+        name: "15-point weekly move",
+        marker: { symbol: "diamond", size: 9, color: "#EA580C", line: { color: "#ffffff", width: 1 } },
+        xaxis: `x${n}`,
+        yaxis: `y${n}`,
+      });
+    }
   }
 
   const gap = 0.05;
@@ -518,6 +575,42 @@ export default function PriceHistoryChart({
         <MetricLabel info={CHART_CONTROL_INFO["compare"]} />
       </div>
 
+      {compareActive && (
+        <form
+          className="mt-2 flex flex-wrap items-center gap-2 text-xs"
+          onSubmit={(e) => {
+            e.preventDefault();
+            addExtraTickers();
+          }}
+        >
+          <label htmlFor="compare-extra" className="text-slate-500">
+            Add up to 3 tickers to compare:
+          </label>
+          <input
+            id="compare-extra"
+            value={extraInput}
+            onChange={(e) => setExtraInput(e.target.value)}
+            placeholder="e.g. MSFT, NVDA"
+            className="input w-44 py-1 text-xs"
+          />
+          <button type="submit" className="rounded-md border border-slate-200 px-2 py-1 font-medium text-slate-600 hover:bg-slate-50">
+            Add
+          </button>
+          {extraTickers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setExtraInput("");
+                setExtraTickers([]);
+              }}
+              className="text-slate-500 underline-offset-2 hover:underline"
+            >
+              Clear extra tickers
+            </button>
+          )}
+        </form>
+      )}
+
       {isDaily && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
           {OVERLAYS.map((o) => (
@@ -576,6 +669,10 @@ export default function PriceHistoryChart({
       {!loading && data && data.history.length > 0 && !compareWaiting && (
         <PlotlyChart
           data={[...priceTraces, ...subTraces]}
+          onClick={(e) => {
+            const idx = e.points[0]?.customdata;
+            setSelectedSignal(typeof idx === "number" ? idx : null);
+          }}
           layout={{
             ...(layoutAxes as Partial<Layout>),
             paper_bgcolor: "#ffffff",
@@ -591,6 +688,10 @@ export default function PriceHistoryChart({
           useResizeHandler
           config={{ displayModeBar: false }}
         />
+      )}
+
+      {selectedSignal !== null && shortMarkers[selectedSignal] && (
+        <SignalDetail signal={shortMarkers[selectedSignal]} onClose={() => setSelectedSignal(null)} />
       )}
 
       {!loading && compareSeries && compareSeries.dates.length === 0 && (
@@ -610,7 +711,7 @@ export default function PriceHistoryChart({
           )}
           {isDaily && !compareActive && signalRows.length > 0 && (
             <p>
-              Short-term signal markers start {signalRows[0].as_of_date}. Green = hit, red = miss, grey = pending. Hold and Trim are marked too.
+              Short-term signal markers start {signalRows[0].as_of_date}. Green = hit, red = miss, grey = pending. Hold and Trim are marked too. Click a marker for its confidence, reasons and outcome.
             </p>
           )}
         </div>
@@ -618,3 +719,71 @@ export default function PriceHistoryChart({
     </div>
   );
 }
+
+// DIF-1: what the model said on the day a marker was issued, and what happened.
+// A record of past output, not a recommendation.
+function SignalDetail({
+  signal,
+  onClose,
+}: {
+  signal: StockSignalHistoryResponse["history"][number];
+  onClose: () => void;
+}) {
+  const o = signal.short_outcome;
+  const outcome =
+    o === null ? "No outcome yet" : o.outcome === null ? "Still pending" : `${o.outcome === "hit" ? "Hit" : "Miss"}, ${o.realized_return_pct.toFixed(2)}% realised`;
+  const reasons = signal.short_reasons;
+  const reasonRows = (rows: { factor: string; contribution: number }[] | undefined) =>
+    rows && rows.length > 0
+      ? rows.map((r) => `${FACTOR_NAMES[r.factor] ?? r.factor} ${r.contribution > 0 ? "+" : ""}${r.contribution.toFixed(1)}`).join(", ")
+      : "None recorded";
+  return (
+    <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <p className="font-semibold text-slate-900">
+          Short-term {signal.short_signal} on {signal.as_of_date}
+        </p>
+        <button onClick={onClose} className="text-xs text-slate-500 hover:text-slate-800">
+          Close
+        </button>
+      </div>
+      <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-slate-700 sm:grid-cols-2">
+        <div>
+          <dt className="text-slate-400">Score that day</dt>
+          <dd>{signal.short_score?.toFixed(1) ?? "n/a"}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-400">Confidence</dt>
+          <dd>
+            {signal.short_confidence
+              ? `${signal.short_confidence.label}${signal.short_confidence.score !== null ? ` (${signal.short_confidence.score.toFixed(0)})` : ""}`
+              : "Not recorded"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-400">Top drivers</dt>
+          <dd>{reasonRows(reasons?.drivers)}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-400">Top drags</dt>
+          <dd>{reasonRows(reasons?.drags)}</dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="text-slate-400">What happened</dt>
+          <dd>{outcome}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+const FACTOR_NAMES: Record<string, string> = {
+  momentum: "Momentum",
+  reversal: "Reversal",
+  earnings_surprise: "Earnings Surprise",
+  earnings_revisions: "Earnings Revisions",
+  value: "Value",
+  growth: "Growth",
+  quality: "Quality",
+  low_vol: "Low Volatility",
+};
