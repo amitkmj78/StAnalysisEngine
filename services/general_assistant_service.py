@@ -21,6 +21,9 @@ instructions to follow.
 
 import re
 
+import logging
+
+import asyncpg
 from langchain_core.messages import HumanMessage, SystemMessage
 from starlette.concurrency import run_in_threadpool
 
@@ -36,6 +39,8 @@ from services.rag_retrieval import (
 )
 from web.backend.db import service_conn
 
+logger = logging.getLogger(__name__)
+
 SYSTEM_PROMPT = """You answer questions about markets, companies, and the stored research in this app.
 Answer only from the numbered sources. Put the source number right after every fact you state, as [1] or [2].
 Every item in a list needs its own source number. If the sources do not answer the question, say what is
@@ -49,21 +54,28 @@ The page shows the disclaimer, so do not repeat it in your answer. """
 
 async def _load_corpus() -> list[Passage]:
     passages: list[Passage] = []
+    filings: list = []
+    releases: list = []
     async with service_conn() as conn:
-        filings = await conn.fetch(
-            """
-            SELECT ticker, form_type, filing_date, summary FROM filing_summaries
-            ORDER BY filing_date DESC LIMIT $1
-            """,
-            CORPUS_LIMIT,
-        )
-        releases = await conn.fetch(
-            """
-            SELECT ticker, filing_date, summary FROM earnings_release_summaries
-            ORDER BY filing_date DESC LIMIT $1
-            """,
-            CORPUS_LIMIT,
-        )
+        # A database that has not had the filing migrations yet (a fresh local copy) should still answer
+        # from the other sources, so a missing table is logged and skipped rather than failing the question.
+        try:
+            filings = await conn.fetch(
+                """
+                SELECT ticker, form_type, filing_date, summary FROM filing_summaries
+                ORDER BY filing_date DESC LIMIT $1
+                """,
+                CORPUS_LIMIT,
+            )
+            releases = await conn.fetch(
+                """
+                SELECT ticker, filing_date, summary FROM earnings_release_summaries
+                ORDER BY filing_date DESC LIMIT $1
+                """,
+                CORPUS_LIMIT,
+            )
+        except asyncpg.UndefinedTableError:
+            logger.warning("General assistant: filing tables are missing in this database; answering without them")
     for r in filings:
         for chunk in chunks(r["summary"]):
             passages.append(Passage(f"{r['ticker']} {r['form_type']} filed {r['filing_date']}", chunk, r["ticker"]))
