@@ -2590,5 +2590,60 @@ export interface StrategyBacktestResponse {
   };
   deflated_sharpe?: { probability: number | null; variants: number; note: string };
   caveats: string[];
+  selection?: { source: "hand_picked" | "random_sample"; seed: number | null; size?: number; tickers?: string[] };
   disclaimer: string;
+}
+
+export interface StrategyPresetResponse {
+  kind: "sp500_sample" | "sector";
+  tickers: string[];
+  seed?: number;
+  sector?: string;
+}
+
+export interface StrategySummary {
+  total_return_pct: number | null;
+  cagr_pct: number | null;
+  max_drawdown_pct: number | null;
+  sharpe: number | null;
+  excess_cagr_vs_basket_pct: number | null;
+  excess_cagr_vs_spy_pct: number | null;
+  sharpe_vs_basket: number | null;
+  sharpe_vs_spy: number | null;
+  trades: number | null;
+  churn_pct: number | null;
+  cost_drag_points: number | null;
+  deflated_probability: number | null;
+  checks_failed: number;
+  checks_caution: number;
+}
+
+export interface StrategySavedRow {
+  id: number;
+  name: string;
+  created_at: string;
+  data_end: string | null;
+  summary: StrategySummary;
+}
+
+export interface StrategySavedDetail {
+  id: number;
+  name: string;
+  created_at: string;
+  definition: Record<string, unknown>;
+  result: StrategyBacktestResponse;
+  share_token: string | null;
+}
+
+export interface StrategyCompareRow extends StrategySummary {
+  id: number;
+  name: string;
+}
+
+export interface StrategySharedResponse {
+  name: string;
+  created_at: string;
+  definition: Record<string, unknown>;
+  result: StrategyBacktestResponse;
+  read_only: true;
 }

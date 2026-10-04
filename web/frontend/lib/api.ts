@@ -70,6 +70,11 @@ import type {
   SimilarSetupsResponse,
   StrategyBacktestResponse,
   StrategyRuleInput,
+  StrategyPresetResponse,
+  StrategySavedRow,
+  StrategySavedDetail,
+  StrategyCompareRow,
+  StrategySharedResponse,
   PortfolioBenchmarkComparison,
   PortfolioCompareResponse,
   PortfolioDropAlert,
@@ -1867,4 +1872,41 @@ export function runStrategyBacktest(body: {
   verdict_benchmark?: "basket" | "spy";
 }) {
   return apiSend<StrategyBacktestResponse>("/api/v1/strategy-builder/backtest", "POST", body);
+}
+
+// Strategy Builder: presets, saved strategies, comparison and read-only share links.
+export function getStrategyPresets(params: { kind: "sp500_sample" | "sector"; size?: number; seed?: number; sector?: string }) {
+  const query: Record<string, string> = { kind: params.kind };
+  if (params.size !== undefined) query.size = String(params.size);
+  if (params.seed !== undefined) query.seed = String(params.seed);
+  if (params.sector) query.sector = params.sector;
+  return apiFetch<StrategyPresetResponse>("/api/v1/strategy-builder/presets", query);
+}
+
+export function saveStrategy(body: { name: string; definition: Record<string, unknown>; result: StrategyBacktestResponse }) {
+  return apiSend<{ id: number }>("/api/v1/strategy-builder/saved", "POST", body);
+}
+
+export function listSavedStrategies() {
+  return apiFetch<{ saved: StrategySavedRow[] }>("/api/v1/strategy-builder/saved");
+}
+
+export function getSavedStrategy(id: number) {
+  return apiFetch<StrategySavedDetail>(`/api/v1/strategy-builder/saved/${id}`);
+}
+
+export function deleteSavedStrategy(id: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/strategy-builder/saved/${id}`, "DELETE");
+}
+
+export function compareSavedStrategies(ids: number[]) {
+  return apiSend<{ rows: StrategyCompareRow[] }>("/api/v1/strategy-builder/compare", "POST", { ids });
+}
+
+export function shareSavedStrategy(id: number) {
+  return apiSend<{ share_token: string; path: string }>(`/api/v1/strategy-builder/saved/${id}/share`, "POST");
+}
+
+export function getSharedStrategy(token: string) {
+  return apiFetch<StrategySharedResponse>(`/api/v1/strategy-builder/shared/${encodeURIComponent(token)}`);
 }

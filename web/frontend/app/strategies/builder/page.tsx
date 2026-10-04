@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import PlotlyChart from "@/components/PlotlyChart";
-import { ApiError, runStrategyBacktest } from "@/lib/api";
+import { ApiError, getStrategyPresets, runStrategyBacktest, saveStrategy } from "@/lib/api";
 import type { StrategyBacktestResponse, StrategyCheck, StrategyRuleInput } from "@/lib/types";
 
 // Strategy Builder (v2 layout). Builder on the left, results on the right, verdict first.
@@ -34,6 +35,10 @@ const REGIMES = ["Risk-On", "Constructive", "Neutral", "Cautious", "Risk-Off"];
 const DEFAULT_ENTRY: StrategyRuleInput = { field: "rsi_14", op: "crosses_above", value: 50 };
 const DEFAULT_EXIT: StrategyRuleInput = { field: "rsi_14", op: ">", value: 60 };
 const DEFAULT_TICKERS = ["AAPL", "MSFT", "DELL", "VEEV", "HPE"];
+const SECTORS = [
+  "Information Technology", "Health Care", "Financials", "Consumer Discretionary", "Communication Services",
+  "Industrials", "Consumer Staples", "Energy", "Utilities", "Real Estate", "Materials",
+];
 
 const BADGE: Record<StrategyCheck["status"], string> = {
   pass: "bg-emerald-100 text-emerald-800",
@@ -162,6 +167,10 @@ export default function StrategyBuilderPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<StrategyBacktestResponse | null>(null);
+  const [lastPayload, setLastPayload] = useState<Record<string, unknown> | null>(null);
+  const [sector, setSector] = useState("");
+  const [presetError, setPresetError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<string | null>(null);
 
   const hasProtective = Boolean(trailing || stopLoss || timeStop) || exit.length > 0;
   const conflict = conflictIndex(entry, exit);
@@ -183,30 +192,72 @@ export default function StrategyBuilderPage() {
     setTickerInput("");
   }
 
-  async function handleRun(e: React.FormEvent) {
-    e.preventDefault();
+  async function runBacktest(sampling?: { sample_seed?: number; sample_size?: number }) {
     const exits: { stop_loss_pct?: number; trailing_stop_pct?: number; time_stop_sessions?: number } = {};
     if (stopLoss) exits.stop_loss_pct = Number(stopLoss);
     if (trailing) exits.trailing_stop_pct = Number(trailing);
     if (timeStop) exits.time_stop_sessions = Number(timeStop);
+    const payload = {
+      tickers,
+      entry: entry.map(numeric),
+      exit: exit.map(numeric),
+      exits,
+      waive_protective_exit: waive,
+      cooldown_sessions: Number(cooldown) || 0,
+      verdict_benchmark: verdictBenchmark,
+      ...(sampling ? { source: "random_sample" as const, ...sampling } : { source: "hand_picked" as const }),
+    };
     setLoading(true);
     setError(null);
     setResult(null);
+    setSaveState(null);
     try {
-      const res = await runStrategyBacktest({
-        tickers,
-        entry: entry.map(numeric),
-        exit: exit.map(numeric),
-        exits,
-        waive_protective_exit: waive,
-        cooldown_sessions: Number(cooldown) || 0,
-        verdict_benchmark: verdictBenchmark,
-      });
+      const res = await runStrategyBacktest(payload);
       setResult(res);
+      setLastPayload(payload);
+      if (res.selection?.seed != null) setTickers(res.selection.tickers ?? tickers);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "The backtest could not be run.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleRun(e: React.FormEvent) {
+    e.preventDefault();
+    await runBacktest();
+  }
+
+  async function loadSp500Sample() {
+    setPresetError(null);
+    try {
+      const res = await getStrategyPresets({ kind: "sp500_sample", size: 10 });
+      setTickers(res.tickers);
+    } catch (err) {
+      setPresetError(err instanceof ApiError ? err.message : "The preset could not be loaded.");
+    }
+  }
+
+  async function loadSector(name: string) {
+    setSector(name);
+    if (!name) return;
+    setPresetError(null);
+    try {
+      const res = await getStrategyPresets({ kind: "sector", size: 10, sector: name });
+      setTickers(res.tickers);
+    } catch (err) {
+      setPresetError(err instanceof ApiError ? err.message : "The sector basket could not be loaded.");
+    }
+  }
+
+  async function handleSave() {
+    if (!result || !lastPayload) return;
+    setSaveState("Saving…");
+    try {
+      await saveStrategy({ name: name.trim() || "Untitled strategy", definition: lastPayload, result });
+      setSaveState("Saved. See Saved strategies to compare or share it.");
+    } catch (err) {
+      setSaveState(err instanceof ApiError ? err.message : "Could not save this run.");
     }
   }
 
@@ -255,7 +306,7 @@ export default function StrategyBuilderPage() {
             </div>
           </Panel>
 
-          <Panel title={`Universe · ${tickers.length} of 20`} right={<button type="button" disabled className="text-xs text-slate-400" title="Presets: coming next">Presets ▾</button>}>
+          <Panel title={`Universe · ${tickers.length} of 20`} right={<button type="button" onClick={loadSp500Sample} className="text-xs font-medium text-slate-700 hover:underline">Random S&amp;P 500 ×10</button>}>
             <div className="flex flex-wrap gap-1.5">
               {tickers.map((t) => (
                 <span key={t} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
@@ -279,8 +330,20 @@ export default function StrategyBuilderPage() {
               className="input mt-2 w-full py-1 text-xs"
               aria-label="Add ticker"
             />
+            <select value={sector} onChange={(e) => loadSector(e.target.value)} className="input mt-2 w-full py-1 text-xs" aria-label="Sector basket">
+              <option value="">Sector basket (largest 10)…</option>
+              {SECTORS.map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+            {presetError && <p className="mt-2 text-xs text-red-700">{presetError}</p>}
             <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Hand-picked list. Results may reflect which stocks you chose rather than the rules.
+              Hand-picked list. Results may reflect which stocks you chose rather than the rules.{" "}
+              <button type="button" onClick={() => runBacktest({ sample_size: Math.max(tickers.length, 5) })} disabled={loading} className="font-semibold underline underline-offset-2 disabled:opacity-50">
+                Re-run on {Math.max(tickers.length, 5)} random S&amp;P 500 stocks
+              </button>
             </p>
           </Panel>
 
@@ -393,6 +456,17 @@ export default function StrategyBuilderPage() {
 
         {/* Results */}
         <div className="flex min-w-0 flex-col gap-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <Link href="/strategies/saved" className="font-medium text-slate-700 hover:underline">Saved strategies →</Link>
+            {r && (
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={handleSave} className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">
+                  Save this run
+                </button>
+                {saveState && <span className="text-slate-500">{saveState}</span>}
+              </div>
+            )}
+          </div>
           {r && (
             <p className="font-mono text-xs text-slate-500">
               {r.period.start} → {r.period.end} · {r.period.sessions.toLocaleString()} sessions · {r.trades} trades ({plain(r.trades_per_year, 0)} a year) · {r.costs.cost_bps_per_side} + {r.costs.slippage_bps_per_side} bps per side
