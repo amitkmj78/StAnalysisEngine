@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
-from services.market_regime_service import compute_and_persist_daily_regime, get_regime_snapshot
+from services.market_regime_service import (
+    REGIME_GATE_DISCLOSURE,
+    compute_and_persist_daily_regime,
+    get_regime_snapshot,
+)
 from web.backend.admin import require_admin
 from web.backend.app_settings import MARKET_REGIME_ENABLED_KEY, get_setting_bool
 from web.backend.auth import verify_bearer_token
+from web.backend.db import service_conn
 
 router = APIRouter(prefix="/api/v1/market", tags=["market-regime"])
 
@@ -24,6 +29,27 @@ async def get_market_regime():
         return {"available": False, "reason": "no regime data has been computed yet"}
 
     return {"available": True, **snapshot}
+
+
+@router.get("/regime-history", dependencies=[Depends(verify_bearer_token)])
+async def get_regime_history(days: int = Query(400, ge=30, le=1500)):
+    """DIF-9: the stored regime label for each trading day, for shading the price chart.
+    Same switch as /regime. The label is a condition label, not a recommendation."""
+    if not await get_setting_bool(MARKET_REGIME_ENABLED_KEY, default=False):
+        return {"available": False, "reason": "market_regime_enabled is off", "history": [], "disclosure": REGIME_GATE_DISCLOSURE}
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT as_of_date, regime_confirmed FROM market_regime_daily
+            WHERE as_of_date >= CURRENT_DATE - $1::int ORDER BY as_of_date
+            """,
+            days,
+        )
+    return {
+        "available": True,
+        "history": [{"date": r["as_of_date"].isoformat(), "regime": r["regime_confirmed"]} for r in rows],
+        "disclosure": REGIME_GATE_DISCLOSURE,
+    }
 
 
 @router.post("/regime/backfill", dependencies=[Depends(require_admin)])

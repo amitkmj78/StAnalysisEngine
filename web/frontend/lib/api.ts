@@ -66,6 +66,7 @@ import type {
   SignalStabilityReport,
   Portfolio,
   TradeImpactResponse,
+  RegimeHistoryResponse,
   PortfolioBenchmarkComparison,
   PortfolioCompareResponse,
   PortfolioDropAlert,
@@ -1840,4 +1841,9 @@ export function disableChallengeNotifications() {
 // DIF-6: hypothetical trade preview. Nothing is placed or saved.
 export function getTradeImpact(params: { portfolio_id?: number; ticker: string; side: "buy" | "sell"; shares: number }) {
   return apiSend<TradeImpactResponse>("/api/v1/portfolio/trade-impact", "POST", params);
+}
+
+// DIF-9: stored regime label per trading day, for shading the price chart.
+export function getRegimeHistory(days = 400) {
+  return apiFetch<RegimeHistoryResponse>("/api/v1/market/regime-history", { days: String(days) });
 }

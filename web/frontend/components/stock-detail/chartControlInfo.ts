@@ -95,6 +95,13 @@ export const CHART_CONTROL_INFO: Record<string, ColumnInfo> = {
       "The bars show MACD minus the signal line. Positive bars mean MACD is above its signal line.",
     ],
   },
+  "regime shading": {
+    title: "Regime shading",
+    body: [
+      "Shades the price chart by the market regime label stored for each day: green for Risk-On, light green for Constructive, grey for Neutral, amber for Cautious and red for Risk-Off.",
+      "The regime is a condition label. It has not been validated as a signal and is not a recommendation.",
+    ],
+  },
   "score history": {
     title: "Score history",
     body: [

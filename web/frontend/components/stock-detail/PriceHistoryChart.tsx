@@ -1,12 +1,13 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
-import type { Data, Layout } from "plotly.js";
+import type { Data, Layout, Shape } from "plotly.js";
 import MetricLabel from "@/components/MetricLabel";
 import PlotlyChart from "@/components/PlotlyChart";
 import { CHART_CONTROL_INFO } from "@/components/stock-detail/chartControlInfo";
 import { getStockPriceHistory } from "@/lib/api";
 import type {
+  RegimeHistoryResponse,
   StockPriceHistoryRange,
   StockPriceHistoryResponse,
   StockPriceHistoryRow,
@@ -60,6 +61,14 @@ export const SECTOR_ETF_BY_NAME: Record<string, string> = {
   Utilities: "XLU",
   "Real Estate": "XLRE",
   Materials: "XLB",
+};
+
+const REGIME_COLORS: Record<string, string> = {
+  "Risk-On": "#16A34A",
+  Constructive: "#86EFAC",
+  Neutral: "#94A3B8",
+  Cautious: "#F59E0B",
+  "Risk-Off": "#DC2626",
 };
 
 const UP = "#059669";
@@ -148,6 +157,7 @@ export default function PriceHistoryChart({
   signalChanges = [],
   signalHistory = null,
   sectorEtf = null,
+  regimeHistory = null,
 }: {
   ticker: string;
   data: StockPriceHistoryResponse | null;
@@ -159,10 +169,12 @@ export default function PriceHistoryChart({
   signalChanges?: SignalChange[];
   signalHistory?: StockSignalHistoryResponse | null;
   sectorEtf?: string | null;
+  regimeHistory?: RegimeHistoryResponse | null;
 }) {
   const [chartType, setChartType] = useState<ChartType>("candles");
   const [logScale, setLogScale] = useState(false);
   const [compare, setCompare] = useState(false);
+  const [shadeRegimes, setShadeRegimes] = useState(false);
   const [showScore, setShowScore] = useState(true);
   const [active, setActive] = useState<Set<Toggle>>(new Set());
   const [compareData, setCompareData] = useState<{
@@ -181,6 +193,35 @@ export default function PriceHistoryChart({
 
   // Compare mode is only meaningful on daily bars; it swaps the price panel to % change.
   const compareActive = compare && isDaily;
+
+  // DIF-9: shade the price panel by the stored regime label, one band per run of the same label.
+  const regimeShapes = useMemo(() => {
+    if (!shadeRegimes || !isDaily || !regimeHistory?.available) return [];
+    const byDate = new Map(regimeHistory.history.map((r) => [r.date, r.regime] as const));
+    const dates = history.map((p) => p.date.slice(0, 10)).filter((d) => byDate.has(d));
+    const shapes: Partial<Shape>[] = [];
+    let start = 0;
+    for (let i = 1; i <= dates.length; i++) {
+      const runEnds = i === dates.length || byDate.get(dates[i]) !== byDate.get(dates[start]);
+      if (!runEnds) continue;
+      const label = byDate.get(dates[start]) ?? "";
+      shapes.push({
+        type: "rect",
+        xref: "x",
+        yref: "paper",
+        x0: dates[start],
+        x1: dates[i - 1],
+        y0: 0,
+        y1: 1,
+        fillcolor: REGIME_COLORS[label] ?? "#CBD5E1",
+        opacity: 0.12,
+        line: { width: 0 },
+        layer: "below",
+      });
+      start = i;
+    }
+    return shapes;
+  }, [shadeRegimes, isDaily, regimeHistory, history]);
 
   useEffect(() => {
     if (!compareActive) return;
@@ -658,6 +699,17 @@ export default function PriceHistoryChart({
             <MetricLabel info={CHART_CONTROL_INFO["score history"]} />
             </Fragment>
           )}
+          <button
+            onClick={() => setShadeRegimes((v) => !v)}
+            aria-pressed={shadeRegimes}
+            disabled={!isDaily || !regimeHistory?.available || compareActive}
+            className={`rounded-full border px-2 py-0.5 disabled:opacity-40 ${
+              shadeRegimes ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            Regime shading
+          </button>
+          <MetricLabel info={CHART_CONTROL_INFO["regime shading"]} />
         </div>
       )}
 
@@ -681,6 +733,7 @@ export default function PriceHistoryChart({
             margin: { t: 16, r: 24, b: 32, l: 56 },
             autosize: true,
             hovermode: "x unified",
+            shapes: regimeShapes,
             showlegend: true,
             legend: { orientation: "h", y: -0.15 },
           }}
@@ -708,6 +761,9 @@ export default function PriceHistoryChart({
           )}
           {compareActive && (
             <p>Comparison rebases each line to 0% at the first date all of them share. Overlays and signal markers are hidden in this mode.</p>
+          )}
+          {shadeRegimes && regimeHistory?.available && (
+            <p>{regimeHistory.disclosure}</p>
           )}
           {isDaily && !compareActive && signalRows.length > 0 && (
             <p>

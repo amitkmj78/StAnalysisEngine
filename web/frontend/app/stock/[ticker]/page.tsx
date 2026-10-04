@@ -15,6 +15,7 @@ import {
   getStockPosition,
   getStockPriceHistory,
   getStockSentiment,
+  getRegimeHistory,
   getStockSignalHistory,
   getTwoScore,
   getTwoScoreHistory,
@@ -32,6 +33,7 @@ import type {
   StockPriceHistoryRange,
   StockPriceHistoryResponse,
   StockSentimentResponse,
+  RegimeHistoryResponse,
   StockSignalHistoryResponse,
   TwoScoreFactorKey,
   TwoScoreHistoryResponse,
@@ -251,6 +253,8 @@ export default function StockScorePage() {
 
   const [priceRange, setPriceRange] = useState<StockPriceHistoryRange>("1Y");
   const [priceHistory, setPriceHistory] = useState<StockPriceHistoryResponse | null>(null);
+  // DIF-9: stored regime label per day, shown as shading on the price chart (signed-in users only).
+  const [regimeHistory, setRegimeHistory] = useState<RegimeHistoryResponse | null>(null);
   const [priceLoading, setPriceLoading] = useState(true);
 
   // On-demand only (real web-search + LLM cost per call) -- never fetched
@@ -375,6 +379,12 @@ export default function StockScorePage() {
       .finally(() => setPriceLoading(false));
   }, [ticker, priceRange]);
 
+  // DIF-9: the regime history is shared, so it is fetched once for signed-in users.
+  useEffect(() => {
+    if (!loggedIn) return;
+    getRegimeHistory(400).then(setRegimeHistory).catch(() => setRegimeHistory(null));
+  }, [loggedIn]);
+
   function handleJump(e: React.FormEvent) {
     e.preventDefault();
     const t = jumpTicker.trim().toUpperCase();
@@ -482,6 +492,7 @@ export default function StockScorePage() {
           recentDividends={detail?.recent_dividends ?? []}
           signalChanges={signalChanges}
           signalHistory={signalHistory}
+          regimeHistory={loggedIn ? regimeHistory : null}
           sectorEtf={SECTOR_ETF_BY_NAME[detail?.sector ?? data?.sector_key ?? ""] ?? null}
         />
       </div>

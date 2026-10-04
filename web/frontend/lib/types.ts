@@ -2471,3 +2471,11 @@ export interface TradeImpactResponse {
   sectors: { sector: string; before_pct: number; after_pct: number; change_pct: number }[];
   note: string;
 }
+
+// DIF-9: stored regime label per trading day, for shading the price chart. Condition labels, not recommendations.
+export interface RegimeHistoryResponse {
+  available: boolean;
+  reason?: string;
+  history: { date: string; regime: string }[];
+  disclosure: string;
+}
