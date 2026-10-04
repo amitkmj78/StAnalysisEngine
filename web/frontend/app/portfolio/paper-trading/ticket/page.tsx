@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-import { ApiError, getPaperClock, submitPaperOrder } from "@/lib/api";
-import type { PaperClock } from "@/lib/types";
+import { ApiError, getPaperClock, getPortfolios, submitPaperOrder } from "@/lib/api";
+import TradeImpactCard from "@/components/portfolio/TradeImpactCard";
+import type { PaperClock, Portfolio } from "@/lib/types";
 
 type OrderType = "market" | "limit";
 type TimeInForce = "day" | "gtc";
@@ -26,6 +27,12 @@ export default function PaperTradingTicketPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+
+  // DIF-6: the impact preview uses the app's own portfolios, so load them once for the card.
+  useEffect(() => {
+    getPortfolios().then((res) => setPortfolios(res.portfolios)).catch(() => setPortfolios([]));
+  }, []);
 
   const qtyNum = Number(qty);
   const limitPriceNum = orderType === "limit" ? Number(limitPrice) : null;
@@ -237,6 +244,11 @@ export default function PaperTradingTicketPage() {
               {submitting ? "Submitting…" : "Confirm and Submit"}
             </button>
           </div>
+        </div>
+      )}
+      {ticker && portfolios.length > 0 && (
+        <div className="mt-6">
+          <TradeImpactCard ticker={ticker} portfolios={portfolios} defaultSide={side} />
         </div>
       )}
     </div>

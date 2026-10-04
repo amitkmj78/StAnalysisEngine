@@ -44,6 +44,7 @@ import FactorDrilldownModal from "@/components/stock-detail/FactorDrilldownModal
 import PriceHistoryChart, { SECTOR_ETF_BY_NAME } from "@/components/stock-detail/PriceHistoryChart";
 import EvidencePanel from "@/components/stock-detail/EvidencePanel";
 import FilingSummaryText from "@/components/stock-detail/FilingSummaryText";
+import TradeImpactCard from "@/components/portfolio/TradeImpactCard";
 import TickerSearchInput from "@/components/TickerSearchInput";
 
 function signalBadgeClass(signal: string): string {
@@ -866,6 +867,12 @@ export default function StockScorePage() {
           <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
             {earningsRelease.release.method}
           </p>
+        </div>
+      )}
+
+      {loggedIn && portfolios.length > 0 && (
+        <div className="mt-6">
+          <TradeImpactCard ticker={ticker} portfolios={portfolios} />
         </div>
       )}
 

@@ -65,6 +65,7 @@ import type {
   PitReconciliationReport,
   SignalStabilityReport,
   Portfolio,
+  TradeImpactResponse,
   PortfolioBenchmarkComparison,
   PortfolioCompareResponse,
   PortfolioDropAlert,
@@ -1834,4 +1835,9 @@ export function disableChallengeNotifications() {
   return apiSend<{ challenge_notifications_enabled: boolean }>(
     "/api/v1/admin/settings/challenge-notifications/disable", "POST"
   );
+}
+
+// DIF-6: hypothetical trade preview. Nothing is placed or saved.
+export function getTradeImpact(params: { portfolio_id?: number; ticker: string; side: "buy" | "sell"; shares: number }) {
+  return apiSend<TradeImpactResponse>("/api/v1/portfolio/trade-impact", "POST", params);
 }

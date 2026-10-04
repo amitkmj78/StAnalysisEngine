@@ -2445,3 +2445,29 @@ export interface ChallengeEquityCurves {
   spy: EquityPoint[];
   members: { member: string; points: EquityPoint[] }[];
 }
+
+// DIF-6: hypothetical trade preview. Nothing is placed or saved.
+export interface TradeImpactMeasures {
+  concentration: { largest_position_pct: number | null; top5_pct: number | null; holdings: number };
+  sector_weights: Record<string, number>;
+  portfolio_score: { score: number | null; coverage_pct: number };
+  total_value: number;
+  beta: number | null;
+}
+
+export interface TradeImpactResponse {
+  ticker: string;
+  side: "buy" | "sell";
+  shares: number;
+  trade_price: number;
+  before: TradeImpactMeasures;
+  after: TradeImpactMeasures;
+  changes: {
+    largest_position_pct: number | null;
+    top5_pct: number | null;
+    beta: number | null;
+    portfolio_score: number | null;
+  };
+  sectors: { sector: string; before_pct: number; after_pct: number; change_pct: number }[];
+  note: string;
+}
