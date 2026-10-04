@@ -1565,6 +1565,8 @@ export interface StockPeer {
 export interface StockPeersResponse {
   ticker: string;
   peers: StockPeer[];
+  reason?: "data_unavailable" | "no_same_sector_peers" | null;
+  message?: string | null;
 }
 
 export interface StockSentimentResponse {

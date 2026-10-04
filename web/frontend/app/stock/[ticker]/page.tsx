@@ -1019,7 +1019,7 @@ export default function StockScorePage() {
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs text-slate-400">No same-sector peers found for {ticker}.</p>
+            <p className="mt-2 text-xs text-slate-400">{peers?.message ?? `No same-sector peers found for ${ticker}.`}</p>
           )}
         </div>
       </div>

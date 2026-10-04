@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import StringIO
 from typing import Dict, List, Optional
@@ -391,6 +392,15 @@ def get_stock_finder_table(universe_key: str) -> pd.DataFrame:
 
 
 def _build_peer_row(ticker_symbol: str) -> dict | None:
+    """One retry: a temporary data-source failure must not silently drop a ticker from the peer table."""
+    row = _build_peer_row_once(ticker_symbol)
+    if row is None:
+        time.sleep(0.5)
+        row = _build_peer_row_once(ticker_symbol)
+    return row
+
+
+def _build_peer_row_once(ticker_symbol: str) -> dict | None:
     """Lightweight counterpart to _build_stock_row, for DET-5's peer
     matching (services.stock_detail_service.select_peers) -- Ticker/
     Name/GICS Sector/Market Cap are all sourced from .info alone, so

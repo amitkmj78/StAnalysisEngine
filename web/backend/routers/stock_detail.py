@@ -29,7 +29,7 @@ from services.stock_detail_service import (
     select_peers,
     typical_earnings_move,
 )
-from services.stock_finder_service import _gics_sector, get_peer_lookup_table
+from services.stock_finder_service import _build_peer_row, _gics_sector, get_peer_lookup_table
 from services.yfinance_cache import get_cached_dividends, get_cached_earnings_dates, get_cached_history
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn, user_conn
@@ -359,7 +359,20 @@ async def get_stock_peers(request: Request, ticker: str, universe_id: str = Quer
     not-yet-scored ticker."""
     ticker = ticker.upper()
     df = await run_in_threadpool(get_peer_lookup_table, universe_id)
+    if ticker not in set(df["Ticker"]):
+        # The table is built from many live lookups; if this ticker's own lookup failed, try it directly
+        # rather than reporting "no peers" for a data problem.
+        own = await run_in_threadpool(_build_peer_row, ticker)
+        if own is not None:
+            df = pd.concat([df, pd.DataFrame([own])], ignore_index=True)
+    own_row = df[df["Ticker"] == ticker]
+    if own_row.empty or pd.isna(own_row.iloc[0].get("Market Cap ($B)")) or own_row.iloc[0].get("GICS Sector") in (None, "Unknown"):
+        return {"ticker": ticker, "peers": [], "reason": "data_unavailable",
+                "message": f"Sector or market-cap data for {ticker} is unavailable right now. Try again later."}
     peers = select_peers(ticker, df)
+    if not peers:
+        return {"ticker": ticker, "peers": [], "reason": "no_same_sector_peers",
+                "message": f"No other stocks in the app's universe share {ticker}'s sector."}
 
     if peers:
         peer_tickers = [p["ticker"] for p in peers]
@@ -381,4 +394,4 @@ async def get_stock_peers(request: Request, ticker: str, universe_id: str = Quer
             peer["long_score"] = row["long_score"] if row else None
             peer["long_signal"] = row["long_signal"] if row else None
 
-    return {"ticker": ticker, "peers": peers}
+    return {"ticker": ticker, "peers": peers, "reason": None, "message": None}
