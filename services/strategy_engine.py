@@ -241,6 +241,7 @@ def run_backtest(
         raise ValueError("add at least one exit rule")
 
     daily = simulate(frames, entry, exit_, cost_bps, slippage_bps)
+    trades = trade_count(frames, entry, exit_)
     if len(daily) < PERIODS_PER_YEAR // 2:
         raise ValueError("not enough shared history for the chosen tickers")
     split = int(len(daily) * IS_FRACTION)
@@ -251,6 +252,11 @@ def run_backtest(
 
     is_m, oos_m = metrics(is_part), metrics(oos_part)
     warnings: list[str] = []
+    if trades == 0:
+        warnings.append(
+            "No trades: the entry rules never held on these tickers and dates, so the result is flat. "
+            "Check the thresholds."
+        )
     if variants_tried >= MANY_VARIANTS:
         warnings.append(
             f"You have tried {variants_tried} rule variants. With that many tries, a good-looking result can appear by chance."
@@ -264,8 +270,8 @@ def run_backtest(
         "period": {"start": str(daily.index[0]), "end": str(daily.index[-1]), "sessions": len(daily)},
         "tickers": sorted(frames.keys()),
         "costs": {"cost_bps_per_side": cost_bps, "slippage_bps_per_side": slippage_bps},
-        "trades": trade_count(frames, entry, exit_),
-        "trades_per_year": _r(trade_count(frames, entry, exit_) / (len(daily) / PERIODS_PER_YEAR)),
+        "trades": trades,
+        "trades_per_year": _r(trades / (len(daily) / PERIODS_PER_YEAR)),
         "strategy": metrics(daily),
         "in_sample": is_m,
         "out_of_sample": oos_m,

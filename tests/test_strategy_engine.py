@@ -96,3 +96,16 @@ def test_regime_rules_use_the_stored_label_for_each_date():
     labels = {ts.strftime("%Y-%m-%d"): ("Risk-On" if i < 150 else "Cautious") for i, ts in enumerate(prices.index)}
     frame = feature_frame(prices, regime_by_date=labels)
     assert frame["regime"].iloc[0] == "Risk-On" and frame["regime"].iloc[-1] == "Cautious"
+
+
+def test_a_rule_that_never_holds_reports_no_trades_with_a_warning():
+    frames = {"AAA": feature_frame(_trend_prices())}
+    bench = _trend_prices()["Close"]
+    result = run_backtest(
+        frames,
+        [{"field": "close_vs_sma_50_pct", "op": ">", "value": 500}],
+        [{"field": "rsi_14", "op": ">", "value": 60}],
+        bench,
+    )
+    assert result["trades"] == 0
+    assert any("No trades" in w for w in result["warnings"])

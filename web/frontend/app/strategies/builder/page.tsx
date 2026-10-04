@@ -28,7 +28,7 @@ const CATEGORY_OPS = [
 ];
 const REGIMES = ["Risk-On", "Constructive", "Neutral", "Cautious", "Risk-Off"];
 
-const DEFAULT_RULE: StrategyRuleInput = { field: "rsi_14", op: "<", value: 40 };
+const DEFAULT_RULE: StrategyRuleInput = { field: "close_vs_sma_50_pct", op: ">", value: 0 };
 
 function pct(v: number | null | undefined, digits = 2) {
   return v === null || v === undefined ? "n/a" : `${v > 0 ? "+" : ""}${v.toFixed(digits)}%`;
@@ -54,7 +54,11 @@ function RuleRow({
         value={rule.field}
         onChange={(e) => {
           const next = FIELDS.find((f) => f.key === e.target.value) ?? FIELDS[0];
-          onChange(next.numeric ? { field: next.key, op: ">", value: 50 } : { field: next.key, op: "is", value: "Risk-On" });
+          onChange(
+            next.numeric
+              ? { field: next.key, op: ">", value: next.key === "rsi_14" ? 50 : 0 }
+              : { field: next.key, op: "is", value: "Risk-On" },
+          );
         }}
         className="input py-1 text-sm"
       >
