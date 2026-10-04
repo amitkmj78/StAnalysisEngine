@@ -22,6 +22,7 @@ import pandas as pd
 
 from services.backtest_engine import cumulative_pct, max_drawdown_pct, sharpe
 from services.chart_indicators import atr, rsi, sma
+from services.strategy_robustness import deflated_sharpe, sensitivity, walk_forward
 
 PERIODS_PER_YEAR = 252
 IS_FRACTION = 0.7
@@ -419,6 +420,41 @@ def _check(status: str, label: str, detail: str) -> dict:
     return {"status": status, "label": label, "detail": detail}
 
 
+def _sensitivity(frames, entry_raw, exit_raw, exits: ProtectiveExits, cooldown, cost_bps, slippage_bps) -> dict:
+    """SB-V4: each numeric threshold (rules and percentage stops) moved by the step, one at a time."""
+    base: dict[str, float] = {}
+    for i, r in enumerate(entry_raw):
+        if r.get("field") != REGIME_FIELD:
+            base[f"entry[{i}] {r['field']} {r['op']}"] = float(r["value"])
+    for i, r in enumerate(exit_raw):
+        if r.get("field") != REGIME_FIELD:
+            base[f"exit[{i}] {r['field']} {r['op']}"] = float(r["value"])
+    for key in ("stop_loss_pct", "trailing_stop_pct", "take_profit_pct"):
+        if getattr(exits, key) is not None:
+            base[key] = float(getattr(exits, key))
+
+    def run(params: dict) -> Optional[float]:
+        e_raw = [dict(r) for r in entry_raw]
+        x_raw = [dict(r) for r in exit_raw]
+        ex = dict(exits.__dict__)
+        for name, value in params.items():
+            if name.startswith("entry["):
+                i = int(name[len("entry["):name.index("]")])
+                e_raw[i]["value"] = value
+            elif name.startswith("exit["):
+                i = int(name[len("exit["):name.index("]")])
+                x_raw[i]["value"] = value
+            else:
+                ex[name] = value
+        e_rules = [Rule.parse(r) for r in e_raw]
+        x_rules = [Rule.parse(r) for r in x_raw]
+        pe = ProtectiveExits(**{k: v for k, v in ex.items()})
+        daily, _, _ = run_strategy(frames, e_rules, x_rules, pe, cooldown, cost_bps, slippage_bps)
+        return metrics(daily).get("sharpe")
+
+    return sensitivity(run, base)
+
+
 def run_backtest(
     frames: dict[str, pd.DataFrame],
     entry_raw: list[dict],
@@ -431,6 +467,7 @@ def run_backtest(
     cost_bps: float = DEFAULT_COST_BPS,
     slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
     verdict_benchmark: str = "basket",
+    trial_sharpes_daily: Optional[list[float]] = None,
 ) -> dict:
     if not frames:
         raise ValueError("no price history for the chosen tickers")
@@ -474,6 +511,9 @@ def run_backtest(
 
     s_sh = m_strategy.get("sharpe")
     chance_bar = expected_max_sharpe_by_chance(variants_tried, years)
+    walk = walk_forward(daily, basket)
+    sens = _sensitivity(frames, entry_raw, exit_raw, exits, cooldown, cost_bps, slippage_bps)
+    dsr = deflated_sharpe(daily, list(trial_sharpes_daily or []))
     checks = []
     if is_m.get("sharpe") is not None and oos_m.get("sharpe") is not None:
         if oos_m["sharpe"] < 0 < is_m["sharpe"]:
@@ -497,9 +537,15 @@ def run_backtest(
     if s_sh is not None and m_spy.get("sharpe") is not None:
         checks.append(_check("pass" if s_sh > m_spy["sharpe"] else "fail", "Beats SPY, risk-adjusted",
                              f"Sharpe {s_sh:.2f} vs {m_spy['sharpe']:.2f}."))
-    if s_sh is not None:
-        checks.append(_check("pass" if s_sh > chance_bar else "caution", "Above what chance alone would give",
-                             f"About {chance_bar:.2f} is the best Sharpe that {variants_tried} no-skill variant(s) would reach by chance (an approximation)."))
+    if dsr.get("probability") is not None:
+        checks.append(_check("pass" if dsr["probability"] >= 0.95 else "caution", "Deflated Sharpe",
+                             f"Probability {dsr['probability']:.0%} that the Sharpe is above zero after {dsr['variants']} variant(s) tried."))
+    if walk.get("beat_basket_pct") is not None:
+        checks.append(_check("pass" if walk["beat_basket_pct"] >= 50 else "caution", "Walk-forward windows",
+                             f"The strategy beat the same stocks in {walk['beat_basket_windows']} of {walk['test_windows']} six-month test windows."))
+    if sens.get("widest_swing") is not None:
+        checks.append(_check("pass" if sens["widest_swing"] <= 0.5 else "caution", "Stable to small changes",
+                             f"Moving each threshold by {sens['step_pct']}% changes the Sharpe by up to {sens['widest_swing']:.2f}."))
     if churn_pct > CHURN_WARN_PCT:
         checks.append(_check("caution", "Churn", f"{churn_pct:.0f}% of exits were followed by a re-entry within {CHURN_WINDOW} sessions."))
     if not protective:
@@ -547,6 +593,10 @@ def run_backtest(
         "top_ticker": top,
         "variants_tried": variants_tried,
         "chance_sharpe_bar": _r(chance_bar),
+        "deflated_sharpe": dsr,
+        "sharpe_daily": dsr.get("sharpe_daily"),
+        "walk_forward": walk,
+        "sensitivity": sens,
         "checks": checks,
         "verdict": {
             "benchmark": verdict_benchmark,

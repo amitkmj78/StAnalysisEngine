@@ -2575,6 +2575,20 @@ export interface StrategyBacktestResponse {
   trade_log: StrategyTradeRow[];
   equity_curve: { dates: string[]; strategy: number[]; basket: number[] };
   state_warnings: string[];
+  walk_forward?: {
+    test_windows: number;
+    beat_basket_windows: number;
+    beat_basket_pct: number | null;
+    note: string;
+  };
+  sensitivity?: {
+    step_pct: number;
+    base_sharpe: number | null;
+    widest_swing: number | null;
+    rows: { parameter: string; swing: number | null; cells: { factor: number; value: number; sharpe: number | null }[] }[];
+    note: string;
+  };
+  deflated_sharpe?: { probability: number | null; variants: number; note: string };
   caveats: string[];
   disclaimer: string;
 }
