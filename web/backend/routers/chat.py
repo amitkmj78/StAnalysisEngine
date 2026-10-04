@@ -6,6 +6,7 @@ from starlette.concurrency import run_in_threadpool
 
 from Agent.meta_agent import ask_meta_agent, build_agent
 
+from services.general_assistant_service import answer_general_question
 from services.portfolio_health_service import compute_portfolio_risk_metrics
 from services.portfolio_review_service import answer_portfolio_question, compute_sectors
 from web.backend.auth import verify_bearer_token
@@ -24,7 +25,7 @@ async def providers():
 
 
 class ChatRequest(BaseModel):
-    scope: Literal["ticker", "portfolio"] = "ticker"
+    scope: Literal["ticker", "portfolio", "general"] = "ticker"
     ticker: Optional[str] = None
     portfolio_id: Optional[int] = None
     question: str
@@ -51,7 +52,11 @@ async def ask(request: Request, body: ChatRequest):
 
     llms = ordered_llms(provider, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
 
-    if body.scope == "portfolio":
+    if body.scope == "general":
+        # No ticker or portfolio: answered from retrieved stored research (services/general_assistant_service.py).
+        answer, actual_llm = await answer_general_question(body.question.strip(), llms)
+        result_ticker = "GENERAL"
+    elif body.scope == "portfolio":
         answer, actual_llm = await _ask_portfolio(request, body, llms)
         result_ticker = "PORTFOLIO"
     else:

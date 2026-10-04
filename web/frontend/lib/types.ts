@@ -1585,7 +1585,7 @@ export interface ChatAskResponse {
 }
 
 export interface ChatAskParams {
-  scope: "ticker" | "portfolio";
+  scope: "ticker" | "portfolio" | "general";
   ticker?: string;
   portfolio_id?: number;
   question: string;
