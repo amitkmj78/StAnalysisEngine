@@ -2,6 +2,7 @@ import configparser
 import io
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -2098,6 +2099,53 @@ class DeployRequest(BaseModel):
     username: str = "ubuntu"
 
 
+def _apply_migrations(client, job) -> None:
+    """Runs every file in migrations/ once, in name order, as the postgres superuser, before the
+    services restart. Applied names are recorded in schema_migrations, so a re-deploy skips them.
+    A failing file stops the deploy with its error, before any new code runs against the old schema."""
+    log(job, "Applying database migrations")
+    out, err, rc = _ssh_exec(
+        client,
+        "sudo -u postgres psql -d stanalysisengine -v ON_ERROR_STOP=1 -q -c "
+        "\"create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now());\"",
+        timeout=60,
+    )
+    if rc != 0:
+        raise RuntimeError(f"could not create schema_migrations: {err[-400:]}")
+    out, err, rc = _ssh_exec(client, f"cd {REMOTE_DIR} && ls migrations/*.sql 2>/dev/null | sort")
+    files = [f.strip() for f in out.splitlines() if f.strip().endswith(".sql")]
+    applied_now = 0
+    for path in files:
+        name = os.path.basename(path)
+        if not re.fullmatch(r"[A-Za-z0-9._-]+\.sql", name):
+            raise RuntimeError(f"migration file name not allowed: {name}")
+        check, _, _ = _ssh_exec(
+            client,
+            f"sudo -u postgres psql -d stanalysisengine -tAc \"select 1 from schema_migrations where name = '{name}'\"",
+            timeout=60,
+        )
+        if check.strip() == "1":
+            continue
+        out, err, rc = _ssh_exec(
+            client,
+            f"sudo -u postgres psql -d stanalysisengine -v ON_ERROR_STOP=1 -q -f {REMOTE_DIR}/{path}",
+            timeout=300,
+        )
+        if rc != 0:
+            raise RuntimeError(f"migration {name} failed: {err[-600:] or out[-600:]}")
+        out, err, rc = _ssh_exec(
+            client,
+            f"sudo -u postgres psql -d stanalysisengine -v ON_ERROR_STOP=1 -q -c "
+            f"\"insert into schema_migrations (name) values ('{name}');\"",
+            timeout=60,
+        )
+        if rc != 0:
+            raise RuntimeError(f"could not record migration {name}: {err[-400:]}")
+        applied_now += 1
+        log(job, f"✓ Applied migration {name}")
+    log(job, f"✓ Migrations up to date ({applied_now} applied this deploy)")
+
+
 def _worker_deploy(job_id: str, req: DeployRequest) -> None:
     job = get_job(job_id)
     try:
@@ -2245,6 +2293,7 @@ def _worker_deploy(job_id: str, req: DeployRequest) -> None:
             raise RuntimeError(f"frontend build failed: {err[-600:]}")
         log(job, "✓ Frontend built")
 
+        _apply_migrations(client, job)
         _ssh_exec(client, "sudo systemctl enable stanalysisengine-api stanalysisengine-web")
         _ssh_exec(client, "sudo systemctl restart stanalysisengine-api stanalysisengine-web")
         log(job, "✓ Services restarted")
