@@ -47,6 +47,7 @@ import PriceHistoryChart, { SECTOR_ETF_BY_NAME } from "@/components/stock-detail
 import EvidencePanel from "@/components/stock-detail/EvidencePanel";
 import FilingSummaryText from "@/components/stock-detail/FilingSummaryText";
 import TradeImpactCard from "@/components/portfolio/TradeImpactCard";
+import SimilarSetupsCard from "@/components/stock-detail/SimilarSetupsCard";
 import TickerSearchInput from "@/components/TickerSearchInput";
 
 function signalBadgeClass(signal: string): string {
@@ -880,6 +881,10 @@ export default function StockScorePage() {
           </p>
         </div>
       )}
+
+      <div className="mt-6">
+        <SimilarSetupsCard ticker={ticker} />
+      </div>
 
       {loggedIn && portfolios.length > 0 && (
         <div className="mt-6">

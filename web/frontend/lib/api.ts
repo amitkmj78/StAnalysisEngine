@@ -67,6 +67,7 @@ import type {
   Portfolio,
   TradeImpactResponse,
   RegimeHistoryResponse,
+  SimilarSetupsResponse,
   PortfolioBenchmarkComparison,
   PortfolioCompareResponse,
   PortfolioDropAlert,
@@ -1846,4 +1847,9 @@ export function getTradeImpact(params: { portfolio_id?: number; ticker: string; 
 // DIF-9: stored regime label per trading day, for shading the price chart.
 export function getRegimeHistory(days = 400) {
   return apiFetch<RegimeHistoryResponse>("/api/v1/market/regime-history", { days: String(days) });
+}
+
+// DIF-7: past similar setups and the price move over the next sessions.
+export function getSimilarSetups(ticker: string) {
+  return apiFetch<SimilarSetupsResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/similar-setups`);
 }

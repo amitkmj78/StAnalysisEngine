@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 
 from services import chart_indicators as ci
 from services.cache_utils import ttl_cache
+from services.similar_setups import find_similar_setups
 from services.stock_score_service import select_top_and_bottom_factors
 from services.data_service import get_latest_price
 from services.ranking_utils import compute_position_concentration
@@ -307,6 +308,38 @@ async def get_stock_signal_history(request: Request, ticker: str, universe_id: s
             "hasn't elapsed yet."
         ),
     }
+
+
+@router.get("/{ticker}/similar-setups")
+@limiter.limit("60/minute")
+async def get_similar_setups(request: Request, ticker: str, universe_id: str = Query("All")):
+    """DIF-7: past days with a similar stored short-term score and the same regime label,
+    and the price move over the next 10 sessions. See services/similar_setups.py."""
+    ticker = ticker.upper()
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT s.as_of_date, s.short_score, r.regime_confirmed AS regime
+            FROM stock_scores s
+            LEFT JOIN market_regime_daily r ON r.as_of_date = s.as_of_date
+            WHERE s.ticker = $1 AND s.universe_id = $2 AND s.short_score IS NOT NULL
+            ORDER BY s.as_of_date
+            """,
+            ticker, universe_id,
+        )
+    if not rows:
+        return {"ticker": ticker, "available": False, "reason": "No stored scores for this stock yet."}
+    scores = [{"date": r["as_of_date"], "short_score": float(r["short_score"]), "regime": r["regime"]} for r in rows]
+    latest = scores[-1]
+    try:
+        price_history = await run_in_threadpool(get_cached_history, ticker, "2y", True, None)
+        closes = price_history["Close"] if not price_history.empty else pd.Series(dtype=float)
+    except Exception:
+        closes = pd.Series(dtype=float)
+    if closes.empty:
+        return {"ticker": ticker, "available": False, "reason": "No price history available for this stock."}
+    result = find_similar_setups(scores, closes, latest["short_score"], latest["regime"])
+    return {"ticker": ticker, "available": True, **result}
 
 
 @router.get("/{ticker}/peers")

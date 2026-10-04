@@ -2479,3 +2479,20 @@ export interface RegimeHistoryResponse {
   history: { date: string; regime: string }[];
   disclosure: string;
 }
+
+// DIF-7: past days with a similar stored score and regime, and the price move over the next sessions.
+export interface SimilarSetupsResponse {
+  ticker: string;
+  available: boolean;
+  reason?: string;
+  current_score?: number;
+  current_regime?: string | null;
+  horizon_sessions?: number;
+  score_band_points?: number;
+  n?: number;
+  median_return_pct?: number | null;
+  min_return_pct?: number | null;
+  max_return_pct?: number | null;
+  caveat?: string | null;
+  note?: string;
+}
