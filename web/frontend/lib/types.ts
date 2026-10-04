@@ -2497,3 +2497,36 @@ export interface SimilarSetupsResponse {
   caveat?: string | null;
   note?: string;
 }
+
+// STB-1..5: no-code strategy backtest. Past prices only; nothing is placed.
+export interface StrategyRuleInput {
+  field: string;
+  op: string;
+  value: string | number;
+}
+
+export interface StrategyMetrics {
+  days?: number;
+  total_return_pct?: number | null;
+  cagr_pct?: number | null;
+  volatility_pct?: number | null;
+  max_drawdown_pct?: number | null;
+  sharpe?: number | null;
+  worst_month_pct?: number | null;
+}
+
+export interface StrategyBacktestResponse {
+  period: { start: string; end: string; sessions: number };
+  tickers: string[];
+  costs: { cost_bps_per_side: number; slippage_bps_per_side: number };
+  trades: number;
+  trades_per_year: number;
+  strategy: StrategyMetrics;
+  in_sample: StrategyMetrics;
+  out_of_sample: StrategyMetrics;
+  benchmark_spy: StrategyMetrics;
+  variants_tried: number;
+  warnings: string[];
+  caveats: string[];
+  disclaimer: string;
+}

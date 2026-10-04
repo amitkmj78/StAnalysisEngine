@@ -1425,6 +1425,21 @@ create policy alpaca_paper_accounts_isolation on alpaca_paper_accounts
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- STB-4: one row per strategy backtest run. Counts how many rule variants a user has
+-- tried, so the overfitting warning can say so. Insert-only for the app role.
+create table if not exists strategy_backtest_runs (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  definition_hash text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists strategy_backtest_runs_user_idx on strategy_backtest_runs(user_id, created_at);
+alter table strategy_backtest_runs enable row level security;
+drop policy if exists strategy_backtest_runs_isolation on strategy_backtest_runs;
+create policy strategy_backtest_runs_isolation on strategy_backtest_runs
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 -- One row per order ticket, inserted at SUBMITTING status BEFORE the
 -- Alpaca call so an ambiguous network failure can be resolved by
 -- re-querying Alpaca for client_order_id rather than blind-retried.
@@ -1694,6 +1709,7 @@ grant select, update on plaid_items to app_service;
 grant select on plaid_sync_log to app_user;
 grant select, insert on plaid_sync_log to app_service;
 grant select, insert, update, delete on alpaca_paper_accounts to app_user;
+grant select, insert on strategy_backtest_runs to app_user;
 grant select, update on alpaca_paper_accounts to app_service;
 grant select, insert on paper_orders to app_user;
 grant select, update on paper_orders to app_service;

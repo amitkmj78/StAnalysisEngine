@@ -68,6 +68,8 @@ import type {
   TradeImpactResponse,
   RegimeHistoryResponse,
   SimilarSetupsResponse,
+  StrategyBacktestResponse,
+  StrategyRuleInput,
   PortfolioBenchmarkComparison,
   PortfolioCompareResponse,
   PortfolioDropAlert,
@@ -1852,4 +1854,9 @@ export function getRegimeHistory(days = 400) {
 // DIF-7: past similar setups and the price move over the next sessions.
 export function getSimilarSetups(ticker: string) {
   return apiFetch<SimilarSetupsResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/similar-setups`);
+}
+
+// STB-1..5: no-code strategy backtest. Past prices only; nothing is placed.
+export function runStrategyBacktest(body: { tickers: string[]; entry: StrategyRuleInput[]; exit: StrategyRuleInput[] }) {
+  return apiSend<StrategyBacktestResponse>("/api/v1/strategy-builder/backtest", "POST", body);
 }

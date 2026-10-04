@@ -52,6 +52,7 @@ from web.backend.routers import (
     stock_finder,
     stock_scores,
     strategies,
+    strategy_builder,
     stress_test,
     subscriptions,
     trade_impact,
@@ -111,6 +112,7 @@ app.include_router(trading_agent.user_router)
 app.include_router(trading_agent.admin_router)
 app.include_router(chat.router)
 app.include_router(trade_impact.router)
+app.include_router(strategy_builder.router)
 app.include_router(aws_deploy.router)
 app.include_router(search.router)
 app.include_router(watchlist.router)
