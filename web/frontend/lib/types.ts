@@ -1582,6 +1582,8 @@ export interface ChatAskResponse {
   ticker: string;
   provider: string;
   answer: string;
+  // General questions only: the stored passages the answer was built from, numbered as in the answer.
+  sources?: { number: number; source: string; text: string }[];
 }
 
 export interface ChatAskParams {

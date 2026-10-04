@@ -52,9 +52,10 @@ async def ask(request: Request, body: ChatRequest):
 
     llms = ordered_llms(provider, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
 
+    sources: list[dict] = []
     if body.scope == "general":
         # No ticker or portfolio: answered from retrieved stored research (services/general_assistant_service.py).
-        answer, actual_llm = await answer_general_question(body.question.strip(), llms)
+        answer, actual_llm, sources = await answer_general_question(body.question.strip(), llms)
         result_ticker = "GENERAL"
     elif body.scope == "portfolio":
         answer, actual_llm = await _ask_portfolio(request, body, llms)
@@ -69,7 +70,7 @@ async def ask(request: Request, body: ChatRequest):
     if actual_llm is not None:
         actual_provider = label_for_llm(actual_llm, llm_openai, llm_groq, llm_claude, llm_ollama, labels) or provider
 
-    return {"ticker": result_ticker, "provider": actual_provider, "answer": answer}
+    return {"ticker": result_ticker, "provider": actual_provider, "answer": answer, "sources": sources}
 
 
 async def _ask_ticker(body: ChatRequest, llms: list) -> tuple[str, object]:

@@ -157,6 +157,24 @@ export default function ChatPage() {
             {result.ticker === "PORTFOLIO" ? "Your Portfolio" : result.ticker === "GENERAL" ? "General question" : result.ticker} · {result.provider}
           </p>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{result.answer}</p>
+          {result.ticker === "GENERAL" && (
+            <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Answers come from stored data and the app&apos;s model outputs. They are not investment advice.
+            </p>
+          )}
+          {result.sources && result.sources.length > 0 && (
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Sources</p>
+              <ol className="mt-2 flex flex-col gap-2 text-xs text-slate-600">
+                {result.sources.map((s) => (
+                  <li key={s.number}>
+                    <span className="font-medium text-slate-800">[{s.number}] {s.source}</span>
+                    <span className="mt-0.5 block whitespace-pre-wrap text-slate-500">{s.text}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
         </div>
       )}
     </div>
