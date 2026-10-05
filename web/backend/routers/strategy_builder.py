@@ -5,6 +5,7 @@ Nothing here places an order. Paper forward runs (STB-6) are not built.
 
 import hashlib
 import json
+from datetime import date
 import random
 import secrets
 from typing import Literal, Optional
@@ -240,7 +241,8 @@ async def save_strategy(request: Request, body: SaveRequest):
     payload = json.dumps(result, default=str)
     if len(payload) > MAX_SAVED_RESULT_CHARS:
         raise HTTPException(413, "This result is too large to save.")
-    data_end = (result.get("period") or {}).get("end")
+    end_text = (result.get("period") or {}).get("end")
+    data_end = date.fromisoformat(end_text) if end_text else None
     async with user_conn(user_id) as conn:
         new_id = await conn.fetchval(
             """
