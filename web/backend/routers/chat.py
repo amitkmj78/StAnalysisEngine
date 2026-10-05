@@ -6,6 +6,7 @@ from starlette.concurrency import run_in_threadpool
 
 from Agent.meta_agent import ask_meta_agent, build_agent
 
+from services.ai_answer_cache import ai_answer_key, get_ai_answer, put_ai_answer
 from services.cited_analyst_service import answer_cited
 from services.general_assistant_service import answer_general_question
 from services.portfolio_health_service import compute_portfolio_risk_metrics
@@ -55,6 +56,18 @@ async def ask(request: Request, body: ChatRequest):
 
     llms = ordered_llms(provider, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
 
+    # NFR-6: the same question about the same stock on the same day is answered from the cache, so repeat
+    # questions don't cost another model call. Only the cited-ticker and general answers are cached.
+    cache_key = None
+    if body.cited and body.scope == "ticker" and body.ticker and body.ticker.strip():
+        cache_key = ai_answer_key("cited-ticker", body.ticker, body.question)
+    elif body.scope == "general":
+        cache_key = ai_answer_key("general", "", body.question)
+    if cache_key is not None:
+        hit = get_ai_answer(cache_key)
+        if hit is not None:
+            return {**hit, "cached": True}
+
     sources: list[dict] = []
     if body.cited and body.scope != "general":
         user_id = request.state.user["id"]
@@ -87,7 +100,11 @@ async def ask(request: Request, body: ChatRequest):
     if actual_llm is not None:
         actual_provider = label_for_llm(actual_llm, llm_openai, llm_groq, llm_claude, llm_ollama, labels) or provider
 
-    return {"ticker": result_ticker, "provider": actual_provider, "answer": answer, "sources": sources}
+    response = {"ticker": result_ticker, "provider": actual_provider, "answer": answer, "sources": sources, "cached": False}
+    if cache_key is not None and actual_llm is not None:
+        # Only a real answer is cached; a provider failure is not kept for a day.
+        put_ai_answer(cache_key, response)
+    return response
 
 
 async def _ask_ticker(body: ChatRequest, llms: list) -> tuple[str, object]:
