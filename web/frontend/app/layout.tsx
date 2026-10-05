@@ -31,7 +31,8 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
+      {/* Browser extensions such as Grammarly add attributes to body before React loads; ignore just those. */}
+      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900" suppressHydrationWarning>
         {user && <SiteHeader email={user.email} isAdmin={isAdmin(user.email)} />}
         {user && <RegimeBanner />}
         <main className="flex-1">{children}</main>

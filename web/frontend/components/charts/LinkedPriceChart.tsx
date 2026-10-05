@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import PlotlyChart from "@/components/PlotlyChart";
 import { getStockPriceHistory } from "@/lib/api";
@@ -19,6 +20,9 @@ type Props = {
   hoverSource: number | null;
   onHover: (date: string | null, slot: number) => void;
 };
+
+// Loaded in the browser only: plotly.js does not build for the server.
+const PlotlyHoverSync = dynamic(() => import("@/components/charts/PlotlyHoverSync"), { ssr: false });
 
 function dayKey(date: string) {
   return date.slice(0, 10);
@@ -44,34 +48,6 @@ export default function LinkedPriceChart({ ticker, range, chartType, logScale, l
 
   const dates = useMemo(() => (rows ?? []).map((r) => dayKey(r.date)), [rows]);
   const divId = `linked-chart-${slot}`;
-
-  // Move this chart's crosshair to the shared date, unless this chart is the one being hovered.
-  useEffect(() => {
-    if (!linked || !rows || hoverSource === slot) return;
-    const el = typeof document !== "undefined" ? document.getElementById(divId) : null;
-    if (!el) return;
-    let cancelled = false;
-    (async () => {
-      const mod = await import("plotly.js");
-      const Plotly = (mod.default ?? mod) as unknown as {
-        Fx: {
-          hover: (gd: HTMLElement, pts: { curveNumber: number; pointNumber: number }[]) => void;
-          unhover: (gd: HTMLElement) => void;
-        };
-      };
-      if (cancelled) return;
-      if (hoverDate === null) {
-        Plotly.Fx.unhover(el);
-        return;
-      }
-      const index = dates.indexOf(dayKey(hoverDate));
-      if (index >= 0) Plotly.Fx.hover(el, [{ curveNumber: 0, pointNumber: index }]);
-      else Plotly.Fx.unhover(el);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [hoverDate, hoverSource, linked, rows, dates, divId, slot]);
 
   if (error) return <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">{error}</p>;
   if (!rows) return <p className="rounded-md border border-slate-200 p-6 text-center text-sm text-slate-500">Loading {ticker}…</p>;
@@ -100,6 +76,7 @@ export default function LinkedPriceChart({ ticker, range, chartType, logScale, l
         <p className="text-sm font-semibold text-slate-900">{ticker}</p>
         <p className="font-mono text-xs text-slate-500">{rows[rows.length - 1] ? `${rows[rows.length - 1].close.toFixed(2)}` : ""}</p>
       </div>
+      <PlotlyHoverSync divId={divId} linked={linked} dates={dates} hoverDate={hoverDate} hoverSource={hoverSource} slot={slot} />
       <PlotlyChart
         divId={divId}
         data={traces}
