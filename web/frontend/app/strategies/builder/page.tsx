@@ -748,7 +748,11 @@ export default function StrategyBuilderPage() {
                     onClick={() => setTab(key)}
                     className={`-mb-px border-b-2 px-3 py-2 font-medium ${tab === key ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-800"}`}
                   >
-                    {label}
+                    <span className="inline-flex items-center gap-1">
+                      {label}
+                      {key === "trades" && <MetricLabel info={STRATEGY_INFO.trades} />}
+                      {key === "tickers" && <MetricLabel info={STRATEGY_INFO.contribution} />}
+                    </span>
                   </button>
                 ))}
               </div>
