@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import MetricLabel from "@/components/MetricLabel";
+import TickerSearchInput from "@/components/TickerSearchInput";
 import PlotlyChart from "@/components/PlotlyChart";
 import { STRATEGY_INFO } from "@/components/strategies/strategyInfo";
 import { ApiError, getPortfolioPositions, getPortfolios, getStrategyPresets, runStrategyBacktest, saveStrategy } from "@/lib/api";
@@ -348,8 +349,9 @@ export default function StrategyBuilderPage() {
     setSaveState(null);
   }
 
-  function addTicker() {
-    const t = tickerInput.trim().toUpperCase();
+  // Adds a ticker picked from the search (typed symbol or company name), up to 20 stocks.
+  function addTickerValue(raw: string) {
+    const t = raw.trim().toUpperCase();
     if (t && !tickers.includes(t) && tickers.length < 20) {
       setTickers([...tickers, t]);
       setPortfolioWeights(null);
@@ -496,18 +498,13 @@ export default function StrategyBuilderPage() {
                 </span>
               ))}
             </div>
-            <input
+            <TickerSearchInput
               value={tickerInput}
-              onChange={(e) => setTickerInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addTicker();
-                }
-              }}
-              placeholder="Add ticker"
+              onChange={setTickerInput}
+              onSelect={addTickerValue}
+              placeholder="Add ticker or company name"
               className="input mt-2 w-full py-1 text-xs"
-              aria-label="Add ticker"
+              id="builder-add-ticker"
             />
             <div className="mt-2 flex flex-col gap-2 rounded-md border border-dashed border-slate-300 p-2 text-xs">
               <p className="font-medium text-slate-700">Test one of my portfolios</p>
