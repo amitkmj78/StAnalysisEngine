@@ -586,6 +586,16 @@ export default function PortfolioPage() {
             <Link href="/portfolio/add" className={PF.btn}>
               + Add Positions
             </Link>
+            <Link
+              href={
+                strategies.length > 0
+                  ? `/charts?tickers=${encodeURIComponent(strategies.slice(0, 4).map((s) => s.ticker).join(","))}`
+                  : "/charts"
+              }
+              className={PF.btn}
+            >
+              Chart grid
+            </Link>
           </div>
         </div>
 
@@ -1050,6 +1060,13 @@ export default function PortfolioPage() {
                                   </DetailStat>
                                   <DetailStat label="Look up">
                                     <div className="flex flex-col gap-0.5">
+                                      <Link
+                                        href={`/stock/${s.ticker}`}
+                                        className="text-[#2f5d50] hover:underline"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        Price chart
+                                      </Link>
                                       <Link
                                         href={`/predict?ticker=${s.ticker}&from=portfolio`}
                                         className="text-[#2f5d50] hover:underline"

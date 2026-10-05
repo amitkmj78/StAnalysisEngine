@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import LinkedPriceChart from "@/components/charts/LinkedPriceChart";
 import TickerSearchInput from "@/components/TickerSearchInput";
 import { ApiError, deleteChartLayout, listChartLayouts, saveChartLayout } from "@/lib/api";
@@ -19,8 +20,31 @@ const DEFAULT: ChartGridLayout = {
   linked_crosshair: true,
 };
 
+// ?tickers=AAPL,MSFT lets other pages (e.g. the portfolio) open the grid with those tickers in the slots.
+function tickersFromQuery(value: string | null): string[] | null {
+  if (!value) return null;
+  const list = value
+    .split(",")
+    .map((t) => t.trim().toUpperCase())
+    .filter((t) => /^[A-Z.\-]{1,10}$/.test(t))
+    .slice(0, SLOTS);
+  return list.length > 0 ? list : null;
+}
+
 export default function ChartGridPage() {
-  const [tickers, setTickers] = useState<string[]>(DEFAULT.tickers);
+  return (
+    <Suspense fallback={null}>
+      <ChartGrid />
+    </Suspense>
+  );
+}
+
+function ChartGrid() {
+  const searchParams = useSearchParams();
+  const [tickers, setTickers] = useState<string[]>(() => {
+    const fromQuery = tickersFromQuery(searchParams.get("tickers"));
+    return fromQuery ? [...fromQuery, ...Array(SLOTS).fill("")].slice(0, SLOTS) : DEFAULT.tickers;
+  });
   const [range, setRange] = useState<ChartGridLayout["range"]>(DEFAULT.range);
   const [chartType, setChartType] = useState<"line" | "candles">(DEFAULT.chart_type);
   const [logScale, setLogScale] = useState(DEFAULT.log_scale);
