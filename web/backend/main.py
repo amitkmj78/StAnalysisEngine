@@ -30,6 +30,7 @@ from web.backend.routers import (
     aws_deploy,
     baseline,
     challenges,
+    chart_layouts,
     chat,
     db_backup,
     earnings,
@@ -114,6 +115,7 @@ app.include_router(chat.router)
 app.include_router(trade_impact.router)
 app.include_router(strategy_builder.router)
 app.include_router(strategy_builder.shared_router)
+app.include_router(chart_layouts.router)
 app.include_router(aws_deploy.router)
 app.include_router(search.router)
 app.include_router(watchlist.router)

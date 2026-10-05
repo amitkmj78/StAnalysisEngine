@@ -76,6 +76,8 @@ import type {
   StrategyCompareRow,
   StrategySharedResponse,
   StrategyScanStatus,
+  ChartGridLayout,
+  SavedChartLayout,
   PortfolioBenchmarkComparison,
   PortfolioCompareResponse,
   PortfolioDropAlert,
@@ -1920,4 +1922,17 @@ export function startStrategyScan(seed?: number) {
 
 export function getStrategyScan(jobId: string) {
   return apiFetch<StrategyScanStatus>(`/api/v1/strategy-builder/scan/${encodeURIComponent(jobId)}`);
+}
+
+// CHT-7: saved chart layouts.
+export function listChartLayouts() {
+  return apiFetch<{ layouts: SavedChartLayout[] }>("/api/v1/chart-layouts");
+}
+
+export function saveChartLayout(name: string, layout: ChartGridLayout) {
+  return apiSend<{ id: number; layout: ChartGridLayout }>("/api/v1/chart-layouts", "POST", { name, layout });
+}
+
+export function deleteChartLayout(id: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/chart-layouts/${id}`, "DELETE");
 }

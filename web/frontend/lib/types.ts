@@ -2700,3 +2700,19 @@ export interface StrategyScanStatus {
   error: string | null;
   result: StrategyScanResult | null;
 }
+
+// CHT-7: saved chart layouts for the chart grid.
+export interface ChartGridLayout {
+  tickers: string[];
+  range: "1M" | "6M" | "1Y" | "5Y";
+  chart_type: "line" | "candles";
+  log_scale: boolean;
+  linked_crosshair: boolean;
+}
+
+export interface SavedChartLayout {
+  id: number;
+  name: string;
+  layout: ChartGridLayout;
+  updated_at: string;
+}

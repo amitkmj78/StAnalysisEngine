@@ -16,6 +16,7 @@ const NAV: NavEntry[] = [
       { href: "/predict", label: "Forecast" },
       { href: "/predictions", label: "Prediction History" },
       { href: "/stock-finder", label: "Stock Screener" },
+      { href: "/charts", label: "Chart grid" },
       { href: "/stock/AAPL", label: "Stock Detail" },
       { href: "/signal-comparison", label: "Quant vs Analyst" },
       { href: "/web-search", label: "Web Search" },
