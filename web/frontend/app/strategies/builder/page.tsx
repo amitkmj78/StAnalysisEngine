@@ -35,6 +35,96 @@ const REGIMES = ["Risk-On", "Constructive", "Neutral", "Cautious", "Risk-Off"];
 const DEFAULT_ENTRY: StrategyRuleInput = { field: "rsi_14", op: "crosses_above", value: 50 };
 const DEFAULT_EXIT: StrategyRuleInput = { field: "rsi_14", op: ">", value: 60 };
 const DEFAULT_TICKERS = ["AAPL", "MSFT", "DELL", "VEEV", "HPE"];
+
+// Starting points, one per approach. Each sets the rules and protective exit, and the name.
+type Template = {
+  key: string;
+  label: string;
+  name: string;
+  entry: StrategyRuleInput[];
+  exit: StrategyRuleInput[];
+  trailing: string;
+  stopLoss: string;
+  timeStop: string;
+};
+const TEMPLATES: Template[] = [
+  {
+    key: "trend",
+    label: "Trend: price crosses above its 200-day average",
+    name: "Trend follow (200-day)",
+    entry: [{ field: "close_vs_sma_200_pct", op: "crosses_above", value: 0 }],
+    exit: [{ field: "close_vs_sma_200_pct", op: "crosses_below", value: 0 }],
+    trailing: "15", stopLoss: "", timeStop: "",
+  },
+  {
+    key: "pullback",
+    label: "Pullback in an uptrend: RSI turns up above the 200-day average",
+    name: "Pullback in uptrend",
+    entry: [
+      { field: "rsi_14", op: "crosses_above", value: 30 },
+      { field: "close_vs_sma_200_pct", op: ">", value: 0 },
+    ],
+    exit: [{ field: "rsi_14", op: ">", value: 70 }],
+    trailing: "10", stopLoss: "", timeStop: "",
+  },
+  {
+    key: "breakout",
+    label: "Breakout: near the 52-week high",
+    name: "52-week high breakout",
+    entry: [{ field: "dist_52w_high_pct", op: "crosses_above", value: -2 }],
+    exit: [{ field: "dist_52w_high_pct", op: "<", value: -10 }],
+    trailing: "", stopLoss: "8", timeStop: "",
+  },
+  {
+    key: "cross",
+    label: "Moving-average cross: 20-day crosses above 50-day",
+    name: "20/50-day cross",
+    entry: [{ field: "sma_20_vs_50_pct", op: "crosses_above", value: 0 }],
+    exit: [{ field: "sma_20_vs_50_pct", op: "crosses_below", value: 0 }],
+    trailing: "12", stopLoss: "", timeStop: "",
+  },
+  {
+    key: "lowvol",
+    label: "Low-volatility trend: calm stock above its 50-day average",
+    name: "Calm uptrend (low volatility)",
+    entry: [
+      { field: "atr_14_pct", op: "<", value: 2 },
+      { field: "close_vs_sma_50_pct", op: "crosses_above", value: 0 },
+    ],
+    exit: [{ field: "close_vs_sma_50_pct", op: "crosses_below", value: 0 }],
+    trailing: "", stopLoss: "6", timeStop: "",
+  },
+  {
+    key: "volume",
+    label: "Volume-confirmed: heavy volume above the 50-day average",
+    name: "Volume-confirmed trend",
+    entry: [
+      { field: "volume_vs_20d_pct", op: "crosses_above", value: 50 },
+      { field: "close_vs_sma_50_pct", op: ">", value: 0 },
+    ],
+    exit: [],
+    trailing: "", stopLoss: "7", timeStop: "20",
+  },
+  {
+    key: "regime",
+    label: "Regime-gated: trend only in Risk-On markets",
+    name: "Risk-On trend",
+    entry: [
+      { field: "regime", op: "is", value: "Risk-On" },
+      { field: "close_vs_sma_50_pct", op: "crosses_above", value: 0 },
+    ],
+    exit: [{ field: "regime", op: "is", value: "Risk-Off" }],
+    trailing: "", stopLoss: "10", timeStop: "",
+  },
+  {
+    key: "rsi",
+    label: "RSI momentum: RSI crosses above 50",
+    name: "RSI momentum",
+    entry: [{ field: "rsi_14", op: "crosses_above", value: 50 }],
+    exit: [{ field: "rsi_14", op: ">", value: 60 }],
+    trailing: "10", stopLoss: "", timeStop: "",
+  },
+];
 const SECTORS = [
   "Information Technology", "Health Care", "Financials", "Consumer Discretionary", "Communication Services",
   "Industrials", "Consumer Staples", "Energy", "Utilities", "Real Estate", "Materials",
@@ -151,14 +241,15 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
 }
 
 export default function StrategyBuilderPage() {
-  const [name, setName] = useState("RSI momentum");
+  const [name, setName] = useState("Trend follow (200-day)");
+  const [template, setTemplate] = useState("trend");
   const [tickers, setTickers] = useState<string[]>(DEFAULT_TICKERS);
   const [tickerInput, setTickerInput] = useState("");
-  const [entry, setEntry] = useState<StrategyRuleInput[]>([DEFAULT_ENTRY]);
-  const [exit, setExit] = useState<StrategyRuleInput[]>([DEFAULT_EXIT]);
-  const [trailing, setTrailing] = useState("10");
-  const [stopLoss, setStopLoss] = useState("");
-  const [timeStop, setTimeStop] = useState("");
+  const [entry, setEntry] = useState<StrategyRuleInput[]>(TEMPLATES[0].entry);
+  const [exit, setExit] = useState<StrategyRuleInput[]>(TEMPLATES[0].exit);
+  const [trailing, setTrailing] = useState(TEMPLATES[0].trailing);
+  const [stopLoss, setStopLoss] = useState(TEMPLATES[0].stopLoss);
+  const [timeStop, setTimeStop] = useState(TEMPLATES[0].timeStop);
   const [waive, setWaive] = useState(false);
   const [cooldown, setCooldown] = useState("5");
   const [verdictBenchmark, setVerdictBenchmark] = useState<"basket" | "spy">("basket");
@@ -185,6 +276,20 @@ export default function StrategyBuilderPage() {
       exit: exitParts.length ? exitParts.join(", or ") : "(no exit set)",
     };
   }, [entry, exit, trailing, stopLoss, timeStop]);
+
+  function applyTemplate(key: string) {
+    const t = TEMPLATES.find((x) => x.key === key);
+    if (!t) return;
+    setTemplate(key);
+    setName(t.name);
+    setEntry(t.entry);
+    setExit(t.exit);
+    setTrailing(t.trailing);
+    setStopLoss(t.stopLoss);
+    setTimeStop(t.timeStop);
+    setResult(null);
+    setSaveState(null);
+  }
 
   function addTicker() {
     const t = tickerInput.trim().toUpperCase();
@@ -298,6 +403,16 @@ export default function StrategyBuilderPage() {
         {/* Builder */}
         <form onSubmit={handleRun} className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
           <Panel title="Strategy">
+            <label className="mb-2 flex flex-col gap-1 text-xs text-slate-500">
+              Start from a template
+              <select value={template} onChange={(e) => applyTemplate(e.target.value)} className="input py-1 text-xs" aria-label="Template">
+                {TEMPLATES.map((t) => (
+                  <option key={t.key} value={t.key}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="flex gap-2">
               <input value={name} onChange={(e) => setName(e.target.value)} className="input min-w-0 flex-1 py-1 text-sm" aria-label="Strategy name" />
               <button type="button" disabled className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-400" title="Saved variants: coming next">
