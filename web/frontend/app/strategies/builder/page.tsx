@@ -275,6 +275,8 @@ export default function StrategyBuilderPage() {
   const [portfolioId, setPortfolioId] = useState<number | null>(null);
   const [portfolioNote, setPortfolioNote] = useState<string | null>(null);
   const [portfoliosLoaded, setPortfoliosLoaded] = useState(false);
+  // Actual weights from a loaded portfolio (share of its current value). Null means equal weights.
+  const [portfolioWeights, setPortfolioWeights] = useState<Record<string, number> | null>(null);
 
   const hasProtective = Boolean(trailing || stopLoss || timeStop) || exit.length > 0;
   const conflict = conflictIndex(entry, exit);
@@ -305,16 +307,27 @@ export default function StrategyBuilderPage() {
     setPortfolioNote(null);
     try {
       const res = await getPortfolioPositions(portfolioId ?? undefined);
-      const held = Array.from(new Set(res.positions.map((p) => p.ticker.toUpperCase())));
+      const values: Record<string, number> = {};
+      for (const p of res.positions) {
+        const value = (p.shares ?? 0) * (p.current_price ?? 0);
+        if (value > 0) values[p.ticker.toUpperCase()] = (values[p.ticker.toUpperCase()] ?? 0) + value;
+      }
+      const held = Object.keys(values).sort((a, b) => values[b] - values[a]);
       if (held.length === 0) {
-        setPortfolioNote("This portfolio has no holdings yet.");
+        setPortfolioNote("This portfolio has no priced holdings yet.");
+        setPortfolioWeights(null);
         return;
       }
-      setTickers(held.slice(0, 20));
+      const chosen = held.slice(0, 20);
+      const chosenTotal = chosen.reduce((sum, t) => sum + values[t], 0);
+      const weights: Record<string, number> = {};
+      for (const t of chosen) weights[t] = values[t] / chosenTotal;
+      setTickers(chosen);
+      setPortfolioWeights(weights);
       setPortfolioNote(
         held.length > 20
-          ? `Loaded the first 20 of ${held.length} holdings. The test is limited to 20 stocks.`
-          : `Loaded ${held.length} holdings. Each gets an equal share, not your actual weights.`,
+          ? `Loaded the 20 largest of ${held.length} holdings, weighted by their share of value. The test is limited to 20 stocks.`
+          : `Loaded ${held.length} holdings at their actual weights (share of current value). Cash is not included.`,
       );
     } catch (err) {
       setPortfolioNote(err instanceof ApiError ? err.message : "Your portfolio could not be loaded.");
@@ -337,7 +350,10 @@ export default function StrategyBuilderPage() {
 
   function addTicker() {
     const t = tickerInput.trim().toUpperCase();
-    if (t && !tickers.includes(t) && tickers.length < 20) setTickers([...tickers, t]);
+    if (t && !tickers.includes(t) && tickers.length < 20) {
+      setTickers([...tickers, t]);
+      setPortfolioWeights(null);
+    }
     setTickerInput("");
   }
 
@@ -354,7 +370,11 @@ export default function StrategyBuilderPage() {
       waive_protective_exit: waive,
       cooldown_sessions: Number(cooldown) || 0,
       verdict_benchmark: verdictBenchmark,
-      ...(sampling ? { source: "random_sample" as const, ...sampling } : { source: "hand_picked" as const }),
+      ...(portfolioWeights && !sampling
+        ? { source: "portfolio" as const, weights: portfolioWeights }
+        : sampling
+          ? { source: "random_sample" as const, ...sampling }
+          : { source: "hand_picked" as const }),
     };
     setLoading(true);
     setError(null);
@@ -470,7 +490,7 @@ export default function StrategyBuilderPage() {
               {tickers.map((t) => (
                 <span key={t} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
                   {t}
-                  <button type="button" onClick={() => setTickers(tickers.filter((x) => x !== t))} className="text-slate-400 hover:text-slate-700" aria-label={`Remove ${t}`}>
+                  <button type="button" onClick={() => { setTickers(tickers.filter((x) => x !== t)); setPortfolioWeights(null); }} className="text-slate-400 hover:text-slate-700" aria-label={`Remove ${t}`}>
                     ×
                   </button>
                 </span>
@@ -607,8 +627,8 @@ export default function StrategyBuilderPage() {
               </label>
               <label className="flex flex-col gap-1">
                 Sizing
-                <select disabled className="input py-1 text-xs" title="Only equal weight per stock for now">
-                  <option>Equal weight per stock</option>
+                <select disabled className="input py-1 text-xs" title="Equal weight, or your actual weights when a portfolio is loaded">
+                  <option>{portfolioWeights ? "Your actual weights" : "Equal weight per stock"}</option>
                 </select>
               </label>
               <label className="flex flex-col gap-1">

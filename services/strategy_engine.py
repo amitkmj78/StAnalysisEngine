@@ -338,32 +338,36 @@ def _run_ticker(frame: pd.DataFrame, entry: list[Rule], exit_: list[Rule],
 
 
 def run_strategy(frames: dict[str, pd.DataFrame], entry: list[Rule], exit_: list[Rule],
-                 exits: ProtectiveExits, cooldown: int, cost_bps: float, slippage_bps: float):
-    """Equal-weight portfolio daily return and cost, both in percent of equity, plus per-ticker runs."""
+                 exits: ProtectiveExits, cooldown: int, cost_bps: float, slippage_bps: float,
+                 weights: Optional[dict[str, float]] = None):
+    """Portfolio daily return and cost, both in percent of equity, plus per-ticker runs.
+    Each stock's sleeve is its weight (equal unless `weights` is given, and weights must sum to 1)."""
     common = sorted(set.intersection(*(set(f.index) for f in frames.values())))
-    n_tickers = len(frames)
     per_side = (cost_bps + slippage_bps) / 10_000
     ret = np.zeros(len(common))
     cost = np.zeros(len(common))
     runs: dict[str, TickerRun] = {}
     for ticker, frame in frames.items():
+        w = weights[ticker] if weights else 1.0 / len(frames)
         run = _run_ticker(frame.loc[common], entry, exit_, exits, cooldown, per_side, ticker)
         runs[ticker] = run
-        ret += run.returns / n_tickers
-        cost += run.costs / n_tickers
+        ret += run.returns * w
+        cost += run.costs * w
     index = pd.DatetimeIndex(common)
     return pd.Series(ret * 100, index=index), pd.Series(cost * 100, index=index), runs
 
 
-def basket_returns(frames: dict[str, pd.DataFrame], cost_bps: float, slippage_bps: float) -> pd.Series:
-    """Equal-weight buy-and-hold of the same tickers, rebalanced to equal weight on the first session of
-    each month. Rebalance trades pay the same per-side cost as the strategy."""
+def basket_returns(frames: dict[str, pd.DataFrame], cost_bps: float, slippage_bps: float,
+                   weights: Optional[dict[str, float]] = None) -> pd.Series:
+    """Buy-and-hold of the same tickers at their target weights (equal unless given), rebalanced to those
+    weights on the first session of each month. Rebalance trades pay the same per-side cost as the strategy."""
     common = sorted(set.intersection(*(set(f.index) for f in frames.values())))
     closes = pd.DataFrame({t: frames[t].loc[common, "close"].astype(float) for t in frames})
     rets = closes.pct_change().fillna(0.0).to_numpy()
     n = closes.shape[1]
     per_side = (cost_bps + slippage_bps) / 10_000
-    dollars = np.full(n, 1.0 / n)
+    target_w = np.array([weights[t] for t in closes.columns]) if weights else np.full(n, 1.0 / n)
+    dollars = target_w.copy()
     out = []
     prev_month = None
     for k, d in enumerate(closes.index):
@@ -374,7 +378,7 @@ def basket_returns(frames: dict[str, pd.DataFrame], cost_bps: float, slippage_bp
         value = dollars.sum()
         cost = 0.0
         if prev_month is not None and month != prev_month:
-            target = np.full(n, value / n)
+            target = target_w * value
             one_way = np.abs(dollars - target).sum() / (2 * value)
             cost = 2 * one_way * per_side
             dollars = target
@@ -468,6 +472,7 @@ def run_backtest(
     slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
     verdict_benchmark: str = "basket",
     trial_sharpes_daily: Optional[list[float]] = None,
+    weights: Optional[dict[str, float]] = None,
 ) -> dict:
     if not frames:
         raise ValueError("no price history for the chosen tickers")
@@ -486,12 +491,19 @@ def run_backtest(
     if verdict_benchmark not in ("basket", "spy"):
         raise ValueError("verdict benchmark must be 'basket' or 'spy'")
 
-    daily, costs_pct, runs = run_strategy(frames, entry, exit_, exits, cooldown, cost_bps, slippage_bps)
+    if weights is not None:
+        if set(weights) != set(frames):
+            raise ValueError("weights must be given for exactly the tickers tested")
+        if any(w < 0 for w in weights.values()) or sum(weights.values()) <= 0:
+            raise ValueError("weights must be zero or more and add up to something above zero")
+        total = sum(weights.values())
+        weights = {t: w / total for t, w in weights.items()}
+    daily, costs_pct, runs = run_strategy(frames, entry, exit_, exits, cooldown, cost_bps, slippage_bps, weights)
     if len(daily) < PERIODS_PER_YEAR // 2:
         raise ValueError("not enough shared history for the chosen tickers")
-    gross, _, _ = run_strategy(frames, entry, exit_, exits, cooldown, 0.0, 0.0)
+    gross, _, _ = run_strategy(frames, entry, exit_, exits, cooldown, 0.0, 0.0, weights)
 
-    basket = basket_returns(frames, cost_bps, slippage_bps).reindex(daily.index).dropna()
+    basket = basket_returns(frames, cost_bps, slippage_bps, weights).reindex(daily.index).dropna()
     spy = (benchmark_close.pct_change().dropna() * 100).reindex(daily.index).dropna()
 
     split = int(len(daily) * IS_FRACTION)
@@ -551,7 +563,7 @@ def run_backtest(
     if not protective:
         checks.append(_check("caution", "Protective exit", "No protective exit: losing positions are held until an indicator exit fires."))
 
-    ticker_contrib = {t: round(float(run.returns.sum() * 100 / len(runs)), 2) for t, run in runs.items()}
+    ticker_contrib = {t: round(float(run.returns.sum() * 100 * (weights[t] if weights else 1 / len(runs))), 2) for t, run in runs.items()}
     total_contrib = sum(ticker_contrib.values())
     top = None
     if total_contrib > 0:

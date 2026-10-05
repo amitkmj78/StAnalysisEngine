@@ -173,3 +173,20 @@ def test_regime_rules_use_the_stored_label_for_each_date():
     labels = {ts.strftime("%Y-%m-%d"): ("Risk-On" if i < 150 else "Cautious") for i, ts in enumerate(prices.index)}
     frame = feature_frame(prices, regime_by_date=labels)
     assert frame["regime"].iloc[0] == "Risk-On" and frame["regime"].iloc[-1] == "Cautious"
+
+
+def test_a_full_weight_on_one_stock_matches_that_stock_alone():
+    a = _trend_prices(n=300, seed=8)
+    b = _trend_prices(n=300, seed=9)
+    frames = {"AAA": feature_frame(a), "BBB": feature_frame(b)}
+    only_a = basket_returns(frames, cost_bps=0, slippage_bps=0, weights={"AAA": 1.0, "BBB": 0.0})
+    expected = a["Close"].pct_change().fillna(0) * 100
+    assert np.allclose(only_a.to_numpy(), expected.to_numpy(), atol=1e-9)
+
+
+def test_weights_must_match_the_tickers_tested():
+    frames = {"AAA": feature_frame(_trend_prices(seed=1)), "BBB": feature_frame(_trend_prices(seed=2))}
+    bench = _trend_prices(seed=3)["Close"]
+    with pytest.raises(ValueError, match="exactly the tickers"):
+        run_backtest(frames, [{"field": "rsi_14", "op": "<", "value": 45}],
+                     [{"field": "rsi_14", "op": ">", "value": 55}], bench, weights={"AAA": 1.0})

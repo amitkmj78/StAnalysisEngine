@@ -54,12 +54,14 @@ class BacktestRequest(BaseModel):
     cooldown_sessions: int = Field(default=DEFAULT_COOLDOWN, ge=0, le=250)
     verdict_benchmark: Literal["basket", "spy"] = "basket"
     # Selection bias: "random_sample" draws the tickers from the S&P 500 with a seed, so the run can be repeated.
-    source: Literal["hand_picked", "random_sample"] = "hand_picked"
+    source: Literal["hand_picked", "random_sample", "portfolio"] = "hand_picked"
+    # Actual weights for a portfolio test (ticker -> share of value). Must cover exactly the tickers.
+    weights: Optional[dict[str, float]] = None
     sample_seed: Optional[int] = Field(default=None, ge=0, le=2_147_483_647)
     sample_size: Optional[int] = Field(default=None, ge=1, le=MAX_TICKERS)
 
 
-def _definition_hash(tickers: list[str], body: BacktestRequest) -> str:
+def _definition_hash(tickers: list[str], body: BacktestRequest, weights: Optional[dict[str, float]] = None) -> str:
     canonical = json.dumps(
         {
             "tickers": sorted(set(tickers)),
@@ -69,6 +71,7 @@ def _definition_hash(tickers: list[str], body: BacktestRequest) -> str:
             "waive": body.waive_protective_exit,
             "cooldown": body.cooldown_sessions,
             "verdict": body.verdict_benchmark,
+            "weights": sorted((weights or {}).items()),
         },
         sort_keys=True,
     )
@@ -89,6 +92,9 @@ async def backtest(request: Request, body: BacktestRequest):
     user_id = request.state.user["id"]
 
     selection: dict = {"source": body.source, "seed": None}
+    weights = None
+    if body.weights:
+        weights = {k.strip().upper(): float(v) for k, v in body.weights.items()}
     if body.source == "random_sample":
         size = body.sample_size or max(len(body.tickers), 5)
         seed = body.sample_seed if body.sample_seed is not None else random.randrange(1, 2_147_483_647)
@@ -97,6 +103,9 @@ async def backtest(request: Request, body: BacktestRequest):
         selection = {"source": "random_sample", "seed": seed, "size": len(tickers)}
     else:
         tickers = [t.strip().upper() for t in body.tickers if t.strip()]
+    if weights:
+        tickers = list(weights)
+        selection = {"source": "portfolio", "seed": None}
     tickers = sorted(set(tickers))
     if not tickers or any(not t.replace(".", "").replace("-", "").isalnum() for t in tickers):
         raise HTTPException(422, "Enter ticker symbols, for example AAPL, MSFT")
@@ -131,7 +140,7 @@ async def backtest(request: Request, body: BacktestRequest):
         raise HTTPException(503, "Benchmark price history is unavailable right now.")
     bench_close = bench_hist["Close"]
 
-    definition = _definition_hash(tickers, body)
+    definition = _definition_hash(tickers, body, weights)
     async with user_conn(user_id) as conn:
         prior = await conn.fetch(
             """
@@ -157,6 +166,7 @@ async def backtest(request: Request, body: BacktestRequest):
                 cooldown=body.cooldown_sessions,
                 verdict_benchmark=body.verdict_benchmark,
                 trial_sharpes_daily=list(prior_sharpe.values()),
+                weights=weights,
             ),
         )
     except ValueError as e:
