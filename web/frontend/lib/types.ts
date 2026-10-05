@@ -2684,7 +2684,7 @@ export interface StrategyScanResult {
   seed: number;
   period: { start: string; end: string };
   out_of_sample: { start: string; years: number };
-  benchmark: { name: string; oos_cagr_pct: number | null; oos_max_drawdown_pct: number | null };
+  benchmark: { name: string; oos_cagr_pct: number | null; oos_max_drawdown_pct: number | null; full_cagr_pct: number | null; full_max_drawdown_pct: number | null };
   downturn_in_test_window: boolean;
   groups: { short_term: StrategyScanGroup; long_term: StrategyScanGroup };
   candidates: StrategyScanCandidate[];

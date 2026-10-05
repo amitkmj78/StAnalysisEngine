@@ -22,7 +22,7 @@ function GroupList({
 }: {
   title: string;
   group: StrategyScanGroup;
-  benchmark?: { name: string; oos_cagr_pct: number | null; oos_max_drawdown_pct: number | null };
+  benchmark?: { name: string; oos_cagr_pct: number | null; oos_max_drawdown_pct: number | null; full_cagr_pct: number | null; full_max_drawdown_pct: number | null };
 }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5">
@@ -32,7 +32,7 @@ function GroupList({
       </p>
       {benchmark && (
         <p className="mt-1 text-xs text-slate-500">
-          S&amp;P 500 on the same later dates: {pct(benchmark.oos_cagr_pct)} a year, worst fall {pct(benchmark.oos_max_drawdown_pct)}.
+          S&amp;P 500 over the full five years: {pct(benchmark.full_cagr_pct)} a year, worst fall {pct(benchmark.full_max_drawdown_pct)}.
         </p>
       )}
       {group.candidates.length === 0 ? (

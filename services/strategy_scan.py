@@ -260,7 +260,9 @@ def scan(
         "period": {"start": str(dates[0].date()), "end": str(dates[-1].date())},
         "out_of_sample": {"start": str(oos_dates[0].date()), "years": round(oos_years, 2)},
         "benchmark": {"name": "S&P 500 (SPY)", "oos_cagr_pct": spy_oos_m.get("cagr_pct"),
-                      "oos_max_drawdown_pct": spy_oos_m.get("max_drawdown_pct")},
+                      "oos_max_drawdown_pct": spy_oos_m.get("max_drawdown_pct"),
+                      "full_cagr_pct": spy_full_m.get("cagr_pct"),
+                      "full_max_drawdown_pct": spy_full_m.get("max_drawdown_pct")},
         "downturn_in_test_window": downturn_included,
         "groups": {
             "short_term": {
