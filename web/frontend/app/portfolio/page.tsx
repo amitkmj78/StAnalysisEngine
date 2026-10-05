@@ -42,6 +42,7 @@ import MarketNewsTicker from "@/components/MarketNewsTicker";
 import PortfolioReviewCard from "@/components/portfolio/PortfolioReviewCard";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import MetricLabel from "@/components/MetricLabel";
+import { nextSort, sortRows, type SortDirection } from "@/lib/sortRows";
 
 // Scoped to this page only -- the rest of the site keeps its existing
 // Geist font (see app/layout.tsx) and slate palette. "Ledger" direction
@@ -86,6 +87,15 @@ const LIVE_READ_INFO: ColumnInfo = {
     "None of this is investment advice — it describes what the app's own signals currently show, not a recommendation.",
   ],
 };
+
+function SortArrow({ active, label, onClick }: { active: SortDirection | null; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label} title={label}
+      className="ml-1 inline-block rounded px-1 text-[10px] leading-none text-[#857d6e] hover:bg-[#e6e1d6]">
+      {active === "asc" ? "▲" : active === "desc" ? "▼" : "↕"}
+    </button>
+  );
+}
 
 export default function PortfolioPage() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
@@ -213,6 +223,7 @@ export default function PortfolioPage() {
   // The header/price/badges row alone is enough to scan a whole
   // portfolio; the full narrative is one click away per position.
   const [expandedTickers, setExpandedTickers] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<{ key: string | null; direction: SortDirection | null }>({ key: null, direction: null });
 
   function toggleExpanded(ticker: string) {
     setExpandedTickers((prev) => {
@@ -829,32 +840,70 @@ export default function PortfolioPage() {
                   <tr className="border-b border-[#ddd8cd] bg-[#efebe3] text-left text-[10.5px] font-semibold uppercase tracking-wide text-[#857d6e]">
                     <th className="px-4 py-3">
                       <MetricLabel term="Position Ticker">Ticker</MetricLabel>
+                      <SortArrow active={sort.key === "ticker" ? sort.direction : null}
+                        label="Sort by ticker"
+                        onClick={() => setSort(nextSort(sort, "ticker"))} />
                     </th>
                     <th className="px-4 py-3">
                       <MetricLabel term="Portfolio Signal">Signal</MetricLabel>
+                      <SortArrow active={sort.key === "signal" ? sort.direction : null}
+                        label="Sort by signal"
+                        onClick={() => setSort(nextSort(sort, "signal"))} />
                     </th>
                     <th className="px-4 py-3 text-right">
                       <MetricLabel>Shares</MetricLabel>
+                      <SortArrow active={sort.key === "shares" ? sort.direction : null}
+                        label="Sort by shares"
+                        onClick={() => setSort(nextSort(sort, "shares"))} />
                     </th>
                     <th className="px-4 py-3 text-right">
                       <MetricLabel term="Avg Cost Paid">Avg Cost</MetricLabel>
+                      <SortArrow active={sort.key === "avg_cost" ? sort.direction : null}
+                        label="Sort by avg cost"
+                        onClick={() => setSort(nextSort(sort, "avg_cost"))} />
                     </th>
                     <th className="px-4 py-3 text-right">
                       <MetricLabel term="Price Now">Price</MetricLabel>
+                      <SortArrow active={sort.key === "price" ? sort.direction : null}
+                        label="Sort by price"
+                        onClick={() => setSort(nextSort(sort, "price"))} />
                     </th>
                     <th className="px-4 py-3 text-right">
                       <MetricLabel term="Market Value">Value</MetricLabel>
+                      <SortArrow active={sort.key === "value" ? sort.direction : null}
+                        label="Sort by value"
+                        onClick={() => setSort(nextSort(sort, "value"))} />
                     </th>
                     <th className="px-4 py-3 text-right">
                       <MetricLabel>Today</MetricLabel>
+                      <SortArrow active={sort.key === "today" ? sort.direction : null}
+                        label="Sort by today"
+                        onClick={() => setSort(nextSort(sort, "today"))} />
                     </th>
                     <th className="px-4 py-3 text-right">
                       <MetricLabel term="Gain vs. Paid">Since Cost</MetricLabel>
+                      <SortArrow active={sort.key === "since_cost" ? sort.direction : null}
+                        label="Sort by since cost"
+                        onClick={() => setSort(nextSort(sort, "since_cost"))} />
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {strategies.map((s) => {
+                  {sortRows(strategies, (row) => {
+                    const p = performance?.rows.find((r) => r.ticker === row.ticker) ?? null;
+                    const i = insights.find((x) => x.ticker === row.ticker) ?? null;
+                    switch (sort.key) {
+                      case "ticker": return row.ticker;
+                      case "signal": return i?.signal ?? null;
+                      case "shares": return row.shares;
+                      case "avg_cost": return row.avg_cost;
+                      case "price": return p?.price_now ?? row.current_price;
+                      case "value": return p?.value_now ?? null;
+                      case "today": return p?.day_gain_pct ?? null;
+                      case "since_cost": return p?.gain_vs_cost_pct ?? row.unrealized_pnl_pct;
+                      default: return null;
+                    }
+                  }, sort.direction).map((s) => {
                     const perfRow = performance?.rows.find((r) => r.ticker === s.ticker) ?? null;
                     const insight = insights.find((i) => i.ticker === s.ticker) ?? null;
                     const tickerSentiment = sentiment[s.ticker] ?? null;
