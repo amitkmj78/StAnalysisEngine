@@ -16,6 +16,7 @@ from starlette.concurrency import run_in_threadpool
 from services import chart_indicators as ci
 from services.cache_utils import ttl_cache
 from services.similar_setups import find_similar_setups
+from services.track_record import track_record
 from services.stock_score_service import select_top_and_bottom_factors
 from services.data_service import get_latest_price
 from services.ranking_utils import compute_position_concentration
@@ -340,6 +341,30 @@ async def get_similar_setups(request: Request, ticker: str, universe_id: str = Q
         return {"ticker": ticker, "available": False, "reason": "No price history available for this stock."}
     result = find_similar_setups(scores, closes, latest["short_score"], latest["regime"])
     return {"ticker": ticker, "available": True, **result}
+
+
+@router.get("/{ticker}/track-record")
+@limiter.limit("60/minute")
+async def get_track_record(request: Request, ticker: str):
+    """DIF-2: this stock's own short-term signal record against SPY, beside its chart."""
+    ticker = ticker.upper()
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            "SELECT as_of_date, short_signal FROM stock_scores WHERE ticker = $1 AND universe_id = 'All' ORDER BY as_of_date",
+            ticker,
+        )
+    signal_rows = [{"as_of_date": str(r["as_of_date"]), "short_signal": r["short_signal"]} for r in rows]
+    try:
+        stock = await run_in_threadpool(get_cached_history, ticker, "5y", True, None)
+        spy = await run_in_threadpool(get_cached_history, "SPY", "5y", True, None)
+        closes = stock["Close"] if not stock.empty else pd.Series(dtype=float)
+        spy_closes = spy["Close"] if not spy.empty else pd.Series(dtype=float)
+    except Exception:
+        closes = spy_closes = pd.Series(dtype=float)
+    if closes.empty or spy_closes.empty:
+        return {"ticker": ticker, "enough_data": False, "signals_evaluated": 0, "hit_rate_pct": None,
+                "avg_excess_vs_spy_pct": None, "worst_miss": None, "message": "Price history is unavailable right now."}
+    return {"ticker": ticker, **track_record(signal_rows, closes, spy_closes)}
 
 
 @router.get("/{ticker}/peers")

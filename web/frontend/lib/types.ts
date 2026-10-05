@@ -2716,3 +2716,16 @@ export interface SavedChartLayout {
   layout: ChartGridLayout;
   updated_at: string;
 }
+
+// DIF-2: this stock's short-term signal record against SPY.
+export interface StockTrackRecord {
+  ticker: string;
+  enough_data: boolean;
+  signals_evaluated: number;
+  min_signals: number;
+  horizon_sessions: number;
+  hit_rate_pct: number | null;
+  avg_excess_vs_spy_pct: number | null;
+  worst_miss: { as_of_date: string; signal: "Buy" | "Trim"; realized_return_pct: number; excess_vs_spy_pct: number } | null;
+  message: string | null;
+}

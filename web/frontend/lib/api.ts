@@ -76,6 +76,7 @@ import type {
   StrategyCompareRow,
   StrategySharedResponse,
   StrategyScanStatus,
+  StockTrackRecord,
   ChartGridLayout,
   SavedChartLayout,
   PortfolioBenchmarkComparison,
@@ -1935,4 +1936,9 @@ export function saveChartLayout(name: string, layout: ChartGridLayout) {
 
 export function deleteChartLayout(id: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/chart-layouts/${id}`, "DELETE");
+}
+
+// DIF-2: this stock's short-term signal record against SPY.
+export function getStockTrackRecord(ticker: string) {
+  return apiFetch<StockTrackRecord>(`/api/v1/stock/${encodeURIComponent(ticker)}/track-record`);
 }

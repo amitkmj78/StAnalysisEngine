@@ -48,6 +48,7 @@ import EvidencePanel from "@/components/stock-detail/EvidencePanel";
 import FilingSummaryText from "@/components/stock-detail/FilingSummaryText";
 import TradeImpactCard from "@/components/portfolio/TradeImpactCard";
 import SimilarSetupsCard from "@/components/stock-detail/SimilarSetupsCard";
+import TrackRecordPanel from "@/components/stock-detail/TrackRecordPanel";
 import TickerSearchInput from "@/components/TickerSearchInput";
 
 function signalBadgeClass(signal: string): string {
@@ -496,6 +497,10 @@ export default function StockScorePage() {
           regimeHistory={loggedIn ? regimeHistory : null}
           sectorEtf={SECTOR_ETF_BY_NAME[detail?.sector ?? data?.sector_key ?? ""] ?? null}
         />
+      </div>
+
+      <div className="mt-6">
+        <TrackRecordPanel ticker={ticker} />
       </div>
 
       {data && (
