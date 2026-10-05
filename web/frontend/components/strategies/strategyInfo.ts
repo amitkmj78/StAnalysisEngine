@@ -153,10 +153,10 @@ export const STRATEGY_INFO: Record<string, ColumnInfo> = {
     ],
   },
   "deflated sharpe": {
-    title: "Could this be luck?",
+    title: "Chance the Sharpe ratio is above zero",
     body: [
-      "The chance that the result is real and not luck, after allowing for how many versions of the rules you tried in the last 90 days.",
-      "The more versions you try, the more likely one of them looks good by chance, so the number goes down.",
+      "How likely it is that the strategy made a steady return for its risk, after allowing for how many versions of the rules you tried in the last 90 days.",
+      "This does not compare the strategy with holding the same stocks. A strategy can have a positive Sharpe ratio and still trail holding those stocks, so check the extra return column too.",
     ],
   },
   sensitivity: {
