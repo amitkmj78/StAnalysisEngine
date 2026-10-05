@@ -34,6 +34,7 @@ SCAN_COOLDOWN = 5
 
 SHORT_MAX_HOLD_DAYS = 21            # about one month of trading days
 SHORT_MIN_TRADES_PER_YEAR = 12
+SHORT_TRADE_COUNT_MAX_HOLD_DAYS = 42   # trade count only counts as short-term when holds average under about two months
 LONG_MIN_HOLD_DAYS = 126            # about six months of trading days
 MIN_TRADES_FOR_SHORT = 30
 TOP_PER_GROUP = 5
@@ -83,6 +84,19 @@ TEMPLATES: tuple[Template, ...] = (
              ({"field": "rsi_14", "op": "crosses_above", "value": 50},),
              ({"field": "rsi_14", "op": ">", "value": 60},),
              {"trailing_stop_pct": 10.0}),
+    # Long-horizon templates: wide stops and slow exits, so the measured hold is months, not weeks.
+    Template("long_trend", "Long trend hold (200-day, wide stop)",
+             ({"field": "close_vs_sma_200_pct", "op": "crosses_above", "value": 0},),
+             ({"field": "close_vs_sma_200_pct", "op": "crosses_below", "value": 0},),
+             {"trailing_stop_pct": 30.0}),
+    Template("long_strength", "Long strength hold (near 52-week high)",
+             ({"field": "dist_52w_high_pct", "op": "crosses_above", "value": -5},),
+             ({"field": "dist_52w_high_pct", "op": "<", "value": -25},),
+             {"trailing_stop_pct": 30.0}),
+    Template("long_slow", "Long trend, slow exit (200-day, no stop)",
+             ({"field": "close_vs_sma_200_pct", "op": "crosses_above", "value": 0},),
+             ({"field": "close_vs_sma_200_pct", "op": "crosses_below", "value": -5},),
+             {"stop_loss_pct": 40.0}),
 )
 
 
@@ -104,7 +118,9 @@ def _max_dd(daily_pct: pd.Series) -> Optional[float]:
 def _holding_class(avg_hold_days: Optional[float], trades_per_year: float) -> str:
     if avg_hold_days is None:
         return "none"
-    if avg_hold_days < SHORT_MAX_HOLD_DAYS or trades_per_year > SHORT_MIN_TRADES_PER_YEAR:
+    # A high trade count only makes a strategy short-term when its holds are short too. A strategy that holds
+    # for months but re-enters often is not short-term.
+    if avg_hold_days < SHORT_MAX_HOLD_DAYS or (trades_per_year > SHORT_MIN_TRADES_PER_YEAR and avg_hold_days < SHORT_TRADE_COUNT_MAX_HOLD_DAYS):
         return "short"
     if avg_hold_days <= LONG_MIN_HOLD_DAYS:
         return "swing"
@@ -127,9 +143,9 @@ def _profile(r: dict) -> str:
         return (f"Short-term · average hold {r['avg_hold_days']:.0f} trading days · {r['trades_oos']} trades out-of-sample · "
                 f"{r['oos_return_after_costs_pct']:+.1f}% after costs vs {r['oos_return_vs_basket_pct']:+.1f}% for holding the same stocks")
     if r["holding_class"] == "long":
-        dd = "smaller" if (r["oos_max_drawdown_pct"] or 0) >= (r["spy_oos_max_drawdown_pct"] or 0) else "larger"
+        dd = "smaller" if (r["full_max_drawdown_pct"] or 0) >= (r["spy_full_max_drawdown_pct"] or 0) else "larger"
         months = (r["avg_hold_days"] or 0) / 21
-        return (f"Long-term · holds ~{months:.0f} months · {r['oos_cagr_vs_spy_pct']:+.1f}%/yr vs the S&P 500 out-of-sample · {dd} drawdowns")
+        return (f"Long-term · holds ~{months:.0f} months · {r['full_cagr_vs_spy_pct']:+.1f}%/yr vs the S&P 500 over five years · {dd} drawdowns")
     if r["holding_class"] == "swing":
         return f"Swing · average hold {r['avg_hold_days']:.0f} trading days · {r['trades_oos']} trades out-of-sample"
     return "No trades out-of-sample"
@@ -161,6 +177,7 @@ def scan(
     is_dates, oos_dates = dates[:split], dates[split:]
     oos_years = len(oos_dates) / PERIODS_PER_YEAR
     spy_oos_m = metrics(spy_all.reindex(oos_dates).dropna())
+    spy_full_m = metrics(spy_all)
     downturn_included = (_max_dd(spy_all) or 0) <= DOWNTURN_DRAWDOWN_PCT
 
     trial_sharpes = []
@@ -181,6 +198,9 @@ def scan(
         trades_per_year = n_trades / oos_years if oos_years else 0.0
         net = [tr.return_pct - ROUND_TRIP_COST_PCT for tr in oos_trades]
         oos_m = metrics(strat_oos)
+        full_m = metrics(daily)
+        full_cagr = full_m.get("cagr_pct")
+        spy_full_cagr = spy_full_m.get("cagr_pct")
         is_excess = _total_pct(daily.reindex(is_dates).dropna()) - _total_pct(basket.reindex(is_dates).dropna())
         oos_excess = _total_pct(strat_oos) - _total_pct(basket_oos)
         dsr = deflated_sharpe(daily, trial_sharpes)
@@ -201,6 +221,10 @@ def scan(
             "oos_cagr_vs_spy_pct": round(oos_cagr - spy_cagr, 2) if oos_cagr is not None and spy_cagr is not None else None,
             "oos_max_drawdown_pct": oos_m.get("max_drawdown_pct"),
             "spy_oos_max_drawdown_pct": spy_oos_m.get("max_drawdown_pct"),
+            "full_cagr_pct": full_cagr,
+            "full_cagr_vs_spy_pct": round(full_cagr - spy_full_cagr, 2) if full_cagr is not None and spy_full_cagr is not None else None,
+            "full_max_drawdown_pct": full_m.get("max_drawdown_pct"),
+            "spy_full_max_drawdown_pct": spy_full_m.get("max_drawdown_pct"),
             "deflated_probability": dsr.get("probability"),
             "warnings": _warnings(is_excess, oos_excess),
         })
@@ -215,9 +239,9 @@ def scan(
     long_pool = sorted(
         (r for r in rows
          if r["holding_class"] == "long"
-         and r["oos_cagr_vs_spy_pct"] is not None and r["oos_cagr_vs_spy_pct"] >= 0
-         and (r["oos_max_drawdown_pct"] or 0) >= (r["spy_oos_max_drawdown_pct"] or 0)),
-        key=lambda r: r["oos_cagr_vs_spy_pct"], reverse=True,
+         and r["full_cagr_vs_spy_pct"] is not None and r["full_cagr_vs_spy_pct"] >= 0
+         and (r["full_max_drawdown_pct"] or 0) >= (r["spy_full_max_drawdown_pct"] or 0)),
+        key=lambda r: r["full_cagr_vs_spy_pct"], reverse=True,
     )
     if not downturn_included:
         long_message = "The test window has no major downturn in the S&P 500, so long-term results are not ranked."
@@ -246,8 +270,8 @@ def scan(
                 "message": None if short else "No strong short-term candidates in this sample.",
             },
             "long_term": {
-                "ranked_by": "Out-of-sample CAGR vs the S&P 500",
-                "minimum": "Matches or beats the S&P 500 out-of-sample with a drawdown no deeper, in a window with a major downturn",
+                "ranked_by": "Five-year CAGR vs the S&P 500",
+                "minimum": "Matches or beats the S&P 500 over the full five years with a drawdown no deeper, in a window with a major downturn",
                 "candidates": long_candidates,
                 "message": long_message,
             },
