@@ -5,6 +5,8 @@ Nothing here places an order. Paper forward runs (STB-6) are not built.
 
 import hashlib
 import json
+import threading
+import time
 from datetime import date
 import random
 import secrets
@@ -16,6 +18,7 @@ from starlette.concurrency import run_in_threadpool
 
 from services.stock_finder_service import fetch_sp500_tickers, get_peer_lookup_table
 from services.strategy_engine import DEFAULT_COOLDOWN, MAX_TICKERS, Rule, feature_frame, run_backtest
+from services.strategy_scan import TEMPLATES, pick_sample, scan
 from services.yfinance_cache import get_cached_history
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn, user_conn
@@ -373,4 +376,76 @@ async def get_shared(request: Request, token: str):
         "definition": json.loads(row["definition"]) if isinstance(row["definition"], str) else row["definition"],
         "result": json.loads(row["result"]) if isinstance(row["result"], str) else row["result"],
         "read_only": True,
+    }
+
+
+# Template scan: runs in a background thread so the page can show progress. Jobs live in memory and
+# are lost on a server restart, which is fine for a scan that takes a minute or two.
+SCAN_JOBS: dict[str, dict] = {}
+SCAN_KEEP = 20
+
+
+def _run_scan_job(job_id: str, tickers: list[str], regime_by_date: Optional[dict[str, str]]) -> None:
+    job = SCAN_JOBS[job_id]
+    try:
+        frames = {}
+        for t in tickers:
+            history = get_cached_history(t, HISTORY_PERIOD, True, None)
+            if history.empty or not {"Open", "High", "Low", "Close"}.issubset(history.columns):
+                continue
+            columns = [c for c in ("Open", "High", "Low", "Close", "Volume") if c in history.columns]
+            frames[t] = feature_frame(history[columns], regime_by_date)
+        bench = get_cached_history(BENCHMARK, HISTORY_PERIOD, True, None)
+        if len(frames) < 2 or bench.empty:
+            raise ValueError("Not enough price history for this sample. Try again.")
+
+        def progress(done: int, total: int) -> None:
+            job["done"] = done
+
+        job["result"] = scan(frames, bench["Close"], progress=progress)
+        job["result"]["seed"] = job["seed"]
+        job["status"] = "done"
+    except Exception as e:  # reported to the page, not raised in the thread
+        job["status"] = "error"
+        job["error"] = str(e) or "The scan failed."
+    finally:
+        job["finished"] = time.time()
+
+
+@router.post("/scan")
+@limiter.limit("3/minute")
+async def start_scan(request: Request, seed: Optional[int] = Query(None, ge=0, le=2_147_483_647)):
+    await enforce_daily_quota(request, "strategy-builder/scan")
+    universe = await _sp500()
+    chosen_seed = seed if seed is not None else random.randrange(1, 2_147_483_647)
+    tickers = pick_sample(universe, chosen_seed)
+    regime_by_date = None
+    async with service_conn() as conn:
+        rows = await conn.fetch("SELECT as_of_date, regime_confirmed FROM market_regime_daily")
+    regime_by_date = {r["as_of_date"].isoformat(): r["regime_confirmed"] for r in rows}
+    job_id = secrets.token_urlsafe(8)
+    SCAN_JOBS[job_id] = {
+        "status": "running", "done": 0, "total": len(TEMPLATES), "seed": chosen_seed,
+        "tickers": tickers, "result": None, "error": None, "started": time.time(), "finished": None,
+    }
+    for old in sorted(SCAN_JOBS, key=lambda k: SCAN_JOBS[k]["started"])[:-SCAN_KEEP]:
+        SCAN_JOBS.pop(old, None)
+    threading.Thread(target=_run_scan_job, args=(job_id, tickers, regime_by_date), daemon=True).start()
+    return {"job_id": job_id, "seed": chosen_seed, "tickers": tickers}
+
+
+@router.get("/scan/{job_id}")
+@limiter.limit("120/minute")
+async def scan_status(request: Request, job_id: str):
+    job = SCAN_JOBS.get(job_id)
+    if job is None:
+        raise HTTPException(404, "This scan is not found. It may have been cleared by a restart; start it again.")
+    return {
+        "status": job["status"],
+        "done": job["done"],
+        "total": job["total"],
+        "seed": job["seed"],
+        "tickers": job["tickers"],
+        "error": job["error"],
+        "result": job["result"],
     }

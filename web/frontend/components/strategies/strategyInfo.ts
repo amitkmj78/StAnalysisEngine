@@ -195,6 +195,14 @@ export const STRATEGY_INFO: Record<string, ColumnInfo> = {
       "The stocks are the ones you chose, the stored company scores only start in August 2026, and the app's own model portfolio has only a few months of history.",
     ],
   },
+  scan: {
+    title: "What a scan does",
+    body: [
+      "Tries each starting template on the same random set of 20 large US companies, over five years.",
+      "The results are ranked on the most recent 30% of dates, which the rules were not picked on. A template that did well only on earlier dates is marked.",
+      "A good rank is a reason to study the idea further, not proof it works.",
+    ],
+  },
   "saved strategies": {
     title: "Saved tests",
     body: ["Tests you saved, with their rules and results as they were. You can compare up to four, or share one with a read-only link."],

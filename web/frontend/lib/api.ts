@@ -75,6 +75,7 @@ import type {
   StrategySavedDetail,
   StrategyCompareRow,
   StrategySharedResponse,
+  StrategyScanStatus,
   PortfolioBenchmarkComparison,
   PortfolioCompareResponse,
   PortfolioDropAlert,
@@ -1909,4 +1910,14 @@ export function shareSavedStrategy(id: number) {
 
 export function getSharedStrategy(token: string) {
   return apiFetch<StrategySharedResponse>(`/api/v1/strategy-builder/shared/${encodeURIComponent(token)}`);
+}
+
+// Template scan on a random S&P 500 sample. Starts a background job; poll the status until done.
+export function startStrategyScan(seed?: number) {
+  const query = seed !== undefined ? `?seed=${seed}` : "";
+  return apiSend<{ job_id: string; seed: number; tickers: string[] }>(`/api/v1/strategy-builder/scan${query}`, "POST");
+}
+
+export function getStrategyScan(jobId: string) {
+  return apiFetch<StrategyScanStatus>(`/api/v1/strategy-builder/scan/${encodeURIComponent(jobId)}`);
 }

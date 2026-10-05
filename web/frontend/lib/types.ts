@@ -2647,3 +2647,35 @@ export interface StrategySharedResponse {
   result: StrategyBacktestResponse;
   read_only: true;
 }
+
+// Template scan on a random S&P 500 sample. Candidates to study, not recommendations.
+export interface StrategyScanCandidate {
+  rank: number;
+  key: string;
+  name: string;
+  oos_excess_return_pct: number;
+  in_sample_excess_return_pct: number;
+  oos_sharpe: number | null;
+  deflated_probability: number | null;
+  warnings: string[];
+}
+
+export interface StrategyScanResult {
+  sample_size: number;
+  tickers: string[];
+  variants_tried: number;
+  seed: number;
+  period: { start: string; end: string };
+  candidates: StrategyScanCandidate[];
+  note: string;
+}
+
+export interface StrategyScanStatus {
+  status: "running" | "done" | "error";
+  done: number;
+  total: number;
+  seed: number;
+  tickers: string[];
+  error: string | null;
+  result: StrategyScanResult | null;
+}
