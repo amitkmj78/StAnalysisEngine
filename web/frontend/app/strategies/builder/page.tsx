@@ -11,7 +11,7 @@ import type { Portfolio } from "@/lib/types";
 import type { StrategyBacktestResponse, StrategyCheck, StrategyRuleInput } from "@/lib/types";
 
 // Strategy Builder (v2 layout). Builder on the left, results on the right, verdict first.
-// Nothing here places an order. Controls for features not built yet are shown disabled.
+// Nothing here places an order.
 
 const FIELDS: { key: string; label: string; numeric: boolean }[] = [
   { key: "rsi_14", label: "RSI (14)", numeric: true },
@@ -479,12 +479,7 @@ export default function StrategyBuilderPage() {
                 ))}
               </select>
             </label>
-            <div className="flex gap-2">
-              <input value={name} onChange={(e) => setName(e.target.value)} className="input min-w-0 flex-1 py-1 text-sm" aria-label="Strategy name" />
-              <button type="button" disabled className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-400" title="Saved variants: coming next">
-                Variants
-              </button>
-            </div>
+            <input value={name} onChange={(e) => setName(e.target.value)} className="input w-full py-1 text-sm" aria-label="Strategy name" />
           </Panel>
 
           <Panel info="universe" title={`Universe · ${tickers.length} of 20`} right={<button type="button" onClick={loadSp500Sample} className="text-xs font-medium text-slate-700 hover:underline">Random S&amp;P 500 ×10</button>}>
@@ -506,7 +501,9 @@ export default function StrategyBuilderPage() {
               className="input mt-2 w-full py-1 text-xs"
               id="builder-add-ticker"
             />
-            <div className="mt-2 flex flex-col gap-2 rounded-md border border-dashed border-slate-300 p-2 text-xs">
+            <details className="mt-2 rounded-md border border-slate-200 p-2 text-xs">
+            <summary className="cursor-pointer font-medium text-slate-700">More ways to pick stocks</summary>
+            <div className="mt-2 flex flex-col gap-2">
               <p className="font-medium text-slate-700">Test one of my portfolios</p>
               {portfolios.length > 1 && (
                 <select value={portfolioId ?? ""} onChange={(e) => setPortfolioId(Number(e.target.value))} className="input py-1 text-xs" aria-label="Portfolio">
@@ -529,7 +526,7 @@ export default function StrategyBuilderPage() {
               </button>
               {portfolioNote && <p className="text-slate-500">{portfolioNote}</p>}
             </div>
-            <select value={sector} onChange={(e) => loadSector(e.target.value)} className="input mt-2 w-full py-1 text-xs" aria-label="Sector basket">
+            <select value={sector} onChange={(e) => loadSector(e.target.value)} className="input mt-3 w-full py-1 text-xs" aria-label="Sector basket">
               <option value="">Sector basket (largest 10)…</option>
               {SECTORS.map((x) => (
                 <option key={x} value={x}>
@@ -538,6 +535,7 @@ export default function StrategyBuilderPage() {
               ))}
             </select>
             {presetError && <p className="mt-2 text-xs text-red-700">{presetError}</p>}
+            </details>
             <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
               Hand-picked list. Results may reflect which stocks you chose rather than the rules.{" "}
               <button type="button" onClick={() => runBacktest({ sample_size: Math.max(tickers.length, 5) })} disabled={loading} className="font-semibold underline underline-offset-2 disabled:opacity-50">
@@ -616,35 +614,37 @@ export default function StrategyBuilderPage() {
             )}
           </Panel>
 
-          <Panel title="Re-entry and execution" info="cooldown">
-            <div className="grid grid-cols-2 gap-3 text-xs text-slate-600">
+          <details className="rounded-lg border border-slate-200 bg-white p-4">
+            <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Advanced settings
+              <MetricLabel info={STRATEGY_INFO.cooldown} />
+            </summary>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600">
               <label className="flex flex-col gap-1">
-                Cooldown after exit
+                Wait before buying again (days)
                 <input value={cooldown} onChange={(e) => setCooldown(e.target.value)} className="input py-1 text-xs" />
               </label>
-              <label className="flex flex-col gap-1">
-                Sizing
-                <select disabled className="input py-1 text-xs" title="Equal weight, or your actual weights when a portfolio is loaded">
-                  <option>{portfolioWeights ? "Your actual weights" : "Equal weight per stock"}</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-1">
-                Costs + slippage
-                <span className="rounded border border-slate-200 px-2 py-1 text-slate-500">10 + 5 bps per side</span>
-              </label>
-              <label className="flex flex-col gap-1">
-                Fills
-                <span className="rounded border border-slate-200 px-2 py-1 text-slate-500">Next session’s open</span>
-              </label>
+              <div className="flex flex-col gap-1">
+                <span>How much per stock</span>
+                <span className="rounded border border-slate-200 px-2 py-1 text-slate-700">{portfolioWeights ? "Your actual weights" : "Equal share"}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span>Trading costs</span>
+                <span className="rounded border border-slate-200 px-2 py-1 text-slate-700">10 + 5 bps per side</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span>When trades happen</span>
+                <span className="rounded border border-slate-200 px-2 py-1 text-slate-700">Next session’s open</span>
+              </div>
               <label className="col-span-2 flex flex-col gap-1">
-                Verdict compares against
+                Compare the verdict against
                 <select value={verdictBenchmark} onChange={(e) => setVerdictBenchmark(e.target.value as "basket" | "spy")} className="input py-1 text-xs">
                   <option value="basket">The same stocks, held</option>
                   <option value="spy">SPY</option>
                 </select>
               </label>
             </div>
-          </Panel>
+          </details>
 
           {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           <button type="submit" disabled={loading || tickers.length === 0 || (!hasProtective && !waive)} className="rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
@@ -722,7 +722,6 @@ export default function StrategyBuilderPage() {
                     {b === "basket" ? "Same stocks" : b === "spy" ? "SPY" : "Cash"}
                   </button>
                 ))}
-                <button type="button" disabled className="rounded px-2.5 py-1 text-slate-300" title="QQQ: coming next">QQQ</button>
               </div>
             </div>
             {chart ? (
