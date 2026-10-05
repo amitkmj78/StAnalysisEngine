@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import MetricLabel from "@/components/MetricLabel";
 import PlotlyChart from "@/components/PlotlyChart";
 import { STRATEGY_INFO } from "@/components/strategies/strategyInfo";
-import { ApiError, getStrategyPresets, runStrategyBacktest, saveStrategy } from "@/lib/api";
+import { ApiError, getPortfolioPositions, getPortfolios, getStrategyPresets, runStrategyBacktest, saveStrategy } from "@/lib/api";
+import type { Portfolio } from "@/lib/types";
 import type { StrategyBacktestResponse, StrategyCheck, StrategyRuleInput } from "@/lib/types";
 
 // Strategy Builder (v2 layout). Builder on the left, results on the right, verdict first.
@@ -270,6 +271,10 @@ export default function StrategyBuilderPage() {
   const [sector, setSector] = useState("");
   const [presetError, setPresetError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<string | null>(null);
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [portfolioId, setPortfolioId] = useState<number | null>(null);
+  const [portfolioNote, setPortfolioNote] = useState<string | null>(null);
+  const [portfoliosLoaded, setPortfoliosLoaded] = useState(false);
 
   const hasProtective = Boolean(trailing || stopLoss || timeStop) || exit.length > 0;
   const conflict = conflictIndex(entry, exit);
@@ -284,6 +289,37 @@ export default function StrategyBuilderPage() {
       exit: exitParts.length ? exitParts.join(", or ") : "(no exit set)",
     };
   }, [entry, exit, trailing, stopLoss, timeStop]);
+
+  function ensurePortfoliosLoaded() {
+    if (portfoliosLoaded) return;
+    setPortfoliosLoaded(true);
+    getPortfolios()
+      .then((res) => {
+        setPortfolios(res.portfolios);
+        setPortfolioId(res.portfolios[0]?.id ?? null);
+      })
+      .catch(() => setPortfolios([]));
+  }
+
+  async function loadMyPortfolio() {
+    setPortfolioNote(null);
+    try {
+      const res = await getPortfolioPositions(portfolioId ?? undefined);
+      const held = Array.from(new Set(res.positions.map((p) => p.ticker.toUpperCase())));
+      if (held.length === 0) {
+        setPortfolioNote("This portfolio has no holdings yet.");
+        return;
+      }
+      setTickers(held.slice(0, 20));
+      setPortfolioNote(
+        held.length > 20
+          ? `Loaded the first 20 of ${held.length} holdings. The test is limited to 20 stocks.`
+          : `Loaded ${held.length} holdings. Each gets an equal share, not your actual weights.`,
+      );
+    } catch (err) {
+      setPortfolioNote(err instanceof ApiError ? err.message : "Your portfolio could not be loaded.");
+    }
+  }
 
   function applyTemplate(key: string) {
     const t = TEMPLATES.find((x) => x.key === key);
@@ -453,6 +489,29 @@ export default function StrategyBuilderPage() {
               className="input mt-2 w-full py-1 text-xs"
               aria-label="Add ticker"
             />
+            <div className="mt-2 flex flex-col gap-2 rounded-md border border-dashed border-slate-300 p-2 text-xs">
+              <p className="font-medium text-slate-700">Test one of my portfolios</p>
+              {portfolios.length > 1 && (
+                <select value={portfolioId ?? ""} onChange={(e) => setPortfolioId(Number(e.target.value))} className="input py-1 text-xs" aria-label="Portfolio">
+                  {portfolios.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  ensurePortfoliosLoaded();
+                  loadMyPortfolio();
+                }}
+                className="self-start rounded border border-slate-300 bg-white px-2 py-1 font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Use my portfolio&apos;s holdings
+              </button>
+              {portfolioNote && <p className="text-slate-500">{portfolioNote}</p>}
+            </div>
             <select value={sector} onChange={(e) => loadSector(e.target.value)} className="input mt-2 w-full py-1 text-xs" aria-label="Sector basket">
               <option value="">Sector basket (largest 10)…</option>
               {SECTORS.map((x) => (
