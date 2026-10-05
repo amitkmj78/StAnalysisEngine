@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import MetricLabel from "@/components/MetricLabel";
 import PlotlyChart from "@/components/PlotlyChart";
+import { STRATEGY_INFO } from "@/components/strategies/strategyInfo";
 import { ApiError, getStrategyPresets, runStrategyBacktest, saveStrategy } from "@/lib/api";
 import type { StrategyBacktestResponse, StrategyCheck, StrategyRuleInput } from "@/lib/types";
 
@@ -218,11 +220,14 @@ function RuleRow({ rule, onChange, onRemove }: { rule: StrategyRuleInput; onChan
   );
 }
 
-function Panel({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
+function Panel({ title, children, right, info }: { title: string; children: React.ReactNode; right?: React.ReactNode; info?: string }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
+        <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          {title}
+          {info && STRATEGY_INFO[info] && <MetricLabel info={STRATEGY_INFO[info]} />}
+        </h2>
         {right}
       </div>
       <div className="mt-3">{children}</div>
@@ -230,10 +235,13 @@ function Panel({ title, children, right }: { title: string; children: React.Reac
   );
 }
 
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
+function Stat({ label, value, sub, tone, info }: { label: string; value: string; sub?: string; tone?: string; info?: string }) {
   return (
     <div className="rounded-md border border-slate-200 p-3">
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="flex items-center gap-1 text-xs text-slate-500">
+        {label}
+        {info && STRATEGY_INFO[info] && <MetricLabel info={STRATEGY_INFO[info]} />}
+      </p>
       <p className={`mt-1 font-mono text-xl font-semibold ${tone ?? "text-slate-900"}`}>{value}</p>
       {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
     </div>
@@ -402,7 +410,7 @@ export default function StrategyBuilderPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
         {/* Builder */}
         <form onSubmit={handleRun} className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
-          <Panel title="Strategy">
+          <Panel title="Strategy" info="template">
             <label className="mb-2 flex flex-col gap-1 text-xs text-slate-500">
               Start from a template
               <select value={template} onChange={(e) => applyTemplate(e.target.value)} className="input py-1 text-xs" aria-label="Template">
@@ -421,7 +429,7 @@ export default function StrategyBuilderPage() {
             </div>
           </Panel>
 
-          <Panel title={`Universe · ${tickers.length} of 20`} right={<button type="button" onClick={loadSp500Sample} className="text-xs font-medium text-slate-700 hover:underline">Random S&amp;P 500 ×10</button>}>
+          <Panel info="universe" title={`Universe · ${tickers.length} of 20`} right={<button type="button" onClick={loadSp500Sample} className="text-xs font-medium text-slate-700 hover:underline">Random S&amp;P 500 ×10</button>}>
             <div className="flex flex-wrap gap-1.5">
               {tickers.map((t) => (
                 <span key={t} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
@@ -462,13 +470,13 @@ export default function StrategyBuilderPage() {
             </p>
           </Panel>
 
-          <Panel title="In plain words">
+          <Panel title="In plain words" info="plain words">
             <p className="text-sm text-slate-700">
               Buy when <strong>{plainWords.entry}</strong>. Sell when <strong>{plainWords.exit}</strong>. Wait <strong>{cooldown || 0} sessions</strong> before buying the same stock again.
             </p>
           </Panel>
 
-          <Panel title="Entry · buy when all hold">
+          <Panel title="Entry · buy when all hold" info="entry">
             <div className="flex flex-col gap-2">
               {entry.map((rule, i) => (
                 <div key={i} className="flex flex-col gap-2">
@@ -497,14 +505,14 @@ export default function StrategyBuilderPage() {
             )}
           </Panel>
 
-          <Panel title="Exit · sell when any holds">
+          <Panel title="Exit · sell when any holds" info="exit">
             <div className="flex flex-col gap-2">
               {exit.map((rule, i) => (
                 <RuleRow key={i} rule={rule} onChange={(next) => setExit(exit.map((x, j) => (j === i ? next : x)))} onRemove={() => setExit(exit.filter((_, j) => j !== i))} />
               ))}
             </div>
             <div className="mt-3 rounded-md border border-dashed border-slate-300 p-3">
-              <p className="text-xs font-semibold text-slate-700">Protective exit <span className="font-normal text-slate-400">· limits losers</span></p>
+              <p className="flex items-center gap-1 text-xs font-semibold text-slate-700">Protective exit <span className="font-normal text-slate-400">· limits losers</span><MetricLabel info={STRATEGY_INFO["protective exit"]} /></p>
               <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-600">
                 <label className="flex flex-col gap-1">
                   Trailing stop %
@@ -532,7 +540,7 @@ export default function StrategyBuilderPage() {
             )}
           </Panel>
 
-          <Panel title="Re-entry and execution">
+          <Panel title="Re-entry and execution" info="cooldown">
             <div className="grid grid-cols-2 gap-3 text-xs text-slate-600">
               <label className="flex flex-col gap-1">
                 Cooldown after exit
@@ -597,9 +605,10 @@ export default function StrategyBuilderPage() {
             {r && (
               <>
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Stat label="Excess CAGR vs same stocks held" value={pct(cagrVsBasket)} sub={`${pct(r.strategy.cagr_pct)} vs ${pct(r.basket.cagr_pct)}`} />
-                  <Stat label="Excess CAGR vs SPY" value={pct(cagrVsSpy)} sub={`${pct(r.strategy.cagr_pct)} vs ${pct(r.benchmark_spy.cagr_pct)}`} />
+                  <Stat info="excess cagr" label="Excess CAGR vs same stocks held" value={pct(cagrVsBasket)} sub={`${pct(r.strategy.cagr_pct)} vs ${pct(r.basket.cagr_pct)}`} />
+                  <Stat info="excess cagr" label="Excess CAGR vs SPY" value={pct(cagrVsSpy)} sub={`${pct(r.strategy.cagr_pct)} vs ${pct(r.benchmark_spy.cagr_pct)}`} />
                   <Stat
+                    info="sharpe"
                     label="Sharpe vs SPY"
                     value={`${plain(r.strategy.sharpe)} vs ${plain(r.benchmark_spy.sharpe)}`}
                     tone={(r.verdict.sharpe_vs_spy ?? 0) > 0 ? "text-emerald-700" : "text-red-700"}
@@ -678,12 +687,12 @@ export default function StrategyBuilderPage() {
                     <tr>
                       <th className="py-1 text-left font-medium"></th>
                       <th className="font-medium">Total</th>
-                      <th className="font-medium">CAGR</th>
-                      <th className="font-medium">Volatility</th>
-                      <th className="font-medium">Max DD</th>
-                      <th className="font-medium">Sharpe</th>
-                      <th className="font-medium">Worst month</th>
-                      <th className="font-medium">Cost drag</th>
+                      <th className="font-medium"><span className="inline-flex items-center gap-1">CAGR<MetricLabel info={STRATEGY_INFO["cagr"]} /></span></th>
+                      <th className="font-medium"><span className="inline-flex items-center gap-1">Volatility<MetricLabel info={STRATEGY_INFO["volatility"]} /></span></th>
+                      <th className="font-medium"><span className="inline-flex items-center gap-1">Max DD<MetricLabel info={STRATEGY_INFO["max drawdown"]} /></span></th>
+                      <th className="font-medium"><span className="inline-flex items-center gap-1">Sharpe<MetricLabel info={STRATEGY_INFO["sharpe"]} /></span></th>
+                      <th className="font-medium"><span className="inline-flex items-center gap-1">Worst month<MetricLabel info={STRATEGY_INFO["worst month"]} /></span></th>
+                      <th className="font-medium"><span className="inline-flex items-center gap-1">Cost drag<MetricLabel info={STRATEGY_INFO["cost drag"]} /></span></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono text-xs">
@@ -747,7 +756,7 @@ export default function StrategyBuilderPage() {
               {tab === "robustness" && (
                 <div className="mt-4 flex flex-col gap-4">
                   <div className="flex items-baseline justify-between">
-                    <p className="text-sm font-medium text-slate-900">In-sample vs out-of-sample</p>
+                    <p className="flex items-center gap-1 text-sm font-medium text-slate-900">In-sample vs out-of-sample<MetricLabel info={STRATEGY_INFO["in-sample"]} /></p>
                     <p className="text-xs text-slate-400">Split at 70%</p>
                   </div>
                   <div className="overflow-x-auto">
@@ -755,10 +764,10 @@ export default function StrategyBuilderPage() {
                       <thead className="text-xs text-slate-400">
                         <tr>
                           <th className="py-1 text-left font-medium">Period</th>
-                          <th className="font-medium">CAGR</th>
-                          <th className="font-medium">Volatility</th>
-                          <th className="font-medium">Max DD</th>
-                          <th className="font-medium">Sharpe</th>
+                          <th className="font-medium"><span className="inline-flex items-center gap-1">CAGR<MetricLabel info={STRATEGY_INFO["cagr"]} /></span></th>
+                          <th className="font-medium"><span className="inline-flex items-center gap-1">Volatility<MetricLabel info={STRATEGY_INFO["volatility"]} /></span></th>
+                          <th className="font-medium"><span className="inline-flex items-center gap-1">Max DD<MetricLabel info={STRATEGY_INFO["max drawdown"]} /></span></th>
+                          <th className="font-medium"><span className="inline-flex items-center gap-1">Sharpe<MetricLabel info={STRATEGY_INFO["sharpe"]} /></span></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-mono text-xs">
@@ -784,19 +793,21 @@ export default function StrategyBuilderPage() {
                   </p>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Stat
+                      info="walk-forward"
                       label="Walk-forward windows beating the basket"
                       value={r.walk_forward ? `${r.walk_forward.beat_basket_windows} of ${r.walk_forward.test_windows}` : "–"}
                       sub="Six-month test windows, rules not refitted"
                     />
                     <Stat
-                      label={`Probability Sharpe is real, after ${r.deflated_sharpe?.variants ?? 1} variant(s)`}
+                      info="deflated sharpe"
+                      label={`Could this be luck? After ${r.deflated_sharpe?.variants ?? 1} variant(s)`}
                       value={r.deflated_sharpe?.probability != null ? `${Math.round(r.deflated_sharpe.probability * 100)}%` : "–"}
                       sub="Deflated Sharpe, from your own runs in the last 90 days"
                     />
                   </div>
                   {r.sensitivity && (
                     <div>
-                      <p className="text-sm font-medium text-slate-900">Sensitivity: each threshold moved ±{r.sensitivity.step_pct}%</p>
+                      <p className="flex items-center gap-1 text-sm font-medium text-slate-900">Does a small change break it? Each threshold moved ±{r.sensitivity.step_pct}%<MetricLabel info={STRATEGY_INFO["sensitivity"]} /></p>
                       <div className="mt-2 overflow-x-auto">
                         <table className="w-full min-w-[32rem] text-right text-xs">
                           <thead className="text-slate-400">
@@ -876,7 +887,7 @@ export default function StrategyBuilderPage() {
 
           {r && (
             <details className="rounded-lg border border-slate-200 bg-white p-5">
-              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-500">Data notes ({r.caveats.length})</summary>
+              <summary className="flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Data notes ({r.caveats.length})<MetricLabel info={STRATEGY_INFO["data notes"]} /></summary>
               <ul className="mt-3 flex flex-col gap-1 text-xs text-slate-500">
                 {r.caveats.map((c) => (
                   <li key={c}>• {c}</li>
