@@ -17,10 +17,12 @@ def test_scan_ranks_every_template_and_reports_the_variant_count():
     result = scan(frames, _prices(99)["Close"])
     assert len(result["candidates"]) == len(TEMPLATES)
     assert [c["rank"] for c in result["candidates"]] == list(range(1, len(TEMPLATES) + 1))
-    oos = [c["oos_excess_return_pct"] for c in result["candidates"]]
+    oos = [c["oos_return_after_costs_pct"] for c in result["candidates"]]
     assert oos == sorted(oos, reverse=True)
     assert result["variants_tried"] == len(TEMPLATES)
     assert "not recommendations" in result["note"]
+    assert set(result["groups"]) == {"short_term", "long_term"}
+    assert result["groups"]["short_term"]["message"] or result["groups"]["short_term"]["candidates"]
 
 
 def test_warnings_describe_the_direction_of_the_gap():

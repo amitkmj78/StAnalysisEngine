@@ -2653,11 +2653,28 @@ export interface StrategyScanCandidate {
   rank: number;
   key: string;
   name: string;
-  oos_excess_return_pct: number;
-  in_sample_excess_return_pct: number;
-  oos_sharpe: number | null;
+  holding_class: "short" | "swing" | "long" | "none";
+  avg_hold_days: number | null;
+  trades_oos: number;
+  trades_per_year: number;
+  win_rate_pct: number | null;
+  avg_trade_net_pct: number | null;
+  oos_return_after_costs_pct: number;
+  oos_return_vs_basket_pct: number;
+  oos_cagr_pct: number | null;
+  oos_cagr_vs_spy_pct: number | null;
+  oos_max_drawdown_pct: number | null;
+  spy_oos_max_drawdown_pct: number | null;
   deflated_probability: number | null;
   warnings: string[];
+  profile: string;
+}
+
+export interface StrategyScanGroup {
+  ranked_by: string;
+  minimum: string;
+  candidates: StrategyScanCandidate[];
+  message: string | null;
 }
 
 export interface StrategyScanResult {
@@ -2666,6 +2683,10 @@ export interface StrategyScanResult {
   variants_tried: number;
   seed: number;
   period: { start: string; end: string };
+  out_of_sample: { start: string; years: number };
+  benchmark: { name: string; oos_cagr_pct: number | null; oos_max_drawdown_pct: number | null };
+  downturn_in_test_window: boolean;
+  groups: { short_term: StrategyScanGroup; long_term: StrategyScanGroup };
   candidates: StrategyScanCandidate[];
   note: string;
 }
