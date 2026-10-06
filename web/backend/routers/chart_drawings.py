@@ -38,11 +38,13 @@ def _ticker(raw: str) -> str:
 
 
 def _as_row(r) -> dict:
+    # asyncpg returns jsonb as text unless a codec is set, so decode it here to a list.
+    points = json.loads(r["points"]) if isinstance(r["points"], str) else r["points"]
     return {
         "id": r["id"],
         "ticker": r["ticker"],
         "kind": r["kind"],
-        "points": r["points"],
+        "points": points,
         "text": r["text"],
     }
 
