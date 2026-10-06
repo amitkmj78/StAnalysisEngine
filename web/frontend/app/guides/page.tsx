@@ -7,6 +7,11 @@ const GUIDES = [
     description: "What BUY/HOLD/SELL and the two-score system actually mean, and where each number comes from.",
   },
   {
+    href: "/guides/strategy-templates",
+    title: "Strategies: start from a template",
+    description: "How the strategy builder's eight starting templates work, how to read a test, and the traps to avoid.",
+  },
+  {
     href: "/guides/risk",
     title: "Understanding Risk",
     description: "Volatility, beta, correlation, and max drawdown — what each one tells you, and what it doesn't.",
