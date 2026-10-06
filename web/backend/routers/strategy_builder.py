@@ -18,6 +18,7 @@ from starlette.concurrency import run_in_threadpool
 
 from services.stock_finder_service import fetch_sp500_tickers, get_peer_lookup_table
 from services.signal_publication_service import DEFAULT_HORIZON_DAYS, DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE, build_model_portfolio_series
+from services.rule_text import parse_rule_text
 from services.strategy_explainer import explain_backtest
 from services.strategy_engine import DEFAULT_COOLDOWN, MAX_TICKERS, Rule, feature_frame, model_portfolio_summary, run_backtest
 from services.sp500_membership import current_members, member_flags, members_on, removed_after
@@ -214,6 +215,20 @@ async def backtest(request: Request, body: BacktestRequest):
         "and not an order: nothing is placed."
     )
     return result
+
+
+class RuleTextIn(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/parse-rules")
+@limiter.limit("60/minute")
+async def parse_rules(request: Request, body: RuleTextIn):
+    """STB-8: check plain-English rules and return the rules they mean, before a test is run. Nothing is tested here."""
+    try:
+        return parse_rule_text(body.text)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
 
 
 @router.get("/presets")

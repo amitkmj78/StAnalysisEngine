@@ -68,3 +68,19 @@ def backtest(
     if explain:
         result["explanation"] = explain_backtest(result, {"entry": entry, "exit": exit_rules, "exits": exits})
     return result
+
+
+def backtest_text(tickers: list[str], rules: str, **settings) -> dict:
+    """Run a test from plain-English rules (see services/rule_text.py for the format). Extra settings, such as period or
+    cost_bps, are passed on to backtest(). Settings in the text (stops, wait) apply unless overridden here."""
+    from services.rule_text import parse_rule_text
+
+    parsed = parse_rule_text(rules)
+    exits = parsed["exits"]
+    options = {
+        "stop_loss_pct": exits.get("stop_loss_pct"), "trailing_stop_pct": exits.get("trailing_stop_pct"),
+        "time_stop_sessions": exits.get("time_stop_sessions"), "take_profit_pct": exits.get("take_profit_pct"),
+        "cooldown_sessions": parsed.get("cooldown_sessions", DEFAULT_COOLDOWN),
+    }
+    options.update(settings)
+    return backtest(tickers, parsed["entry"], parsed["exit"], **options)
