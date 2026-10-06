@@ -71,6 +71,9 @@ def walk_forward(strategy_pct: pd.Series, basket_pct: pd.Series,
     }
 
 
+ZERO_THRESHOLD_SHIFT = 1.0  # percentage points
+
+
 def sensitivity(run_sharpe: Callable[[dict], Optional[float]], base: dict[str, float],
                 step: float = SENSITIVITY_STEP) -> dict:
     """run_sharpe(params) -> annual Sharpe for those threshold values. base: {param_name: value}.
@@ -81,7 +84,12 @@ def sensitivity(run_sharpe: Callable[[dict], Optional[float]], base: dict[str, f
         cells = []
         for factor in (1 - step, 1.0, 1 + step):
             params = dict(base)
-            params[name] = value * factor
+            # A threshold of exactly 0 (e.g. "price above its 200-day average by 0%") can't be moved by a percentage of
+            # itself, so it moves by ZERO_THRESHOLD_SHIFT points instead, one each way.
+            if value == 0:
+                params[name] = {1 - step: -ZERO_THRESHOLD_SHIFT, 1.0: 0.0, 1 + step: ZERO_THRESHOLD_SHIFT}[factor]
+            else:
+                params[name] = value * factor
             sh = base_sharpe if factor == 1.0 else run_sharpe(params)
             cells.append({"factor": round(factor, 2), "value": round(params[name], 4),
                           "sharpe": None if sh is None else round(sh, 3)})

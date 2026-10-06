@@ -2542,6 +2542,25 @@ export interface StrategyMetrics {
   turnover_pct_per_year?: number | null;
 }
 
+export interface StrategyExplanation {
+  bottom_line: string;
+  tested: { item: string; setting: string; plain: string }[];
+  headline: string[];
+  full_period: {
+    label: string; total: string; cagr: string; volatility: string; max_drop: string; sharpe: string;
+    worst_month: string; turnover: string; cost_drag: string;
+  }[];
+  checks: { label: string; status: "pass" | "caution" | "fail"; detail: string; meaning: string }[];
+  in_vs_out: {
+    in_sample: { cagr: string; volatility: string; max_drop: string; sharpe: string };
+    out_of_sample: { cagr: string; volatility: string; max_drop: string; sharpe: string };
+    note: string;
+  } | null;
+  problems: string[];
+  next_steps: string[];
+  disclaimer: string;
+}
+
 export interface ModelPortfolioSummary {
   available: boolean;
   months_of_history: number;
@@ -2597,6 +2616,7 @@ export interface StrategyBacktestResponse {
   basket: StrategyMetrics;
   benchmark_spy: StrategyMetrics;
   model_portfolio?: ModelPortfolioSummary;
+  explanation?: StrategyExplanation | null;
   in_sample: StrategyMetrics;
   out_of_sample: StrategyMetrics;
   per_ticker_contribution: Record<string, number>;

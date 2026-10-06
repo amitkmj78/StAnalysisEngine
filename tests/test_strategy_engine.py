@@ -256,3 +256,17 @@ def test_a_stock_cannot_be_bought_while_it_is_not_an_index_member():
     run = _run_ticker(member_frame, entry, [], ProtectiveExits(stop_loss_pct=None), 0, 0.0, "AAA")
     first_held = int(np.argmax(run.held > 0))
     assert first_held >= len(flags) // 2
+
+
+def test_a_zero_threshold_is_still_tested_by_the_sensitivity_check():
+    from services.strategy_robustness import sensitivity
+
+    seen = []
+
+    def fake_run(params):
+        seen.append(params["entry[0] close_vs_sma_200_pct >"])
+        return 1.0 + 0.1 * params["entry[0] close_vs_sma_200_pct >"]
+
+    result = sensitivity(fake_run, {"entry[0] close_vs_sma_200_pct >": 0.0})
+    assert result["rows"][0]["swing"] and result["rows"][0]["swing"] > 0
+    assert -1.0 in seen and 1.0 in seen

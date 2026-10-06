@@ -18,6 +18,7 @@ from starlette.concurrency import run_in_threadpool
 
 from services.stock_finder_service import fetch_sp500_tickers, get_peer_lookup_table
 from services.signal_publication_service import DEFAULT_HORIZON_DAYS, DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE, build_model_portfolio_series
+from services.strategy_explainer import explain_backtest
 from services.strategy_engine import DEFAULT_COOLDOWN, MAX_TICKERS, Rule, feature_frame, model_portfolio_summary, run_backtest
 from services.sp500_membership import current_members, member_flags, members_on, removed_after
 from services.strategy_scan import TEMPLATES, pick_sample, scan
@@ -199,6 +200,15 @@ async def backtest(request: Request, body: BacktestRequest):
     )
     result["model_portfolio"] = model_portfolio_summary(model_series)
     result["selection"] = {**selection, "tickers": tickers}
+    # The plain-language report is built from this result's own numbers. If it can't be built, the result is still returned.
+    try:
+        result["explanation"] = explain_backtest(result, {
+            "entry": [r.model_dump() for r in body.entry],
+            "exit": [r.model_dump() for r in body.exit],
+            "exits": body.exits.model_dump(),
+        })
+    except Exception:
+        result["explanation"] = None
     result["disclaimer"] = (
         "Backtest of past prices with the rules and costs shown. Not a forecast, not a recommendation, "
         "and not an order: nothing is placed."

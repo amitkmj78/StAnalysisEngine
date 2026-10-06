@@ -812,6 +812,100 @@ export default function StrategyBuilderPage() {
             </section>
           )}
 
+          {r?.explanation && (
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <h2 className="text-base font-semibold text-slate-900">What this test shows</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-700">{r.explanation.bottom_line}</p>
+
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[32rem] text-left text-sm">
+                  <thead className="text-xs text-slate-400">
+                    <tr><th className="py-1 font-medium">Setting</th><th className="font-medium">Value</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {r.explanation.tested.map((row) => (
+                      <tr key={row.item}>
+                        <td className="py-1.5 pr-3 font-medium text-slate-800">{row.item}</td>
+                        <td className="py-1.5 text-slate-700">{row.setting}<span className="block text-xs text-slate-400">{row.plain}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {r.explanation.headline.length > 0 && (
+                <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                  {r.explanation.headline.map((h) => <li key={h}>{h}</li>)}
+                </ul>
+              )}
+
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[44rem] text-right text-xs">
+                  <thead className="text-slate-400">
+                    <tr>
+                      <th className="py-1 text-left font-medium"></th>
+                      <th className="font-medium">Total</th><th className="font-medium">CAGR</th><th className="font-medium">Volatility</th>
+                      <th className="font-medium">Max drop</th><th className="font-medium">Sharpe</th><th className="font-medium">Worst month</th>
+                      <th className="font-medium">Turnover / yr</th><th className="font-medium">Cost drag</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {r.explanation.full_period.map((row) => (
+                      <tr key={row.label}>
+                        <td className="py-1.5 text-left font-sans text-sm text-slate-800">{row.label}</td>
+                        <td>{row.total}</td><td>{row.cagr}</td><td>{row.volatility}</td><td>{row.max_drop}</td>
+                        <td>{row.sharpe}</td><td>{row.worst_month}</td><td>{row.turnover}</td><td>{row.cost_drag}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <h3 className="mt-5 text-sm font-semibold text-slate-900">The checks</h3>
+              <ul className="mt-2 space-y-3">
+                {r.explanation.checks.map((c) => (
+                  <li key={c.label} className="text-sm">
+                    <span className={`mr-2 rounded-full px-2 py-0.5 text-xs font-semibold ${BADGE[c.status]}`}>{BADGE_TEXT[c.status]}</span>
+                    <span className="font-medium text-slate-800">{c.label}.</span> <span className="text-slate-700">{c.detail}</span>
+                    {c.meaning && <span className="block text-xs text-slate-500">{c.meaning}</span>}
+                  </li>
+                ))}
+              </ul>
+
+              {r.explanation.in_vs_out && (
+                <>
+                  <h3 className="mt-5 text-sm font-semibold text-slate-900">Earlier dates against later dates</h3>
+                  <div className="mt-2 grid gap-3 text-sm sm:grid-cols-2">
+                    <div className="rounded-md bg-slate-50 p-3">
+                      <p className="text-xs font-semibold text-slate-500">First 70% of the period</p>
+                      <p className="font-mono">CAGR {r.explanation.in_vs_out.in_sample.cagr} · Max drop {r.explanation.in_vs_out.in_sample.max_drop} · Sharpe {r.explanation.in_vs_out.in_sample.sharpe}</p>
+                    </div>
+                    <div className="rounded-md bg-slate-50 p-3">
+                      <p className="text-xs font-semibold text-slate-500">Last 30% of the period</p>
+                      <p className="font-mono">CAGR {r.explanation.in_vs_out.out_of_sample.cagr} · Max drop {r.explanation.in_vs_out.out_of_sample.max_drop} · Sharpe {r.explanation.in_vs_out.out_of_sample.sharpe}</p>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-700">{r.explanation.in_vs_out.note}</p>
+                </>
+              )}
+
+              {r.explanation.problems.length > 0 && (
+                <>
+                  <h3 className="mt-5 text-sm font-semibold text-slate-900">Problems to look at</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                    {r.explanation.problems.map((p) => <li key={p}>{p}</li>)}
+                  </ul>
+                </>
+              )}
+
+              <h3 className="mt-5 text-sm font-semibold text-slate-900">What to do next</h3>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-700">
+                {r.explanation.next_steps.map((n) => <li key={n}>{n}</li>)}
+              </ol>
+              <p className="mt-4 text-xs text-slate-400">{r.explanation.disclaimer}</p>
+            </section>
+          )}
+
           {r?.model_portfolio && (
             <section className="rounded-xl border border-slate-200 bg-white p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">The app&apos;s model portfolio</p>

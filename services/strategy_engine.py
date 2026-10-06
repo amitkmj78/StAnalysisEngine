@@ -655,7 +655,10 @@ def run_backtest(
         checks.append(_check("pass" if dsr["probability"] >= 0.95 else "caution", "Deflated Sharpe",
                              f"Probability {dsr['probability']:.0%} that the Sharpe is above zero after {dsr['variants']} variant(s) tried."))
     if walk.get("beat_basket_pct") is not None:
-        checks.append(_check("pass" if walk["beat_basket_pct"] >= 50 else "caution", "Walk-forward windows",
+        # Fail below 2 in 5 windows, caution below 3 in 5, pass at 3 in 5 or better.
+        share = walk["beat_basket_pct"]
+        walk_status = "pass" if share >= 60 else "caution" if share >= 40 else "fail"
+        checks.append(_check(walk_status, "Walk-forward windows",
                              f"The strategy beat the same stocks in {walk['beat_basket_windows']} of {walk['test_windows']} six-month test windows."))
     if sens.get("widest_swing") is not None:
         checks.append(_check("pass" if sens["widest_swing"] <= 0.5 else "caution", "Stable to small changes",
