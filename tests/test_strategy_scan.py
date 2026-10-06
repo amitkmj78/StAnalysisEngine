@@ -35,3 +35,42 @@ def test_pick_sample_is_reproducible_for_a_seed():
     universe = [f"S{i:03d}" for i in range(500)]
     assert pick_sample(universe, seed=7) == pick_sample(universe, seed=7)
     assert len(pick_sample(universe, seed=7)) == 20
+
+
+def test_the_card_shows_the_template_and_holding_returns_and_the_difference():
+    from services.strategy_scan import _profile
+
+    row = {"holding_class": "short", "avg_hold_days": 18.0, "trades_oos": 130,
+           "oos_return_after_costs_pct": 22.3, "oos_holding_return_pct": 58.0, "oos_difference_pts": -35.7}
+    text = _profile(row)
+    assert "+22.3% after costs vs +58.0% for holding (-35.7 pts)" in text
+
+
+def test_the_did_not_beat_verdict_agrees_with_the_difference_sign():
+    from services.strategy_scan import _warnings
+
+    assert any("Did not beat holding" in w for w in _warnings(0.0, -35.7))
+    assert not any("Did not beat holding" in w for w in _warnings(0.0, 4.2))
+
+
+def test_a_template_passes_on_return_or_on_risk_with_no_deeper_drawdown():
+    from services.strategy_scan import _pass_test
+
+    assert _pass_test(5.0, 0.2, 0.5, -30.0, -20.0) == "return"
+    assert _pass_test(-5.0, 1.0, 0.5, -15.0, -20.0) == "risk"   # lost on return, better Sharpe, shallower drawdown
+    assert _pass_test(-5.0, 1.0, 0.5, -25.0, -20.0) is None      # better Sharpe but a deeper drawdown does not pass
+    assert _pass_test(-5.0, 0.2, 0.5, -15.0, -20.0) is None      # shallower drawdown but worse Sharpe does not pass
+
+
+def test_the_pass_label_and_banner_rule_agree_with_the_test():
+    from services.strategy_scan import _warnings
+
+    assert not any("Did not beat" in w for w in _warnings(0.0, -5.0, "risk"))
+    assert any("Did not beat" in w for w in _warnings(0.0, -5.0, None))
+
+
+def test_calmar_is_return_over_drawdown():
+    from services.strategy_scan import _calmar
+
+    assert _calmar(20.0, -10.0) == 2.0
+    assert _calmar(20.0, 0.0) is None

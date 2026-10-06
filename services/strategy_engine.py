@@ -136,7 +136,7 @@ def sessions_since_reports(index, report_dates) -> np.ndarray:
 
 
 def feature_frame(prices: pd.DataFrame, regime_by_date: Optional[dict[str, str]] = None,
-                  earnings_reports: Optional[list] = None) -> pd.DataFrame:
+                  earnings_reports: Optional[list] = None, member_flags: Optional[pd.Series] = None) -> pd.DataFrame:
     """prices: Open, High, Low, Close and optionally Volume (DatetimeIndex). Every value uses only
     data up to and including that session's close."""
     close = prices["Close"].astype(float)
@@ -158,6 +158,8 @@ def feature_frame(prices: pd.DataFrame, regime_by_date: Optional[dict[str, str]]
     out["atr_14"] = atr(high, low, close, 14)
     out["atr_14_pct"] = out["atr_14"] / close * 100
     out["sessions_since_earnings"] = sessions_since_reports(prices.index, earnings_reports or [])
+    # SCAN-2: a stock can only be bought while it was an index member; exits still apply to a position already held.
+    out["is_member"] = member_flags.reindex(prices.index).fillna(False).astype(bool).to_numpy() if member_flags is not None else True
     if regime_by_date is not None:
         keys = [pd.Timestamp(ts).strftime("%Y-%m-%d") for ts in prices.index]
         out["regime"] = [regime_by_date.get(k) for k in keys]
@@ -248,6 +250,8 @@ def _run_ticker(frame: pd.DataFrame, entry: list[Rule], exit_: list[Rule],
     lows = frame["low"].to_numpy(float)
     atr_prev = frame["atr_14"].shift(1).to_numpy(float)
     enter_sig = _all(frame, entry) if entry else np.zeros(n, bool)
+    if "is_member" in frame.columns and not frame["is_member"].all():
+        enter_sig = enter_sig & frame["is_member"].to_numpy(bool)
     exit_sig = _any(frame, exit_) if exit_ else np.zeros(n, bool)
 
     ret = np.zeros(n)

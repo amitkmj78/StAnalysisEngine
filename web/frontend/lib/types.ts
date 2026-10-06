@@ -2700,7 +2700,15 @@ export interface StrategyScanCandidate {
   avg_trade_net_pct: number | null;
   oos_return_after_costs_pct: number;
   oos_return_vs_basket_pct: number;
-  oos_cagr_pct: number | null;
+  oos_difference_pts: number;
+  oos_holding_return_pct: number;
+  oos_sharpe: number | null;
+  oos_calmar: number | null;
+  time_in_market_pct: number | null;
+  exposure_adjusted_cagr_pct: number | null;
+  passes_short_test: boolean;
+  pass_test: "return" | "risk" | null;
+  pass_label: string | null;
   oos_cagr_vs_spy_pct: number | null;
   oos_max_drawdown_pct: number | null;
   spy_oos_max_drawdown_pct: number | null;
@@ -2716,13 +2724,26 @@ export interface StrategyScanGroup {
   message: string | null;
 }
 
+export interface StrategyScanUniverse {
+  basis: "point_in_time" | "current_members_biased";
+  as_of: string;
+  members_at_start: number;
+  left_index_in_window: string[];
+  sampled?: string[];
+  skipped_no_prices?: string[];
+  tested?: string[];
+}
+
 export interface StrategyScanResult {
   sample_size: number;
   tickers: string[];
+  universe?: StrategyScanUniverse;
   variants_tried: number;
   seed: number;
   period: { start: string; end: string };
-  out_of_sample: { start: string; years: number };
+  out_of_sample: { start: string; end: string; years: number };
+  holding_oos_return_pct: number;
+  holding: { label: string; total_return_pct: number | null; cagr_pct: number | null; volatility_pct: number | null; max_drawdown_pct: number | null; sharpe: number | null; calmar: number | null; time_in_market_pct: number; exposure_adjusted_cagr_pct: number | null };
   benchmark: { name: string; oos_cagr_pct: number | null; oos_max_drawdown_pct: number | null; full_cagr_pct: number | null; full_max_drawdown_pct: number | null };
   downturn_in_test_window: boolean;
   groups: { short_term: StrategyScanGroup; long_term: StrategyScanGroup };

@@ -241,3 +241,18 @@ def test_sessions_since_earnings_only_uses_reports_already_made():
     later = sessions_since_reports(index, [report, pd.Timestamp(index[15])])
     assert np.allclose(later[:15], values[:15], equal_nan=True)  # a later report changes nothing before it
     assert later[16] == 0
+
+
+def test_a_stock_cannot_be_bought_while_it_is_not_an_index_member():
+    import pandas as pd
+    from services.strategy_engine import Rule, _run_ticker, ProtectiveExits, feature_frame
+
+    prices = _trend_prices(seed=11)
+    flags = pd.Series(False, index=prices.index)
+    flags.iloc[len(flags) // 2:] = True
+    member_frame = feature_frame(prices, member_flags=flags)
+    assert not member_frame["is_member"].iloc[: len(flags) // 2].any()
+    entry = [Rule.parse({"field": "rsi_14", "op": "<", "value": 99})]  # true almost every day
+    run = _run_ticker(member_frame, entry, [], ProtectiveExits(stop_loss_pct=None), 0, 0.0, "AAA")
+    first_held = int(np.argmax(run.held > 0))
+    assert first_held >= len(flags) // 2

@@ -15,6 +15,10 @@ function pct(v: number | null | undefined) {
   return v === null || v === undefined ? "–" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
 }
 
+function plain(v: number | null | undefined, digits = 2) {
+  return v === null || v === undefined ? "–" : v.toFixed(digits);
+}
+
 function GroupList({
   title,
   group,
@@ -66,6 +70,8 @@ export default function StrategyScanPage() {
   const [result, setResult] = useState<StrategyScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [seedInput, setSeedInput] = useState("");
+  // SCAN-2: off by default. On tests today's index members back in time, which flatters every result.
+  const [currentOnly, setCurrentOnly] = useState(false);
 
   useEffect(() => {
     if (!jobId) return;
@@ -99,7 +105,7 @@ export default function StrategyScanPage() {
     setStatus("running");
     try {
       const seed = seedInput.trim() ? Number(seedInput) : undefined;
-      const res = await startStrategyScan(seed);
+      const res = await startStrategyScan(seed, currentOnly);
       setJobId(res.job_id);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "The scan could not be started.");
@@ -132,6 +138,10 @@ export default function StrategyScanPage() {
             className="input w-32 py-1 text-sm"
           />
         </label>
+        <label className="flex items-center gap-2 pb-1 text-xs text-slate-600">
+          <input type="checkbox" checked={currentOnly} onChange={(e) => setCurrentOnly(e.target.checked)} />
+          Current members only (biased)
+        </label>
         <button
           type="button"
           onClick={handleStart}
@@ -163,7 +173,26 @@ export default function StrategyScanPage() {
               ))}
             </div>
           </div>
-          {!result.candidates.some((c) => c.oos_return_vs_basket_pct > 0) && (
+          {result.universe && (
+            <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <p>
+                {result.universe.basis === "point_in_time"
+                  ? <>Universe: point-in-time S&amp;P 500 as of {result.universe.as_of}.</>
+                  : <>Universe: <strong>current members only (biased)</strong>. Stocks that left the index are not in the sample, which flatters the results.</>}
+                {" "}{result.universe.members_at_start} members on that date.
+              </p>
+              {result.universe.basis === "point_in_time" && result.universe.left_index_in_window.length > 0 && (
+                <p className="mt-1">Left the index since then ({result.universe.left_index_in_window.length}): {result.universe.left_index_in_window.join(", ")}.</p>
+              )}
+              {result.universe.skipped_no_prices && result.universe.skipped_no_prices.length > 0 && (
+                <p className="mt-1">Skipped, no price history: {result.universe.skipped_no_prices.join(", ")}.</p>
+              )}
+            </div>
+          )}
+          <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            Holding these {result.sample_size} stocks, equal weight: <span className="font-mono font-semibold">{pct(result.holding_oos_return_pct)}</span> out-of-sample ({result.out_of_sample.start} to {result.out_of_sample.end}).
+          </p>
+          {!result.candidates.some((c) => c.passes_short_test) && (
             <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
               <strong>None of these templates beat holding the same stocks on the later dates.</strong> Treat the lists below as a record of how the templates did on this sample, not as ideas to use.
             </p>
@@ -187,7 +216,13 @@ export default function StrategyScanPage() {
                       <MetricLabel info={STRATEGY_INFO["in-sample"]} />
                     </span>
                   </th>
-                  <th className="font-medium">vs holding same stocks</th>
+                  <th className="font-medium">Holding return</th>
+                  <th className="font-medium">Difference (pts)</th>
+                  <th className="font-medium">Sharpe</th>
+                  <th className="font-medium">Max DD</th>
+                  <th className="font-medium">Calmar</th>
+                  <th className="font-medium">Time in market</th>
+                  <th className="font-medium">Return per 100% invested</th>
                   <th className="font-medium">
                     <span className="inline-flex items-center gap-1">
                       Chance Sharpe above zero
@@ -197,6 +232,21 @@ export default function StrategyScanPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono text-xs">
+                <tr className="bg-slate-50 font-semibold">
+                  <td className="py-2 text-left font-sans text-sm text-slate-900">{result.holding.label}</td>
+                  <td className="font-sans">Holding</td>
+                  <td>–</td>
+                  <td>–</td>
+                  <td>{pct(result.holding.total_return_pct)}</td>
+                  <td>{pct(result.holding.total_return_pct)}</td>
+                  <td>–</td>
+                  <td>{plain(result.holding.sharpe)}</td>
+                  <td>{pct(result.holding.max_drawdown_pct)}</td>
+                  <td>{plain(result.holding.calmar)}</td>
+                  <td>{result.holding.time_in_market_pct}%</td>
+                  <td>{pct(result.holding.exposure_adjusted_cagr_pct)}</td>
+                  <td>–</td>
+                </tr>
                 {result.candidates.map((c) => (
                   <tr key={c.key}>
                     <td className="py-2 text-left font-sans text-sm font-medium text-slate-800">{c.name}</td>
@@ -204,7 +254,13 @@ export default function StrategyScanPage() {
                     <td>{c.avg_hold_days ?? "–"}</td>
                     <td>{c.trades_oos}</td>
                     <td>{pct(c.oos_return_after_costs_pct)}</td>
-                    <td>{pct(c.oos_return_vs_basket_pct)}</td>
+                    <td>{pct(c.oos_holding_return_pct)}</td>
+                    <td>{c.oos_difference_pts > 0 ? "+" : ""}{c.oos_difference_pts.toFixed(1)}</td>
+                    <td>{plain(c.oos_sharpe)}</td>
+                    <td>{pct(c.oos_max_drawdown_pct)}</td>
+                    <td>{plain(c.oos_calmar)}</td>
+                    <td>{c.time_in_market_pct != null ? `${c.time_in_market_pct}%` : "–"}</td>
+                    <td>{pct(c.exposure_adjusted_cagr_pct)}</td>
                     <td>{c.deflated_probability != null ? `${Math.round(c.deflated_probability * 100)}%` : "–"}</td>
                   </tr>
                 ))}

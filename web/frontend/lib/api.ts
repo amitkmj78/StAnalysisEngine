@@ -1962,8 +1962,11 @@ export function getSharedStrategy(token: string) {
 }
 
 // Template scan on a random S&P 500 sample. Starts a background job; poll the status until done.
-export function startStrategyScan(seed?: number) {
-  const query = seed !== undefined ? `?seed=${seed}` : "";
+export function startStrategyScan(seed?: number, currentOnly = false) {
+  const params = new URLSearchParams();
+  if (seed !== undefined) params.set("seed", String(seed));
+  if (currentOnly) params.set("current_only", "true");
+  const query = params.toString() ? `?${params.toString()}` : "";
   return apiSend<{ job_id: string; seed: number; tickers: string[] }>(`/api/v1/strategy-builder/scan${query}`, "POST");
 }
 

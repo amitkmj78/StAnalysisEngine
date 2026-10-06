@@ -7,7 +7,7 @@ import hashlib
 import json
 import threading
 import time
-from datetime import date
+from datetime import date, timedelta
 import random
 import secrets
 from typing import Literal, Optional
@@ -19,6 +19,7 @@ from starlette.concurrency import run_in_threadpool
 from services.stock_finder_service import fetch_sp500_tickers, get_peer_lookup_table
 from services.signal_publication_service import DEFAULT_HORIZON_DAYS, DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE, build_model_portfolio_series
 from services.strategy_engine import DEFAULT_COOLDOWN, MAX_TICKERS, Rule, feature_frame, model_portfolio_summary, run_backtest
+from services.sp500_membership import current_members, member_flags, members_on, removed_after
 from services.strategy_scan import TEMPLATES, pick_sample, scan
 from services.yfinance_cache import get_cached_history, get_earnings_report_dates
 from web.backend.auth import verify_bearer_token
@@ -29,6 +30,7 @@ router = APIRouter(prefix="/api/v1/strategy-builder", tags=["strategy-builder"],
 shared_router = APIRouter(prefix="/api/v1/strategy-builder", tags=["strategy-builder-shared"])
 
 HISTORY_PERIOD = "5y"
+HISTORY_DAYS = 365 * 5 + 2  # the scan's start date: about five years back, matching HISTORY_PERIOD
 VARIANT_WINDOW_DAYS = 90
 BENCHMARK = "SPY"
 MAX_SAVED_RESULT_CHARS = 400_000
@@ -398,16 +400,22 @@ SCAN_JOBS: dict[str, dict] = {}
 SCAN_KEEP = 20
 
 
-def _run_scan_job(job_id: str, tickers: list[str], regime_by_date: Optional[dict[str, str]]) -> None:
+def _run_scan_job(job_id: str, tickers: list[str], regime_by_date: Optional[dict[str, str]],
+                  universe_info: dict, start_members: Optional[set]) -> None:
     job = SCAN_JOBS[job_id]
     try:
         frames = {}
+        skipped = []
         for t in tickers:
             history = get_cached_history(t, HISTORY_PERIOD, True, None)
             if history.empty or not {"Open", "High", "Low", "Close"}.issubset(history.columns):
+                skipped.append(t)  # SCAN-2: a stock with no price history can't be tested; it is listed, not hidden
                 continue
             columns = [c for c in ("Open", "High", "Low", "Close", "Volume") if c in history.columns]
-            frames[t] = feature_frame(history[columns], regime_by_date, get_earnings_report_dates(t))
+            flags = None
+            if start_members is not None:
+                flags = member_flags(t, history.index, start_members)
+            frames[t] = feature_frame(history[columns], regime_by_date, get_earnings_report_dates(t), flags)
         bench = get_cached_history(BENCHMARK, HISTORY_PERIOD, True, None)
         if len(frames) < 2 or bench.empty:
             raise ValueError("Not enough price history for this sample. Try again.")
@@ -417,6 +425,8 @@ def _run_scan_job(job_id: str, tickers: list[str], regime_by_date: Optional[dict
 
         job["result"] = scan(frames, bench["Close"], progress=progress)
         job["result"]["seed"] = job["seed"]
+        job["result"]["universe"] = {**universe_info, "sampled": sorted(tickers), "skipped_no_prices": sorted(skipped),
+                                     "tested": sorted(frames)}
         job["status"] = "done"
     except Exception as e:  # reported to the page, not raised in the thread
         job["status"] = "error"
@@ -427,10 +437,27 @@ def _run_scan_job(job_id: str, tickers: list[str], regime_by_date: Optional[dict
 
 @router.post("/scan")
 @limiter.limit("3/minute")
-async def start_scan(request: Request, seed: Optional[int] = Query(None, ge=0, le=2_147_483_647)):
+async def start_scan(
+    request: Request,
+    seed: Optional[int] = Query(None, ge=0, le=2_147_483_647),
+    current_only: bool = Query(False, description="SCAN-2: test today's members back in time (biased). Off by default."),
+):
     await enforce_daily_quota(request, "strategy-builder/scan")
-    universe = await _sp500()
     chosen_seed = seed if seed is not None else random.randrange(1, 2_147_483_647)
+    start = (date.today() - timedelta(days=HISTORY_DAYS)).isoformat()
+    if current_only:
+        universe = await _sp500()
+        start_members = None
+        universe_info = {"basis": "current_members_biased", "as_of": start, "members_at_start": len(universe),
+                         "left_index_in_window": []}
+    else:
+        start_members = await run_in_threadpool(members_on, start)
+        universe = sorted(start_members)
+        left = await run_in_threadpool(removed_after, start)
+        universe_info = {"basis": "point_in_time", "as_of": start, "members_at_start": len(universe),
+                         "left_index_in_window": left}
+    if not universe:
+        raise HTTPException(503, "The S&P 500 membership history is unavailable right now.")
     tickers = pick_sample(universe, chosen_seed)
     regime_by_date = None
     async with service_conn() as conn:
@@ -443,8 +470,8 @@ async def start_scan(request: Request, seed: Optional[int] = Query(None, ge=0, l
     }
     for old in sorted(SCAN_JOBS, key=lambda k: SCAN_JOBS[k]["started"])[:-SCAN_KEEP]:
         SCAN_JOBS.pop(old, None)
-    threading.Thread(target=_run_scan_job, args=(job_id, tickers, regime_by_date), daemon=True).start()
-    return {"job_id": job_id, "seed": chosen_seed, "tickers": tickers}
+    threading.Thread(target=_run_scan_job, args=(job_id, tickers, regime_by_date, universe_info, start_members), daemon=True).start()
+    return {"job_id": job_id, "seed": chosen_seed, "tickers": tickers, "universe": universe_info}
 
 
 @router.get("/scan/{job_id}")

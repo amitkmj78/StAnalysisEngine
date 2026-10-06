@@ -127,9 +127,43 @@ def _holding_class(avg_hold_days: Optional[float], trades_per_year: float) -> st
     return "long"
 
 
-def _warnings(is_excess: float, oos_excess: float) -> list[str]:
+def _exposure_pct(runs: dict, daily_index, oos_dates) -> Optional[float]:
+    """SCAN-3: average share of the portfolio invested over the out-of-sample dates (equal sleeves)."""
+    if not runs or len(oos_dates) == 0:
+        return None
+    total = np.zeros(len(daily_index))
+    for run in runs.values():
+        total += np.asarray(run.held, dtype=float) / len(runs)
+    series = pd.Series(total, index=daily_index).reindex(oos_dates).dropna()
+    return round(float(series.mean()) * 100, 1) if len(series) else None
+
+
+def _calmar(cagr_pct: Optional[float], max_dd_pct: Optional[float]) -> Optional[float]:
+    if cagr_pct is None or not max_dd_pct:
+        return None
+    return round(cagr_pct / abs(max_dd_pct), 2)
+
+
+def _pass_test(diff_pts: float, sharpe: Optional[float], hold_sharpe: Optional[float],
+               max_dd: Optional[float], hold_dd: Optional[float]) -> Optional[str]:
+    """SCAN-3: 'return' if it beat holding on return; 'risk' if it beat holding on Sharpe with a drawdown no deeper
+    than holding's; None if it did neither."""
+    if diff_pts > 0:
+        return "return"
+    if sharpe is not None and hold_sharpe is not None and sharpe > hold_sharpe             and max_dd is not None and hold_dd is not None and max_dd >= hold_dd:
+        return "risk"
+    return None
+
+
+PASS_LABELS = {
+    "return": "Passed: beat holding on return.",
+    "risk": "Passed: lost on return but beat holding on Sharpe with no deeper drawdown.",
+}
+
+
+def _warnings(is_excess: float, oos_excess: float, pass_test: Optional[str] = None) -> list[str]:
     out = []
-    if oos_excess <= 0:
+    if oos_excess <= 0 and pass_test is None:
         out.append("Did not beat holding the same stocks on the later dates.")
     if is_excess > 0 and oos_excess < 0:
         out.append("Looked good on earlier dates and lost on later ones.")
@@ -141,7 +175,8 @@ def _warnings(is_excess: float, oos_excess: float) -> list[str]:
 def _profile(r: dict) -> str:
     if r["holding_class"] == "short":
         return (f"Short-term · average hold {r['avg_hold_days']:.0f} trading days · {r['trades_oos']} trades out-of-sample · "
-                f"{r['oos_return_after_costs_pct']:+.1f}% after costs vs {r['oos_return_vs_basket_pct']:+.1f}% for holding the same stocks")
+                f"{r['oos_return_after_costs_pct']:+.1f}% after costs vs {r['oos_holding_return_pct']:+.1f}% for holding "
+                f"({r['oos_difference_pts']:+.1f} pts)")
     if r["holding_class"] == "long":
         dd = "smaller" if (r["full_max_drawdown_pct"] or 0) >= (r["spy_full_max_drawdown_pct"] or 0) else "larger"
         months = (r["avg_hold_days"] or 0) / 21
@@ -188,6 +223,7 @@ def scan(
 
     rows = []
     for key, (t, daily, runs) in runs_by_key.items():
+        raw_index = daily.index  # the dates each stock's holdings are stored on
         daily = daily.reindex(dates).dropna()
         basket = basket_all.reindex(daily.index).dropna()
         strat_oos = daily.reindex(oos_dates).dropna()
@@ -206,6 +242,12 @@ def scan(
         dsr = deflated_sharpe(daily, trial_sharpes)
         oos_cagr = oos_m.get("cagr_pct")
         spy_cagr = spy_oos_m.get("cagr_pct")
+        hold_m = metrics(basket_oos)
+        exposure = _exposure_pct(runs, raw_index, oos_dates)
+        cagr_oos = oos_m.get("cagr_pct")
+        diff_pts = round(oos_excess, 2)
+        pass_test = _pass_test(diff_pts, oos_m.get("sharpe"), hold_m.get("sharpe"),
+                               oos_m.get("max_drawdown_pct"), hold_m.get("max_drawdown_pct"))
         rows.append({
             "key": key,
             "name": t.name,
@@ -217,6 +259,8 @@ def scan(
             "avg_trade_net_pct": round(float(np.mean(net)), 2) if net else None,
             "oos_return_after_costs_pct": round(_total_pct(strat_oos), 2),
             "oos_return_vs_basket_pct": round(oos_excess, 2),
+            "oos_difference_pts": round(oos_excess, 2),
+            "oos_holding_return_pct": round(_total_pct(basket_oos), 2),
             "oos_cagr_pct": oos_cagr,
             "oos_cagr_vs_spy_pct": round(oos_cagr - spy_cagr, 2) if oos_cagr is not None and spy_cagr is not None else None,
             "oos_max_drawdown_pct": oos_m.get("max_drawdown_pct"),
@@ -226,7 +270,14 @@ def scan(
             "full_max_drawdown_pct": full_m.get("max_drawdown_pct"),
             "spy_full_max_drawdown_pct": spy_full_m.get("max_drawdown_pct"),
             "deflated_probability": dsr.get("probability"),
-            "warnings": _warnings(is_excess, oos_excess),
+            "oos_sharpe": oos_m.get("sharpe"),
+            "oos_calmar": _calmar(cagr_oos, oos_m.get("max_drawdown_pct")),
+            "time_in_market_pct": exposure,
+            "exposure_adjusted_cagr_pct": round(cagr_oos / (exposure / 100), 2) if cagr_oos is not None and exposure else None,
+            "passes_short_test": pass_test is not None,
+            "pass_test": pass_test,
+            "pass_label": PASS_LABELS.get(pass_test),
+            "warnings": _warnings(is_excess, oos_excess, pass_test),
         })
 
     for r in rows:
@@ -251,6 +302,19 @@ def scan(
         long_message = None if long_candidates else "No strong long-term candidates in this sample."
 
     rows.sort(key=lambda r: r["oos_return_after_costs_pct"], reverse=True)
+    holding_oos_pct = round(_total_pct(basket_all.reindex(oos_dates).dropna()), 2)
+    holding_oos_m = metrics(basket_all.reindex(oos_dates).dropna())
+    holding_summary = {
+        "label": "Holding these stocks, equal weight",
+        "total_return_pct": holding_oos_pct,
+        "cagr_pct": holding_oos_m.get("cagr_pct"),
+        "volatility_pct": holding_oos_m.get("volatility_pct"),
+        "max_drawdown_pct": holding_oos_m.get("max_drawdown_pct"),
+        "sharpe": holding_oos_m.get("sharpe"),
+        "calmar": _calmar(holding_oos_m.get("cagr_pct"), holding_oos_m.get("max_drawdown_pct")),
+        "time_in_market_pct": 100.0,
+        "exposure_adjusted_cagr_pct": holding_oos_m.get("cagr_pct"),
+    }
     for rank, r in enumerate(rows, 1):
         r["rank"] = rank
     return {
@@ -258,7 +322,9 @@ def scan(
         "tickers": sorted(frames),
         "variants_tried": len(TEMPLATES),
         "period": {"start": str(dates[0].date()), "end": str(dates[-1].date())},
-        "out_of_sample": {"start": str(oos_dates[0].date()), "years": round(oos_years, 2)},
+        "out_of_sample": {"start": str(oos_dates[0].date()), "end": str(oos_dates[-1].date()), "years": round(oos_years, 2)},
+        "holding_oos_return_pct": holding_oos_pct,
+        "holding": holding_summary,
         "benchmark": {"name": "S&P 500 (SPY)", "oos_cagr_pct": spy_oos_m.get("cagr_pct"),
                       "oos_max_drawdown_pct": spy_oos_m.get("max_drawdown_pct"),
                       "full_cagr_pct": spy_full_m.get("cagr_pct"),
