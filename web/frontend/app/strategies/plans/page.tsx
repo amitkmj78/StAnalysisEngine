@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ColumnInfo } from "@/components/InfoModal";
 import MetricLabel from "@/components/MetricLabel";
@@ -240,8 +240,20 @@ export default function StrategiesPage() {
     }
   }
 
+  // STRAT-9: results update about 0.5 s after an input changes. The first run is still the user's, via Build Plan.
+  const hasRunOnce = useRef(false);
+  useEffect(() => {
+    if (!hasRunOnce.current) return;
+    const timer = setTimeout(() => {
+      void requestPlan({ targetAmount, years, monthlyContribution });
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, targetAmount, dollarsMode, years, startingCapital, monthlyContribution, annualIncreasePct, annualReturnPct, inflationPct, accountType, topN, fundCategory, stockUniverse]);
+
   function runPlan(e: React.FormEvent) {
     e.preventDefault();
+    hasRunOnce.current = true;
     void requestPlan({ targetAmount, years, monthlyContribution });
   }
 
@@ -332,133 +344,155 @@ export default function StrategiesPage() {
         </div>
       )}
 
-      <form onSubmit={runPlan} className="mt-6 flex flex-col gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label="Solve for">
-            <select value={mode} onChange={(e) => setMode(e.target.value as SolveMode)} className="input">
+      <form onSubmit={runPlan} className="mt-6 flex flex-col gap-4">
+        {/* STRAT-9: four labeled cards, in the order a user reads them. */}
+        <section aria-labelledby="plan-goal" className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="plan-goal" className="text-sm font-semibold text-slate-900">1 · Goal</h2>
+            <div role="group" aria-label="Solve for" className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 p-0.5">
               {(Object.keys(SOLVE_MODE_LABELS) as SolveMode[]).map((m) => (
-                <option key={m} value={m}>{SOLVE_MODE_LABELS[m]}</option>
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={mode === m}
+                  onClick={() => setMode(m)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium ${mode === m ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                >
+                  {SOLVE_MODE_LABELS[m]}
+                </button>
               ))}
-            </select>
-          </Field>
-
-          <Field label={mode === "achievable_amount" ? "Target amount (solved)" : "Target amount"}>
-            <input
-              type="number" min={1} max={100000000} step="any"
-              value={
-                mode === "achievable_amount" && plan
-                  ? round2(dollarsMode === "today" ? plan.target_today_dollars : plan.target_future_dollars)
-                  : targetAmount
-              }
-              onChange={(e) => setTargetAmount(Number(e.target.value))}
-              disabled={mode === "achievable_amount"}
-              className="input w-32 disabled:bg-slate-50 disabled:text-slate-400"
-            />
-          </Field>
-          <Field label="In">
-            <select value={dollarsMode} onChange={(e) => setDollarsMode(e.target.value as DollarsMode)} className="input" disabled={mode === "achievable_amount"}>
-              <option value="today">Today&apos;s dollars</option>
-              <option value="future">Future dollars</option>
-            </select>
-          </Field>
-
-          <Field label={mode === "time_to_goal" ? "Years to goal (solved)" : "Years to goal"}>
-            <input
-              type="number" min={1} max={20}
-              value={mode === "time_to_goal" && plan ? round2(plan.years) : years}
-              onChange={(e) => setYears(Number(e.target.value))}
-              disabled={mode === "time_to_goal"}
-              className="input w-20 disabled:bg-slate-50 disabled:text-slate-400"
-            />
-          </Field>
-
-          <Field label="Starting capital">
-            <input
-              type="number" min={0} max={10000000} step="any"
-              value={startingCapital}
-              onChange={(e) => {
-                setStartingCapital(Number(e.target.value));
-                setStartingCapitalTouched(true);
-              }}
-              className="input w-28"
-            />
-          </Field>
-        </div>
-
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label={mode === "required_contribution" ? "Monthly contribution (solved)" : "Monthly contribution"}>
-            <input
-              type="number" min={0} max={1000000} step={50}
-              value={mode === "required_contribution" && plan ? round2(plan.monthly_contribution) : monthlyContribution}
-              onChange={(e) => setMonthlyContribution(Number(e.target.value))}
-              disabled={mode === "required_contribution"}
-              className="input w-28 disabled:bg-slate-50 disabled:text-slate-400"
-            />
-          </Field>
-          <Field label="Annual contribution increase %">
-            <input
-              type="number" min={0} max={20} step={0.5}
-              value={annualIncreasePct}
-              onChange={(e) => setAnnualIncreasePct(Number(e.target.value))}
-              className="input w-20"
-            />
-          </Field>
-          <Field label={mode === "required_return" ? "Annual return % (solved)" : "Annual return %"}>
-            <input
-              type="number" min={-20} max={50} step={0.5}
-              value={mode === "required_return" && plan && plan.gross_return_pct !== null ? round2(plan.gross_return_pct) : annualReturnPct}
-              onChange={(e) => setAnnualReturnPct(Number(e.target.value))}
-              disabled={mode === "required_return"}
-              className="input w-24 disabled:bg-slate-50 disabled:text-slate-400"
-            />
-          </Field>
-          <Field label="Inflation %">
-            <input type="number" min={0} max={15} step={0.1} value={inflationPct} onChange={(e) => setInflationPct(Number(e.target.value))} className="input w-20" />
-          </Field>
-          <Field label="Account type">
-            <select value={accountType} onChange={(e) => setAccountType(e.target.value as AccountType)} className="input">
-              {accountTypes.map((a) => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-          </Field>
-        </div>
-
-        <p className="text-xs text-slate-500">
-          {accountType} accounts assume a {(taxDragByAccount[accountType] ?? 0).toFixed(1)}%/year tax drag on returns during
-          accumulation{(taxDragByAccount[accountType] ?? 0) === 0 ? " (tax-advantaged, no drag modeled)." : " (dividend/turnover taxation)."}
-        </p>
-
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label="Picks per strategy">
-            <input type="number" min={1} max={5} value={topN} onChange={(e) => setTopN(Number(e.target.value))} className="input w-16" />
-          </Field>
-          <Field label="Fund category source">
-            <select value={fundCategory} onChange={(e) => setFundCategory(e.target.value)} className="input">
-              {fundCategories.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Stock universe source">
-            <select value={stockUniverse} onChange={(e) => setStockUniverse(e.target.value)} className="input">
-              {stockUniverses.map((u) => (
-                <option key={u} value={u}>{u}</option>
-              ))}
-            </select>
-          </Field>
-          <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? "Building…" : "Build Plan"}
-          </button>
-        </div>
-
-        {preflightHorizonWarnings.length > 0 && (
-          <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            {preflightHorizonWarnings.map((w) => (
-              <p key={w}>{w}</p>
-            ))}
+            </div>
           </div>
-        )}
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <Field label={mode === "achievable_amount" ? "Target amount (solved)" : "Target amount"}>
+              <input
+                type="number" min={1} max={100000000} step="any"
+                value={
+                  mode === "achievable_amount" && plan
+                    ? round2(dollarsMode === "today" ? plan.target_today_dollars : plan.target_future_dollars)
+                    : targetAmount
+                }
+                onChange={(e) => setTargetAmount(Number(e.target.value))}
+                disabled={mode === "achievable_amount"}
+                className="input w-36 disabled:bg-slate-50 disabled:text-slate-400"
+              />
+            </Field>
+            <Field label="Measured in">
+              <select value={dollarsMode} onChange={(e) => setDollarsMode(e.target.value as DollarsMode)} className="input" disabled={mode === "achievable_amount"}>
+                <option value="today">Today&apos;s dollars</option>
+                <option value="future">Future dollars</option>
+              </select>
+            </Field>
+            <Field label={mode === "time_to_goal" ? "Years to goal (solved)" : "Years to goal"}>
+              <input
+                type="number" min={1} max={20}
+                value={mode === "time_to_goal" && plan ? round2(plan.years) : years}
+                onChange={(e) => setYears(Number(e.target.value))}
+                disabled={mode === "time_to_goal"}
+                className="input w-20 disabled:bg-slate-50 disabled:text-slate-400"
+              />
+            </Field>
+          </div>
+        </section>
+
+        <section aria-labelledby="plan-money" className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 id="plan-money" className="text-sm font-semibold text-slate-900">2 · Money going in</h2>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <Field label="Starting capital">
+              <input
+                type="number" min={0} max={10000000} step="any"
+                value={startingCapital}
+                onChange={(e) => {
+                  setStartingCapital(Number(e.target.value));
+                  setStartingCapitalTouched(true);
+                }}
+                className="input w-36"
+              />
+            </Field>
+            <Field label={mode === "required_contribution" ? "Monthly contribution (solved)" : "Monthly contribution"}>
+              <input
+                type="number" min={0} max={1000000} step={50}
+                value={mode === "required_contribution" && plan ? round2(plan.monthly_contribution) : monthlyContribution}
+                onChange={(e) => setMonthlyContribution(Number(e.target.value))}
+                disabled={mode === "required_contribution"}
+                className="input w-32 disabled:bg-slate-50 disabled:text-slate-400"
+              />
+            </Field>
+            <Field label="Yearly increase in contribution %">
+              <input
+                type="number" min={0} max={20} step={0.5}
+                value={annualIncreasePct}
+                onChange={(e) => setAnnualIncreasePct(Number(e.target.value))}
+                className="input w-20"
+              />
+            </Field>
+          </div>
+        </section>
+
+        <section aria-labelledby="plan-assumptions" className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 id="plan-assumptions" className="text-sm font-semibold text-slate-900">3 · Assumptions</h2>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <Field label={mode === "required_return" ? "Annual return % (solved)" : "Annual return %"}>
+              <input
+                type="number" min={-20} max={1000} step={0.5}
+                value={mode === "required_return" && plan && plan.gross_return_pct !== null ? round2(plan.gross_return_pct) : annualReturnPct}
+                onChange={(e) => setAnnualReturnPct(Number(e.target.value))}
+                disabled={mode === "required_return"}
+                className="input w-24 disabled:bg-slate-50 disabled:text-slate-400"
+              />
+            </Field>
+            <Field label="Inflation %">
+              <input type="number" min={0} max={15} step={0.1} value={inflationPct} onChange={(e) => setInflationPct(Number(e.target.value))} className="input w-20" />
+            </Field>
+            <Field label="Account type">
+              <select value={accountType} onChange={(e) => setAccountType(e.target.value as AccountType)} className="input" aria-describedby="plan-tax-note">
+                {accountTypes.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <p id="plan-tax-note" className="mt-2 text-xs text-slate-500">
+            {accountType} accounts assume a {(taxDragByAccount[accountType] ?? 0).toFixed(1)}%/year tax drag on returns during
+            accumulation{(taxDragByAccount[accountType] ?? 0) === 0 ? " (tax-advantaged, no drag modeled)." : " (dividend/turnover taxation)."}
+          </p>
+        </section>
+
+        <section aria-labelledby="plan-candidates" className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 id="plan-candidates" className="text-sm font-semibold text-slate-900">4 · What to invest in</h2>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <Field label="Picks per strategy">
+              <input type="number" min={1} max={5} value={topN} onChange={(e) => setTopN(Number(e.target.value))} className="input w-16" />
+            </Field>
+            <Field label="Core funds from">
+              <select value={fundCategory} onChange={(e) => setFundCategory(e.target.value)} className="input">
+                {fundCategories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Individual stocks from">
+              <select value={stockUniverse} onChange={(e) => setStockUniverse(e.target.value)} className="input">
+                {stockUniverses.map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          {preflightHorizonWarnings.length > 0 && (
+            <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {preflightHorizonWarnings.map((w) => (
+                <p key={w}>{w}</p>
+              ))}
+            </div>
+          )}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button type="submit" disabled={loading} className="btn-primary">
+              {loading ? "Building…" : "Build Plan"}
+            </button>
+            <span className="text-xs text-slate-500">Results also update about half a second after you change an input.</span>
+          </div>
+        </section>
       </form>
 
       {loading && <p className="mt-4 text-sm text-slate-500">Building your plan…</p>}
