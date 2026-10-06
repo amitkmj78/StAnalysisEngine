@@ -11,6 +11,7 @@ import {
   getPortfolioInsights,
   getPortfolioPerformance,
   getPortfolioSentiment,
+  createWatchlistFromCurrentPrices,
   getPortfolioStrategies,
   getPortfolioSummary,
   movePortfolioPosition,
@@ -237,6 +238,8 @@ export default function PortfolioPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [watchlistNote, setWatchlistNote] = useState<string | null>(null);
+  const [watchPct, setWatchPct] = useState("5");
+  const [creatingWatchlist, setCreatingWatchlist] = useState(false);
 
   const [editingTicker, setEditingTicker] = useState<string | null>(null);
   const [editShares, setEditShares] = useState("");
@@ -419,6 +422,28 @@ export default function PortfolioPage() {
       setWatchlistNote(
         `${count} watchlist alert${count === 1 ? "" : "s"} set from your strategies' upside targets and stops.`
       );
+    }
+  }
+
+  // Explicit: takes each holding's current price and creates price-above/below alerts. Not part of Refresh.
+  async function handleCreateWatchlist() {
+    const pct = Number(watchPct);
+    if (!(pct > 0 && pct <= 50)) {
+      setWatchlistNote("Enter a percentage between 0.5 and 50.");
+      return;
+    }
+    setCreatingWatchlist(true);
+    try {
+      const res = await createWatchlistFromCurrentPrices(pct, selectedPortfolioId ?? undefined);
+      const holdings = Object.keys(res.reference_prices).length;
+      const skipped = res.skipped.length ? ` No price available for ${res.skipped.join(", ")}.` : "";
+      setWatchlistNote(
+        `${res.created} alert${res.created === 1 ? "" : "s"} created for ${holdings} holding${holdings === 1 ? "" : "s"} at ±${res.pct}% from the current price.${skipped}`
+      );
+    } catch (err) {
+      setWatchlistNote(err instanceof ApiError ? err.message : "Watchlist alerts could not be created.");
+    } finally {
+      setCreatingWatchlist(false);
     }
   }
 
@@ -792,6 +817,25 @@ export default function PortfolioPage() {
               <button onClick={() => setExpandedTickers(new Set())} className={PF.btn}>
                 Collapse All
               </button>
+            )}
+            {strategies.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs text-[#857d6e]">
+                <label htmlFor="watch-pct">Alert at ±</label>
+                <input
+                  id="watch-pct"
+                  type="number"
+                  min="0.5"
+                  max="50"
+                  step="0.5"
+                  value={watchPct}
+                  onChange={(e) => setWatchPct(e.target.value)}
+                  className="w-16 rounded border border-[#d8d2c4] px-1 py-0.5 text-right text-[#2a2620]"
+                />
+                <span>%</span>
+                <button onClick={handleCreateWatchlist} disabled={creatingWatchlist} className={`${PF.btn} disabled:opacity-50`}>
+                  {creatingWatchlist ? "Creating…" : "Create watchlist from current prices"}
+                </button>
+              </span>
             )}
             {strategies.length > 0 && (
               <button onClick={handleRefresh} disabled={refreshing} className={`${PF.btn} disabled:opacity-50`}>

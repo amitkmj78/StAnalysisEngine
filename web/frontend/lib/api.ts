@@ -979,6 +979,16 @@ export function getPortfolioPositions(portfolioId?: number) {
   );
 }
 
+// Explicit user action: alerts at +/- pct from each holding's current market price. Refresh never does this.
+export function createWatchlistFromCurrentPrices(pct: number, portfolioId?: number) {
+  const params = new URLSearchParams({ pct: String(pct) });
+  if (portfolioId) params.set("portfolio_id", String(portfolioId));
+  return apiSend<{ created: number; pct: number; reference_prices: Record<string, number>; skipped: string[] }>(
+    `/api/v1/portfolio/watchlist/from-current-prices?${params.toString()}`,
+    "POST",
+  );
+}
+
 export function getPortfolioStrategies(portfolioId?: number) {
   return apiFetch<{ strategies: PortfolioStrategyRow[] }>(
     "/api/v1/portfolio/strategies",

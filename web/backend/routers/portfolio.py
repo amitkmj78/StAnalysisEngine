@@ -263,39 +263,13 @@ async def _save_and_respond(conn, user_id: str, portfolio_id: int, holdings_df: 
         )
         strategy_rows.append(_record_to_dict(record))
 
-    # Auto-populate the watchlist with this snapshot's short-term upside
-    # target / protective stop — the "best strategy" numbers already computed
-    # above — so alerts exist without the user setting them up by hand.
-    # Tagged 'portfolio_auto' so re-saving/refreshing only replaces these,
-    # never alerts the user created themselves on the Watchlist page.
-    # Scoped by portfolio_id too, so saving portfolio B doesn't wipe out
-    # auto-alerts generated from portfolio A's holdings.
-    await conn.execute(
-        "DELETE FROM watchlist_alerts WHERE user_id = $1::uuid AND portfolio_id = $2 AND source = 'portfolio_auto'",
-        user_id, portfolio_id,
-    )
-    watchlist_alerts_created = 0
-    for _, row in strat_df.iterrows():
-        for condition_type, threshold in (
-            ("price_above", _nan_to_none(row.get("Target_Price"))),
-            ("price_below", _nan_to_none(row.get("Stop_Price"))),
-        ):
-            if threshold is None or threshold <= 0:
-                continue
-            await conn.execute(
-                """
-                INSERT INTO watchlist_alerts (user_id, portfolio_id, ticker, condition_type, threshold, source)
-                VALUES ($1::uuid, $2, $3, $4, $5, 'portfolio_auto')
-                """,
-                user_id, portfolio_id, row["Ticker"], condition_type, threshold,
-            )
-            watchlist_alerts_created += 1
-
+    # Refresh does not touch the watchlist. Watchlist entries are created only by an explicit user action
+    # (the "create watchlist from current price" button), never as a side effect of re-saving holdings.
     return {
         "positions": position_rows,
         "strategies": strategy_rows,
         "summary": summarize_portfolio(strat_df),
-        "watchlist_alerts_created": watchlist_alerts_created,
+        "watchlist_alerts_created": 0,
     }
 
 
@@ -557,6 +531,57 @@ async def list_rebalance_alerts(request: Request):
             user_id,
         )
     return {"alerts": [_rebalance_alert_to_dict(r) for r in records]}
+
+
+@router.post("/watchlist/from-current-prices")
+@limiter.limit("10/minute")
+async def watchlist_from_current_prices(
+    request: Request,
+    portfolio_id: Optional[int] = None,
+    pct: float = Query(5.0, gt=0, le=50, description="Alert when a holding moves this many percent up or down from its current price."),
+):
+    """Explicit user action: take each holding's current market price and create one price-above and one
+    price-below alert at +/- pct. Re-running replaces this portfolio's earlier price-watch alerts (their reference
+    prices move with the market). Refresh never does this."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        pid = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        tickers = [
+            r["ticker"]
+            for r in await conn.fetch(
+                "SELECT DISTINCT ticker FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2 ORDER BY ticker",
+                user_id, pid,
+            )
+        ]
+
+    prices: dict[str, float] = {}
+    for ticker in tickers:
+        price = await run_in_threadpool(get_effective_price, ticker)
+        if price is not None and price > 0:
+            prices[ticker] = round(float(price), 2)
+    skipped = [t for t in tickers if t not in prices]
+
+    created = 0
+    async with user_conn(user_id) as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "DELETE FROM watchlist_alerts WHERE user_id = $1::uuid AND portfolio_id = $2 AND source = 'portfolio_price_watch'",
+                user_id, pid,
+            )
+            for ticker, price in prices.items():
+                for condition_type, threshold in (
+                    ("price_above", round(price * (1 + pct / 100), 2)),
+                    ("price_below", round(price * (1 - pct / 100), 2)),
+                ):
+                    await conn.execute(
+                        """
+                        INSERT INTO watchlist_alerts (user_id, portfolio_id, ticker, condition_type, threshold, source)
+                        VALUES ($1::uuid, $2, $3, $4, $5, 'portfolio_price_watch')
+                        """,
+                        user_id, pid, ticker, condition_type, threshold,
+                    )
+                    created += 1
+    return {"created": created, "pct": pct, "reference_prices": prices, "skipped": skipped}
 
 
 @router.post("/rebalance-alerts/{alert_id}/dismiss")
