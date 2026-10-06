@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { cloneElement, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import type { ColumnInfo } from "@/components/InfoModal";
 import MetricLabel from "@/components/MetricLabel";
@@ -344,7 +344,8 @@ export default function StrategiesPage() {
         </div>
       )}
 
-      <form onSubmit={runPlan} className="mt-6 flex flex-col gap-4">
+      <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-6">
+      <form onSubmit={runPlan} className="flex flex-col gap-4">
         {/* STRAT-9: four labeled cards, in the order a user reads them. */}
         <section aria-labelledby="plan-goal" className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -444,18 +445,25 @@ export default function StrategiesPage() {
             <Field label="Inflation %">
               <input type="number" min={0} max={15} step={0.1} value={inflationPct} onChange={(e) => setInflationPct(Number(e.target.value))} className="input w-20" />
             </Field>
-            <Field label="Account type">
-              <select value={accountType} onChange={(e) => setAccountType(e.target.value as AccountType)} className="input" aria-describedby="plan-tax-note">
+            <Field label={
+              <span>
+                Account type{" "}
+                <span
+                  className="cursor-help text-slate-400"
+                  title={`${accountType} accounts assume a ${(taxDragByAccount[accountType] ?? 0).toFixed(1)}%/year tax drag on returns during accumulation${(taxDragByAccount[accountType] ?? 0) === 0 ? " (tax-advantaged, no drag modeled)." : " (dividend/turnover taxation)."}`}
+                  aria-label="Tax note"
+                >
+                  ⓘ
+                </span>
+              </span>
+            }>
+              <select value={accountType} onChange={(e) => setAccountType(e.target.value as AccountType)} className="input">
                 {accountTypes.map((a) => (
                   <option key={a} value={a}>{a}</option>
                 ))}
               </select>
             </Field>
           </div>
-          <p id="plan-tax-note" className="mt-2 text-xs text-slate-500">
-            {accountType} accounts assume a {(taxDragByAccount[accountType] ?? 0).toFixed(1)}%/year tax drag on returns during
-            accumulation{(taxDragByAccount[accountType] ?? 0) === 0 ? " (tax-advantaged, no drag modeled)." : " (dividend/turnover taxation)."}
-          </p>
         </section>
 
         <section aria-labelledby="plan-candidates" className="rounded-xl border border-slate-200 bg-white p-4">
@@ -495,6 +503,7 @@ export default function StrategiesPage() {
         </section>
       </form>
 
+      <div className="mt-6 flex flex-col gap-4 lg:sticky lg:top-4 lg:mt-0 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
       {loading && <p className="mt-4 text-sm text-slate-500">Building your plan…</p>}
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
@@ -705,6 +714,8 @@ export default function StrategiesPage() {
           </div>
         </div>
       )}
+      </div>
+      </div>
 
     </div>
   );
@@ -824,11 +835,13 @@ function KpiLine({ label, value, term, info }: { label: string; value: string; t
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactElement }) {
+  // STRAT-9 accessibility: the label is linked to its input, so screen readers announce the field name.
+  const id = useId();
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
-      {children}
+      <label htmlFor={id} className="text-xs font-medium text-slate-500">{label}</label>
+      {cloneElement(children as React.ReactElement<{ id?: string }>, { id })}
     </div>
   );
 }
