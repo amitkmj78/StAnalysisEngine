@@ -587,11 +587,11 @@ export default function PortfolioPage() {
               + Add Positions
             </Link>
             <Link
-              href={
+              href={`/charts?from=portfolio${selectedPortfolioId ? `&portfolio=${selectedPortfolioId}` : ""}${
                 strategies.length > 0
-                  ? `/charts?tickers=${encodeURIComponent(strategies.slice(0, 4).map((s) => s.ticker).join(","))}`
-                  : "/charts"
-              }
+                  ? `&tickers=${encodeURIComponent(strategies.slice(0, 4).map((s) => s.ticker).join(","))}`
+                  : ""
+              }`}
               className={PF.btn}
             >
               Chart grid

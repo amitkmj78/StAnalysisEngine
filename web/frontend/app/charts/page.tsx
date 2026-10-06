@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import LinkedPriceChart from "@/components/charts/LinkedPriceChart";
 import TickerSearchInput from "@/components/TickerSearchInput";
-import { ApiError, deleteChartLayout, listChartLayouts, saveChartLayout } from "@/lib/api";
+import { ApiError, deleteChartLayout, getPortfolioStrategies, listChartLayouts, saveChartLayout } from "@/lib/api";
 import type { ChartGridLayout, SavedChartLayout } from "@/lib/types";
 
 // CHT-8: a grid of up to four charts. CHT-7: layouts saved per user and reloaded unchanged.
@@ -54,6 +54,26 @@ function ChartGrid() {
   const [saved, setSaved] = useState<SavedChartLayout[]>([]);
   const [layoutName, setLayoutName] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+
+  // Opened from the portfolio: each slot becomes a dropdown of that portfolio's holdings.
+  const fromPortfolio = searchParams.get("from") === "portfolio";
+  const portfolioId = Number(searchParams.get("portfolio")) || undefined;
+  const [holdings, setHoldings] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (!fromPortfolio) return;
+    let cancelled = false;
+    getPortfolioStrategies(portfolioId)
+      .then((res) => {
+        if (!cancelled) setHoldings([...new Set(res.strategies.map((s) => s.ticker))].sort());
+      })
+      .catch(() => {
+        if (!cancelled) setHoldings([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromPortfolio, portfolioId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -164,14 +184,33 @@ function ChartGrid() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: SLOTS }).map((_, slot) => (
             <div key={slot} className="flex flex-col gap-1">
-              <TickerSearchInput
-                value={tickers[slot] ?? ""}
-                onChange={(t) => setTickers(tickers.map((x, i) => (i === slot ? t : x)))}
-                onSelect={(t) => setTickers(tickers.map((x, i) => (i === slot ? t.toUpperCase() : x)))}
-                placeholder={`Chart ${slot + 1}: ticker or name`}
-                className="input w-full py-1 text-xs"
-                id={`chart-slot-${slot}`}
-              />
+              {fromPortfolio ? (
+                <select
+                  id={`chart-slot-${slot}`}
+                  aria-label={`Chart ${slot + 1} holding`}
+                  value={tickers[slot] ?? ""}
+                  onChange={(e) => setTickers(tickers.map((x, i) => (i === slot ? e.target.value : x)))}
+                  className="input w-full py-1 text-xs"
+                >
+                  <option value="">{holdings === null ? "Loading holdings…" : "Empty slot"}</option>
+                  {[...new Set([...(holdings ?? []), tickers[slot] ?? ""])]
+                    .filter((t) => t)
+                    .map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                </select>
+              ) : (
+                <TickerSearchInput
+                  value={tickers[slot] ?? ""}
+                  onChange={(t) => setTickers(tickers.map((x, i) => (i === slot ? t : x)))}
+                  onSelect={(t) => setTickers(tickers.map((x, i) => (i === slot ? t.toUpperCase() : x)))}
+                  placeholder={`Chart ${slot + 1}: ticker or name`}
+                  className="input w-full py-1 text-xs"
+                  id={`chart-slot-${slot}`}
+                />
+              )}
             </div>
           ))}
         </div>

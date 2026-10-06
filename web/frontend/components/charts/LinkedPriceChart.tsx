@@ -47,6 +47,14 @@ export default function LinkedPriceChart({ ticker, range, chartType, logScale, l
   }, [ticker, range]);
 
   const dates = useMemo(() => (rows ?? []).map((r) => dayKey(r.date)), [rows]);
+
+  // Change over the whole selected range: first close to last close.
+  const change = useMemo(() => {
+    if (!rows || rows.length < 2) return null;
+    const first = rows[0].close;
+    const last = rows[rows.length - 1].close;
+    return first ? ((last - first) / first) * 100 : null;
+  }, [rows]);
   const divId = `linked-chart-${slot}`;
 
   if (error) return <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">{error}</p>;
@@ -74,7 +82,15 @@ export default function LinkedPriceChart({ ticker, range, chartType, logScale, l
     <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="mb-1 flex items-baseline justify-between">
         <p className="text-sm font-semibold text-slate-900">{ticker}</p>
-        <p className="font-mono text-xs text-slate-500">{rows[rows.length - 1] ? `${rows[rows.length - 1].close.toFixed(2)}` : ""}</p>
+        <p className="font-mono text-xs text-slate-500">
+          {rows[rows.length - 1] ? rows[rows.length - 1].close.toFixed(2) : ""}
+          {change !== null && (
+            <span className={`ml-2 font-semibold ${change >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+              {change >= 0 ? "+" : ""}
+              {change.toFixed(1)}% over {range}
+            </span>
+          )}
+        </p>
       </div>
       <PlotlyHoverSync divId={divId} linked={linked} dates={dates} hoverDate={hoverDate} hoverSource={hoverSource} slot={slot} />
       <PlotlyChart
