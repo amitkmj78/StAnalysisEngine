@@ -49,6 +49,7 @@ import EvidencePanel from "@/components/stock-detail/EvidencePanel";
 import FilingSummaryText from "@/components/stock-detail/FilingSummaryText";
 import TradeImpactCard from "@/components/portfolio/TradeImpactCard";
 import SimilarSetupsCard from "@/components/stock-detail/SimilarSetupsCard";
+import RecentNewsPanel from "@/components/stock-detail/RecentNewsPanel";
 import TrackRecordPanel from "@/components/stock-detail/TrackRecordPanel";
 import TickerSearchInput from "@/components/TickerSearchInput";
 
@@ -510,6 +511,9 @@ export default function StockScorePage() {
 
       <div className="mt-6">
         <TrackRecordPanel ticker={ticker} />
+        <div className="mt-6">
+          <RecentNewsPanel ticker={ticker} />
+        </div>
       </div>
 
       {data && (

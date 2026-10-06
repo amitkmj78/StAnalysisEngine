@@ -132,6 +132,7 @@ import type {
   StockDetailResponse,
   StockPeersResponse,
   StockPositionResponse,
+  StockNewsResponse,
   StockPriceHistoryInterval,
   StockPriceHistoryRange,
   StockPriceHistoryResponse,
@@ -888,6 +889,11 @@ export function getEarningsCalendar() {
 
 export function getMarketRegime() {
   return apiFetch<MarketRegimeResponse>("/api/v1/market/regime");
+}
+
+// Signal explanation step 1: stored SEC 8-K filings for a ticker, newest first.
+export function getStockNews(ticker: string, days = 90) {
+  return apiFetch<StockNewsResponse>(`/api/v1/news/${encodeURIComponent(ticker)}`, { days: String(days) });
 }
 
 export function getStockPriceHistory(ticker: string, range: StockPriceHistoryRange = "1Y", interval?: StockPriceHistoryInterval) {
