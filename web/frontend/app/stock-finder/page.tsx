@@ -41,20 +41,20 @@ const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
 
 const PF = {
-  page: "bg-[#f4f1ea]",
-  ink: "text-[#1f2420]",
-  muted: "text-[#857d6e]",
-  line: "border-[#ddd8cd]",
-  card: "rounded-xl border border-[#ddd8cd] bg-white",
-  surface2: "bg-[#efebe3]",
-  good: "text-[#2f6b4f]",
-  bad: "text-[#a23b34]",
-  warnBg: "bg-[#f4e3c9]",
-  warnText: "text-[#8a6417]",
-  btn: "rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm font-medium text-[#1f2420] hover:border-[#2f5d50] hover:text-[#2f5d50]",
-  btnPrimary: "rounded-md bg-[#2f5d50] px-3 py-1.5 text-sm font-semibold text-[#f4f1ea] hover:bg-[#274e43]",
-  input: "rounded-md border border-[#ddd8cd] bg-white px-3 py-2 text-sm text-[#1f2420]",
-  chip: "inline-flex items-center gap-1 rounded-full border border-[#ddd8cd] bg-white px-2.5 py-1 text-xs text-[#1f2420]",
+  page: "bg-slate-50",
+  ink: "text-slate-900",
+  muted: "text-slate-500",
+  line: "border-slate-200",
+  card: "rounded-xl border border-slate-200 bg-white",
+  surface2: "bg-slate-100",
+  good: "text-emerald-700",
+  bad: "text-red-700",
+  warnBg: "bg-amber-50",
+  warnText: "text-amber-700",
+  btn: "rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-indigo-700 hover:text-indigo-700",
+  btnPrimary: "rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold text-slate-50 hover:bg-emerald-800",
+  input: "rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900",
+  chip: "inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-900",
 };
 
 function goodBad(v: number | null | undefined): string {
@@ -910,7 +910,7 @@ export default function StockFinderPage() {
                 <button
                   type="button"
                   onClick={() => setShowFilters((v) => !v)}
-                  className={`${PF.btn} ${showFilters ? "border-[#2f5d50] text-[#2f5d50]" : ""}`}
+                  className={`${PF.btn} ${showFilters ? "border-indigo-700 text-indigo-700" : ""}`}
                 >
                   {showFilters ? "Hide Filters" : "Filters"}
                   {filtersActive(filters) ? ` (active)` : ""}
@@ -918,7 +918,7 @@ export default function StockFinderPage() {
                 <button
                   type="button"
                   onClick={() => setShowColumnPicker((v) => !v)}
-                  className={`${PF.btn} ${showColumnPicker ? "border-[#2f5d50] text-[#2f5d50]" : ""}`}
+                  className={`${PF.btn} ${showColumnPicker ? "border-indigo-700 text-indigo-700" : ""}`}
                 >
                   Columns
                 </button>
@@ -1038,8 +1038,8 @@ export default function StockFinderPage() {
                           onClick={() => toggleShortSignal(sig)}
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                             filters.shortSignal.includes(sig)
-                              ? "border-[#2f5d50] bg-[#2f5d50] text-white"
-                              : `${PF.line} ${PF.muted} hover:bg-[#efebe3]`
+                              ? "border-indigo-700 bg-indigo-700 text-white"
+                              : `${PF.line} ${PF.muted} hover:bg-slate-100`
                           }`}
                         >
                           {sig}
@@ -1057,8 +1057,8 @@ export default function StockFinderPage() {
                           onClick={() => toggleLongSignal(sig)}
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                             filters.longSignal.includes(sig)
-                              ? "border-[#2f5d50] bg-[#2f5d50] text-white"
-                              : `${PF.line} ${PF.muted} hover:bg-[#efebe3]`
+                              ? "border-indigo-700 bg-indigo-700 text-white"
+                              : `${PF.line} ${PF.muted} hover:bg-slate-100`
                           }`}
                         >
                           {sig}
@@ -1077,7 +1077,7 @@ export default function StockFinderPage() {
                           type="button"
                           onClick={() => setFilters((prev) => ({ ...prev, owned: v }))}
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${
-                            filters.owned === v ? "border-[#2f5d50] bg-[#2f5d50] text-white" : `${PF.line} ${PF.muted} hover:bg-[#efebe3]`
+                            filters.owned === v ? "border-indigo-700 bg-indigo-700 text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
                           }`}
                         >
                           {v === "only" ? "Owned only" : v === "exclude" ? "Not owned" : "Any"}
@@ -1094,7 +1094,7 @@ export default function StockFinderPage() {
                           type="button"
                           onClick={() => setFilters((prev) => ({ ...prev, watchlisted: v }))}
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${
-                            filters.watchlisted === v ? "border-[#2f5d50] bg-[#2f5d50] text-white" : `${PF.line} ${PF.muted} hover:bg-[#efebe3]`
+                            filters.watchlisted === v ? "border-indigo-700 bg-indigo-700 text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
                           }`}
                         >
                           {v === "only" ? "Watchlisted only" : v === "exclude" ? "Not watchlisted" : "Any"}
@@ -1113,8 +1113,8 @@ export default function StockFinderPage() {
                         onClick={() => toggleSector(s)}
                         className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                           filters.sectors.includes(s)
-                            ? "border-[#2f5d50] bg-[#2f5d50] text-white"
-                            : `${PF.line} ${PF.muted} hover:bg-[#efebe3]`
+                            ? "border-indigo-700 bg-indigo-700 text-white"
+                            : `${PF.line} ${PF.muted} hover:bg-slate-100`
                         }`}
                       >
                         {s}
@@ -1126,7 +1126,7 @@ export default function StockFinderPage() {
                   <button
                     type="button"
                     onClick={() => setFilters(EMPTY_FILTERS)}
-                    className={`mt-3 text-xs font-medium ${PF.muted} underline hover:text-[#1f2420]`}
+                    className={`mt-3 text-xs font-medium ${PF.muted} underline hover:text-slate-900`}
                   >
                     Clear all filters
                   </button>
@@ -1175,7 +1175,7 @@ export default function StockFinderPage() {
                                   type="button"
                                   onClick={(e) => handleSort(col, e.shiftKey)}
                                   title="Click to sort; shift-click to add as a secondary sort key"
-                                  className={`flex items-center gap-1 uppercase tracking-wide ${PF.muted} hover:text-[#1f2420]`}
+                                  className={`flex items-center gap-1 uppercase tracking-wide ${PF.muted} hover:text-slate-900`}
                                 >
                                   {col}
                                   <span className="text-[10px]">
@@ -1203,12 +1203,12 @@ export default function StockFinderPage() {
                       const expanded = expandedRows.has(t);
                       return (
                         <Fragment key={t}>
-                          <tr className={`border-b ${PF.line} last:border-0 hover:bg-[#faf9f5]`}>
+                          <tr className={`border-b ${PF.line} last:border-0 hover:bg-slate-50`}>
                             <td className={`sticky left-0 z-[5] bg-white px-2 py-2`}>
                               <button
                                 type="button"
                                 onClick={() => toggleRow(t)}
-                                className={`flex h-5 w-5 items-center justify-center rounded ${PF.muted} hover:bg-[#efebe3] hover:text-[#1f2420]`}
+                                className={`flex h-5 w-5 items-center justify-center rounded ${PF.muted} hover:bg-slate-100 hover:text-slate-900`}
                                 title="Show more stats"
                               >
                                 {expanded ? "▾" : "▸"}
@@ -1231,9 +1231,9 @@ export default function StockFinderPage() {
                                         <span
                                           className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                                             quantSignal.signal.signal === "BUY"
-                                              ? "bg-[#e3f0e9] text-[#2f6b4f]"
+                                              ? "bg-emerald-50 text-emerald-700"
                                               : quantSignal.signal.signal === "SELL"
-                                              ? "bg-[#f6e7e5] text-[#a23b34]"
+                                              ? "bg-red-50 text-red-700"
                                               : `${PF.surface2} ${PF.muted}`
                                           }`}
                                         >
@@ -1277,9 +1277,9 @@ export default function StockFinderPage() {
                                           <span
                                             className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                                               /buy/i.test(analystRating.rating.consensus)
-                                                ? "bg-[#e3f0e9] text-[#2f6b4f]"
+                                                ? "bg-emerald-50 text-emerald-700"
                                                 : /sell|underperform/i.test(analystRating.rating.consensus)
-                                                ? "bg-[#f6e7e5] text-[#a23b34]"
+                                                ? "bg-red-50 text-red-700"
                                                 : `${PF.surface2} ${PF.muted}`
                                             }`}
                                           >
@@ -1305,7 +1305,7 @@ export default function StockFinderPage() {
                                   <td key={col} className="px-3 py-2">
                                     <Sparkline
                                       values={values}
-                                      color={goodBad(row["1M Return %"] as number | null) === PF.good ? "#2f6b4f" : "#a23b34"}
+                                      color={goodBad(row["1M Return %"] as number | null) === PF.good ? "#047857" : "#b91c1c"}
                                     />
                                   </td>
                                 );

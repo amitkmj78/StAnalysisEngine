@@ -35,7 +35,7 @@ export default function BenchmarkComparisonCard({ portfolioId }: { portfolioId: 
   }, [portfolioId]);
 
   if (loading) return null;
-  if (error) return <p className="mt-3 rounded-md border border-[#e4c9c5] bg-[#fbeceb] px-3 py-2 text-sm text-[#a23b34]">{error}</p>;
+  if (error) return <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>;
   // Renders as long as there's at least one real stat to show -- the
   // since-inception comparison (gap_pct) needs the portfolio's creation
   // date priced, but benchmark_today_pct only needs today's quotes and
@@ -47,37 +47,37 @@ export default function BenchmarkComparisonCard({ portfolioId }: { portfolioId: 
   return (
     <div
       className={`mt-3 rounded-xl border p-4 ${
-        data.underperforming ? "border-[#e3cf9c] bg-[#faf3e2]" : "border-[#ddd8cd] bg-white"
+        data.underperforming ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span className="font-semibold text-[#1f2420]">vs. S&amp;P 500 ({data.benchmark_ticker})</span>
-          <span className="text-[#514c43]">
+          <span className="font-semibold text-slate-900">vs. S&amp;P 500 ({data.benchmark_ticker})</span>
+          <span className="text-slate-700">
             {data.benchmark_ticker} today{" "}
             <strong
               className={
                 data.benchmark_today_pct === null
                   ? undefined
                   : data.benchmark_today_pct >= 0
-                  ? "text-[#2f6b4f]"
-                  : "text-[#a23b34]"
+                  ? "text-emerald-700"
+                  : "text-red-700"
               }
             >
               {fmtPct(data.benchmark_today_pct)}
             </strong>
           </span>
-          <span className="text-[#514c43]">
+          <span className="text-slate-700">
             Portfolio <strong>{fmtPct(data.portfolio_return_pct)}</strong>
           </span>
-          <span className="text-[#514c43]">
+          <span className="text-slate-700">
             {data.benchmark_ticker} <strong>{fmtPct(data.benchmark_return_pct)}</strong>
           </span>
         </div>
         {data.gap_pct !== null && (
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-              positive ? "bg-[#e3ede8] text-[#2f6b4f]" : "bg-[#f6e5e3] text-[#a23b34]"
+              positive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
             }`}
           >
             {positive ? "Ahead by" : "Trailing by"} {Math.abs(data.gap_pct).toFixed(1)} pts
@@ -85,9 +85,9 @@ export default function BenchmarkComparisonCard({ portfolioId }: { portfolioId: 
         )}
       </div>
       {data.underperforming && data.suggestion && (
-        <p className="mt-2 text-sm text-[#8a6417]">{data.suggestion}</p>
+        <p className="mt-2 text-sm text-amber-700">{data.suggestion}</p>
       )}
-      <p className="mt-2 text-xs text-[#a39b8b]">
+      <p className="mt-2 text-xs text-slate-400">
         {data.benchmark_ticker} today is a real day-over-day move. Portfolio vs. {data.benchmark_ticker} is since
         this portfolio was created — an approximation, not a date-matched return for each individual position.
       </p>

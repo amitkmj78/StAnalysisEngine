@@ -76,7 +76,7 @@ export default function LinkedPriceChart({ ticker, range, chartType, logScale, l
           decreasing: { line: { color: "#DC2626" } },
         },
       ]
-    : [{ x, y: rows.map((r) => r.close), type: "scatter" as const, mode: "lines" as const, name: ticker, line: { color: "#1F4FD1", width: 2 } }];
+    : [{ x, y: rows.map((r) => r.close), type: "scatter" as const, mode: "lines" as const, name: ticker, line: { color: "#4f46e5", width: 2 } }];
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">

@@ -41,6 +41,23 @@ const DRAW_TOOLS: { key: DrawingKind; label: string }[] = [
   { key: "text", label: "Note" },
 ];
 
+const TOOL_ICON: Record<DrawingKind, string> = {
+  trend: "╱",
+  horizontal: "―",
+  rectangle: "▭",
+  fibonacci: "F",
+  text: "✎",
+};
+
+// Colour dot per drawing type, matching the lines drawn on the chart (indigo for most, amber for Fibonacci).
+const KIND_DOT: Record<DrawingKind, string> = {
+  trend: "bg-indigo-600",
+  horizontal: "bg-indigo-400",
+  rectangle: "bg-indigo-300",
+  fibonacci: "bg-amber-600",
+  text: "bg-emerald-600",
+};
+
 function describeDrawing(d: ChartDrawing): string {
   const name = DRAW_TOOLS.find((t) => t.key === d.kind)?.label ?? d.kind;
   if (d.kind === "text") return `${name}: ${d.text ?? ""}`;
@@ -104,7 +121,7 @@ const REGIME_COLORS: Record<string, string> = {
 
 const UP = "#059669";
 const DOWN = "#DC2626";
-const PRICE_BLUE = "#1F4FD1";
+const PRICE_BLUE = "#4f46e5";
 
 type Candle = { date: string; open: number; high: number; low: number; close: number };
 
@@ -601,7 +618,7 @@ export default function PriceHistoryChart({
   }
   if (subAxisIndex.has("rsi") && indicators) {
     const n = axisOf("rsi");
-    subTraces.push(lineTrace("RSI 14", history.map((p) => p.date), indicators.rsi_14, "#1F4FD1", { xaxis: `x${n}`, yaxis: `y${n}` }));
+    subTraces.push(lineTrace("RSI 14", history.map((p) => p.date), indicators.rsi_14, "#4f46e5", { xaxis: `x${n}`, yaxis: `y${n}` }));
   }
   if (subAxisIndex.has("macd") && indicators) {
     const n = axisOf("macd");
@@ -615,13 +632,13 @@ export default function PriceHistoryChart({
       xaxis: `x${n}`,
       yaxis: `y${n}`,
     });
-    subTraces.push(lineTrace("MACD", dates, indicators.macd.macd, "#1F4FD1", { xaxis: `x${n}`, yaxis: `y${n}` }));
+    subTraces.push(lineTrace("MACD", dates, indicators.macd.macd, "#4f46e5", { xaxis: `x${n}`, yaxis: `y${n}` }));
     subTraces.push(lineTrace("Signal", dates, indicators.macd.signal, "#F59E0B", { xaxis: `x${n}`, yaxis: `y${n}` }));
   }
   if (subAxisIndex.has("score")) {
     const n = axisOf("score");
     const dates = signalRows.map((s) => s.as_of_date);
-    subTraces.push(lineTrace("Short-term score", dates, signalRows.map((s) => s.short_score), "#1F4FD1", { xaxis: `x${n}`, yaxis: `y${n}` }));
+    subTraces.push(lineTrace("Short-term score", dates, signalRows.map((s) => s.short_score), "#4f46e5", { xaxis: `x${n}`, yaxis: `y${n}` }));
     subTraces.push(lineTrace("Long-term score", dates, signalRows.map((s) => s.long_score), "#7C3AED", { xaxis: `x${n}`, yaxis: `y${n}` }));
     // DIF-4: a week is five recorded days back; a short-term move of 15 points or more is marked.
     if (weeklyMoves.length > 0) {
@@ -870,51 +887,76 @@ export default function PriceHistoryChart({
       )}
 
       {drawingsActive && (
-        <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
-          <span className="mr-1 text-slate-500">Draw:</span>
-          {DRAW_TOOLS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => chooseTool(drawTool === t.key ? null : t.key)}
-              className={`rounded-md px-2 py-1 font-medium ${
-                drawTool === t.key ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              {t.label}
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs">
+          <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Draw</span>
+          {DRAW_TOOLS.map((t) => {
+            const selected = drawTool === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => chooseTool(selected ? null : t.key)}
+                aria-pressed={selected}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-medium transition-colors ${
+                  selected
+                    ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-100"
+                }`}
+              >
+                <span aria-hidden="true" className="w-3 text-center">{TOOL_ICON[t.key]}</span>
+                {t.label}
+              </button>
+            );
+          })}
+          {drawTool && (
+            <button type="button" onClick={() => chooseTool(null)} className="rounded-md px-2 py-1 text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline">
+              Cancel
             </button>
-          ))}
+          )}
           <button
             type="button"
             onClick={handleClearDrawings}
             disabled={drawings.length === 0}
-            className="ml-auto rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+            className="ml-auto rounded-md px-2 py-1 text-slate-500 hover:bg-white hover:text-red-700 disabled:opacity-40"
           >
             Clear all
           </button>
         </div>
       )}
       {drawingsActive && (drawTool || drawNote) && (
-        <p className="mt-1 text-xs text-slate-500">
+        <p
+          role="status"
+          className={`mt-2 flex items-center gap-2 rounded-md px-3 py-1.5 text-xs ${
+            drawNote ? "bg-red-50 text-red-800" : "bg-indigo-50 text-indigo-900"
+          }`}
+        >
+          <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${drawNote ? "bg-red-500" : "bg-indigo-500"}`} />
           {drawNote ?? (pending.length ? "Now click the second point." : "Click the chart to place the first point.")}
         </p>
       )}
       {drawingsActive && drawings.length > 0 && (
-        <ul className="mt-2 flex flex-wrap gap-2 text-xs">
-          {drawings.map((d) => (
-            <li key={d.id} className="flex items-center gap-1 rounded border border-slate-200 px-2 py-0.5 text-slate-700">
-              <span>{describeDrawing(d)}</span>
-              <button
-                type="button"
-                onClick={() => handleDeleteDrawing(d.id)}
-                className="text-slate-400 hover:text-red-700"
-                aria-label={`Delete ${describeDrawing(d)}`}
+        <div className="mt-2">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Your drawings ({drawings.length})</p>
+          <ul className="flex flex-wrap gap-1.5 text-xs">
+            {drawings.map((d) => (
+              <li
+                key={d.id}
+                className="flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white py-1 pl-2.5 pr-1 text-slate-700 shadow-sm"
               >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
+                <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${KIND_DOT[d.kind]}`} />
+                <span className="truncate">{describeDrawing(d)}</span>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteDrawing(d.id)}
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-red-50 hover:text-red-700"
+                  aria-label={`Delete ${describeDrawing(d)}`}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {loading && <p className="mt-4 text-sm text-slate-500">Loading…</p>}

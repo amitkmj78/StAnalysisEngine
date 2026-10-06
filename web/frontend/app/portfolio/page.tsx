@@ -62,15 +62,15 @@ const MONO_FONT = { fontFamily: "var(--font-pf-mono)" };
 // green accent, and good/bad kept close to (but distinct from) that
 // accent hue.
 const PF = {
-  page: "bg-[#f4f1ea]",
-  ink: "text-[#1f2420]",
-  muted: "text-[#857d6e]",
-  line: "border-[#ddd8cd]",
-  card: "rounded-xl border border-[#ddd8cd] bg-white",
-  good: "text-[#2f6b4f]",
-  bad: "text-[#a23b34]",
-  btn: "rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm font-medium text-[#1f2420] hover:border-[#2f5d50] hover:text-[#2f5d50]",
-  btnPrimary: "rounded-md bg-[#2f5d50] px-3 py-1.5 text-sm font-semibold text-[#f4f1ea] hover:bg-[#274e43]",
+  page: "bg-slate-50",
+  ink: "text-slate-900",
+  muted: "text-slate-500",
+  line: "border-slate-200",
+  card: "rounded-xl border border-slate-200 bg-white",
+  good: "text-emerald-700",
+  bad: "text-red-700",
+  btn: "rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-indigo-700 hover:text-indigo-700",
+  btnPrimary: "rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold text-slate-50 hover:bg-emerald-800",
 };
 
 function goodBad(v: number | null | undefined): string {
@@ -92,7 +92,7 @@ const LIVE_READ_INFO: ColumnInfo = {
 function SortArrow({ active, label, onClick }: { active: SortDirection | null; label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} aria-label={label} title={label}
-      className="ml-1 inline-block rounded px-1 text-[10px] leading-none text-[#857d6e] hover:bg-[#e6e1d6]">
+      className="ml-1 inline-block rounded px-1 text-[10px] leading-none text-slate-500 hover:bg-slate-200">
       {active === "asc" ? "▲" : active === "desc" ? "▼" : "↕"}
     </button>
   );
@@ -592,7 +592,7 @@ export default function PortfolioPage() {
         <MarketNewsTicker />
 
         {/* ---------- Toolbar: portfolio switcher + entry points ---------- */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#ddd8cd] pb-5">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
           <PortfolioSwitcher
             selectedPortfolioId={selectedPortfolioId}
             onChange={setSelectedPortfolioId}
@@ -633,9 +633,9 @@ export default function PortfolioPage() {
             id="show-goal-plan"
             checked={showGoalPlan}
             onChange={(e) => setShowGoalPlan(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-[#ddd8cd]"
+            className="h-3.5 w-3.5 rounded border-slate-200"
           />
-          <label htmlFor="show-goal-plan" className="text-sm font-medium text-[#1f2420]">
+          <label htmlFor="show-goal-plan" className="text-sm font-medium text-slate-900">
             Goal-Based Investing Plan
           </label>
         </div>
@@ -651,7 +651,7 @@ export default function PortfolioPage() {
                 step="0.01"
                 value={marginInput}
                 onChange={(e) => setMarginInput(e.target.value)}
-                className="w-44 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm text-[#1f2420]"
+                className="w-44 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900"
                 style={MONO_FONT}
               />
             </Field>
@@ -668,7 +668,7 @@ export default function PortfolioPage() {
                 step="0.01"
                 value={cashInput}
                 onChange={(e) => setCashInput(e.target.value)}
-                className="w-44 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm text-[#1f2420]"
+                className="w-44 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900"
                 style={MONO_FONT}
               />
             </Field>
@@ -682,7 +682,7 @@ export default function PortfolioPage() {
               <select
                 value={accountTypeInput}
                 onChange={(e) => setAccountTypeInput(e.target.value as AccountType)}
-                className="w-44 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm text-[#1f2420]"
+                className="w-44 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900"
               >
                 <option value="Taxable">Taxable</option>
                 <option value="Traditional">Traditional</option>
@@ -702,9 +702,9 @@ export default function PortfolioPage() {
           </div>
         )}
 
-        {error && <p className={`mt-4 rounded-md border border-[#e4c9c5] bg-[#fbeceb] px-3 py-2 text-sm ${PF.bad}`}>{error}</p>}
+        {error && <p className={`mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm ${PF.bad}`}>{error}</p>}
         {watchlistNote && (
-          <p className={`mt-4 rounded-md border border-[#cfe0d8] bg-[#ecf3ef] px-3 py-2 text-sm ${PF.good}`}>
+          <p className={`mt-4 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm ${PF.good}`}>
             {watchlistNote}{" "}
             <a href="/watchlist" className="underline">
               View watchlist
@@ -714,16 +714,16 @@ export default function PortfolioPage() {
 
         {/* ---------- Hero: total value + sub-line + chip row ---------- */}
         {summary && (
-          <div className="mt-6 grid grid-cols-1 gap-8 border-b border-[#ddd8cd] pb-7 lg:grid-cols-[1.1fr_1fr]">
+          <div className="mt-6 grid grid-cols-1 gap-8 border-b border-slate-200 pb-7 lg:grid-cols-[1.1fr_1fr]">
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-wider text-[#857d6e]" style={MONO_FONT}>
+              <p className="font-mono text-[11px] uppercase tracking-wider text-slate-500" style={MONO_FONT}>
                 Total value · {currentPortfolio?.name ?? "Portfolio"}
               </p>
               <p className="mt-1 text-5xl font-semibold leading-none" style={DISPLAY_FONT}>
                 {totalValue !== null ? `$${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}
               </p>
               {performance && (
-                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-[#514c43]">
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-700">
                   {performance.total_day_gain !== null && (
                     <span>
                       Today{" "}
@@ -778,9 +778,9 @@ export default function PortfolioPage() {
 
         {summary && summary.total_positions > 0 && (
           <div className="mt-2">
-            {performanceLoading && !performance && <p className="mt-4 text-sm text-[#857d6e]">Loading…</p>}
+            {performanceLoading && !performance && <p className="mt-4 text-sm text-slate-500">Loading…</p>}
             {performanceError && (
-              <p className={`mt-4 rounded-md border border-[#e4c9c5] bg-[#fbeceb] px-3 py-2 text-sm ${PF.bad}`}>{performanceError}</p>
+              <p className={`mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm ${PF.bad}`}>{performanceError}</p>
             )}
 
             {performance && performance.rows.length > 0 && (
@@ -788,7 +788,7 @@ export default function PortfolioPage() {
                 <BenchmarkComparisonCard portfolioId={selectedPortfolioId} />
 
                 {performance.rows.some((r) => r.used_extended_hours) && (
-                  <p className="mt-2 text-xs text-[#857d6e]">
+                  <p className="mt-2 text-xs text-slate-500">
                     Includes after-hours/pre-market prices for{" "}
                     {performance.rows.filter((r) => r.used_extended_hours).length} holding
                     {performance.rows.filter((r) => r.used_extended_hours).length === 1 ? "" : "s"} — see the Price
@@ -819,7 +819,7 @@ export default function PortfolioPage() {
               </button>
             )}
             {strategies.length > 0 && (
-              <span className="inline-flex items-center gap-1 text-xs text-[#857d6e]">
+              <span className="inline-flex items-center gap-1 text-xs text-slate-500">
                 <label htmlFor="watch-pct">Alert at ±</label>
                 <input
                   id="watch-pct"
@@ -829,7 +829,7 @@ export default function PortfolioPage() {
                   step="0.5"
                   value={watchPct}
                   onChange={(e) => setWatchPct(e.target.value)}
-                  className="w-16 rounded border border-[#d8d2c4] px-1 py-0.5 text-right text-[#2a2620]"
+                  className="w-16 rounded border border-slate-300 px-1 py-0.5 text-right text-slate-800"
                 />
                 <span>%</span>
                 <button onClick={handleCreateWatchlist} disabled={creatingWatchlist} className={`${PF.btn} disabled:opacity-50`}>
@@ -844,12 +844,12 @@ export default function PortfolioPage() {
             )}
           </div>
         </div>
-        <p className="mt-1 text-xs text-[#857d6e]">
+        <p className="mt-1 text-xs text-slate-500">
           Today&apos;s price for every holding, priced fresh each load. Click a row for forecasts, the 30-day/cost
           comparison, and its short-/long-term plan.
         </p>
 
-        <p className="mt-4 text-xs font-medium text-[#857d6e]">
+        <p className="mt-4 text-xs font-medium text-slate-500">
           Add a new position — this only appends this one ticker, it won&apos;t touch anything else you&apos;ve
           saved.
         </p>
@@ -864,7 +864,7 @@ export default function PortfolioPage() {
               step="0.0001"
               value={addShares}
               onChange={(e) => setAddShares(e.target.value)}
-              className="w-24 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm text-[#1f2420]"
+              className="w-24 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900"
             />
           </Field>
           <Field label="Avg cost">
@@ -873,7 +873,7 @@ export default function PortfolioPage() {
               step="0.01"
               value={addAvgCost}
               onChange={(e) => setAddAvgCost(e.target.value)}
-              className="w-24 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm text-[#1f2420]"
+              className="w-24 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900"
             />
           </Field>
           <button type="submit" disabled={adding} className={`${PF.btnPrimary} disabled:opacity-50`}>
@@ -883,15 +883,15 @@ export default function PortfolioPage() {
         </form>
 
         {loading ? (
-          <p className="mt-3 text-sm text-[#857d6e]">Loading…</p>
+          <p className="mt-3 text-sm text-slate-500">Loading…</p>
         ) : strategies.length === 0 ? (
-          <p className="mt-3 text-sm text-[#857d6e]">No saved strategies yet.</p>
+          <p className="mt-3 text-sm text-slate-500">No saved strategies yet.</p>
         ) : (
           <div className={`mt-3 overflow-hidden ${PF.card}`}>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#ddd8cd] bg-[#efebe3] text-left text-[10.5px] font-semibold uppercase tracking-wide text-[#857d6e]">
+                  <tr className="border-b border-slate-200 bg-slate-100 text-left text-[10.5px] font-semibold uppercase tracking-wide text-slate-500">
                     <th className="px-4 py-3">
                       <MetricLabel term="Position Ticker">Ticker</MetricLabel>
                       <SortArrow active={sort.key === "ticker" ? sort.direction : null}
@@ -972,7 +972,7 @@ export default function PortfolioPage() {
                     return (
                       <FragmentRow key={s.id}>
                         <tr
-                          className="cursor-pointer border-b border-[#ede9df] last:border-0 hover:bg-[#faf8f3]"
+                          className="cursor-pointer border-b border-slate-200 last:border-0 hover:bg-slate-50"
                           onClick={() => toggleExpanded(s.ticker)}
                         >
                           <td className="px-4 py-3">
@@ -982,7 +982,7 @@ export default function PortfolioPage() {
                               {s.alpaca_paper_account_id != null && (
                                 <span
                                   title="Synced from your linked Alpaca paper-trading account — simulated, not real money."
-                                  className="rounded-full bg-[#e3ecff] px-1.5 py-0.5 text-[10px] font-bold text-[#1f4fd1]"
+                                  className="rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600"
                                 >
                                   Paper
                                 </span>
@@ -990,14 +990,14 @@ export default function PortfolioPage() {
                               {insight?.concentrated && (
                                 <span
                                   title="A single position this large drives most of your portfolio's swings."
-                                  className="rounded-full bg-[#f4e3c9] px-1.5 py-0.5 text-[10px] font-bold text-[#8a6417]"
+                                  className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
                                 >
                                   {insight.weight_pct?.toFixed(0)}%
                                 </span>
                               )}
                             </div>
                             {perfRow?.acquired_at && (
-                              <div className="mt-0.5 pl-[22px] text-[11px] text-[#a39b8b]">
+                              <div className="mt-0.5 pl-[22px] text-[11px] text-slate-400">
                                 Held since {fmtAcquiredAt(perfRow.acquired_at)}
                               </div>
                             )}
@@ -1007,22 +1007,22 @@ export default function PortfolioPage() {
                               <span
                                 className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                                   insight.signal === "BUY"
-                                    ? "bg-[#e3ede8] text-[#2f6b4f]"
+                                    ? "bg-emerald-50 text-emerald-700"
                                     : insight.signal === "SELL"
-                                    ? "bg-[#f6e5e3] text-[#a23b34]"
-                                    : "bg-[#efece4] text-[#6b6459]"
+                                    ? "bg-red-50 text-red-700"
+                                    : "bg-slate-100 text-slate-600"
                                 }`}
                               >
                                 {insight.signal}
                               </span>
                             ) : (
-                              <span className="text-[#a39b8b]">{insightsLoading ? "…" : "—"}</span>
+                              <span className="text-slate-400">{insightsLoading ? "…" : "—"}</span>
                             )}
                           </td>
                           <td className="px-4 py-3 text-right" style={MONO_FONT}>
                             {s.shares?.toFixed(2) ?? "—"}
                           </td>
-                          <td className="px-4 py-3 text-right text-[#857d6e]" style={MONO_FONT}>
+                          <td className="px-4 py-3 text-right text-slate-500" style={MONO_FONT}>
                             {s.avg_cost !== null && s.avg_cost !== undefined ? `$${s.avg_cost.toFixed(2)}` : "—"}
                           </td>
                           <td className="px-4 py-3 text-right" style={MONO_FONT}>
@@ -1061,10 +1061,10 @@ export default function PortfolioPage() {
                         </tr>
 
                         {isExpanded && (
-                          <tr className="border-b border-[#ede9df] bg-[#faf8f3] last:border-0">
+                          <tr className="border-b border-slate-200 bg-slate-50 last:border-0">
                             <td colSpan={8} className="px-4 py-5 pl-11">
                               {perfRow?.price_unavailable ? (
-                                <p className="text-sm text-[#a39b8b]">
+                                <p className="text-sm text-slate-400">
                                   No market data found for this ticker — check it&apos;s a valid, publicly-traded
                                   symbol.
                                 </p>
@@ -1106,28 +1106,28 @@ export default function PortfolioPage() {
                                     <div className="flex flex-col gap-0.5">
                                       <Link
                                         href={`/stock/${s.ticker}`}
-                                        className="text-[#2f5d50] hover:underline"
+                                        className="text-indigo-700 hover:underline"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         Price chart
                                       </Link>
                                       <Link
                                         href={`/predict?ticker=${s.ticker}&from=portfolio`}
-                                        className="text-[#2f5d50] hover:underline"
+                                        className="text-indigo-700 hover:underline"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         Forecast
                                       </Link>
                                       <Link
                                         href={`/signal-comparison?ticker=${s.ticker}&from=portfolio`}
-                                        className="text-[#2f5d50] hover:underline"
+                                        className="text-indigo-700 hover:underline"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         Quant vs Analyst
                                       </Link>
                                       <Link
                                         href="/guides/signals"
-                                        className="text-[#2f5d50] hover:underline"
+                                        className="text-indigo-700 hover:underline"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         What do signals mean?
@@ -1142,7 +1142,7 @@ export default function PortfolioPage() {
                                   {insight.concentrated && insight.weight_pct !== null && (
                                     <span
                                       title="A single position this large drives most of your portfolio's swings — consider whether that's intentional."
-                                      className="rounded-full bg-[#f4e3c9] px-2 py-0.5 font-semibold text-[#8a6417]"
+                                      className="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700"
                                     >
                                       {insight.weight_pct.toFixed(0)}% of portfolio — concentrated
                                     </span>
@@ -1155,7 +1155,7 @@ export default function PortfolioPage() {
                                     }}
                                     title="What do Signal, Sentiment, and Live Read mean?"
                                     aria-label="What do Signal, Sentiment, and Live Read mean?"
-                                    className="flex h-4 w-4 items-center justify-center rounded-full border border-[#ddd8cd] text-[10px] font-normal text-[#a39b8b] hover:border-[#857d6e] hover:text-[#1f2420]"
+                                    className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 text-[10px] font-normal text-slate-400 hover:border-slate-500 hover:text-slate-900"
                                   >
                                     i
                                   </button>
@@ -1163,22 +1163,22 @@ export default function PortfolioPage() {
                               )}
 
                               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div className="rounded-md border border-[#ede9df] bg-white p-3">
+                                <div className="rounded-md border border-slate-200 bg-white p-3">
                                   <PlanText text={withLiveRead(s.short_term_plan, shortTermSignalNote(insight, tickerSentiment))} />
                                 </div>
-                                <div className="rounded-md border border-[#ede9df] bg-white p-3">
+                                <div className="rounded-md border border-slate-200 bg-white p-3">
                                   <PlanText text={withLiveRead(s.long_term_plan, longTermMomentumNote(insight))} />
                                 </div>
                               </div>
 
-                              <div className="mt-4 border-t border-[#ede9df] pt-4" onClick={(e) => e.stopPropagation()}>
+                              <div className="mt-4 border-t border-slate-200 pt-4" onClick={(e) => e.stopPropagation()}>
                                 {isMoving ? (
                                   <div className="flex flex-wrap items-end gap-2">
                                     <Field label="Move to">
                                       <select
                                         value={moveTargetId}
                                         onChange={(e) => setMoveTargetId(e.target.value)}
-                                        className="rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm"
+                                        className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm"
                                       >
                                         <option value="">Choose a portfolio…</option>
                                         {allPortfolios
@@ -1206,7 +1206,7 @@ export default function PortfolioPage() {
                                         step="0.0001"
                                         value={editShares}
                                         onChange={(e) => setEditShares(e.target.value)}
-                                        className="w-24 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm"
+                                        className="w-24 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm"
                                       />
                                     </Field>
                                     <Field label="Avg cost">
@@ -1215,7 +1215,7 @@ export default function PortfolioPage() {
                                         step="0.01"
                                         value={editAvgCost}
                                         onChange={(e) => setEditAvgCost(e.target.value)}
-                                        className="w-24 rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm"
+                                        className="w-24 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm"
                                       />
                                     </Field>
                                     <button onClick={() => saveEdit(s.ticker)} disabled={editSaving} className={`${PF.btnPrimary} disabled:opacity-50`}>
@@ -1239,7 +1239,7 @@ export default function PortfolioPage() {
                                     <button
                                       onClick={() => handleDeletePosition(s.ticker)}
                                       disabled={deletingTicker === s.ticker}
-                                      className="rounded-md border border-[#e4c9c5] px-3 py-1.5 text-sm font-medium text-[#a23b34] hover:bg-[#fbeceb] disabled:opacity-50"
+                                      className="rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                                     >
                                       {deletingTicker === s.ticker ? "Deleting…" : "Delete"}
                                     </button>
@@ -1259,10 +1259,10 @@ export default function PortfolioPage() {
         )}
 
         {insightsError && (
-          <p className={`mt-3 rounded-md border border-[#e4c9c5] bg-[#fbeceb] px-3 py-2 text-sm ${PF.bad}`}>{insightsError}</p>
+          <p className={`mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm ${PF.bad}`}>{insightsError}</p>
         )}
         {positionActionError && movingTicker === null && (
-          <p className={`mt-3 rounded-md border border-[#e4c9c5] bg-[#fbeceb] px-3 py-2 text-sm ${PF.bad}`}>{positionActionError}</p>
+          <p className={`mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm ${PF.bad}`}>{positionActionError}</p>
         )}
 
 
@@ -1356,7 +1356,7 @@ function fmtAcquiredAt(isoDate: string): string {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-[#857d6e]">{label}</label>
+      <label className="text-xs font-medium text-slate-500">{label}</label>
       {children}
     </div>
   );
@@ -1365,8 +1365,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Chip({ label, value, tone }: { label: string; value: string; tone?: number | null }) {
   const valueClass = tone === undefined ? "" : goodBad(tone);
   return (
-    <div className="min-w-[128px] rounded-lg border border-[#ddd8cd] bg-white px-4 py-3">
-      <p className="font-mono text-[10.5px] uppercase tracking-wide text-[#857d6e]" style={MONO_FONT}>
+    <div className="min-w-[128px] rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
         {label}
       </p>
       <p className={`mt-0.5 text-lg font-semibold ${valueClass}`} style={MONO_FONT}>
@@ -1383,7 +1383,7 @@ function Chevron({ open }: { open: boolean }) {
       fill="none"
       stroke="currentColor"
       strokeWidth={2.5}
-      className={`h-3.5 w-3.5 flex-none text-[#857d6e] transition-transform ${open ? "rotate-90" : ""}`}
+      className={`h-3.5 w-3.5 flex-none text-slate-500 transition-transform ${open ? "rotate-90" : ""}`}
     >
       <path d="M9 5l7 7-7 7" />
     </svg>
@@ -1394,7 +1394,7 @@ function DetailStat({ label, tone, children }: { label: string; tone?: number | 
   const valueClass = tone === undefined ? "" : goodBad(tone);
   return (
     <div>
-      <p className="font-mono text-[10px] uppercase tracking-wide text-[#857d6e]" style={MONO_FONT}>
+      <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
         <MetricLabel>{label}</MetricLabel>
       </p>
       <p className={`mt-0.5 text-sm font-semibold ${valueClass}`} style={MONO_FONT}>

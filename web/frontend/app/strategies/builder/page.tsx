@@ -727,7 +727,7 @@ export default function StrategyBuilderPage() {
             {chart ? (
               <PlotlyChart
                 data={[
-                  { x: chart.dates, y: chart.strategy, type: "scatter", mode: "lines", name: "Strategy", line: { color: "#1F4FD1", width: 2 } },
+                  { x: chart.dates, y: chart.strategy, type: "scatter", mode: "lines", name: "Strategy", line: { color: "#4f46e5", width: 2 } },
                   ...(chartBenchmark === "spy"
                     ? []
                     : [{ x: chart.dates, y: chart.bench, type: "scatter" as const, mode: "lines" as const, name: chartBenchmark === "cash" ? "Cash" : "Same stocks, held", line: { color: "#64748B", width: 1.5, dash: "dash" as const } }]),

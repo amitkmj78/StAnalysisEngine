@@ -12,14 +12,14 @@ export default function GainVsPaidChart({ rows }: { rows: PortfolioPerformanceRo
   // constant) -- Plotly reads plain hex strings from its data/layout
   // config, not CSS, so these are literal values matching that palette
   // rather than a shared token.
-  const GOOD = "#2f6b4f";
-  const BAD = "#a23b34";
-  const EQUITY_LINE = "#8a6417"; // distinct from good/bad, consistent with the warm palette
-  const GRID_LINE = "#ddd8cd";
+  const GOOD = "#047857";
+  const BAD = "#b91c1c";
+  const EQUITY_LINE = "#b45309"; // distinct from good/bad, consistent with the warm palette
+  const GRID_LINE = "#e2e8f0";
   const SURFACE = "#ffffff";
 
   return (
-    <div className="mt-3 rounded-xl border border-[#ddd8cd] bg-white p-3">
+    <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
       <PlotlyChart
         data={[
           {
@@ -50,8 +50,8 @@ export default function GainVsPaidChart({ rows }: { rows: PortfolioPerformanceRo
           },
         ]}
         layout={{
-          title: { text: "Gain vs. Paid & Equity, by Position", font: { color: "#1f2420" } },
-          font: { color: "#514c43", family: "IBM Plex Sans, sans-serif" },
+          title: { text: "Gain vs. Paid & Equity, by Position", font: { color: "#0f172a" } },
+          font: { color: "#334155", family: "IBM Plex Sans, sans-serif" },
           yaxis: { title: { text: "% vs. average cost" }, zeroline: true, zerolinecolor: GRID_LINE, gridcolor: GRID_LINE },
           yaxis2: {
             title: { text: "Equity ($)" },

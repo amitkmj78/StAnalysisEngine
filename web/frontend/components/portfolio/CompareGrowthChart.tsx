@@ -6,12 +6,12 @@ import type { CompareSeriesPoint } from "@/lib/types";
 // used in the summary cards, legend and this chart, so a color always
 // means the same series everywhere on the page.
 export const COMPARE_COLORS = {
-  portfolio: "#1F4FD1",
+  portfolio: "#4f46e5",
   topPick: "#D9731A",
   benchmark: "#7C8794",
   gain: "#13795B",
   loss: "#B42318",
-  buy: "#1F4FD1",
+  buy: "#4f46e5",
   hold: "#7C8794",
   trim: "#D9731A",
 };

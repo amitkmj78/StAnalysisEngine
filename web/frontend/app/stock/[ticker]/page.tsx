@@ -221,7 +221,7 @@ function ScoreCard({
       )}
       {trend && trend.weekly_series.length >= 2 && (
         <div className="mt-3 flex items-center gap-2">
-          <Sparkline values={trend.weekly_series.map(([, v]) => v)} color="#1F4FD1" />
+          <Sparkline values={trend.weekly_series.map(([, v]) => v)} color="#4f46e5" />
           {trend.flagged && trend.change_pts !== null && (
             <span className={`text-xs font-semibold ${trend.change_pts >= 0 ? "text-emerald-700" : "text-red-700"}`}>
               {trend.change_pts >= 0 ? "+" : ""}

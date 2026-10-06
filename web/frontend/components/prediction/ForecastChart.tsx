@@ -5,11 +5,11 @@ import type { ForecastOut } from "@/lib/types";
 // -- Plotly reads plain hex/rgba strings from its data/layout config, not
 // CSS, so these are literal values matching that palette rather than a
 // shared token.
-const GOOD = "#2f6b4f";
+const GOOD = "#047857";
 const CI_FILL = "rgba(47, 107, 79, 0.15)";
-const INK = "#1f2420";
-const MUTED = "#857d6e";
-const GRID_LINE = "#ddd8cd";
+const INK = "#0f172a";
+const MUTED = "#64748b";
+const GRID_LINE = "#e2e8f0";
 const SURFACE = "#ffffff";
 
 export default function ForecastChart({ ticker, forecast }: { ticker: string; forecast: ForecastOut }) {

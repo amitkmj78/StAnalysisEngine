@@ -18,14 +18,14 @@ const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
 
 const PF = {
-  page: "bg-[#f4f1ea]",
-  ink: "text-[#1f2420]",
-  muted: "text-[#857d6e]",
-  line: "border-[#ddd8cd]",
-  card: "rounded-xl border border-[#ddd8cd] bg-white",
-  surface2: "bg-[#efebe3]",
-  chip: "inline-flex items-center gap-1 rounded-full border border-[#ddd8cd] bg-white px-2.5 py-1 text-xs font-medium",
-  btn: "rounded-md border border-[#ddd8cd] bg-white px-3 py-1.5 text-sm font-medium text-[#1f2420] hover:border-[#2f5d50] hover:text-[#2f5d50]",
+  page: "bg-slate-50",
+  ink: "text-slate-900",
+  muted: "text-slate-500",
+  line: "border-slate-200",
+  card: "rounded-xl border border-slate-200 bg-white",
+  surface2: "bg-slate-100",
+  chip: "inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium",
+  btn: "rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-indigo-700 hover:text-indigo-700",
 };
 
 export default function EarningsCalendarPage() {

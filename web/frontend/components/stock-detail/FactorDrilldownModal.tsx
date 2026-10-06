@@ -81,7 +81,7 @@ export default function FactorDrilldownModal({
                   type: "scatter",
                   mode: "lines",
                   name: ticker,
-                  line: { color: "#1F4FD1", width: 2 },
+                  line: { color: "#4f46e5", width: 2 },
                 },
                 {
                   x: data.history.map((p) => p.as_of_date),
