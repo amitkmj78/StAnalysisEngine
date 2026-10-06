@@ -5,7 +5,9 @@ import type { Data, Layout, Shape } from "plotly.js";
 import MetricLabel from "@/components/MetricLabel";
 import PlotlyChart from "@/components/PlotlyChart";
 import { CHART_CONTROL_INFO } from "@/components/stock-detail/chartControlInfo";
-import { getStockPriceHistory } from "@/lib/api";
+import { ApiError, clearChartDrawings, createChartDrawing, deleteChartDrawing, getStockPriceHistory, listChartDrawings } from "@/lib/api";
+import { POINTS_PER_KIND, drawingShapes } from "@/lib/chartDrawings";
+import type { ChartDrawing, DrawingKind, DrawingPoint } from "@/lib/chartDrawings";
 import type {
   RegimeHistoryResponse,
   StockPriceHistoryInterval,
@@ -29,6 +31,21 @@ const BAR_SIZES: { key: StockPriceHistoryInterval | null; label: string }[] = [
   { key: "1M", label: "Month" },
 ];
 const INTRADAY_BARS: StockPriceHistoryInterval[] = ["1m", "5m", "15m", "1h"];
+
+// CHT-5: the drawing tools, in the order they appear on the chart toolbar.
+const DRAW_TOOLS: { key: DrawingKind; label: string }[] = [
+  { key: "trend", label: "Trend line" },
+  { key: "horizontal", label: "Level" },
+  { key: "rectangle", label: "Box" },
+  { key: "fibonacci", label: "Fibonacci" },
+  { key: "text", label: "Note" },
+];
+
+function describeDrawing(d: ChartDrawing): string {
+  const name = DRAW_TOOLS.find((t) => t.key === d.kind)?.label ?? d.kind;
+  if (d.kind === "text") return `${name}: ${d.text ?? ""}`;
+  return `${name} ${d.points.map((p) => p.y.toFixed(2)).join(" → ")}`;
+}
 
 type PastEarnings = { date: string; reported_eps: number | null };
 type Dividend = { date: string; amount: number };
@@ -174,6 +191,7 @@ export default function PriceHistoryChart({
   signalHistory = null,
   sectorEtf = null,
   regimeHistory = null,
+  canDraw = false,
 }: {
   ticker: string;
   data: StockPriceHistoryResponse | null;
@@ -188,6 +206,8 @@ export default function PriceHistoryChart({
   signalHistory?: StockSignalHistoryResponse | null;
   sectorEtf?: string | null;
   regimeHistory?: RegimeHistoryResponse | null;
+  // CHT-5: drawing tools, shown to signed-in users only (drawings are stored per user).
+  canDraw?: boolean;
 }) {
   const [chartType, setChartType] = useState<ChartType>("candles");
   const [logScale, setLogScale] = useState(false);
@@ -205,6 +225,91 @@ export default function PriceHistoryChart({
   const [extraTickers, setExtraTickers] = useState<string[]>([]);
   const extraKey = extraTickers.join(",");
 
+  // CHT-5: drawings for this stock, saved per user. Each tool takes one or two clicks on the price chart.
+  const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
+  const [drawTool, setDrawTool] = useState<DrawingKind | null>(null);
+  const [pending, setPending] = useState<DrawingPoint[]>([]);
+  const [drawNote, setDrawNote] = useState<string | null>(null);
+  const drawn = useMemo(() => drawingShapes(drawings), [drawings]);
+  const pendingAnnotations = pending.map((p) => ({
+    xref: "x" as const, x: p.x, yref: "y" as const, y: p.y, text: "●", showarrow: false, font: { size: 12, color: "#4338ca" },
+  }));
+
+  useEffect(() => {
+    if (!canDraw) return;
+    let cancelled = false;
+    listChartDrawings(ticker)
+      .then((res) => {
+        if (!cancelled) setDrawings(res.drawings);
+      })
+      .catch(() => {
+        if (!cancelled) setDrawNote("Your drawings could not be loaded.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canDraw, ticker]);
+
+  function chooseTool(tool: DrawingKind | null) {
+    setDrawTool(tool);
+    setPending([]);
+    setDrawNote(null);
+  }
+
+  async function handleDrawClick(e: { points?: Array<{ x?: unknown; y?: unknown; close?: unknown }> }) {
+    if (!drawTool) return;
+    const p = e.points?.[0];
+    const x = typeof p?.x === "string" ? p.x : null;
+    const price = typeof p?.y === "number" ? p.y : typeof p?.close === "number" ? p.close : null;
+    if (x === null || price === null) {
+      setDrawNote("Click on the price line or the bars.");
+      return;
+    }
+    const next = [...pending, { x, y: Math.round(price * 100) / 100 }];
+    if (next.length < POINTS_PER_KIND[drawTool]) {
+      setPending(next);
+      setDrawNote(null);
+      return;
+    }
+    let text: string | undefined;
+    if (drawTool === "text") {
+      const entered = window.prompt("Text for the note (up to 200 characters)");
+      if (!entered || !entered.trim()) {
+        chooseTool(null);
+        return;
+      }
+      text = entered.trim().slice(0, 200);
+    }
+    try {
+      const created = await createChartDrawing(ticker, { kind: drawTool, points: next, text });
+      setDrawings((prev) => [...prev, created]);
+      setPending([]);
+      setDrawNote(null);
+    } catch (err) {
+      setDrawNote(err instanceof ApiError ? err.message : "The drawing could not be saved.");
+      setPending([]);
+    }
+  }
+
+  async function handleDeleteDrawing(id: number) {
+    try {
+      await deleteChartDrawing(id);
+      setDrawings((prev) => prev.filter((d) => d.id !== id));
+    } catch {
+      setDrawNote("That drawing could not be deleted.");
+    }
+  }
+
+  async function handleClearDrawings() {
+    try {
+      await clearChartDrawings(ticker);
+      setDrawings([]);
+      setDrawNote(null);
+    } catch {
+      setDrawNote("The drawings could not be cleared.");
+    }
+  }
+
   // The bar size actually shown. Overlays, comparison and indicators only work on daily bars.
   const bars = interval ?? (range === "1D" ? "5m" : "1D");
   const isDaily = bars === "1D";
@@ -214,6 +319,8 @@ export default function PriceHistoryChart({
 
   // Compare mode is only meaningful on daily bars; it swaps the price panel to % change.
   const compareActive = compare && isDaily;
+  // Drawings are price levels, so they are hidden while the panel shows percentage comparison instead.
+  const drawingsActive = canDraw && !compareActive;
 
   // DIF-9: shade the price panel by the stored regime label, one band per run of the same label.
   const regimeShapes = useMemo(() => {
@@ -762,6 +869,54 @@ export default function PriceHistoryChart({
         </div>
       )}
 
+      {drawingsActive && (
+        <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
+          <span className="mr-1 text-slate-500">Draw:</span>
+          {DRAW_TOOLS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => chooseTool(drawTool === t.key ? null : t.key)}
+              className={`rounded-md px-2 py-1 font-medium ${
+                drawTool === t.key ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={handleClearDrawings}
+            disabled={drawings.length === 0}
+            className="ml-auto rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+      {drawingsActive && (drawTool || drawNote) && (
+        <p className="mt-1 text-xs text-slate-500">
+          {drawNote ?? (pending.length ? "Now click the second point." : "Click the chart to place the first point.")}
+        </p>
+      )}
+      {drawingsActive && drawings.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-2 text-xs">
+          {drawings.map((d) => (
+            <li key={d.id} className="flex items-center gap-1 rounded border border-slate-200 px-2 py-0.5 text-slate-700">
+              <span>{describeDrawing(d)}</span>
+              <button
+                type="button"
+                onClick={() => handleDeleteDrawing(d.id)}
+                className="text-slate-400 hover:text-red-700"
+                aria-label={`Delete ${describeDrawing(d)}`}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {loading && <p className="mt-4 text-sm text-slate-500">Loading…</p>}
       {!loading && data && data.history.length === 0 && (
         <p className="mt-4 text-sm text-slate-400">No price history available for {ticker}.</p>
@@ -771,6 +926,10 @@ export default function PriceHistoryChart({
         <PlotlyChart
           data={[...priceTraces, ...subTraces]}
           onClick={(e) => {
+            if (drawingsActive && drawTool) {
+              void handleDrawClick(e);
+              return;
+            }
             const idx = e.points[0]?.customdata;
             setSelectedSignal(typeof idx === "number" ? idx : null);
           }}
@@ -782,7 +941,8 @@ export default function PriceHistoryChart({
             margin: { t: 16, r: 24, b: 32, l: 56 },
             autosize: true,
             hovermode: "x unified",
-            shapes: regimeShapes,
+            shapes: drawingsActive ? [...regimeShapes, ...drawn.shapes] : regimeShapes,
+            annotations: drawingsActive ? [...drawn.annotations, ...pendingAnnotations] : [],
             showlegend: true,
             legend: { orientation: "h", y: -0.15 },
           }}

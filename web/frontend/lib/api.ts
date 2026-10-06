@@ -158,6 +158,7 @@ import type {
   WatchlistAlert,
   WebSearchResponse,
 } from "@/lib/types";
+import type { ChartDrawing, DrawingKind, DrawingPoint } from "@/lib/chartDrawings";
 
 // Absolute in local dev (http://127.0.0.1:8010); empty once deployed behind
 // nginx on the same origin, since every call site below already passes the
@@ -889,6 +890,23 @@ export function getEarningsCalendar() {
 
 export function getMarketRegime() {
   return apiFetch<MarketRegimeResponse>("/api/v1/market/regime");
+}
+
+// CHT-5: chart drawings for one stock, kept per user on the server.
+export function listChartDrawings(ticker: string) {
+  return apiFetch<{ ticker: string; drawings: ChartDrawing[] }>(`/api/v1/chart-drawings/${encodeURIComponent(ticker)}`);
+}
+
+export function createChartDrawing(ticker: string, body: { kind: DrawingKind; points: DrawingPoint[]; text?: string }) {
+  return apiSend<ChartDrawing>(`/api/v1/chart-drawings/${encodeURIComponent(ticker)}`, "POST", body);
+}
+
+export function deleteChartDrawing(id: number) {
+  return apiSend<{ deleted: boolean }>(`/api/v1/chart-drawings/item/${id}`, "DELETE");
+}
+
+export function clearChartDrawings(ticker: string) {
+  return apiSend<{ ticker: string; deleted: number }>(`/api/v1/chart-drawings/${encodeURIComponent(ticker)}`, "DELETE");
 }
 
 // Signal explanation step 1: stored SEC 8-K filings for a ticker, newest first.

@@ -47,6 +47,7 @@ from web.backend.routers import (
     plaid_integration,
     portfolio,
     prediction,
+    chart_drawings,
     news,
     prediction_record,
     search,
@@ -120,6 +121,7 @@ app.include_router(strategy_builder.shared_router)
 app.include_router(chart_layouts.router)
 app.include_router(prediction_record.router)
 app.include_router(news.router)
+app.include_router(chart_drawings.router)
 app.include_router(aws_deploy.router)
 app.include_router(search.router)
 app.include_router(watchlist.router)

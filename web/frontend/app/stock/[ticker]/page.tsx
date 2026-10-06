@@ -505,6 +505,7 @@ export default function StockScorePage() {
           signalChanges={signalChanges}
           signalHistory={signalHistory}
           regimeHistory={loggedIn ? regimeHistory : null}
+          canDraw={loggedIn === true}
           sectorEtf={SECTOR_ETF_BY_NAME[detail?.sector ?? data?.sector_key ?? ""] ?? null}
         />
       </div>
