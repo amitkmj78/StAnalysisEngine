@@ -16,6 +16,7 @@ from services.earnings_alert_service import scan_earnings_in_window
 from services.earnings_release_service import process_new_earnings_releases_for_ticker
 from services.email_service import APP_URL, send_admin_alert_email, send_digest_email, send_rankings_email
 from services.filing_summary_service import process_new_filings_for_ticker
+from services.news_ingest_service import ingest_8k_news_for_ticker
 from services.market_regime_service import compute_and_persist_daily_regime
 from services.notification_dispatcher import EASTERN, dispatch_alert, is_within_quiet_hours
 from services.prediction_verification_service import verify_prediction
@@ -33,6 +34,7 @@ from web.backend.app_settings import (
     EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY,
     EVENING_RECAP_ENABLED_KEY,
     FILING_SUMMARIES_ENABLED_KEY,
+    NEWS_8K_ENABLED_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
     MARKET_REGIME_ENABLED_KEY,
     MORNING_BRIEF_ENABLED_KEY,
@@ -665,6 +667,26 @@ async def _compute_market_regime_job() -> None:
         )
 
 
+async def _refresh_news_8k_job() -> None:
+    """Signal explanation step 1: store the last 30 days of SEC 8-Ks for portfolio and watchlist tickers, one at a time
+    (same polite pace as the filing summary job). Off by default; see NEWS_8K_ENABLED_KEY."""
+    if not await get_setting_bool(NEWS_8K_ENABLED_KEY, default=False):
+        logger.info("Scheduler: news_8k is disabled, skipping this run")
+        return
+
+    async with service_conn() as conn:
+        owned_rows = await conn.fetch("SELECT DISTINCT ticker FROM portfolio_positions")
+        watchlisted_rows = await conn.fetch(
+            "SELECT DISTINCT ticker FROM watchlist_alerts WHERE active AND source IS DISTINCT FROM 'portfolio_auto'"
+        )
+    tickers = sorted({r["ticker"] for r in owned_rows} | {r["ticker"] for r in watchlisted_rows})
+    for ticker in tickers:
+        try:
+            await ingest_8k_news_for_ticker(ticker)
+        except Exception as e:
+            logger.warning("Scheduler: news_8k failed for %s: %s", ticker, e)
+
+
 async def _compute_filing_summaries_job() -> None:
     """SUM-1: real SEC 10-K/10-Q filing summaries for every ticker any
     user holds or has watchlisted (same owned/watchlisted ticker universe
@@ -1216,6 +1238,14 @@ def start_scheduler() -> AsyncIOScheduler:
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _refresh_news_8k_job,
+        CronTrigger(minute=15),
+        id="refresh_news_8k",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=1800,
     )
     _scheduler.add_job(
         _compute_filing_summaries_job,

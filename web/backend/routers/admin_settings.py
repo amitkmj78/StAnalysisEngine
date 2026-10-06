@@ -11,6 +11,7 @@ from web.backend.app_settings import (
     EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY,
     EVENING_RECAP_ENABLED_KEY,
     FILING_SUMMARIES_ENABLED_KEY,
+    NEWS_8K_ENABLED_KEY,
     FREE_TIER_LAG_DAYS_DEFAULT,
     FREE_TIER_LAG_DAYS_KEY,
     HORIZON1_SUBSCRIPTIONS_ENABLED_KEY,
@@ -108,6 +109,7 @@ async def get_settings():
         "stock_score_compute_enabled": await get_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, default=True),
         "market_regime_enabled": await get_setting_bool(MARKET_REGIME_ENABLED_KEY, default=False),
         "filing_summaries_enabled": await get_setting_bool(FILING_SUMMARIES_ENABLED_KEY, default=False),
+        "news_8k_enabled": await get_setting_bool(NEWS_8K_ENABLED_KEY, default=False),
         "earnings_release_summaries_enabled": await get_setting_bool(
             EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY, default=False
         ),
@@ -146,6 +148,20 @@ async def enable_market_regime():
 async def disable_market_regime():
     await set_setting_bool(MARKET_REGIME_ENABLED_KEY, False)
     return {"market_regime_enabled": False}
+
+
+@router.post("/news-8k/enable")
+async def enable_news_8k():
+    """Signal explanation step 1: turns on the hourly job that stores SEC 8-K filings as news (see
+    NEWS_8K_ENABLED_KEY in app_settings.py). Off by default because it makes SEC EDGAR requests on a schedule."""
+    await set_setting_bool(NEWS_8K_ENABLED_KEY, True)
+    return {"news_8k_enabled": True}
+
+
+@router.post("/news-8k/disable")
+async def disable_news_8k():
+    await set_setting_bool(NEWS_8K_ENABLED_KEY, False)
+    return {"news_8k_enabled": False}
 
 
 @router.post("/filing-summaries/enable")

@@ -131,6 +131,9 @@ MARKET_REGIME_ENABLED_KEY = "market_regime_enabled"
 # KEY -- this one hits a real external (SEC EDGAR) API plus LLM cost on a
 # schedule, so deploying the code must not itself start making requests.
 FILING_SUMMARIES_ENABLED_KEY = "filing_summaries_enabled"
+# Signal explanation step 1: gates services/news_ingest_service.py's hourly job that stores SEC 8-K filings as news.
+# Defaults OFF, same opt-in rationale: it makes SEC EDGAR requests on a schedule.
+NEWS_8K_ENABLED_KEY = "news_8k_enabled"
 # SUM-2: gates services/earnings_release_service.py's daily scheduler job.
 # Defaults OFF, same rationale as FILING_SUMMARIES_ENABLED_KEY -- also
 # shares that job's same daily LLM provider quota, so enabling both at

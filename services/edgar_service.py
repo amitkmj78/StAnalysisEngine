@@ -170,6 +170,32 @@ def get_recent_8k_filings(cik: str) -> list[dict]:
     return filings
 
 
+def get_recent_8k_all(cik: str, days: int = 30) -> list[dict]:
+    """Every 8-K filed in the last `days` days, newest first, with its item codes
+    (e.g. "2.02", "5.02"). Unlike get_recent_8k_filings, this does not filter to one
+    item: the news feed needs all of a company's announcements, not only earnings."""
+    from datetime import date, timedelta
+
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    recent = _fetch_submissions_recent(cik)
+
+    filings = []
+    for i, form in enumerate(recent["form"]):
+        if form != "8-K" or recent["filingDate"][i] < cutoff:
+            continue
+        items = [x.strip() for x in (recent["items"][i] or "").split(",") if x.strip()]
+        filings.append(
+            {
+                "accession_number": recent["accessionNumber"][i],
+                "filing_date": recent["filingDate"][i],
+                "primary_document": recent["primaryDocument"][i],
+                "items": items,
+            }
+        )
+    filings.sort(key=lambda f: f["filing_date"], reverse=True)
+    return filings
+
+
 def find_exhibit_991_document(cik: str, accession_number: str) -> Optional[str]:
     """The earnings press release's own filename within an 8-K filing --
     verified against real Apple ("a8-kex991q3202606272026.htm") and
