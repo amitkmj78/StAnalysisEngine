@@ -1498,6 +1498,9 @@ export interface StockNewsItem {
   filed_on: string;
   event_type: string;
   item_codes: string[];
+  // Present only for an earnings filing that has a stored press-release summary.
+  summary: string | null;
+  summary_method: string | null;
 }
 
 export interface StockNewsResponse {

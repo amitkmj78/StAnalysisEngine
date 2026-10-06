@@ -70,6 +70,19 @@ export default function RecentNewsPanel({ ticker }: { ticker: string }) {
                 {item.title}
               </a>
               <span className="text-xs text-slate-400">{item.publisher}</span>
+              {item.summary && (
+                <details className="mt-1 text-sm text-slate-700">
+                  <summary className="cursor-pointer text-xs font-medium text-slate-600">
+                    {item.event_type === "EARNINGS" ? "Press release summary" : "Summary of filing"}
+                  </summary>
+                  <p className="mt-1 leading-relaxed">{item.summary}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {item.event_type === "EARNINGS"
+                      ? "Summarized from the press release only. Analyst questions on the call are not covered."
+                      : "Written by an AI model from this filing's text. Every figure in it appears in the filing."}
+                  </p>
+                </details>
+              )}
             </li>
           ))}
         </ul>

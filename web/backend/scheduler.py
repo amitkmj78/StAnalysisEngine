@@ -17,6 +17,7 @@ from services.earnings_release_service import process_new_earnings_releases_for_
 from services.email_service import APP_URL, send_admin_alert_email, send_digest_email, send_rankings_email
 from services.filing_summary_service import process_new_filings_for_ticker
 from services.news_ingest_service import ingest_8k_news_for_ticker
+from services.news_summary_service import summarize_pending_8k_news
 from services.market_regime_service import compute_and_persist_daily_regime
 from services.notification_dispatcher import EASTERN, dispatch_alert, is_within_quiet_hours
 from services.prediction_verification_service import verify_prediction
@@ -685,6 +686,17 @@ async def _refresh_news_8k_job() -> None:
             await ingest_8k_news_for_ticker(ticker)
         except Exception as e:
             logger.warning("Scheduler: news_8k failed for %s: %s", ticker, e)
+
+    # Option 2: summarize a few new non-earnings 8-Ks per run, so LLM cost stays small. Skipped if no LLM is configured.
+    llm_openai, llm_groq, llm_claude, llm_ollama, labels = await run_in_threadpool(cached_init_llms)
+    if labels:
+        llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
+        try:
+            stored = await summarize_pending_8k_news(llms, limit=5)
+            if stored:
+                logger.info("Scheduler: news_8k — %d filing summary(ies) stored", stored)
+        except Exception as e:
+            logger.warning("Scheduler: news_8k summaries failed: %s", e)
 
 
 async def _compute_filing_summaries_job() -> None:
