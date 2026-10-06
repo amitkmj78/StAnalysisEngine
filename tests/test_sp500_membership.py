@@ -37,3 +37,19 @@ def test_member_flags_follow_the_changes_day_by_day(monkeypatch):
     index = pd.bdate_range("2025-09-18", periods=8)
     flags = m.member_flags("NEWCO", index, start_members=set())
     assert not flags.iloc[0] and flags.iloc[-1]
+
+
+def test_blank_cells_in_the_changes_table_do_not_become_members(monkeypatch):
+    import math
+    changes = pd.DataFrame({
+        "date": pd.to_datetime(["2021-12-20", "2025-09-22"]),
+        "added": [float("nan"), "NEWCO"],
+        "removed": ["OLDCO", float("nan")],
+    })
+    monkeypatch.setattr(m, "fetch_changes", lambda: changes)
+    monkeypatch.setattr(m, "current_members", lambda: frozenset({"AAPL", "NEWCO"}))
+    members = m.members_on("2021-10-08")
+    assert all(isinstance(x, str) for x in members)
+    assert not any(isinstance(x, float) and math.isnan(x) for x in members)
+    assert sorted(members)  # sortable: this is the call that failed in production
+    assert all(isinstance(x, str) for x in m.removed_after("2021-10-08"))

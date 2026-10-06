@@ -54,9 +54,10 @@ def members_on(day) -> set[str]:
     changes = fetch_changes()
     later = changes[changes["date"] > day]
     for _, row in later.iloc[::-1].iterrows():
-        if row["added"]:
+        # A blank cell in the table comes through as NaN, which is truthy in Python: only real ticker strings count.
+        if isinstance(row["added"], str):
             members.discard(row["added"])
-        if row["removed"]:
+        if isinstance(row["removed"], str):
             members.add(row["removed"])
     return members
 
@@ -65,7 +66,7 @@ def removed_after(day) -> list[str]:
     """Tickers that left the index after `day`, for the results' disclosure."""
     day = pd.Timestamp(day).tz_localize(None) if pd.Timestamp(day).tzinfo else pd.Timestamp(day)
     changes = fetch_changes()
-    later = changes[(changes["date"] > day) & changes["removed"].notna()]
+    later = changes[(changes["date"] > day) & changes["removed"].map(lambda x: isinstance(x, str))]
     return sorted(set(later["removed"]))
 
 
