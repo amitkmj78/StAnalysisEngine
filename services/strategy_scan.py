@@ -37,6 +37,45 @@ SHORT_MIN_TRADES_PER_YEAR = 12
 SHORT_TRADE_COUNT_MAX_HOLD_DAYS = 42   # trade count only counts as short-term when holds average under about two months
 LONG_MIN_HOLD_DAYS = 126            # about six months of trading days
 MIN_TRADES_FOR_SHORT = 30
+
+# SCAN-4: walk-forward. Each test window is 6 months, the windows step forward 6 months, and the first 24 months are the
+# fit period. The templates' rules are fixed in advance, so nothing is tuned on the fit period; it is skipped so every
+# test window follows the same kind of history.
+WF_FIT_SESSIONS = 24 * 21
+WF_TEST_SESSIONS = 6 * 21
+WF_STEP_SESSIONS = 6 * 21
+BULL_RETURN_PCT = 10.0  # a window the index rose by at least this much, without a bear-market drawdown, is Bull
+REGIME_LABELS = ("Bull", "Bear", "Sideways")
+
+
+def _walk_forward_windows(dates: pd.DatetimeIndex) -> list[pd.DatetimeIndex]:
+    windows = []
+    start = WF_FIT_SESSIONS
+    while start + WF_TEST_SESSIONS <= len(dates):
+        windows.append(dates[start:start + WF_TEST_SESSIONS])
+        start += WF_STEP_SESSIONS
+    return windows
+
+
+def _window_regime(spy_window_pct: pd.Series) -> str:
+    """Bear: the index fell at least DOWNTURN_DRAWDOWN_PCT inside the window. Bull: it rose at least BULL_RETURN_PCT
+    without that fall. Otherwise Sideways."""
+    if (_max_dd(spy_window_pct) or 0) <= DOWNTURN_DRAWDOWN_PCT:
+        return "Bear"
+    if _total_pct(spy_window_pct) >= BULL_RETURN_PCT:
+        return "Bull"
+    return "Sideways"
+
+
+def _downturn(spy_pct: pd.Series) -> Optional[dict]:
+    """SCAN-4: the period of the index's largest peak-to-trough fall, so the long-term test states which downturn it used."""
+    equity = (1 + spy_pct / 100).cumprod()
+    drawdown = equity / equity.cummax() - 1
+    if drawdown.empty or drawdown.min() >= 0:
+        return None
+    trough = drawdown.idxmin()
+    peak = equity.loc[:trough].idxmax()
+    return {"peak": str(peak.date()), "trough": str(trough.date()), "max_drawdown_pct": round(float(drawdown.min() * 100), 2)}
 TOP_PER_GROUP = 5
 DOWNTURN_DRAWDOWN_PCT = -15.0       # the S&P 500 must fall at least this far inside the window
 ROUND_TRIP_COST_PCT = 2 * (SCAN_COST_BPS + SCAN_SLIPPAGE_BPS) / 100   # 0.30% per round trip
@@ -164,7 +203,7 @@ PASS_LABELS = {
 def _warnings(is_excess: float, oos_excess: float, pass_test: Optional[str] = None) -> list[str]:
     out = []
     if oos_excess <= 0 and pass_test is None:
-        out.append("Did not beat holding the same stocks on the later dates.")
+        out.append("Did not beat holding the same stocks over the out-of-sample dates.")
     if is_excess > 0 and oos_excess < 0:
         out.append("Looked good on earlier dates and lost on later ones.")
     if oos_excess > 0 and is_excess < 0:
@@ -184,6 +223,45 @@ def _profile(r: dict) -> str:
     if r["holding_class"] == "swing":
         return f"Swing · average hold {r['avg_hold_days']:.0f} trading days · {r['trades_oos']} trades out-of-sample"
     return "No trades out-of-sample"
+
+
+CONCENTRATION_WARNING_SHARE_PCT = 25.0
+
+
+def _concentration(frames, runs_by_key, short, rows, oos_dates, holding_oos_pct) -> dict:
+    """SCAN-5: how much each stock drove the equal-weight holding return, and what the holding return is without the
+    biggest contributor. A stock's contribution is its own out-of-sample return divided by the number of stocks."""
+    pool = short[0] if short else (rows[0] if rows else None)
+    top_runs = runs_by_key[pool["key"]][2] if pool else {}
+    stock_rows = []
+    for t in frames:
+        closes = frames[t]["close"].astype(float).reindex(oos_dates).dropna()
+        if len(closes) < 2:
+            continue
+        ret = float((closes.iloc[-1] / closes.iloc[0] - 1) * 100)
+        trades = sum(1 for tr in top_runs[t].trades if pd.Timestamp(tr.exit_date) >= oos_dates[0]) if t in top_runs else 0
+        stock_rows.append({"ticker": t, "oos_return_pct": round(ret, 2),
+                           "contribution_pts": round(ret / len(frames), 2), "top_template_trades": trades})
+    stock_rows.sort(key=lambda r: r["contribution_pts"], reverse=True)
+    returns = [r["oos_return_pct"] for r in stock_rows]
+    top = stock_rows[0]["ticker"] if stock_rows else None
+    share = round(stock_rows[0]["contribution_pts"] / holding_oos_pct * 100, 1) if stock_rows and holding_oos_pct and holding_oos_pct > 0 else None
+    rest = {t: f for t, f in frames.items() if t != top}
+    rest_return = None
+    if top is not None and len(rest) >= 2:
+        rest_basket = basket_returns(rest, SCAN_COST_BPS, SCAN_SLIPPAGE_BPS).reindex(oos_dates).dropna()
+        rest_return = round(_total_pct(rest_basket), 2)
+    warning = f"Results depend heavily on {top}." if share is not None and share > CONCENTRATION_WARNING_SHARE_PCT else None
+    return {
+        "stocks": stock_rows,
+        "median_stock_return_pct": round(float(np.median(returns)), 2) if returns else None,
+        "holding_return_pct": holding_oos_pct,
+        "top_contributor": top,
+        "top_contributor_share_pct": share,
+        "holding_without_top_return_pct": rest_return,
+        "warning": warning,
+        "top_template": pool["name"] if pool else None,
+    }
 
 
 def scan(
@@ -208,12 +286,22 @@ def scan(
     basket_all = basket_returns(frames, SCAN_COST_BPS, SCAN_SLIPPAGE_BPS).reindex(dates).dropna()
     spy_all = (bench_close.pct_change().dropna() * 100).reindex(basket_all.index).dropna()
     dates = spy_all.index
-    split = int(len(dates) * IS_FRACTION)
-    is_dates, oos_dates = dates[:split], dates[split:]
+    windows = _walk_forward_windows(dates)
+    if not windows:
+        raise ValueError("not enough history for a walk-forward test: at least 30 months are needed")
+    oos_dates = pd.DatetimeIndex(sorted(set().union(*(set(w) for w in windows))))
+    is_dates = dates[:WF_FIT_SESSIONS]
+    window_info = [{
+        "start": str(w[0].date()), "end": str(w[-1].date()),
+        "regime": _window_regime(spy_all.reindex(w).dropna()),
+        "spy_return_pct": round(_total_pct(spy_all.reindex(w).dropna()), 2),
+        "holding_return_pct": round(_total_pct(basket_all.reindex(w).dropna()), 2),
+    } for w in windows]
     oos_years = len(oos_dates) / PERIODS_PER_YEAR
     spy_oos_m = metrics(spy_all.reindex(oos_dates).dropna())
     spy_full_m = metrics(spy_all)
     downturn_included = (_max_dd(spy_all) or 0) <= DOWNTURN_DRAWDOWN_PCT
+    downturn = _downturn(spy_all)
 
     trial_sharpes = []
     for _, daily, _ in runs_by_key.values():
@@ -248,8 +336,26 @@ def scan(
         diff_pts = round(oos_excess, 2)
         pass_test = _pass_test(diff_pts, oos_m.get("sharpe"), hold_m.get("sharpe"),
                                oos_m.get("max_drawdown_pct"), hold_m.get("max_drawdown_pct"))
+        wf_rows = []
+        for w in windows:
+            s_win = _total_pct(daily.reindex(w).dropna())
+            b_win = _total_pct(basket.reindex(w).dropna())
+            wf_rows.append({"difference_pts": s_win - b_win, "regime": _window_regime(spy_all.reindex(w).dropna())})
+        diffs = [x["difference_pts"] for x in wf_rows]
+        by_regime = {}
+        for label in REGIME_LABELS:
+            vals = [x["difference_pts"] for x in wf_rows if x["regime"] == label]
+            by_regime[label] = round(float(np.mean(vals)), 2) if vals else None
+        walk_forward = {
+            "windows": len(wf_rows),
+            "windows_won": sum(1 for d in diffs if d > 0),
+            "median_difference_pts": round(float(np.median(diffs)), 2) if diffs else None,
+            "worst_window_pts": round(float(min(diffs)), 2) if diffs else None,
+            "by_regime_avg_difference_pts": by_regime,
+        }
         rows.append({
             "key": key,
+            "walk_forward": walk_forward,
             "name": t.name,
             "holding_class": _holding_class(avg_hold, trades_per_year),
             "avg_hold_days": round(avg_hold, 1) if avg_hold is not None else None,
@@ -317,7 +423,27 @@ def scan(
     }
     for rank, r in enumerate(rows, 1):
         r["rank"] = rank
+    concentration = _concentration(frames, runs_by_key, short, rows, oos_dates, holding_oos_pct)
+    for r in rows:
+        r["oos_difference_ex_top_pts"] = (
+            round(r["oos_return_after_costs_pct"] - concentration["holding_without_top_return_pct"], 2)
+            if concentration["holding_without_top_return_pct"] is not None else None
+        )
+        # SCAN-7: a template with no trades is never ranked; one with too few is shown, with the reason.
+        if r["trades_oos"] == 0:
+            r["eligibility"], r["eligibility_reason"] = "never_triggered", "Never triggered on this sample"
+        elif r["holding_class"] == "short" and r["trades_oos"] < MIN_TRADES_FOR_SHORT:
+            r["eligibility"], r["eligibility_reason"] = "too_few_trades", f"Too few trades ({r['trades_oos']})"
+        else:
+            r["eligibility"], r["eligibility_reason"] = "ok", None
     return {
+        "concentration": concentration,
+        "walk_forward": {
+            "fit_months": WF_FIT_SESSIONS // 21, "test_months": WF_TEST_SESSIONS // 21, "step_months": WF_STEP_SESSIONS // 21,
+            "windows": window_info,
+            "rule": f"Bear: the index fell {abs(DOWNTURN_DRAWDOWN_PCT):.0f}% or more inside the window. Bull: it rose {BULL_RETURN_PCT:.0f}% or more without that fall. Otherwise Sideways.",
+        },
+        "downturn": downturn,
         "sample_size": len(frames),
         "tickers": sorted(frames),
         "variants_tried": len(TEMPLATES),

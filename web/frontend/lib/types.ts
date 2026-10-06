@@ -2709,6 +2709,16 @@ export interface StrategyScanCandidate {
   passes_short_test: boolean;
   pass_test: "return" | "risk" | null;
   pass_label: string | null;
+  oos_difference_ex_top_pts: number | null;
+  walk_forward?: {
+    windows: number;
+    windows_won: number;
+    median_difference_pts: number | null;
+    worst_window_pts: number | null;
+    by_regime_avg_difference_pts: Record<string, number | null>;
+  };
+  eligibility: "ok" | "too_few_trades" | "never_triggered";
+  eligibility_reason: string | null;
   oos_cagr_vs_spy_pct: number | null;
   oos_max_drawdown_pct: number | null;
   spy_oos_max_drawdown_pct: number | null;
@@ -2734,7 +2744,27 @@ export interface StrategyScanUniverse {
   tested?: string[];
 }
 
+export interface StrategyScanConcentration {
+  stocks: { ticker: string; oos_return_pct: number; contribution_pts: number; top_template_trades: number }[];
+  median_stock_return_pct: number | null;
+  holding_return_pct: number | null;
+  top_contributor: string | null;
+  top_contributor_share_pct: number | null;
+  holding_without_top_return_pct: number | null;
+  warning: string | null;
+  top_template: string | null;
+}
+
 export interface StrategyScanResult {
+  concentration?: StrategyScanConcentration;
+  walk_forward?: {
+    fit_months: number;
+    test_months: number;
+    step_months: number;
+    rule: string;
+    windows: { start: string; end: string; regime: string; spy_return_pct: number; holding_return_pct: number }[];
+  };
+  downturn?: { peak: string; trough: string; max_drawdown_pct: number } | null;
   sample_size: number;
   tickers: string[];
   universe?: StrategyScanUniverse;

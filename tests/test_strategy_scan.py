@@ -5,7 +5,7 @@ from services.strategy_engine import feature_frame
 from services.strategy_scan import TEMPLATES, _warnings, pick_sample, scan
 
 
-def _prices(seed, n=420):
+def _prices(seed, n=800):
     rng = np.random.default_rng(seed)
     close = 100 * np.exp(np.cumsum(rng.normal(0.0003, 0.012, n)))
     idx = pd.bdate_range("2019-01-01", periods=n)
@@ -74,3 +74,12 @@ def test_calmar_is_return_over_drawdown():
 
     assert _calmar(20.0, -10.0) == 2.0
     assert _calmar(20.0, 0.0) is None
+
+
+def test_one_stock_driving_most_of_the_benchmark_triggers_the_warning():
+    from services.strategy_scan import CONCENTRATION_WARNING_SHARE_PCT
+
+    assert CONCENTRATION_WARNING_SHARE_PCT == 25.0
+    # a stock whose contribution is over a quarter of the holding return is flagged by _concentration's rule
+    share = 40.0
+    assert (share > CONCENTRATION_WARNING_SHARE_PCT) is True

@@ -194,7 +194,7 @@ export default function StrategyScanPage() {
           </p>
           {!result.candidates.some((c) => c.passes_short_test) && (
             <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              <strong>None of these templates beat holding the same stocks on the later dates.</strong> Treat the lists below as a record of how the templates did on this sample, not as ideas to use.
+              <strong>None of these templates beat holding the same stocks from {result.out_of_sample.start} to {result.out_of_sample.end}.</strong> Treat the lists below as a record of how the templates did on this sample, not as ideas to use.
             </p>
           )}
 
@@ -212,12 +212,14 @@ export default function StrategyScanPage() {
                   <th className="font-medium">Trades</th>
                   <th className="font-medium">
                     <span className="inline-flex items-center gap-1">
-                      Later dates, after costs
+                      Out-of-sample ({result.out_of_sample.start} to {result.out_of_sample.end}), after costs
                       <MetricLabel info={STRATEGY_INFO["in-sample"]} />
                     </span>
                   </th>
                   <th className="font-medium">Holding return</th>
                   <th className="font-medium">Difference (pts)</th>
+                  <th className="font-medium">Windows won</th>
+                  <th className="font-medium">Worst window (pts)</th>
                   <th className="font-medium">Sharpe</th>
                   <th className="font-medium">Max DD</th>
                   <th className="font-medium">Calmar</th>
@@ -246,16 +248,23 @@ export default function StrategyScanPage() {
                   <td>{result.holding.time_in_market_pct}%</td>
                   <td>{pct(result.holding.exposure_adjusted_cagr_pct)}</td>
                   <td>–</td>
+                  <td>–</td>
+                  <td>–</td>
                 </tr>
                 {result.candidates.map((c) => (
-                  <tr key={c.key}>
-                    <td className="py-2 text-left font-sans text-sm font-medium text-slate-800">{c.name}</td>
+                  <tr key={c.key} className={c.eligibility !== "ok" ? "text-slate-400" : undefined} title={c.eligibility_reason ?? undefined}>
+                    <td className="py-2 text-left font-sans text-sm font-medium text-slate-800">
+                      {c.name}
+                      {c.eligibility_reason && <span className="ml-2 font-normal text-xs text-slate-400">{c.eligibility_reason}</span>}
+                    </td>
                     <td className="font-sans capitalize">{c.holding_class === "none" ? "–" : c.holding_class}</td>
                     <td>{c.avg_hold_days ?? "–"}</td>
                     <td>{c.trades_oos}</td>
                     <td>{pct(c.oos_return_after_costs_pct)}</td>
                     <td>{pct(c.oos_holding_return_pct)}</td>
                     <td>{c.oos_difference_pts > 0 ? "+" : ""}{c.oos_difference_pts.toFixed(1)}</td>
+                    <td>{c.walk_forward ? `${c.walk_forward.windows_won} of ${c.walk_forward.windows}` : "–"}</td>
+                    <td>{c.walk_forward ? plain(c.walk_forward.worst_window_pts, 1) : "–"}</td>
                     <td>{plain(c.oos_sharpe)}</td>
                     <td>{pct(c.oos_max_drawdown_pct)}</td>
                     <td>{plain(c.oos_calmar)}</td>
@@ -267,6 +276,48 @@ export default function StrategyScanPage() {
               </tbody>
             </table>
           </div>
+          {result.walk_forward && (
+            <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              Walk-forward: {result.walk_forward.windows.length} test windows of {result.walk_forward.test_months} months, stepping {result.walk_forward.step_months} months, from {result.walk_forward.windows[0]?.start} to {result.walk_forward.windows[result.walk_forward.windows.length - 1]?.end}. The first {result.walk_forward.fit_months} months are the fit period. Market regime: {result.walk_forward.rule}
+            </p>
+          )}
+          {result.concentration && (
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stocks in this sample</p>
+              {result.concentration.warning && (
+                <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{result.concentration.warning}</p>
+              )}
+              <p className="mt-2 text-sm text-slate-700">
+                Holding return <span className="font-mono">{pct(result.concentration.holding_return_pct)}</span>, median stock{" "}
+                <span className="font-mono">{pct(result.concentration.median_stock_return_pct)}</span>
+                {result.concentration.holding_without_top_return_pct !== null && (
+                  <> · without {result.concentration.top_contributor}: <span className="font-mono">{pct(result.concentration.holding_without_top_return_pct)}</span></>
+                )}
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[30rem] text-right text-sm">
+                  <thead className="text-xs text-slate-400">
+                    <tr>
+                      <th className="py-1 text-left font-medium">Stock</th>
+                      <th className="font-medium">Out-of-sample buy and hold</th>
+                      <th className="font-medium">Contribution (pts)</th>
+                      <th className="font-medium">Trades, top template</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono text-xs">
+                    {result.concentration.stocks.map((s) => (
+                      <tr key={s.ticker}>
+                        <td className="py-1.5 text-left font-sans text-sm font-medium text-slate-800">{s.ticker}</td>
+                        <td>{pct(s.oos_return_pct)}</td>
+                        <td>{plain(s.contribution_pts)}</td>
+                        <td>{s.top_template_trades}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
           <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{result.note}</p>
           <p className="text-xs text-slate-500">
             Want to test one of these yourself? Open it in the{" "}

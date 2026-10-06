@@ -30,7 +30,10 @@ router = APIRouter(prefix="/api/v1/strategy-builder", tags=["strategy-builder"],
 shared_router = APIRouter(prefix="/api/v1/strategy-builder", tags=["strategy-builder-shared"])
 
 HISTORY_PERIOD = "5y"
-HISTORY_DAYS = 365 * 5 + 2  # the scan's start date: about five years back, matching HISTORY_PERIOD
+HISTORY_DAYS = 365 * 5 + 2  # the backtest's five-year window
+# SCAN-4: the scan uses ten years, so the walk-forward has 16 six-month test windows and covers 2018, 2020 and 2022.
+SCAN_HISTORY_PERIOD = "10y"
+SCAN_HISTORY_DAYS = 365 * 10 + 2
 VARIANT_WINDOW_DAYS = 90
 BENCHMARK = "SPY"
 MAX_SAVED_RESULT_CHARS = 400_000
@@ -407,7 +410,7 @@ def _run_scan_job(job_id: str, tickers: list[str], regime_by_date: Optional[dict
         frames = {}
         skipped = []
         for t in tickers:
-            history = get_cached_history(t, HISTORY_PERIOD, True, None)
+            history = get_cached_history(t, SCAN_HISTORY_PERIOD, True, None)
             if history.empty or not {"Open", "High", "Low", "Close"}.issubset(history.columns):
                 skipped.append(t)  # SCAN-2: a stock with no price history can't be tested; it is listed, not hidden
                 continue
@@ -416,7 +419,7 @@ def _run_scan_job(job_id: str, tickers: list[str], regime_by_date: Optional[dict
             if start_members is not None:
                 flags = member_flags(t, history.index, start_members)
             frames[t] = feature_frame(history[columns], regime_by_date, get_earnings_report_dates(t), flags)
-        bench = get_cached_history(BENCHMARK, HISTORY_PERIOD, True, None)
+        bench = get_cached_history(BENCHMARK, SCAN_HISTORY_PERIOD, True, None)
         if len(frames) < 2 or bench.empty:
             raise ValueError("Not enough price history for this sample. Try again.")
 
@@ -444,7 +447,7 @@ async def start_scan(
 ):
     await enforce_daily_quota(request, "strategy-builder/scan")
     chosen_seed = seed if seed is not None else random.randrange(1, 2_147_483_647)
-    start = (date.today() - timedelta(days=HISTORY_DAYS)).isoformat()
+    start = (date.today() - timedelta(days=SCAN_HISTORY_DAYS)).isoformat()
     if current_only:
         universe = await _sp500()
         start_members = None
