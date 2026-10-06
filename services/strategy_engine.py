@@ -15,6 +15,7 @@ Benchmark: equal-weight buy-and-hold of the same tickers, rebalanced monthly, wi
 
 import math
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Optional
 
 import numpy as np
@@ -44,6 +45,7 @@ NUMERIC_FIELDS = {
     "dist_52w_high_pct": "Distance from 52-week high (%)",
     "volume_vs_20d_pct": "Volume vs 20-day average (%)",
     "atr_14_pct": "ATR (14) as % of price",
+    "sessions_since_earnings": "Sessions since the last earnings report",
 }
 REGIME_FIELD = "regime"
 REGIME_LABELS = ("Risk-On", "Constructive", "Neutral", "Cautious", "Risk-Off")
@@ -112,7 +114,29 @@ class ProtectiveExits:
         return any(v is not None for v in (self.stop_loss_pct, self.trailing_stop_pct, self.atr_stop_k, self.time_stop_sessions))
 
 
-def feature_frame(prices: pd.DataFrame, regime_by_date: Optional[dict[str, str]] = None) -> pd.DataFrame:
+def _naive_dates(values) -> pd.DatetimeIndex:
+    idx = pd.DatetimeIndex(values)
+    if idx.tz is not None:
+        idx = idx.tz_localize(None)
+    return idx.normalize()
+
+
+def sessions_since_reports(index, report_dates) -> np.ndarray:
+    """STB-1: sessions since the most recent earnings report, point-in-time. A report counts from the session AFTER its
+    own date (the release may come after the close), so a day never sees a report that came later. NaN before the first."""
+    out = np.full(len(index), np.nan)
+    if len(report_dates) == 0:
+        return out
+    sessions = _naive_dates(index)
+    for report in sorted(_naive_dates(report_dates)):
+        start = sessions.searchsorted(report, side="right")
+        if start < len(sessions):
+            out[start:] = np.arange(len(sessions) - start)
+    return out
+
+
+def feature_frame(prices: pd.DataFrame, regime_by_date: Optional[dict[str, str]] = None,
+                  earnings_reports: Optional[list] = None) -> pd.DataFrame:
     """prices: Open, High, Low, Close and optionally Volume (DatetimeIndex). Every value uses only
     data up to and including that session's close."""
     close = prices["Close"].astype(float)
@@ -133,6 +157,7 @@ def feature_frame(prices: pd.DataFrame, regime_by_date: Optional[dict[str, str]]
     out["volume_vs_20d_pct"] = (volume / volume.rolling(20).mean() - 1) * 100
     out["atr_14"] = atr(high, low, close, 14)
     out["atr_14_pct"] = out["atr_14"] / close * 100
+    out["sessions_since_earnings"] = sessions_since_reports(prices.index, earnings_reports or [])
     if regime_by_date is not None:
         keys = [pd.Timestamp(ts).strftime("%Y-%m-%d") for ts in prices.index]
         out["regime"] = [regime_by_date.get(k) for k in keys]
@@ -387,6 +412,74 @@ def basket_returns(frames: dict[str, pd.DataFrame], cost_bps: float, slippage_bp
     return pd.Series(np.array(out) * 100, index=closes.index)
 
 
+def strategy_turnover_pct_per_year(runs: dict, weights: dict[str, float], days: int) -> Optional[float]:
+    """STB-5: share of the portfolio traded per year, one way. Each entry buys the stock's sleeve and each exit sells it;
+    buys and sells are added together and halved, so a stock bought and sold once a year is 100% turnover per year."""
+    if days <= 0:
+        return None
+    traded = 0.0
+    for ticker, run in runs.items():
+        held = np.asarray(run.held, dtype=float)
+        traded += weights[ticker] * float(np.abs(np.diff(held, prepend=0.0)).sum())
+    return round(traded / 2 / (days / PERIODS_PER_YEAR) * 100, 1)
+
+
+def basket_turnover_pct_per_year(frames: dict[str, pd.DataFrame], weights: Optional[dict[str, float]] = None) -> Optional[float]:
+    """STB-5: one-way turnover per year of the same basket, rebalanced to its target weights each month."""
+    common = sorted(set.intersection(*(set(f.index) for f in frames.values())))
+    if not common:
+        return None
+    closes = pd.DataFrame({t: frames[t].loc[common, "close"].astype(float) for t in frames})
+    rets = closes.pct_change().fillna(0.0).to_numpy()
+    n = closes.shape[1]
+    target_w = np.array([weights[t] for t in closes.columns]) if weights else np.full(n, 1.0 / n)
+    dollars = target_w.copy()
+    total, prev_month = 0.0, None
+    for k, d in enumerate(closes.index):
+        month = (d.year, d.month)
+        dollars = dollars * (1 + rets[k])
+        value = dollars.sum()
+        if prev_month is not None and month != prev_month:
+            total += np.abs(dollars - target_w * value).sum() / (2 * value)
+            dollars = target_w * value
+        prev_month = month
+    years = len(closes.index) / PERIODS_PER_YEAR
+    return round(total / years * 100, 1) if years > 0 else None
+
+
+def model_portfolio_summary(series: list) -> dict:
+    """STB-5: risk and return of the app's own model portfolio, from its growth-of-$10,000 series (see
+    build_model_portfolio_series). Each step is one non-overlapping holding period, so the risk figures are annualised
+    from the average gap between steps. Withheld until there are 12 months of history, because fewer points would
+    give figures that look precise and mean little."""
+    if len(series) < 3:
+        return {"available": False, "months_of_history": 0.0, "reason": "The model portfolio has no publication history yet."}
+    dates = [date.fromisoformat(d) for d, _ in series]
+    values = np.array([float(v) for _, v in series])
+    span_days = (dates[-1] - dates[0]).days
+    months = round(span_days / 30.44, 1)
+    if months < 12:
+        return {"available": False, "months_of_history": months,
+                "reason": f"Only {months} months of model portfolio history so far; at least 12 are needed before its risk figures are shown."}
+    rets = np.diff(values) / values[:-1]
+    per_year = 365.25 / (span_days / (len(values) - 1))
+    years = span_days / 365.25
+    vol = float(np.std(rets, ddof=1) * np.sqrt(per_year))
+    sharpe = float(np.mean(rets) * per_year / vol) if vol > 0 else None
+    peak = np.maximum.accumulate(values)
+    return {
+        "available": True,
+        "months_of_history": months,
+        "total_return_pct": _r((values[-1] / values[0] - 1) * 100),
+        "cagr_pct": _r(((values[-1] / values[0]) ** (1 / years) - 1) * 100),
+        "volatility_pct": _r(vol * 100),
+        "max_drawdown_pct": _r(float(((values / peak) - 1).min() * 100)),
+        "sharpe": _r(sharpe),
+        "worst_period_pct": _r(float(rets.min() * 100)),
+        "note": "Figures come from the model portfolio's non-overlapping holding periods, after its assumed trading costs.",
+    }
+
+
 def expected_max_sharpe_by_chance(variants: int, years: float) -> float:
     """Approximate annual Sharpe the best of `variants` no-skill strategies would reach by chance
     (extreme-value approximation). An approximation, labelled as one in the result."""
@@ -510,6 +603,11 @@ def run_backtest(
     is_m, oos_m = metrics(daily.iloc[:split]), metrics(daily.iloc[split:])
     m_strategy, m_gross = metrics(daily), metrics(gross)
     m_basket, m_spy = metrics(basket), metrics(spy)
+    # STB-5: turnover. SPY is held, so it never trades; the basket is rebalanced monthly.
+    turnover_weights = weights or {t: 1.0 / len(frames) for t in frames}
+    m_strategy["turnover_pct_per_year"] = strategy_turnover_pct_per_year(runs, turnover_weights, len(daily))
+    m_basket["turnover_pct_per_year"] = basket_turnover_pct_per_year(frames, weights)
+    m_spy["turnover_pct_per_year"] = 0.0
     years = len(daily) / PERIODS_PER_YEAR
 
     all_trades = sorted((t for run in runs.values() for t in run.trades), key=lambda t: t.entry_date)

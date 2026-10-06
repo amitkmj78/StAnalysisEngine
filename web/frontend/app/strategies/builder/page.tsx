@@ -21,6 +21,7 @@ const FIELDS: { key: string; label: string; numeric: boolean }[] = [
   { key: "dist_52w_high_pct", label: "Distance from 52-week high (%)", numeric: true },
   { key: "volume_vs_20d_pct", label: "Volume vs 20-day avg (%)", numeric: true },
   { key: "atr_14_pct", label: "ATR (14) as % of price", numeric: true },
+  { key: "sessions_since_earnings", label: "Sessions since last earnings", numeric: true },
   { key: "regime", label: "Market regime label", numeric: false },
 ];
 const NUMERIC_OPS = [
@@ -767,6 +768,7 @@ export default function StrategyBuilderPage() {
                       <th className="font-medium"><span className="inline-flex items-center gap-1">Max DD<MetricLabel info={STRATEGY_INFO["max drawdown"]} /></span></th>
                       <th className="font-medium"><span className="inline-flex items-center gap-1">Sharpe<MetricLabel info={STRATEGY_INFO["sharpe"]} /></span></th>
                       <th className="font-medium"><span className="inline-flex items-center gap-1">Worst month<MetricLabel info={STRATEGY_INFO["worst month"]} /></span></th>
+                      <th className="font-medium">Turnover / yr</th>
                       <th className="font-medium"><span className="inline-flex items-center gap-1">Cost drag<MetricLabel info={STRATEGY_INFO["cost drag"]} /></span></th>
                     </tr>
                   </thead>
@@ -779,6 +781,7 @@ export default function StrategyBuilderPage() {
                       <td>{pct(r.strategy.max_drawdown_pct)}</td>
                       <td>{plain(r.strategy.sharpe)}</td>
                       <td>{pct(r.strategy.worst_month_pct)}</td>
+                      <td>{r.strategy.turnover_pct_per_year != null ? `${plain(r.strategy.turnover_pct_per_year, 0)}%` : "–"}</td>
                       <td>{r.cost_drag.cagr_points != null ? `${plain(r.cost_drag.cagr_points)} pts/yr` : "–"}</td>
                     </tr>
                     <tr>
@@ -789,6 +792,7 @@ export default function StrategyBuilderPage() {
                       <td>{pct(r.basket.max_drawdown_pct)}</td>
                       <td>{plain(r.basket.sharpe)}</td>
                       <td>{pct(r.basket.worst_month_pct)}</td>
+                      <td>{r.basket.turnover_pct_per_year != null ? `${plain(r.basket.turnover_pct_per_year, 0)}%` : "–"}</td>
                       <td>–</td>
                     </tr>
                     <tr>
@@ -799,11 +803,31 @@ export default function StrategyBuilderPage() {
                       <td>{pct(r.benchmark_spy.max_drawdown_pct)}</td>
                       <td>{plain(r.benchmark_spy.sharpe)}</td>
                       <td>{pct(r.benchmark_spy.worst_month_pct)}</td>
+                      <td>{r.benchmark_spy.turnover_pct_per_year != null ? `${plain(r.benchmark_spy.turnover_pct_per_year, 0)}%` : "–"}</td>
                       <td>–</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
+            </section>
+          )}
+
+          {r?.model_portfolio && (
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">The app&apos;s model portfolio</p>
+              {r.model_portfolio.available ? (
+                <div className="mt-3 grid grid-cols-2 gap-3 font-mono text-sm sm:grid-cols-4">
+                  <div><p className="text-xs text-slate-500">Total</p><p>{pct(r.model_portfolio.total_return_pct)}</p></div>
+                  <div><p className="text-xs text-slate-500">CAGR</p><p>{pct(r.model_portfolio.cagr_pct)}</p></div>
+                  <div><p className="text-xs text-slate-500">Volatility</p><p>{plain(r.model_portfolio.volatility_pct, 1)}%</p></div>
+                  <div><p className="text-xs text-slate-500">Max DD</p><p>{pct(r.model_portfolio.max_drawdown_pct)}</p></div>
+                  <div><p className="text-xs text-slate-500">Sharpe</p><p>{plain(r.model_portfolio.sharpe)}</p></div>
+                  <div><p className="text-xs text-slate-500">Worst period</p><p>{pct(r.model_portfolio.worst_period_pct)}</p></div>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">{r.model_portfolio.reason}</p>
+              )}
+              {r.model_portfolio.note && <p className="mt-3 text-xs text-slate-400">{r.model_portfolio.note}</p>}
             </section>
           )}
 

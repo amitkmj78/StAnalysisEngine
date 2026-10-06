@@ -2539,6 +2539,20 @@ export interface StrategyMetrics {
   max_drawdown_pct?: number | null;
   sharpe?: number | null;
   worst_month_pct?: number | null;
+  turnover_pct_per_year?: number | null;
+}
+
+export interface ModelPortfolioSummary {
+  available: boolean;
+  months_of_history: number;
+  reason?: string;
+  note?: string;
+  total_return_pct?: number | null;
+  cagr_pct?: number | null;
+  volatility_pct?: number | null;
+  max_drawdown_pct?: number | null;
+  sharpe?: number | null;
+  worst_period_pct?: number | null;
 }
 
 export interface StrategyCheck {
@@ -2582,6 +2596,7 @@ export interface StrategyBacktestResponse {
   strategy: StrategyMetrics;
   basket: StrategyMetrics;
   benchmark_spy: StrategyMetrics;
+  model_portfolio?: ModelPortfolioSummary;
   in_sample: StrategyMetrics;
   out_of_sample: StrategyMetrics;
   per_ticker_contribution: Record<string, number>;

@@ -96,6 +96,19 @@ def get_cached_history_range(ticker: str, start: str, end: str, auto_adjust: boo
     return fetch_with_backoff(_fetch).dropna()
 
 
+@ttl_cache(maxsize=512, ttl_seconds=CACHE_TTL_SECONDS)
+def get_earnings_report_dates(ticker: str) -> list:
+    """STB-1: the dates of this stock's last ~6 years of reported earnings, for the backtest's earnings-window rule.
+    Only rows that have an actual reported EPS count (upcoming dates are excluded). Empty list when unavailable."""
+    try:
+        result = fetch_with_backoff(lambda: yf.Ticker(ticker).get_earnings_dates(limit=24))
+    except Exception:
+        return []
+    if result is None or result.empty or "Reported EPS" not in result.columns:
+        return []
+    return [pd.Timestamp(ts) for ts in result[result["Reported EPS"].notna()].index]
+
+
 @ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
 def get_cached_earnings_dates(ticker: str) -> pd.DataFrame:
     """Shared yf.Ticker(ticker).get_earnings_dates() -- genuinely new

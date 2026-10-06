@@ -17,9 +17,10 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from services.stock_finder_service import fetch_sp500_tickers, get_peer_lookup_table
-from services.strategy_engine import DEFAULT_COOLDOWN, MAX_TICKERS, Rule, feature_frame, run_backtest
+from services.signal_publication_service import DEFAULT_HORIZON_DAYS, DEFAULT_LOOKBACK_DAYS, DEFAULT_UNIVERSE, build_model_portfolio_series
+from services.strategy_engine import DEFAULT_COOLDOWN, MAX_TICKERS, Rule, feature_frame, model_portfolio_summary, run_backtest
 from services.strategy_scan import TEMPLATES, pick_sample, scan
-from services.yfinance_cache import get_cached_history
+from services.yfinance_cache import get_cached_history, get_earnings_report_dates
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn, user_conn
 from web.backend.rate_limit import enforce_daily_quota, limiter
@@ -137,7 +138,8 @@ async def backtest(request: Request, body: BacktestRequest):
         if history.empty or not {"Open", "Close"}.issubset(history.columns):
             raise HTTPException(422, f"No price history for {t}.")
         columns = [c for c in ("Open", "High", "Low", "Close", "Volume") if c in history.columns]
-        frames[t] = feature_frame(history[columns], regime_by_date)
+        reports = await run_in_threadpool(get_earnings_report_dates, t)
+        frames[t] = feature_frame(history[columns], regime_by_date, reports)
     bench_hist = await run_in_threadpool(get_cached_history, BENCHMARK, HISTORY_PERIOD, True, None)
     if bench_hist.empty:
         raise HTTPException(503, "Benchmark price history is unavailable right now.")
@@ -180,6 +182,17 @@ async def backtest(request: Request, body: BacktestRequest):
             "INSERT INTO strategy_backtest_runs (user_id, definition_hash, sharpe_daily) VALUES ($1::uuid, $2, $3)",
             user_id, definition, result.get("sharpe_daily"),
         )
+    # STB-5: the app's own model portfolio, for comparison. Built from its saved outcomes, so it is withheld until it has history.
+    async with service_conn() as conn:
+        outcome_rows = await conn.fetch(
+            "SELECT target_date, realized_return_pct FROM signal_outcomes WHERE universe_id = $1 AND lookback_days = $2 AND horizon_days = $3 ORDER BY target_date",
+            DEFAULT_UNIVERSE, DEFAULT_LOOKBACK_DAYS, DEFAULT_HORIZON_DAYS,
+        )
+    model_series = build_model_portfolio_series(
+        [{"target_date": r["target_date"], "realized_return_pct": float(r["realized_return_pct"])} for r in outcome_rows],
+        DEFAULT_HORIZON_DAYS,
+    )
+    result["model_portfolio"] = model_portfolio_summary(model_series)
     result["selection"] = {**selection, "tickers": tickers}
     result["disclaimer"] = (
         "Backtest of past prices with the rules and costs shown. Not a forecast, not a recommendation, "
@@ -394,7 +407,7 @@ def _run_scan_job(job_id: str, tickers: list[str], regime_by_date: Optional[dict
             if history.empty or not {"Open", "High", "Low", "Close"}.issubset(history.columns):
                 continue
             columns = [c for c in ("Open", "High", "Low", "Close", "Volume") if c in history.columns]
-            frames[t] = feature_frame(history[columns], regime_by_date)
+            frames[t] = feature_frame(history[columns], regime_by_date, get_earnings_report_dates(t))
         bench = get_cached_history(BENCHMARK, HISTORY_PERIOD, True, None)
         if len(frames) < 2 or bench.empty:
             raise ValueError("Not enough price history for this sample. Try again.")

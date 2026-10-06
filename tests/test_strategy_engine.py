@@ -190,3 +190,54 @@ def test_weights_must_match_the_tickers_tested():
     with pytest.raises(ValueError, match="exactly the tickers"):
         run_backtest(frames, [{"field": "rsi_14", "op": "<", "value": 45}],
                      [{"field": "rsi_14", "op": ">", "value": 55}], bench, weights={"AAA": 1.0})
+
+
+def test_model_portfolio_is_withheld_until_twelve_months_of_history():
+    from services.strategy_engine import model_portfolio_summary
+
+    short = [["2026-01-01", 10000.0], ["2026-03-01", 10100.0], ["2026-05-01", 10200.0]]
+    result = model_portfolio_summary(short)
+    assert result["available"] is False and result["months_of_history"] < 12
+
+
+def test_model_portfolio_reports_return_and_drawdown_once_it_has_a_year():
+    from services.strategy_engine import model_portfolio_summary
+
+    series = [["2025-01-01", 10000.0], ["2025-07-01", 12000.0], ["2025-12-31", 9000.0], ["2026-06-30", 13000.0]]
+    result = model_portfolio_summary(series)
+    assert result["available"] is True
+    assert result["total_return_pct"] == 30.0
+    assert result["max_drawdown_pct"] == -25.0
+
+
+def test_turnover_counts_buys_and_sells_once_each():
+    import numpy as np
+    from services.strategy_engine import TickerRun, strategy_turnover_pct_per_year, PERIODS_PER_YEAR
+
+    held = np.zeros(PERIODS_PER_YEAR)
+    held[10:20] = 1  # one entry and one exit in a year: buys + sells = 2 sleeves, one way = 1 sleeve
+    run = TickerRun(returns=np.zeros(len(held)), costs=np.zeros(len(held)), held=held, trades=[], exit_events=1, churn_events=0)
+    assert strategy_turnover_pct_per_year({"AAA": run}, {"AAA": 1.0}, PERIODS_PER_YEAR) == 100.0
+
+
+def test_the_backtest_reports_turnover_for_the_strategy_basket_and_spy():
+    frames = {"AAA": feature_frame(_trend_prices(seed=7)), "BBB": feature_frame(_trend_prices(seed=8))}
+    bench = _trend_prices(seed=9)["Close"]
+    result = run_backtest(frames, [{"field": "rsi_14", "op": "<", "value": 45}], [], bench, waive_protective_exit=True)
+    assert result["strategy"]["turnover_pct_per_year"] is not None
+    assert result["basket"]["turnover_pct_per_year"] is not None
+    assert result["benchmark_spy"]["turnover_pct_per_year"] == 0.0
+
+
+def test_sessions_since_earnings_only_uses_reports_already_made():
+    import pandas as pd
+    from services.strategy_engine import sessions_since_reports
+
+    index = pd.bdate_range("2026-01-01", periods=20)
+    report = pd.Timestamp(index[10])  # reported on day 10
+    values = sessions_since_reports(index, [report])
+    assert np.isnan(values[10])  # the report day itself does not count yet
+    assert values[11] == 0 and values[15] == 4
+    later = sessions_since_reports(index, [report, pd.Timestamp(index[15])])
+    assert np.allclose(later[:15], values[:15], equal_nan=True)  # a later report changes nothing before it
+    assert later[16] == 0
