@@ -246,7 +246,7 @@ export default function DeployControlPanel() {
       {loadError && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>}
 
       {/* Account config bar */}
-      <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <button onClick={() => setConfigOpen((o) => !o)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
           <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-slate-300"}`} />
           <div className="flex-1">
@@ -312,7 +312,7 @@ export default function DeployControlPanel() {
       </div>
 
       {/* Instance status */}
-      <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-900">EC2 Instance</h3>
           {!status?.key_pair.exists && (

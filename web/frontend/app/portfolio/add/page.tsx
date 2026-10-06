@@ -142,7 +142,7 @@ export default function AddPositionsPage() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Add Positions</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Add Positions</h1>
           <p className="mt-1 text-sm text-slate-500">
             Import a Robinhood activity CSV or enter positions manually. Each save also sets watchlist alerts by
             default at the suggested upside target and stop for every position. For a CSV import, the date you
@@ -194,7 +194,7 @@ export default function AddPositionsPage() {
       </div>
 
       {mode === "manual" ? (
-        <form onSubmit={submitManual} className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5">
+        <form onSubmit={submitManual} className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5">
           {rows.map((row, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <Field label="Ticker">
@@ -250,7 +250,7 @@ export default function AddPositionsPage() {
           </div>
         </form>
       ) : mode === "csv" ? (
-        <form onSubmit={submitCsv} className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5">
+        <form onSubmit={submitCsv} className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5">
           <Field label="Robinhood activity CSV">
             <input
               type="file"
@@ -264,7 +264,7 @@ export default function AddPositionsPage() {
           </button>
         </form>
       ) : (
-        <div className="mt-4 flex flex-col items-start gap-3 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mt-4 flex flex-col items-start gap-3 rounded-xl border border-slate-200 bg-white p-5">
           <p className="text-sm text-slate-600">
             Link a real brokerage account through Plaid — your holdings import automatically and stay in sync.
             Your login credentials go directly to Plaid&apos;s secure widget; this app never sees them. Each

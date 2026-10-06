@@ -9,7 +9,7 @@ export default function MethodologyPage() {
       <Link href="/guides" className="text-sm text-indigo-600 hover:underline">
         ← All guides
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-900">Methodology</h1>
+      <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Methodology</h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
         How the scores, signals, confidence, market regime and track record are produced, and which parts are not yet
         proven. This is general information about how the app works, not a recommendation to buy, hold or sell anything.

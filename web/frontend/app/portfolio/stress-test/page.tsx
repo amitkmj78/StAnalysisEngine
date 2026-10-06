@@ -205,7 +205,7 @@ export default function StressTestPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Stress Test</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-900">Stress Test</h1>
         <p className="mt-1 text-sm text-slate-500">
           Estimated impact of market shocks on your real holdings — every result is an estimate, and shows exactly
           how it was computed directly underneath it, never just a number.{" "}
@@ -226,7 +226,7 @@ export default function StressTestPage() {
       {catalogError && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{catalogError}</p>}
 
       {/* Preset shocks */}
-      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-slate-900">Preset Shocks</h2>
         <p className="mt-1 text-xs text-slate-500">
           Beta-based estimates: your portfolio&apos;s historical beta to a real-world proxy, applied to a
@@ -289,7 +289,7 @@ export default function StressTestPage() {
       </div>
 
       {/* Historical replays */}
-      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-slate-900">Historical Replays</h2>
         <p className="mt-1 text-xs text-slate-500">
           Each holding&apos;s own actual return over a real historical crisis window, applied to its current value —
@@ -375,7 +375,7 @@ export default function StressTestPage() {
       </div>
 
       {/* Custom scenario builder */}
-      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-slate-900">Custom Scenario</h2>
         <p className="mt-1 text-xs text-slate-500">
           Combine sector and factor moves. Sector moves apply directly to holdings classified in that sector; factor

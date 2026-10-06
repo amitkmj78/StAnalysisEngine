@@ -41,7 +41,7 @@ export default function TrackRecordPanel({ ticker }: { ticker: string }) {
   if (!data) return null;
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5">
+    <section className="rounded-xl border border-slate-200 bg-white p-5">
       <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
         {ticker} track record
         <MetricLabel info={INFO} />

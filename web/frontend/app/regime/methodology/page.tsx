@@ -20,7 +20,7 @@ export default function RegimeMethodologyPage() {
       <Link href="/predict" className="text-sm text-indigo-600 hover:underline">
         ← Back to the app
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-900">Market regime: methodology</h1>
+      <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Market regime: methodology</h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
         The statistics and test results behind the regime banner. The banner&apos;s readings are for information,
         and the regime label has not been validated.

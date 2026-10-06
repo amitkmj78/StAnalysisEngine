@@ -29,7 +29,7 @@ function SkeletonBlock({ className = "" }: { className?: string }) {
 
 function Card({ title, subtitle, children }: { title: string; subtitle?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
       {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
       <div className="mt-3">{children}</div>
@@ -115,7 +115,7 @@ export default function PortfolioHealthPage() {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Portfolio Health Check</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Portfolio Health Check</h1>
           <p className="mt-1 text-sm text-slate-500">
             Concentration, fund overlap, risk, income, fees, and tax-loss harvesting for your real holdings — each
             section loads independently, so a slow one never blocks the rest.

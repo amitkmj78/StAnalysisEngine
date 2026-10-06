@@ -701,7 +701,7 @@ export default function PriceHistoryChart({
   const showNotes = !isDaily || active.size > 0 || subPanels.length > 0 || compare;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-900">{ticker} Price</h3>
         <div className="flex flex-wrap gap-1">

@@ -32,7 +32,7 @@ export default function SimilarSetupsCard({ ticker }: { ticker: string }) {
   if (!data) return null;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <h3 className="text-sm font-semibold text-slate-900">Similar past setups</h3>
       {!data.available ? (
         <p className="mt-2 text-xs text-slate-400">{data.reason}</p>

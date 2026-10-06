@@ -63,7 +63,7 @@ export default function TradeImpactCard({
     : [];
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-900">Portfolio impact preview</h3>
         <p className="text-xs text-slate-500">Hypothetical. Nothing is placed.</p>

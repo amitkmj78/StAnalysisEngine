@@ -1365,7 +1365,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Chip({ label, value, tone }: { label: string; value: string; tone?: number | null }) {
   const valueClass = tone === undefined ? "" : goodBad(tone);
   return (
-    <div className="min-w-[128px] rounded-lg border border-slate-200 bg-white px-4 py-3">
+    <div className="min-w-[128px] rounded-xl border border-slate-200 bg-white px-4 py-3">
       <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
         {label}
       </p>

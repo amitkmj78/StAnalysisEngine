@@ -25,7 +25,7 @@ function GroupList({
   benchmark?: { name: string; oos_cagr_pct: number | null; oos_max_drawdown_pct: number | null; full_cagr_pct: number | null; full_max_drawdown_pct: number | null };
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5">
+    <section className="rounded-xl border border-slate-200 bg-white p-5">
       <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
       <p className="mt-1 text-xs text-slate-500">
         Ranked by {group.ranked_by.toLowerCase()}. Minimum: {group.minimum.toLowerCase()}.
@@ -110,7 +110,7 @@ export default function StrategyScanPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
+        <h1 className="font-display flex items-center gap-2 text-2xl font-semibold text-slate-900">
           Scan for candidates
           <MetricLabel info={STRATEGY_INFO.scan} />
         </h1>
@@ -122,7 +122,7 @@ export default function StrategyScanPage() {
         Tests the starting templates on a random sample of 20 S&amp;P 500 stocks over the last five years. Candidates to study, not recommendations.
       </p>
 
-      <div className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-5">
         <label className="flex flex-col gap-1 text-xs text-slate-600">
           Sample seed (optional)
           <input
@@ -153,7 +153,7 @@ export default function StrategyScanPage() {
             Seed {result.seed} · {result.sample_size} stocks · {result.period.start} to {result.period.end} · later{" "}
             {result.out_of_sample.years.toFixed(1)} years measured · {result.variants_tried} templates tried
           </p>
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stocks in this random sample</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {result.tickers.map((t) => (
@@ -172,7 +172,7 @@ export default function StrategyScanPage() {
           <GroupList title="Short-term candidates" group={result.groups.short_term} />
           <GroupList title="Long-term candidates" group={result.groups.long_term} benchmark={result.benchmark} />
 
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-5">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-5">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">All templates</p>
             <table className="w-full min-w-[52rem] text-right text-sm">
               <thead className="text-xs text-slate-400">

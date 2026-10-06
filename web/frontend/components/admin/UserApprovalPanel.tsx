@@ -248,7 +248,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
         {pending.length === 0 ? (
           <p className="mt-1 text-sm text-slate-500">No signups waiting on approval.</p>
         ) : (
-          <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -290,7 +290,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
 
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Approved Users ({approved.length})</h2>
-        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">

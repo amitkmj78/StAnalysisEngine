@@ -81,7 +81,7 @@ export default function TradingAgentPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Trading Agent</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Trading Agent</h1>
           <p className="mt-1 text-sm text-slate-500">
             A rule-based agent that runs this app&apos;s Buy signals on your Alpaca paper account, with risk limits it
             can&apos;t override and a journal of every decision.
@@ -117,7 +117,7 @@ export default function TradingAgentPage() {
 
       {status && (
         <>
-          <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+          <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-semibold text-slate-900">Mode and controls</h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {(["plan", "paper", "live"] as const).map((m) => (
@@ -162,7 +162,7 @@ export default function TradingAgentPage() {
           </section>
 
           <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h2 className="text-sm font-semibold text-slate-900">Risk state</h2>
               <p className="mt-2 text-sm text-slate-700">
                 Regime: <span className="font-medium">{status.regime.label ?? "No reading"}</span> — exposure capped at{" "}
@@ -191,7 +191,7 @@ export default function TradingAgentPage() {
               <p className="mt-2 text-xs text-slate-400">{status.regime.disclosure}</p>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h2 className="text-sm font-semibold text-slate-900">Paper performance</h2>
               {status.performance_paper && status.performance_paper.days_of_data >= 2 ? (
                 <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
@@ -215,7 +215,7 @@ export default function TradingAgentPage() {
             </div>
           </section>
 
-          <section className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
+          <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-semibold text-slate-900">Positions and stops (from Alpaca)</h2>
             {!status.broker ? (
               <p className="mt-2 text-sm text-slate-600">No linked paper account.</p>
@@ -244,7 +244,7 @@ export default function TradingAgentPage() {
             )}
           </section>
 
-          <section className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
+          <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-semibold text-slate-900">Today&apos;s plan</h2>
             {todaysPlan.length === 0 ? (
               <p className="mt-2 text-sm text-slate-600">No plan yet. Preview one, or wait for the 15:45 ET run.</p>
@@ -263,7 +263,7 @@ export default function TradingAgentPage() {
             )}
           </section>
 
-          <section className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
+          <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-semibold text-slate-900">Journal</h2>
             <p className="mt-1 text-xs text-slate-500">Every run and order, with its plain-language reason. Append-only.</p>
             {journal.length === 0 ? (

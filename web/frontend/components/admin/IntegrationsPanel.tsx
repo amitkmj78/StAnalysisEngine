@@ -107,7 +107,7 @@ function IntegrationRow({
   onTest: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="font-medium text-slate-900">{integration.name}</span>

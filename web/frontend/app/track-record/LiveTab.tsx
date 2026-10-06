@@ -79,12 +79,12 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
       )}
 
       {data.signals.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-500">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
           No signals have been published yet. This page will show the current picks and the full history as
           soon as publication begins — nothing is backfilled or reconstructed after the fact.
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -486,7 +486,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
         )}
       </div>
 
-      <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="font-semibold text-slate-900">Methodology</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
           Once a day, after market close, the rule ranks a fixed universe of large, liquid US stocks by trailing

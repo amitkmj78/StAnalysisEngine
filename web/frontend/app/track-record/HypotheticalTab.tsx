@@ -131,7 +131,7 @@ export default function HypotheticalTab({ data }: { data: PublishedSignalsRespon
           {comparisonError && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{comparisonError}</p>}
 
           {comparison && !comparisonLoading && (
-            <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">

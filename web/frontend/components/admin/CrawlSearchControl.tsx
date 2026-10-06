@@ -76,7 +76,7 @@ export default function CrawlSearchControl() {
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-semibold text-slate-900">CrawlSearch — On-Demand Crawl</h2>

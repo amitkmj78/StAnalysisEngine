@@ -6,7 +6,7 @@ export default function RiskGuidePage() {
       <Link href="/guides" className="text-sm text-indigo-600 hover:underline">
         ← All guides
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-900">Understanding Risk</h1>
+      <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Understanding Risk</h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
         The Health Check and Stress Test pages show several risk numbers side by side. They measure different
         things and can disagree with each other — here&apos;s what each one is actually telling you.

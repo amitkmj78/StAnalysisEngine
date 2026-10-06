@@ -58,7 +58,7 @@ export default function SqlRunner() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1">
+      <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1">
         {DATABASES.map((d) => (
           <button
             key={d.id}
@@ -73,7 +73,7 @@ export default function SqlRunner() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-3">
           <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Tables</h2>
         {tablesError && <p className="mt-2 px-1 text-xs text-red-600">{tablesError}</p>}
         {!tables && !tablesError && <p className="mt-2 px-1 text-xs text-slate-400">Loading…</p>}
@@ -105,7 +105,7 @@ export default function SqlRunner() {
       </div>
 
       <div className="flex flex-col gap-3">
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
           <textarea
             value={sql}
             onChange={(e) => setSql(e.target.value)}
@@ -131,7 +131,7 @@ export default function SqlRunner() {
         {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         {result && !error && (
-          <div className="rounded-lg border border-slate-200 bg-white">
+          <div className="rounded-xl border border-slate-200 bg-white">
             <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-xs text-slate-500">
               <span>
                 {result.row_count} row{result.row_count === 1 ? "" : "s"}

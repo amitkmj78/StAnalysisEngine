@@ -194,7 +194,7 @@ export default function BuildDiversifiedBasketPage() {
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Build a Diversified Basket</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Build a Diversified Basket</h1>
           <p className="mt-1 text-sm text-slate-500">
             Generates a custom basket of individual stocks spread across sectors — the top-scoring, sector-
             diversified tickers from the universe you pick, then saves it as a new portfolio. A saved basket
@@ -313,12 +313,12 @@ export default function BuildDiversifiedBasketPage() {
             <p key={n} className="text-xs text-slate-500">{n}</p>
           ))}
 
-          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
             {preview.totals.holding_count} stocks · invested {fmtMoney(preview.totals.invested)} · leftover cash{" "}
             {fmtMoney(preview.totals.leftover_cash)} · as of {preview.as_of_date || "N/A"}
           </div>
 
-          <div className="max-h-[28rem] overflow-auto rounded-lg border border-slate-200 bg-white">
+          <div className="max-h-[28rem] overflow-auto rounded-xl border border-slate-200 bg-white">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -362,7 +362,7 @@ export default function BuildDiversifiedBasketPage() {
           </div>
 
           {preview.excluded.length > 0 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
               <button
                 type="button"
                 onClick={() => setShowExclusions((v) => !v)}
@@ -384,7 +384,7 @@ export default function BuildDiversifiedBasketPage() {
 
           <div>
             <h3 className="font-semibold text-slate-900">Sector Summary</h3>
-            <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -438,7 +438,7 @@ export default function BuildDiversifiedBasketPage() {
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-sm font-medium text-slate-700">Save as a new portfolio</p>
             <div className="mt-2 flex flex-wrap items-end gap-3">
               <Field label="Portfolio name">
@@ -489,7 +489,7 @@ export default function BuildDiversifiedBasketPage() {
         </div>
       )}
 
-      <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
         <h3 className="font-semibold text-slate-900">Final Note</h3>
         <p className="mt-2 text-sm text-slate-600">
           This basket is generated from the same ranking/scoring methodology as the Strategies and Stock

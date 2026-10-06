@@ -140,12 +140,12 @@ function ChartGrid() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Chart grid</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Chart grid</h1>
       <p className="mt-1 text-sm text-slate-500">
         Up to four charts side by side. With linked crosshairs on, hovering a date moves every chart to that date.
       </p>
 
-      <div className="mt-6 flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="mt-6 flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <div className="flex rounded-md border border-slate-200 p-0.5">
             {RANGES.map((r) => (
@@ -240,7 +240,7 @@ function ChartGrid() {
         })}
       </div>
 
-      <section className="mt-8 rounded-lg border border-slate-200 bg-white p-5">
+      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-slate-900">Saved layouts</h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input value={layoutName} onChange={(e) => setLayoutName(e.target.value)} placeholder="Layout name" className="input w-56 py-1 text-sm" aria-label="Layout name" />

@@ -39,12 +39,12 @@ export default function SharedStrategyPage({ params }: { params: Promise<{ token
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <p className="text-xs uppercase tracking-wide text-slate-400">Shared strategy · read-only</p>
-      <h1 className="mt-1 text-2xl font-semibold text-slate-900">{data.name}</h1>
+      <h1 className="font-display mt-1 text-2xl font-semibold text-slate-900">{data.name}</h1>
       <p className="mt-1 text-sm text-slate-500">
         {r.period.start} to {r.period.end} · {tickers.join(", ")} · {r.trades} trades
       </p>
 
-      <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+      <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Did the rules add value?</p>
         <p className="mt-2 text-lg font-medium text-slate-900">{verdict}</p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">

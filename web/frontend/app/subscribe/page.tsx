@@ -73,7 +73,7 @@ export default function SubscribePage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-2xl font-semibold text-slate-900">Subscribe</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Subscribe</h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
         Get current-day rankings instead of the free tier&apos;s delayed view, plus full CSV export
         of the published history.
@@ -84,7 +84,7 @@ export default function SubscribePage() {
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
         {loggedIn === null && <p className="text-sm text-slate-500">Loading…</p>}
 
         {loggedIn === false && (
@@ -125,7 +125,7 @@ export default function SubscribePage() {
         ) : (
           <form
             onSubmit={handleEnquirySubmit}
-            className="mt-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5"
+            className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5"
           >
             <select
               value={enquiryType}

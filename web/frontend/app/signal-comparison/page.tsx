@@ -254,7 +254,7 @@ export default function SignalComparisonPage() {
           ← Back to Portfolio
         </Link>
       )}
-      <h1 className="text-2xl font-semibold text-slate-900">Quant Signal vs. Analyst Rating</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Quant Signal vs. Analyst Rating</h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
         The internal quant model&apos;s BUY/HOLD/SELL call next to the real Wall Street analyst consensus, for
         every ticker captured that day. Both are point-in-time snapshots — independent of each other, shown
@@ -280,7 +280,7 @@ export default function SignalComparisonPage() {
       {data && !loading && (
         <>
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
               As of <span className="font-medium text-slate-900">{data.as_of_date ?? "—"}</span> ·{" "}
               {data.ticker_count} tickers · <span className="text-emerald-700">{counts.BUY} BUY</span> ·{" "}
               <span className="text-red-700">{counts.SELL} SELL</span> ·{" "}
@@ -323,11 +323,11 @@ export default function SignalComparisonPage() {
           </div>
 
           {rows.length === 0 ? (
-            <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-500">
+            <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
               No tickers match this filter.
             </div>
           ) : (
-            <div className="mt-6 max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-white">
+            <div className="mt-6 max-h-[70vh] overflow-auto rounded-xl border border-slate-200 bg-white">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">

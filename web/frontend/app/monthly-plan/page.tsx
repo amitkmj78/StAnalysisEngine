@@ -148,7 +148,7 @@ export default function MonthlyPlanPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Monthly Investing Plan</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Monthly Investing Plan</h1>
       <p className="mt-1 text-sm text-slate-500">
         See what investing a fixed amount every month into the top-ranked fund <em>and</em> the top-ranked stock
         could look like, side by side — so you can compare before picking one.
@@ -287,7 +287,7 @@ export default function MonthlyPlanPage() {
       )}
 
       {!loading && (fundData || stockData) && (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
           <h3 className="font-semibold text-slate-900">Final Note</h3>
           <p className="mt-2 text-sm text-slate-600">
             This planner is a simple dollar-cost averaging view. It does not account for taxes, fees, dividends, or
@@ -316,7 +316,7 @@ function PlanResultCard({
 }) {
   if (!data) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
         <p className="mt-2 text-sm text-slate-500">Could not load a pick for this side right now.</p>
       </div>
@@ -325,7 +325,7 @@ function PlanResultCard({
 
   if (!data.recommendation) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
         <p className="mt-2 text-sm text-slate-500">No ranked pick was available right now. Try a different filter.</p>
       </div>
@@ -337,7 +337,7 @@ function PlanResultCard({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-slate-200 bg-white p-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{title}</p>
         <h2 className="mt-1 text-lg font-semibold text-slate-900">
           {recommendation.ticker} — {recommendation.name}
@@ -369,11 +369,11 @@ function PlanResultCard({
             />
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <MonthlyChart ticker={recommendation.ticker} history={data.history} />
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
             <h3 className="font-semibold text-slate-900">Forward Estimate</h3>
             <p className="mt-2 text-sm text-slate-600">
               Projected portfolio value:{" "}

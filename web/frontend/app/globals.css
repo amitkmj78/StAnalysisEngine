@@ -25,6 +25,10 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Page titles and key figures use the portfolio's display and figure fonts (set in app/layout.tsx). */
+.font-display { font-family: var(--font-pf-display); }
+.font-mono-pf { font-family: var(--font-pf-mono); font-variant-numeric: tabular-nums; }
+
 @layer components {
   .input {
     @apply rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none;

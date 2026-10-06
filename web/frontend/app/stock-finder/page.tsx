@@ -676,7 +676,7 @@ export default function StockFinderPage() {
   return (
     <div className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} ${PF.page} ${PF.ink}`} style={{ fontFamily: "var(--font-pf-sans)" }}>
       <div className="mx-auto max-w-6xl px-4 py-8">
-        <h1 className="text-3xl font-semibold" style={{ fontFamily: "var(--font-pf-display)" }}>
+        <h1 className="font-display text-3xl font-semibold" style={{ fontFamily: "var(--font-pf-display)" }}>
           Stock Screener
         </h1>
         <p className={`mt-1 max-w-2xl text-sm ${PF.muted}`}>

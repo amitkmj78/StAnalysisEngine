@@ -161,7 +161,7 @@ export default function EntryPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Entry Signals</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Entry Signals</h1>
       <p className="mt-1 text-sm text-slate-500">
         Scan for the strongest current entry setups, or check one ticker for a buy-zone view.{" "}
         <Link href="/guides/signals" className="text-indigo-600 hover:underline">
@@ -265,7 +265,7 @@ export default function EntryPage() {
           {/* Table — sm and up. A cramped horizontally-scrolling table is a
               poor fit for a phone screen, so mobile gets its own card list
               below instead of just squeezing this one narrower. */}
-          <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white sm:block">
+          <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white sm:block">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -316,7 +316,7 @@ export default function EntryPage() {
               horizontally-scrolling table. */}
           <div className="flex flex-col gap-3 sm:hidden">
             {sortedResults.map((row) => (
-              <div key={row.Ticker} className="rounded-lg border border-slate-200 bg-white p-4">
+              <div key={row.Ticker} className="rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-slate-900">{row.Ticker}</span>
                   <div className="flex items-center gap-1.5">
@@ -349,7 +349,7 @@ export default function EntryPage() {
 
       {mode === "check" && singlePlan && !loading && (
         <div className="mt-6 flex flex-col gap-6">
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-slate-900">{singlePlan.ticker} Entry Snapshot</h2>
               <div className="flex items-center gap-2">
@@ -371,27 +371,27 @@ export default function EntryPage() {
           </div>
 
           {singleHistory && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
               <EntryChart plan={singlePlan} history={singleHistory} />
             </div>
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h3 className="font-semibold text-slate-900">Entry Levels</h3>
               <p className="mt-2 text-sm text-slate-600">Buy zone: ${singlePlan.ideal_entry_low.toFixed(2)} – ${singlePlan.ideal_entry_high.toFixed(2)}</p>
               <p className="text-sm text-slate-600">Breakout trigger: ${singlePlan.breakout_entry.toFixed(2)}</p>
               <p className="text-sm text-slate-600">Stop loss: ${singlePlan.stop_loss.toFixed(2)}</p>
               <p className="text-sm text-slate-600">First target: ${singlePlan.first_target.toFixed(2)}</p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h3 className="font-semibold text-slate-900">Trend Read</h3>
               <p className="mt-2 text-sm text-slate-600">RSI: {singlePlan.rsi?.toFixed(2) ?? "N/A"}</p>
               <p className="text-sm text-slate-600">Short-term trend: {singlePlan.trend_up ? "Uptrend" : "Mixed / weak"}</p>
               <p className="text-sm text-slate-600">Long-term trend: {singlePlan.long_term_up ? "Long-term uptrend" : "Not fully supportive"}</p>
               <p className="text-sm text-slate-600">20D support / resistance: ${singlePlan.support_20.toFixed(2)} / ${singlePlan.resistance_20.toFixed(2)}</p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h3 className="flex items-center gap-1.5 font-semibold text-slate-900">
                 Quant Forecast
                 <MetricLabel term="Entry Quant Signal" />

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { Fraunces, IBM_Plex_Mono } from "next/font/google";
 
 import {
   ApiError,
@@ -52,6 +53,11 @@ import SimilarSetupsCard from "@/components/stock-detail/SimilarSetupsCard";
 import RecentNewsPanel from "@/components/stock-detail/RecentNewsPanel";
 import TrackRecordPanel from "@/components/stock-detail/TrackRecordPanel";
 import TickerSearchInput from "@/components/TickerSearchInput";
+
+const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
+const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
+const DISPLAY_FONT = { fontFamily: "var(--font-pf-display)" };
+const MONO_FONT = { fontFamily: "var(--font-pf-mono)" };
 
 function signalBadgeClass(signal: string): string {
   if (signal === "Buy") return "bg-emerald-50 text-emerald-700";
@@ -195,7 +201,7 @@ function ScoreCard({
   }
 
   return (
-    <div className={`rounded-lg border border-l-4 border-slate-200 bg-white p-5 ${signalAccentClass(signal)}`}>
+    <div className={`rounded-xl border border-l-4 border-slate-200 bg-white p-5 ${signalAccentClass(signal)}`}>
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
@@ -438,14 +444,14 @@ export default function StockScorePage() {
   }, [signalHistory]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <div className={`mx-auto max-w-5xl px-4 py-8 ${fraunces.variable} ${plexMono.variable}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Stock Detail</p>
           <div className="flex items-baseline gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">{ticker}</h1>
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-slate-900" style={DISPLAY_FONT}>{ticker}</h1>
             {detail?.current_price !== null && detail?.current_price !== undefined && (
-              <span className="text-lg font-medium text-slate-500">${detail.current_price.toFixed(2)}</span>
+              <span className="text-lg font-medium tabular-nums text-slate-500" style={MONO_FONT}>${detail.current_price.toFixed(2)}</span>
             )}
           </div>
           {data && (
@@ -629,7 +635,7 @@ export default function StockScorePage() {
             </div>
           )}
 
-          <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+          <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-900">Why these scores</h3>
               <span className="text-xs text-slate-400">Click a factor for its history</span>
@@ -665,7 +671,7 @@ export default function StockScorePage() {
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 bg-white p-5">
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Key Stats</h3>
           {detail ? (
             <dl className="mt-2 grid grid-cols-2 gap-y-2 text-sm">
@@ -693,7 +699,7 @@ export default function StockScorePage() {
           )}
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-5">
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Earnings &amp; Dividends</h3>
           {detail ? (
             <div className="mt-2 text-sm text-slate-700">
@@ -729,7 +735,7 @@ export default function StockScorePage() {
       </div>
 
       {detail && detail.past_earnings.length > 0 && (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Earnings History</h3>
           {detail.typical_earnings_move && (
             <p className="mt-1 text-xs text-slate-500">
@@ -808,7 +814,7 @@ export default function StockScorePage() {
       )}
 
       <div
-        className={`mt-6 rounded-lg border border-l-4 border-slate-200 bg-white p-5 ${
+        className={`mt-6 rounded-xl border border-l-4 border-slate-200 bg-white p-5 ${
           sentiment?.label ? sentimentAccentClass(sentiment.label) : "border-l-slate-200"
         }`}
       >
@@ -847,7 +853,7 @@ export default function StockScorePage() {
       </div>
 
       {filingSummaries && filingSummaries.filings.length > 0 && (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Filing Summary</h3>
           <div className="mt-3 flex flex-col gap-4">
             {filingSummaries.filings.map((f) => (
@@ -877,7 +883,7 @@ export default function StockScorePage() {
       )}
 
       {earningsRelease?.release && (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Earnings Release Summary</h3>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -912,7 +918,7 @@ export default function StockScorePage() {
       )}
 
       {loggedIn && (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Your Position</h3>
           {ownedPositions.length > 0 ? (
             <div className="mt-3 flex flex-col divide-y divide-slate-100">
@@ -974,7 +980,7 @@ export default function StockScorePage() {
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 bg-white p-5">
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Signal History</h3>
           {signalHistory && signalHistory.history.length > 0 ? (
             <>
@@ -1006,7 +1012,7 @@ export default function StockScorePage() {
           )}
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-5">
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
           <h3 className="text-sm font-semibold text-slate-900">Similar Stocks</h3>
           {peers && peers.peers.length > 0 ? (
             <ul className="mt-2 flex flex-col divide-y divide-slate-100">

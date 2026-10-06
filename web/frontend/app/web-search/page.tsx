@@ -32,7 +32,7 @@ export default function WebSearchPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <h1 className="text-2xl font-semibold text-slate-900">Web Search</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Web Search</h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
         Self-hosted search — CrawlSearch (our own crawler) is tried first, with Brave and DuckDuckGo
         as live fallbacks — then this app extracts real article content from each result itself (not
@@ -49,7 +49,7 @@ export default function WebSearchPage() {
 
       <form
         onSubmit={handleSearch}
-        className="mt-6 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5"
+        className="mt-6 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5"
       >
         <input
           type="text"
@@ -97,13 +97,13 @@ export default function WebSearchPage() {
           </p>
 
           {data.results.length === 0 ? (
-            <div className="mt-3 rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-500">
+            <div className="mt-3 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
               No results found.
             </div>
           ) : (
             <div className="mt-3 flex flex-col gap-3">
               {data.results.map((r) => (
-                <div key={r.url} className="rounded-lg border border-slate-200 bg-white p-4">
+                <div key={r.url} className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <a
                       href={r.url}

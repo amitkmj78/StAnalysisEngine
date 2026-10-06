@@ -84,14 +84,14 @@ export default function SavedStrategiesPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-slate-900">Saved strategies</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-900">Saved strategies</h1>
         <Link href="/strategies/builder" className="text-sm font-medium text-slate-700 hover:underline">← Back to the builder</Link>
       </div>
       <p className="mt-1 text-sm text-slate-500">Pick up to four to compare. Each saved run keeps its rules, stocks, costs and results as they were when saved.</p>
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <div className="mt-6 rounded-lg border border-slate-200 bg-white">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white">
         {rows === null && !error && <p className="p-5 text-sm text-slate-500">Loading…</p>}
         {rows?.length === 0 && <p className="p-5 text-sm text-slate-500">Nothing saved yet. Run a backtest in the builder and choose Save this run.</p>}
         <ul className="divide-y divide-slate-100">
@@ -130,7 +130,7 @@ export default function SavedStrategiesPage() {
       )}
 
       {compare && (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white p-5">
           <table className="w-full min-w-[40rem] text-right text-sm">
             <thead className="text-xs text-slate-400">
               <tr>

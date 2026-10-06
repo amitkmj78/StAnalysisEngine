@@ -33,7 +33,7 @@ export default function EvidencePanel({
   const rankText = (r: { rank: number; of: number } | null) => (r ? `#${r.rank} of ${r.of}` : "Not ranked");
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-900">Evidence</h3>
         <p className="text-xs text-slate-500">

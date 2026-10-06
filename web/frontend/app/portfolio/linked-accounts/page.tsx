@@ -82,7 +82,7 @@ export default function LinkedAccountsPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Linked Accounts</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Linked Accounts</h1>
           <p className="mt-1 text-sm text-slate-500">
             Brokerage accounts connected through Plaid. Each syncs into its own set of positions — disconnecting
             one only removes what it imported, never anything you added manually or by CSV.
@@ -99,7 +99,7 @@ export default function LinkedAccountsPage() {
       {items === null ? (
         <p className="mt-6 text-sm text-slate-500">Loading…</p>
       ) : items.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-500">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
           No brokerage accounts linked yet.{" "}
           <Link href="/portfolio/add?mode=plaid" className="text-slate-700 underline">
             Connect one
@@ -111,7 +111,7 @@ export default function LinkedAccountsPage() {
           {items.map((item) => (
             <div
               key={item.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
             >
               <div>
                 <div className="flex items-center gap-2">

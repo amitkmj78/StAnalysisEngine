@@ -98,7 +98,7 @@ export default function PaperTradingTicketPage() {
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-slate-900">New Paper Order</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-900">New Paper Order</h1>
         <Link href="/portfolio/paper-trading" className="text-sm font-medium text-slate-600 hover:underline">
           ← Back
         </Link>
@@ -107,7 +107,7 @@ export default function PaperTradingTicketPage() {
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {!reviewing ? (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
           <div className="flex flex-col gap-3">
             <label className="text-xs font-medium text-slate-600">
               Ticker
@@ -198,7 +198,7 @@ export default function PaperTradingTicketPage() {
           </button>
         </div>
       ) : (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="text-sm font-semibold text-slate-900">Review and Confirm</h2>
           <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
             <dt className="text-slate-500">Action</dt>

@@ -6,7 +6,7 @@ export default function DiversificationGuidePage() {
       <Link href="/guides" className="text-sm text-indigo-600 hover:underline">
         ← All guides
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-900">Diversification &amp; Concentration</h1>
+      <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Diversification &amp; Concentration</h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
         The Health Check page flags when a portfolio is concentrated. Here&apos;s what triggers that flag, and why
         it matters even when every individual holding looks fine on its own.

@@ -137,7 +137,7 @@ export default function SignalStabilityPanel() {
             Most-flipped tickers first — a high flip count relative to days captured means the signal isn&apos;t
             settling on a view.
           </p>
-          <div className="mt-2 max-h-[26rem] overflow-auto rounded-lg border border-slate-200 bg-white">
+          <div className="mt-2 max-h-[26rem] overflow-auto rounded-xl border border-slate-200 bg-white">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -180,7 +180,7 @@ export default function SignalStabilityPanel() {
             Most recent 50 signal changes across all tickers, with the model&apos;s forecast and the ticker&apos;s
             own price move around the flip.
           </p>
-          <div className="mt-2 max-h-[26rem] overflow-auto rounded-lg border border-slate-200 bg-white">
+          <div className="mt-2 max-h-[26rem] overflow-auto rounded-xl border border-slate-200 bg-white">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">

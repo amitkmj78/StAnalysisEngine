@@ -105,13 +105,13 @@ export default function WatchlistPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Watchlist Alerts</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Watchlist Alerts</h1>
       <p className="mt-1 text-sm text-slate-500">
         Set a price or short-term score target for a ticker and it gets checked automatically in the
         background — every 5 minutes, no need to keep this page open.
       </p>
 
-      <form onSubmit={handleCreate} className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4">
+      <form onSubmit={handleCreate} className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-500">Ticker</label>
           <TickerSearchInput
@@ -209,7 +209,7 @@ export default function WatchlistPage() {
             {pending.length === 0 ? (
               <p className="mt-1 text-sm text-slate-500">No active alerts.</p>
             ) : (
-              <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -257,7 +257,7 @@ export default function WatchlistPage() {
           {triggeredSeen.length > 0 && (
             <div>
               <h2 className="font-semibold text-slate-900">History ({triggeredSeen.length})</h2>
-              <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">

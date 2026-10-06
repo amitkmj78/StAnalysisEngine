@@ -79,7 +79,7 @@ export default function TopPerformersPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Top Performers</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Top Performers</h1>
       <p className="mt-1 text-sm text-slate-500">
         Stocks and funds ranked by raw trailing price return over a fixed trading-day window — a simple momentum
         read, separate from the weighted scoring on Best Stock Finder / Best Index Fund.
@@ -289,7 +289,7 @@ export default function TopPerformersPage() {
         )}
       </div>
 
-      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
         <h3 className="font-semibold text-slate-900">How To Read This Page</h3>
         <p className="mt-2 text-sm text-slate-600">
           Each return is just <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">(price now / price {window} trading days ago) − 1</code>,
@@ -314,7 +314,7 @@ function BacktestTile({
   positive?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
       <p className="text-xs font-medium text-slate-700">{label}</p>
       <p
         className={`mt-1 text-lg font-semibold ${
@@ -340,7 +340,7 @@ function TopPerformersTable({
   windowLabel: string;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white">
+    <div className="rounded-xl border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-4 py-3">
         <h2 className="font-semibold text-slate-900">{title}</h2>
         <p className="text-xs text-slate-500">Ranked by {windowLabel} trailing return</p>

@@ -52,7 +52,7 @@ export default function DailyQuotaControls() {
   const dirty = quota !== null && quotaInput !== String(quota);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <h2 className="font-semibold text-slate-900">Daily Request Limit</h2>
       <p className="mt-1 text-sm text-slate-600">
         Per-user cap on quota-gated API requests in any rolling 24-hour window (predictions, screeners,

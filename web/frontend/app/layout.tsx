@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
 import { isAdmin } from "@/lib/admin";
@@ -11,6 +11,9 @@ const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
+
+const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
+const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -30,7 +33,7 @@ export default async function RootLayout({
   const user = await getSession();
 
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} h-full antialiased`}>
       {/* Browser extensions such as Grammarly add attributes to body before React loads; ignore just those. */}
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900" suppressHydrationWarning>
         {user && <SiteHeader email={user.email} isAdmin={isAdmin(user.email)} />}

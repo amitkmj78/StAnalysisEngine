@@ -57,7 +57,7 @@ export default function ChatPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Assistant</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Assistant</h1>
       <p className="mt-1 text-sm text-slate-500">
         Ask a free-form question about a ticker, your whole portfolio, or the market in general. Answers are built
         from the research stored in this app, with the sources it used. Each answer is a single response.
@@ -169,7 +169,7 @@ export default function ChatPage() {
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {result && !loading && (
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
             {result.ticker === "PORTFOLIO" ? "Your Portfolio" : result.ticker === "GENERAL" ? "General question" : result.ticker} · {result.provider}
           </p>

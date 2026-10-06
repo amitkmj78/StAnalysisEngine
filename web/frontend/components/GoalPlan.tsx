@@ -156,7 +156,7 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
   if (portfolioId === null) return null;
 
   return (
-    <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+    <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
       <h2 className="text-sm font-semibold text-slate-900">Goal-Based Investing Plan</h2>
       <p className="mt-1 text-xs text-slate-500">
         Set a target amount and date — this figures out how much to invest each month, and what

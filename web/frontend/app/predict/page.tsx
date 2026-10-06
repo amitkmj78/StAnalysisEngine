@@ -391,7 +391,7 @@ export default function PredictPage() {
             ← Back to Portfolio
           </Link>
         )}
-        <h1 className="text-2xl font-semibold" style={DISPLAY_FONT}>
+        <h1 className="font-display text-2xl font-semibold" style={DISPLAY_FONT}>
           AI Price Forecast
         </h1>
         <p className="mt-1 text-sm text-slate-500">
@@ -505,7 +505,7 @@ export default function PredictPage() {
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-3">
-                    <div className="min-w-[150px] rounded-lg border border-slate-200 bg-white px-4 py-3">
+                    <div className="min-w-[150px] rounded-xl border border-slate-200 bg-white px-4 py-3">
                       <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
                         Expected Return ({shownDaysAhead}d)
                       </p>
@@ -513,7 +513,7 @@ export default function PredictPage() {
                         {data.signal.expected_return_pct.toFixed(2)}%
                       </p>
                     </div>
-                    <div className="min-w-[150px] rounded-lg border border-slate-200 bg-white px-4 py-3">
+                    <div className="min-w-[150px] rounded-xl border border-slate-200 bg-white px-4 py-3">
                       <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
                         Target Price
                       </p>
@@ -1069,7 +1069,7 @@ export default function PredictPage() {
 
 function MetricTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
       <p className="flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-wide text-slate-500">
         <MetricLabel>{label}</MetricLabel>
       </p>
@@ -1083,7 +1083,7 @@ function MetricTile({ label, value }: { label: string; value: string }) {
 function DeltaTile({ label, value, delta }: { label: string; value: string; delta: number }) {
   const worse = delta > 0; // model minus naive; positive means model's error is larger
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
       <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-1 text-xl font-semibold text-slate-900" style={MONO_FONT}>
         {value}

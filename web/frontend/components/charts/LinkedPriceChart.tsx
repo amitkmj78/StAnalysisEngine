@@ -79,7 +79,7 @@ export default function LinkedPriceChart({ ticker, range, chartType, logScale, l
     : [{ x, y: rows.map((r) => r.close), type: "scatter" as const, mode: "lines" as const, name: ticker, line: { color: "#4f46e5", width: 2 } }];
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
       <div className="mb-1 flex items-baseline justify-between">
         <p className="text-sm font-semibold text-slate-900">{ticker}</p>
         <p className="font-mono text-xs text-slate-500">

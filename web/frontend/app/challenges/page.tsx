@@ -147,7 +147,7 @@ export default function ChallengesPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Challenges</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Challenges</h1>
           <p className="mt-1 text-sm text-slate-500">
             Compete with friends using your paper-trading account. Leaderboards show both return and risk, not just
             who&apos;s up the most.{" "}
@@ -217,7 +217,7 @@ export default function ChallengesPage() {
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <form onSubmit={handleCreate} className="rounded-lg border border-slate-200 bg-white p-5">
+        <form onSubmit={handleCreate} className="rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="text-sm font-semibold text-slate-900">Create a challenge</h2>
           <p className="mt-1 text-xs text-slate-500">Defaults to the current calendar month if left blank.</p>
           <div className="mt-3 flex flex-col gap-3">
@@ -277,7 +277,7 @@ export default function ChallengesPage() {
           </div>
         </form>
 
-        <form onSubmit={handleJoin} className="rounded-lg border border-slate-200 bg-white p-5">
+        <form onSubmit={handleJoin} className="rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="text-sm font-semibold text-slate-900">Join with a code</h2>
           <p className="mt-1 text-xs text-slate-500">Ask whoever created the challenge for their 6-character code.</p>
           <div className="mt-3 flex flex-col gap-3">
@@ -312,7 +312,7 @@ export default function ChallengesPage() {
               <Link
                 key={c.id}
                 href={`/challenges/${c.id}`}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 hover:border-slate-300 hover:bg-slate-50"
+                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:bg-slate-50"
               >
                 <div>
                   <p className="font-medium text-slate-900">{c.name}</p>

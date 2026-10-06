@@ -218,7 +218,7 @@ export default function IndexFundPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Fund Screener</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Fund Screener</h1>
       <p className="mt-1 text-sm text-slate-500">Compare major index ETFs and rank by the goal that matters most to you.</p>
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
@@ -325,7 +325,7 @@ export default function IndexFundPage() {
 
       {winner && !loading && category !== "All" && (
         <div className="mt-6 flex flex-col gap-6">
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-semibold text-slate-900">
               Top Pick: {winner.Ticker} — {winner.Fund}
             </h2>
@@ -354,7 +354,7 @@ export default function IndexFundPage() {
 
       {results.length > 0 && (
         <div className="mt-6 flex flex-col gap-6">
-          <details className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+          <details className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
             <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-slate-500">Columns</summary>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {ALL_COLUMNS.map((c) => (
@@ -418,7 +418,7 @@ function FundTable({
   onToggleRow: (ticker: string) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
       <table className="min-w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">

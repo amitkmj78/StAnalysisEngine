@@ -20,7 +20,7 @@ export default function MetricTile({
   className?: string;
 }) {
   return (
-    <div className={`rounded-lg border border-slate-200 bg-white p-3 ${className ?? ""}`}>
+    <div className={`rounded-xl border border-slate-200 bg-white p-3 ${className ?? ""}`}>
       <p className="flex items-center gap-1 text-xs text-slate-500">
         <MetricLabel term={term}>{label}</MetricLabel>
       </p>

@@ -145,7 +145,7 @@ export default function AlertSettingsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">Alert Settings</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-900">Alert Settings</h1>
         <Link href="/alerts" className="text-sm font-medium text-slate-600 hover:underline">
           Inbox
         </Link>
@@ -160,7 +160,7 @@ export default function AlertSettingsPage() {
 
       {prefs && settings && (
         <>
-          <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -267,7 +267,7 @@ export default function AlertSettingsPage() {
             )}
           </div>
 
-          <form onSubmit={handleSaveSettings} className="mt-8 rounded-lg border border-slate-200 bg-white p-5">
+          <form onSubmit={handleSaveSettings} className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-semibold text-slate-800">Quiet hours &amp; digest</h2>
             <p className="mt-1 text-xs text-slate-500">
               During quiet hours (or any time digest mode is on), alerts queue and arrive together instead of

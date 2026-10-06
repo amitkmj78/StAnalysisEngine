@@ -83,7 +83,7 @@ export default function PredictionsPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-slate-900">Prediction History</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-900">Prediction History</h1>
         <button
           onClick={() => {
             load();
@@ -102,7 +102,7 @@ export default function PredictionsPage() {
         date you&apos;re waiting on should have passed).
       </p>
 
-      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold text-slate-900">Accuracy Leaderboard</h2>
           <button
@@ -221,7 +221,7 @@ export default function PredictionsPage() {
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {predictions && !loading && (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
           {predictions.length === 0 ? (
             <p className="px-4 py-6 text-sm text-slate-500">
               No saved predictions yet — save one from the{" "}
@@ -318,7 +318,7 @@ export default function PredictionsPage() {
             {compare.comparisons.length === 0 ? (
               <p className="mt-2 text-sm text-slate-500">No saved predictions to compare yet.</p>
             ) : (
-              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">

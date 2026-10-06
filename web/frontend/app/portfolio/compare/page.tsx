@@ -168,7 +168,7 @@ export default function PortfolioComparePage() {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Portfolio vs. Top Picks</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Portfolio vs. Top Picks</h1>
           <p className="mt-1 text-sm text-slate-500">
             How your portfolio has actually done against the S&amp;P 500 and the top-ranked fund for a goal,
             over a window you pick.
@@ -262,7 +262,7 @@ export default function PortfolioComparePage() {
           <p className="text-lg text-slate-800">{data.headline}</p>
 
           {data.portfolio.holdings_count === 0 ? (
-            <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
               Add holdings to compare.{" "}
               <a href="/portfolio" className="underline">
                 Go to Portfolio
@@ -298,14 +298,14 @@ export default function PortfolioComparePage() {
                     extraValue={data.top_funds[0].expense_ratio_pct !== null ? `${data.top_funds[0].expense_ratio_pct.toFixed(2)}%` : "—"}
                   />
                 ) : (
-                  <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
                     No fund data for this goal yet.
                   </div>
                 )}
               </div>
 
               {/* Growth chart */}
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <CompareGrowthChart
                   portfolioSeries={data.portfolio.series}
                   benchmarkSeries={data.benchmark.series}
@@ -316,7 +316,7 @@ export default function PortfolioComparePage() {
 
               {/* Gap drivers */}
               {data.gap_drivers.length > 0 && (
-                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <h3 className="font-semibold text-slate-900">Where the gap comes from</h3>
                   <div className="mt-3 flex flex-col gap-2">
                     {data.gap_drivers.map((d) => (
@@ -338,7 +338,7 @@ export default function PortfolioComparePage() {
               {/* Holdings table */}
               <div>
                 <h3 className="font-semibold text-slate-900">Holdings</h3>
-                <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white">
                   <table className="min-w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -385,7 +385,7 @@ export default function PortfolioComparePage() {
           {/* Top funds */}
           <div>
             <h3 className="font-semibold text-slate-900">Top-Ranked Funds — {data.goal.label}</h3>
-            <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -427,7 +427,7 @@ export default function PortfolioComparePage() {
                 return (
                   <div
                     key={s.ticker}
-                    className={`rounded-lg border border-slate-200 bg-white p-3 ${expanded ? "col-span-2 sm:col-span-5" : ""}`}
+                    className={`rounded-xl border border-slate-200 bg-white p-3 ${expanded ? "col-span-2 sm:col-span-5" : ""}`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-slate-800">{s.ticker}</span>
@@ -499,7 +499,7 @@ function SummaryCard({
   extraValue: string;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
         <span className="text-sm font-medium text-slate-700">{title}</span>

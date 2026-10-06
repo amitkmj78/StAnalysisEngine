@@ -11,7 +11,7 @@ export default async function LoginPage({
 
   return (
     <div className="mx-auto mt-24 max-w-sm px-4">
-      <h1 className="mb-1 text-2xl font-semibold text-slate-900">Log in</h1>
+      <h1 className="font-display mb-1 text-2xl font-semibold text-slate-900">Log in</h1>
       <p className="mb-1 text-sm text-slate-500">AI Price Prediction &amp; Best Stock Finder</p>
       <p className="mb-6 flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <a href="/marketing.html" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline hover:text-emerald-800">

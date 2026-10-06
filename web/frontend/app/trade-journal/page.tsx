@@ -103,12 +103,12 @@ export default function TradeJournalPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Trade Journal</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Trade Journal</h1>
       <p className="mt-1 text-sm text-slate-500">
         Log trade ideas with an entry range, stop, and target, then re-evaluate them against live prices.
       </p>
 
-      <form onSubmit={submit} className="mt-6 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5">
+      <form onSubmit={submit} className="mt-6 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-slate-900">New Trade Idea</h2>
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Ticker">
@@ -175,7 +175,7 @@ export default function TradeJournalPage() {
       ) : trades.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">No trades logged yet.</p>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">

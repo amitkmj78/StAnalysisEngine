@@ -45,7 +45,7 @@ export default function RecentNewsPanel({ ticker }: { ticker: string }) {
   }, [ticker]);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <h3 className="text-sm font-semibold text-slate-900">Recent news</h3>
       <p className="mt-1 text-xs text-slate-500">
         Company announcements filed with the SEC (Form 8-K) in the last {DAYS} days. Filings have dates only, not times.

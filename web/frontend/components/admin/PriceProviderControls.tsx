@@ -74,7 +74,7 @@ export default function PriceProviderControls() {
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <h2 className="font-semibold text-slate-900">Live Price Provider</h2>
       <p className="mt-1 text-sm text-slate-600">
         Which source get_latest_price and the extended-hours badge use. Takes effect on the very next

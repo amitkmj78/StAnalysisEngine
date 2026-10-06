@@ -243,7 +243,7 @@ export default function StrategiesPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">Strategies</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">Strategies</h1>
       <p className="mt-1 text-sm text-slate-500">
         Build a feasible plan — pick what to solve for, see whether it's realistic, and get the candidates behind it.
       </p>
@@ -260,7 +260,7 @@ export default function StrategiesPage() {
           </p>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {plans.map((p) => (
-              <div key={p.id} className="rounded-lg border border-slate-200 bg-white p-4">
+              <div key={p.id} className="rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-slate-900">
@@ -446,7 +446,7 @@ export default function StrategiesPage() {
 
       {plan && !loading && (
         <div className="mt-6 flex flex-col gap-6">
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-semibold text-slate-900">{plan.solved_field_label}</h2>
             <p className="mt-1 text-2xl font-semibold text-slate-900">
               {plan.mode === "required_return"
@@ -505,7 +505,7 @@ export default function StrategiesPage() {
           )}
 
           {plan.feasibility_level !== "blocked" && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
               <p className="text-sm font-medium text-slate-700">Save this goal to track your progress over time</p>
               <p className="mt-1 text-xs text-slate-500">
                 Saves this plan — target {fmtMoney(plan.target_future_dollars)} in {plan.years.toFixed(1)} years,{" "}
@@ -551,7 +551,7 @@ export default function StrategiesPage() {
                     // was the reported duplicate.
                     const weightedMetrics = pick.score_basis.filter((f) => f.value !== null && f.metric !== "3-Year Annualized Return");
                     return (
-                      <div key={`${pick.label}-${pick.ticker}`} className="rounded-lg border border-slate-200 bg-white p-5">
+                      <div key={`${pick.label}-${pick.ticker}`} className="rounded-xl border border-slate-200 bg-white p-5">
                         <h3 className="font-semibold text-slate-900">{pick.label}</h3>
                         <p className="text-sm text-slate-700">{pick.ticker} — {pick.name}</p>
                         <p className="mt-1 text-sm text-slate-600">Type: {pick.asset_type}</p>
@@ -588,7 +588,7 @@ export default function StrategiesPage() {
             </>
           )}
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
             <h3 className="font-semibold text-slate-900">Final Note</h3>
             <p className="mt-2 text-sm text-slate-600">
               This page is a planning calculator, not a promise. Projections are hypothetical and not predictive of
@@ -644,7 +644,7 @@ function MonteCarloPanel({ plan }: { plan: GoalPlan }) {
   const tone: "emerald" | "amber" | "red" | null = prob === null ? null : prob >= 70 ? "emerald" : prob >= 40 ? "amber" : "red";
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <h2 className="text-lg font-semibold text-slate-900">Probability of Success</h2>
       <p className="mt-1 text-sm text-slate-500">
         {mc.assumptions.num_paths.toLocaleString()} randomly sampled possible futures, built from real historical

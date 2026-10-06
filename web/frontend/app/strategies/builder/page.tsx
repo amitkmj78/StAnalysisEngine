@@ -224,7 +224,7 @@ function RuleRow({ rule, onChange, onRemove }: { rule: StrategyRuleInput; onChan
 
 function Panel({ title, children, right, info }: { title: string; children: React.ReactNode; right?: React.ReactNode; info?: string }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4">
+    <section className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
           {title}
@@ -614,7 +614,7 @@ export default function StrategyBuilderPage() {
             )}
           </Panel>
 
-          <details className="rounded-lg border border-slate-200 bg-white p-4">
+          <details className="rounded-xl border border-slate-200 bg-white p-4">
             <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
               Advanced settings
               <MetricLabel info={STRATEGY_INFO.cooldown} />
@@ -672,7 +672,7 @@ export default function StrategyBuilderPage() {
             </p>
           )}
 
-          <section className="rounded-lg border border-slate-200 bg-white p-5">
+          <section className="rounded-xl border border-slate-200 bg-white p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Did the rules add value?</p>
             <p className="mt-2 text-lg font-medium text-slate-900">{verdictText}</p>
             {r?.protective_exit.waived && (
@@ -708,7 +708,7 @@ export default function StrategyBuilderPage() {
             )}
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-5">
+          <section className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Growth of $10,000 and drawdown</p>
               <div className="flex rounded-md border border-slate-200 p-0.5 text-xs">
@@ -754,7 +754,7 @@ export default function StrategyBuilderPage() {
           </section>
 
           {r && (
-            <section className="rounded-lg border border-slate-200 bg-white p-5">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Full period, after costs</p>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full min-w-[40rem] text-right text-sm">
@@ -808,7 +808,7 @@ export default function StrategyBuilderPage() {
           )}
 
           {r && (
-            <section className="rounded-lg border border-slate-200 bg-white p-5">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
               <div className="flex gap-1 border-b border-slate-200 text-sm">
                 {(
                   [
@@ -965,7 +965,7 @@ export default function StrategyBuilderPage() {
           )}
 
           {r && (
-            <details className="rounded-lg border border-slate-200 bg-white p-5">
+            <details className="rounded-xl border border-slate-200 bg-white p-5">
               <summary className="flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Data notes ({r.caveats.length})<MetricLabel info={STRATEGY_INFO["data notes"]} /></summary>
               <ul className="mt-3 flex flex-col gap-1 text-xs text-slate-500">
                 {r.caveats.map((c) => (

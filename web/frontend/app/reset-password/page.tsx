@@ -12,7 +12,7 @@ export default async function ResetPasswordPage({
 
   return (
     <div className="mx-auto mt-24 max-w-sm px-4">
-      <h1 className="mb-1 text-2xl font-semibold text-slate-900">Set a new password</h1>
+      <h1 className="font-display mb-1 text-2xl font-semibold text-slate-900">Set a new password</h1>
 
       {!token ? (
         <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">

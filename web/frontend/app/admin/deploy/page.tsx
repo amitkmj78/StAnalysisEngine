@@ -14,7 +14,7 @@ export default async function AdminDeployPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-semibold text-slate-900">AWS Deploy</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900">AWS Deploy</h1>
       <p className="mt-1 text-sm text-slate-500">
         Live control panel above, manual runbook below. The control panel runs against your AWS account
         from this machine — it doesn&apos;t store credentials in the deployed app.
@@ -169,7 +169,7 @@ curl -b cookies.txt "http://<elastic-ip>/api/v1/predict/summary?ticker=AAPL&peri
         </p>
       </Section>
 
-      <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
         <h3 className="font-semibold text-slate-900">No domain yet</h3>
         <p className="mt-2 text-sm text-slate-600">
           This serves plain HTTP on the instance&apos;s IP, and the session cookie is <Code inline>httpOnly</Code>

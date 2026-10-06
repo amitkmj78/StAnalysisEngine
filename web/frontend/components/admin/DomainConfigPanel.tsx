@@ -131,7 +131,7 @@ export default function DomainConfigPanel() {
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div>
         <h2 className="font-semibold text-slate-900">CrawlSearch — Domain Config</h2>
         <p className="mt-1 text-sm text-slate-600">

@@ -107,7 +107,7 @@ export default function PaperTradingPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Paper Trading</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">Paper Trading</h1>
           <p className="mt-1 text-sm text-slate-500">
             Practice placing orders with simulated money through Alpaca&apos;s paper-trading sandbox. No real money is
             ever involved.
@@ -127,7 +127,7 @@ export default function PaperTradingPage() {
       {account === undefined ? (
         <p className="mt-6 text-sm text-slate-500">Loading…</p>
       ) : account === null ? (
-        <form onSubmit={handleLink} className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <form onSubmit={handleLink} className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="text-sm font-semibold text-slate-900">Link your Alpaca paper account</h2>
           <p className="mt-1 text-xs text-slate-500">
             Generate a paper-trading API key pair from your own Alpaca dashboard (paper account, not live) and paste
@@ -165,7 +165,7 @@ export default function PaperTradingPage() {
         </form>
       ) : (
         <>
-          <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+          <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="flex items-center gap-2">
@@ -221,7 +221,7 @@ export default function PaperTradingPage() {
               {orders.map((order) => (
                 <div
                   key={order.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
                 >
                   <div>
                     <div className="flex items-center gap-2">

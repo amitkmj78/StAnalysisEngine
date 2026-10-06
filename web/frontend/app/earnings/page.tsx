@@ -53,7 +53,7 @@ export default function EarningsCalendarPage() {
     <div className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} ${PF.page} ${PF.ink} min-h-screen`} style={{ fontFamily: "var(--font-pf-sans)" }}>
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-3xl font-semibold" style={{ fontFamily: "var(--font-pf-display)" }}>
+          <h1 className="font-display text-3xl font-semibold" style={{ fontFamily: "var(--font-pf-display)" }}>
             Earnings Calendar
           </h1>
           <button onClick={load} disabled={loading} className={`${PF.btn} disabled:opacity-50`}>

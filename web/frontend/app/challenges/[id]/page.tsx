@@ -164,7 +164,7 @@ export default function ChallengeDetailPage() {
       </Link>
       <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">{challenge.name}</h1>
+          <h1 className="font-display text-2xl font-semibold text-slate-900">{challenge.name}</h1>
           <p className="mt-1 text-sm text-slate-500">
             {challenge.start_date} – {challenge.end_date} · {challenge.members.length} member
             {challenge.members.length === 1 ? "" : "s"}
@@ -190,7 +190,7 @@ export default function ChallengeDetailPage() {
         </button>
       </div>
 
-      <div className="mt-4 rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-slate-900">Invite someone</h2>
 
         <form onSubmit={handleInviteEmail} className="mt-2 flex gap-2">
@@ -234,7 +234,7 @@ export default function ChallengeDetailPage() {
         )}
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -317,7 +317,7 @@ export default function ChallengeDetailPage() {
         </table>
       </div>
       {curves && (
-        <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="text-sm font-semibold text-slate-900">Equity curves</h2>
           <div className="mt-3">
             <EquityCurveChart data={curves} />
