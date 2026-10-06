@@ -1392,6 +1392,14 @@ export function disableFilingSummaries() {
   return apiSend<{ filing_summaries_enabled: boolean }>("/api/v1/admin/settings/filing-summaries/disable", "POST");
 }
 
+export function enableNews8k() {
+  return apiSend<{ news_8k_enabled: boolean }>("/api/v1/admin/settings/news-8k/enable", "POST");
+}
+
+export function disableNews8k() {
+  return apiSend<{ news_8k_enabled: boolean }>("/api/v1/admin/settings/news-8k/disable", "POST");
+}
+
 export function getFilingSummaries(ticker: string) {
   return apiFetch<FilingSummariesResponse>(`/api/v1/filings/${encodeURIComponent(ticker)}`);
 }

@@ -1755,6 +1755,7 @@ export interface AdminSettings {
   stock_finder_cache_prewarm_enabled: boolean;
   market_regime_enabled: boolean;
   filing_summaries_enabled: boolean;
+  news_8k_enabled: boolean;
   earnings_release_summaries_enabled: boolean;
   evening_recap_enabled: boolean;
   morning_brief_enabled: boolean;

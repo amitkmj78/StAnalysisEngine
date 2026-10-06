@@ -7,6 +7,7 @@ import {
   disableEarningsReleaseSummaries,
   disableEveningRecap,
   disableFilingSummaries,
+  disableNews8k,
   disableMarketRegime,
   disableMorningBrief,
   disablePaperAccountEquityCapture,
@@ -14,6 +15,7 @@ import {
   enableEarningsReleaseSummaries,
   enableEveningRecap,
   enableFilingSummaries,
+  enableNews8k,
   enableMarketRegime,
   enableMorningBrief,
   enablePaperAccountEquityCapture,
@@ -73,6 +75,7 @@ export default function SchedulerControls() {
   const [verifyEnabled, setVerifyEnabled] = useState<boolean | null>(null);
   const [regimeEnabled, setRegimeEnabled] = useState<boolean | null>(null);
   const [filingSummariesEnabled, setFilingSummariesEnabled] = useState<boolean | null>(null);
+  const [news8kEnabled, setNews8kEnabled] = useState<boolean | null>(null);
   const [earningsReleaseSummariesEnabled, setEarningsReleaseSummariesEnabled] = useState<boolean | null>(null);
   const [eveningRecapEnabled, setEveningRecapEnabled] = useState<boolean | null>(null);
   const [morningBriefEnabled, setMorningBriefEnabled] = useState<boolean | null>(null);
@@ -88,6 +91,7 @@ export default function SchedulerControls() {
       setVerifyEnabled(settings.verify_predictions_enabled);
       setRegimeEnabled(settings.market_regime_enabled);
       setFilingSummariesEnabled(settings.filing_summaries_enabled);
+      setNews8kEnabled(settings.news_8k_enabled);
       setEarningsReleaseSummariesEnabled(settings.earnings_release_summaries_enabled);
       setEveningRecapEnabled(settings.evening_recap_enabled);
       setMorningBriefEnabled(settings.morning_brief_enabled);
@@ -134,6 +138,19 @@ export default function SchedulerControls() {
     try {
       const result = filingSummariesEnabled ? await disableFilingSummaries() : await enableFilingSummaries();
       setFilingSummariesEnabled(result.filing_summaries_enabled);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update scheduler setting.");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function handleToggleNews8k() {
+    setBusyKey("news-8k");
+    setError(null);
+    try {
+      const result = news8kEnabled ? await disableNews8k() : await enableNews8k();
+      setNews8kEnabled(result.news_8k_enabled);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to update scheduler setting.");
     } finally {
@@ -238,6 +255,14 @@ export default function SchedulerControls() {
         enabled={filingSummariesEnabled}
         busy={busyKey === "filing-summaries"}
         onToggle={handleToggleFilingSummaries}
+      />
+
+      <JobToggleCard
+        title="News from SEC 8-K filings"
+        description="Hourly job (at 15 minutes past the hour) that stores the last 30 days of SEC 8-K filings for every ticker any user holds or watchlists, so each stock page can list its recent company announcements. Calls SEC EDGAR on a schedule, so it stays off until enabled. Disabling it stops new fetches; stored filings stay visible."
+        enabled={news8kEnabled}
+        busy={busyKey === "news-8k"}
+        onToggle={handleToggleNews8k}
       />
 
       <JobToggleCard
