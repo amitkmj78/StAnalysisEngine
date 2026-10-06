@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Trading Requirements</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#F3F5F8;--surface:#FFFFFF;--sunk:#EAEEF3;--ink:#121925;--muted:#566173;--line:#D5DCE5;
+  --accent:#1F4FD1;--accent-soft:#E3ECFF;
+  --must:#B42318;--must-soft:#FBE3E0;--should:#9A6212;--should-soft:#F8ECD5;--could:#4B5B8A;--could-soft:#E4E8F4;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--bg:#0D1117;--surface:#151B23;--sunk:#1C2430;--ink:#E6EBF1;--muted:#98A3B2;--line:#2A3441;
+  --accent:#6E95FF;--accent-soft:#1A2848;
+  --must:#F2837A;--must-soft:#3A1714;--should:#E3AE5A;--should-soft:#352813;--could:#9DB0E8;--could-soft:#1D2440;}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#0D1117;--surface:#151B23;--sunk:#1C2430;--ink:#E6EBF1;--muted:#98A3B2;--line:#2A3441;
+  --accent:#6E95FF;--accent-soft:#1A2848;
+  --must:#F2837A;--must-soft:#3A1714;--should:#E3AE5A;--should-soft:#352813;--could:#9DB0E8;--could-soft:#1D2440;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);padding-inline:16px;padding-block:0 72px}
+.wrap{max-width:1120px;margin:0 auto}
+header.top{padding-block:28px 20px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+h1{font:600 32px/1.15 var(--cond);margin:0;text-wrap:balance}
+.meta{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:13.5px;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:500}
+.layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:36px;padding-top:8px}
+.toc{position:sticky;top:12px;align-self:start;display:grid;gap:2px;font-size:13.5px;padding-top:24px}
+.toc a{color:var(--muted);text-decoration:none;padding:4px 8px;border-radius:6px}
+.toc a:hover{color:var(--ink);background:var(--sunk)}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+h2{font:600 22px/1.25 var(--cond);margin:36px 0 10px;text-wrap:balance;scroll-margin-top:12px}
+h3{font:600 15px/1.3 var(--sans);margin:22px 0 8px}
+p{margin:0 0 12px;max-width:74ch}
+ul,ol{margin:0 0 12px;padding-left:22px;max-width:74ch}
+li{margin:3px 0}
+code{font:13px/1.4 var(--mono);background:var(--sunk);padding:1px 5px;border-radius:4px}
+.scroll{overflow-x:auto;margin:0 0 16px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 12px/1.3 var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;background:var(--sunk);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.id{font:500 13px/1.4 var(--mono);white-space:nowrap}
+td.ac{color:var(--muted);font-size:13.5px}
+.pri{display:inline-block;font:600 11.5px/1 var(--sans);padding:4px 8px;border-radius:99px;white-space:nowrap}
+.Must{color:var(--must);background:var(--must-soft)}.Should{color:var(--should);background:var(--should-soft)}.Could{color:var(--could);background:var(--could-soft)}
+.filters{position:sticky;top:0;z-index:4;background:var(--bg);display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);margin-bottom:6px}
+.filters input{flex:1 1 220px;font:14px/1.4 var(--sans);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:8px 10px;min-width:0}
+.seg{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 13px/1 var(--sans);border:0;background:none;color:var(--muted);padding:9px 12px;cursor:pointer;min-height:36px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink)}
+.count{font-size:13px;color:var(--muted);margin-left:auto}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:18px 0}
+.sum{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:12px 14px}
+.sum .k{font:500 12px/1.2 var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.sum .v{font:600 24px/1.2 var(--cond);font-variant-numeric:tabular-nums;margin-top:4px}
+.empty{padding:22px;text-align:center;color:var(--muted)}
+.hide{display:none}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 8px;font-size:13.5px}
+.flow .s{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px}
+.flow .s.k{border-color:var(--accent);background:var(--accent-soft)}
+.flow .a{color:var(--muted)}
+.states{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:8px 0 16px}
+.states div{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px 12px;font-size:13.5px}
+.states b{display:block;font-family:var(--mono);font-size:13px}
+.states span{color:var(--muted)}
+.callout{border:1px solid var(--should);background:var(--should-soft);border-radius:10px;padding:12px 16px;font-size:14px;margin:0 0 16px}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Requirements · stock prediction app · live trading</div>
+    <h1>Live Trading Requirements</h1>
+    <div class="meta">
+      <span>Version <b>0.1 draft</b></span>
+      <span>Date <b>Sep 27, 2026</b></span>
+      <span>Author <b>Amit Kumar Maharaj</b></span>
+      <span>Market <b>US stocks and ETFs</b></span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" aria-label="Contents">
+      <a href="#purpose">1. Purpose and scope</a>
+      <a href="#models">2. Integration model</a>
+      <a href="#flow">3. Order flow and states</a>
+      <a href="#reqs">4. Functional requirements</a>
+      <a href="#nfr">5. Non-functional requirements</a>
+      <a href="#compliance">6. Compliance considerations</a>
+      <a href="#scenarios">7. Acceptance scenarios</a>
+      <a href="#open">8. Open questions</a>
+    </nav>
+
+    <main>
+      <h2 id="purpose">1. Purpose and scope</h2>
+      <p>Let users act on the app's signals by placing real trades through a regulated partner broker, without the app becoming a broker-dealer. The partner holds accounts and cash, executes, clears and settles; the app owns the research, the order ticket, the experience and its own audit trail.</p>
+      <p><b>In scope (first release):</b> US-listed stocks and ETFs; market, limit, stop and stop-limit orders; fractional and dollar-amount orders where the broker supports them; regular and extended hours; paper trading. <b>Later:</b> options, crypto, recurring buys, automated strategies. <b>Out of scope:</b> holding customer money, building an exchange connection or clearing.</p>
+      <div class="summary" id="summary"></div>
+
+      <h2 id="models">2. Integration model</h2>
+      <p>Pick one model before build; it decides onboarding, branding and compliance scope.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Model</th><th>How it works</th><th>Examples</th><th>Good for</th><th>Trade-offs</th></tr></thead>
+        <tbody>
+          <tr><td><b>A. Connect your broker</b></td><td>User links an existing account with OAuth; the app places orders through the broker's API on the user's instruction</td><td>Schwab Trader API, Tradier, Interactive Brokers, Alpaca Trading API</td><td>Fastest start; no account opening, KYC or funding in the app</td><td>Different features per broker; user leaves the app for account issues</td></tr>
+          <tr><td><b>B. Broker-as-a-service</b></td><td>App opens brokerage accounts under its brand; the partner is broker of record and does KYC, custody, clearing</td><td>Alpaca Broker API, DriveWealth</td><td>Full in-app experience; one integration</td><td>Commercial agreement, due diligence, more compliance work, possibly fees per account</td></tr>
+        </tbody>
+      </table></div>
+      <p><b>Recommendation:</b> start with model A for one broker plus paper trading, and move to model B once the signal track record and user demand justify it.</p>
+
+      <h2 id="flow">3. Order flow and states</h2>
+      <div class="flow" aria-label="Order flow">
+        <span class="s">Signal or search</span><span class="a">→</span><span class="s">Order ticket</span><span class="a">→</span><span class="s k">App pre-trade checks</span><span class="a">→</span><span class="s">Review and confirm</span><span class="a">→</span><span class="s">Broker API (with idempotency key)</span><span class="a">→</span><span class="s">Broker risk checks and routing</span><span class="a">→</span><span class="s">Fills streamed back</span><span class="a">→</span><span class="s">Positions and history sync</span>
+      </div>
+      <p>The app keeps its own order record and maps broker statuses to these states:</p>
+      <div class="states">
+        <div><b>DRAFT</b><span>Ticket being filled in; nothing sent</span></div>
+        <div><b>SUBMITTING</b><span>Sent to broker, awaiting acknowledgment</span></div>
+        <div><b>OPEN</b><span>Accepted by broker, working</span></div>
+        <div><b>PARTIALLY_FILLED</b><span>Some quantity executed</span></div>
+        <div><b>FILLED</b><span>Fully executed</span></div>
+        <div><b>PENDING_CANCEL / REPLACE</b><span>Change requested, not yet confirmed</span></div>
+        <div><b>CANCELLED</b><span>Cancelled by user, broker or expiry</span></div>
+        <div><b>REJECTED</b><span>Refused by the app or broker, with reason</span></div>
+        <div><b>UNKNOWN</b><span>No confirmation after a timeout; reconciled with the broker before retrying</span></div>
+      </div>
+
+      <h2 id="reqs">4. Functional requirements</h2>
+      <p>Priority: <span class="pri Must">Must</span> for first release, <span class="pri Should">Should</span> soon after, <span class="pri Could">Could</span> later.</p>
+      <div class="filters" role="search">
+        <input id="q" type="search" placeholder="Search, e.g. idempotency, paper, stop, kill switch" aria-label="Search requirements">
+        <div class="seg" role="group" aria-label="Priority filter" id="priSeg">
+          <button type="button" data-p="All" aria-pressed="true">All</button>
+          <button type="button" data-p="Must" aria-pressed="false">Must</button>
+          <button type="button" data-p="Should" aria-pressed="false">Should</button>
+          <button type="button" data-p="Could" aria-pressed="false">Could</button>
+        </div>
+        <span class="count" id="count"></span>
+      </div>
+      <div id="fr"></div>
+
+      <h2 id="nfr">5. Non-functional requirements</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>ID</th><th>Priority</th><th>Quality</th><th>Requirement</th></tr></thead>
+        <tbody>
+          <tr><td class="id">NFR-1</td><td><span class="pri Must">Must</span></td><td><b>Latency</b></td><td>App adds under 300 ms (p95) between Confirm and the broker API call; status updates reach the screen within 2 s of the broker event</td></tr>
+          <tr><td class="id">NFR-2</td><td><span class="pri Must">Must</span></td><td><b>Correctness</b></td><td>No duplicate orders: every submit carries an idempotency key; retries only after checking the broker for the key</td></tr>
+          <tr><td class="id">NFR-3</td><td><span class="pri Must">Must</span></td><td><b>Availability</b></td><td>99.9% during market hours; if the broker is down, trading is disabled with a clear banner and nothing is queued silently</td></tr>
+          <tr><td class="id">NFR-4</td><td><span class="pri Must">Must</span></td><td><b>Security</b></td><td>Never store broker passwords; OAuth tokens encrypted at rest with KMS; step-up authentication (passkey or MFA) to place or change orders; session timeout 15 min on trading screens</td></tr>
+          <tr><td class="id">NFR-5</td><td><span class="pri Must">Must</span></td><td><b>Reconciliation</b></td><td>Daily and on-demand reconciliation of orders, fills and positions with the broker; mismatches alert operations</td></tr>
+          <tr><td class="id">NFR-6</td><td><span class="pri Must">Must</span></td><td><b>Records</b></td><td>Keep every order event, ticket snapshot, quote shown and disclosure accepted, immutable, for at least 6 years (confirm with counsel)</td></tr>
+          <tr><td class="id">NFR-7</td><td><span class="pri Should">Should</span></td><td><b>Rate limits</b></td><td>Respect broker API limits with per-user and global throttling; never drop an order because of throttling without telling the user</td></tr>
+          <tr><td class="id">NFR-8</td><td><span class="pri Should">Should</span></td><td><b>Observability</b></td><td>Metrics for submit latency, rejects by reason, UNKNOWN orders, token refresh failures; alert on spikes</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 id="compliance">6. Compliance considerations</h2>
+      <div class="callout">This section flags questions for a securities lawyer; it is not legal advice. The answers can change the product, especially anything that looks like personalized advice or automated trading.</div>
+      <div class="scroll"><table>
+        <thead><tr><th>Topic</th><th>Why it matters</th><th>Design response</th></tr></thead>
+        <tbody>
+          <tr><td><b>Broker-dealer registration</b></td><td>Handling orders or customer money can require registration</td><td>Partner broker is broker of record; the app never holds funds; confirm the partner agreement covers the app's role</td></tr>
+          <tr><td><b>Investment adviser status</b></td><td>Signals tailored to a person's portfolio, or trading on their behalf, can make the app an adviser</td><td>User-initiated orders only; signals are general, not personalized advice; no auto-trading until counsel approves (may require RIA registration)</td></tr>
+          <tr><td><b>Performance claims</b></td><td>Showing backtested or hypothetical returns is restricted in marketing</td><td>Label backtests as hypothetical, show live track record separately, include methodology and risks</td></tr>
+          <tr><td><b>Pattern day trading and margin</b></td><td>Broker enforces day-trading and margin rules; FINRA has proposed changes to the day-trading rule</td><td>Show the broker's day-trade count and warnings; rely on the broker's current rule rather than hard-coding it</td></tr>
+          <tr><td><b>Market data licensing</b></td><td>Displaying real-time exchange data requires licensed feeds</td><td>Use the broker's or a licensed vendor's feed under its display terms; mark delayed data as delayed</td></tr>
+          <tr><td><b>Privacy and security</b></td><td>Financial data falls under privacy and data-security rules</td><td>Privacy notice, consent for account linking, data minimization, breach response plan</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 id="scenarios">7. Acceptance scenarios</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>#</th><th>Given</th><th>When</th><th>Then</th></tr></thead>
+        <tbody>
+          <tr><td class="id">S1</td><td>A user with a linked account views a Buy signal for MSFT</td><td>They tap Trade</td><td>A ticket opens pre-filled with symbol and side only; quantity and order type are the user's choice; the signal's confidence and disclaimer are shown</td></tr>
+          <tr><td class="id">S2</td><td>The network drops after Confirm</td><td>The app retries</td><td>It checks the broker for the idempotency key first; exactly one order exists</td></tr>
+          <tr><td class="id">S3</td><td>A market order for $50,000 exceeds the user's $10,000 app limit</td><td>They review the ticket</td><td>Confirm is disabled with the reason and a link to change the limit</td></tr>
+          <tr><td class="id">S4</td><td>A limit order partly fills 40 of 100 shares</td><td>The user opens Orders</td><td>They see 40 filled at the average price, 60 working, and can cancel the remainder</td></tr>
+          <tr><td class="id">S5</td><td>The broker API is down</td><td>A user opens a ticket</td><td>Trading shows as unavailable with the broker's status; no order is queued</td></tr>
+          <tr><td class="id">S6</td><td>Operations turns on the kill switch</td><td>Any user tries to submit</td><td>Submits are blocked within 10 s; open orders stay at the broker and can still be cancelled</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 id="open">8. Open questions</h2>
+      <ul>
+        <li>Which broker first, and model A (connect your broker) or model B (accounts under your brand)?</li>
+        <li>US stocks and ETFs only at launch, or options too? Options need approval levels and more disclosures.</li>
+        <li>Will signals ever be personalized to a user's holdings? This drives the adviser question.</li>
+        <li>Is automated or scheduled trading on the roadmap, and when?</li>
+        <li>Which market data provider for real-time quotes on the ticket?</li>
+      </ul>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+  const FR = [
+    ['Account linking and onboarding', [
+      ['TRD-1','Must','Link a brokerage account with the broker\'s OAuth flow; show which accounts were linked and their type (cash, margin, IRA).','No broker password is ever entered in the app.'],
+      ['TRD-2','Must','Refresh tokens automatically and ask the user to re-link when refresh fails.','An expired link shows "Reconnect your broker" instead of failing on submit.'],
+      ['TRD-3','Must','Let users unlink an account, which revokes tokens and stops syncing.','After unlinking, no API calls are made for that account.'],
+      ['TRD-4','Must','Show trading terms and risk disclosures before first trade and record acceptance with version and time.','A user cannot trade until the current disclosures are accepted.'],
+      ['TRD-5','Could','Model B only: in-app account opening with KYC, identity verification and funding through the partner.','Partner approves the account and it appears as linked.']
+    ]],
+    ['Quotes and market status', [
+      ['TRD-6','Must','Show bid, ask, last price, and whether data is real-time or delayed on every ticket.','Delayed data is labeled with its delay.'],
+      ['TRD-7','Must','Show market session (pre-market, regular, after-hours, closed), holidays and trading halts.','Ticket explains when a market order would execute.'],
+      ['TRD-8','Should','Show day range, volume and a small intraday chart on the ticket.','Chart loads in under 1 s.']
+    ]],
+    ['Order entry', [
+      ['TRD-9','Must','Support market, limit, stop and stop-limit orders, buy and sell, with day and good-til-cancelled time in force.','Each type is validated against broker capabilities.'],
+      ['TRD-10','Must','Support share quantity and, where the broker allows, dollar-amount and fractional orders.','Dollar orders show estimated shares.'],
+      ['TRD-11','Must','Show a review screen: estimated cost or proceeds, fees, buying power after trade, order type explained in plain words.','User must confirm on the review screen; no one-tap submit.'],
+      ['TRD-12','Must','Open a ticket from any signal pre-filled with symbol and side only, showing the signal\'s confidence, horizon and disclaimer.','Quantity is never pre-filled from the model.'],
+      ['TRD-13','Should','Support trailing stop and extended-hours limit orders where the broker allows.','Unsupported options are hidden, not shown as errors.'],
+      ['TRD-14','Should','Allow bracket orders (entry with take-profit and stop-loss) where supported.','Child orders appear linked to the parent.']
+    ]],
+    ['Pre-trade checks (app side)', [
+      ['TRD-15','Must','Check buying power or shares held before submit using the latest broker balances.','Insufficient funds stops submit with the shortfall shown.'],
+      ['TRD-16','Must','Apply user-set and app-wide limits: max order value, max % of portfolio in one order, max orders per day.','Orders over a limit cannot be confirmed.'],
+      ['TRD-17','Must','Warn on price collars: market orders on wide spreads and limit prices far from the last price.','Limit 20% away from last price shows a warning requiring confirmation.'],
+      ['TRD-18','Must','Show the broker\'s day-trade count and warnings for margin accounts.','Count updates after each fill.'],
+      ['TRD-19','Must','Block symbols on the app\'s restricted list (e.g. halted, OTC, leveraged ETFs if excluded).','Restricted symbols show why they can\'t be traded.'],
+      ['TRD-20','Must','Attach a unique idempotency key to each submit so retries never create duplicates.','Two rapid taps on Confirm create one order.']
+    ]],
+    ['Order management', [
+      ['TRD-21','Must','Stream order status from the broker (webhooks or websocket) and map it to the app\'s states.','Status on screen matches the broker within 2 s.'],
+      ['TRD-22','Must','Show partial fills with filled quantity, average price and remaining quantity.','Average price matches broker fills to the cent.'],
+      ['TRD-23','Must','Cancel and modify working orders, showing pending state until the broker confirms.','A cancel that loses a race with a fill shows the fill, not "cancelled".'],
+      ['TRD-24','Must','Resolve UNKNOWN orders by querying the broker before any retry.','No UNKNOWN order stays unresolved over 1 minute.'],
+      ['TRD-25','Must','Show rejections with the broker\'s reason in plain language.','"Insufficient buying power" instead of an error code.']
+    ]],
+    ['Positions, history and portfolio link', [
+      ['TRD-26','Must','Sync positions, cash and buying power from the broker on login, after each fill and every few minutes during market hours.','Positions match the broker after each fill.'],
+      ['TRD-27','Must','Show order and trade history with filters and export (CSV).','Export includes time, symbol, side, qty, price, fees, order ID.'],
+      ['TRD-28','Must','Feed linked positions into the app\'s portfolios, compare page and track record, marked "live account".','A new fill updates the Portfolio vs. Top Picks page.'],
+      ['TRD-29','Should','Record which signal, if any, led to each trade, to measure signal-to-trade outcomes.','Track record can filter "trades from signals".']
+    ]],
+    ['Paper trading', [
+      ['TRD-30','Must','Offer paper trading with the same ticket, checks and states, using the broker\'s sandbox or an internal simulator.','Paper mode is clearly marked on every screen.'],
+      ['TRD-31','Must','Keep paper and live accounts, positions and history fully separate.','A paper order can never reach a live account.'],
+      ['TRD-32','Should','Default new users to paper trading until they link a live account and accept disclosures.','First-time users land in paper mode.']
+    ]],
+    ['Notifications', [
+      ['TRD-33','Must','Notify on fills, partial fills, cancellations, rejections and expiring GTC orders by push and email per user preference.','Fill notification within 5 s of broker event.'],
+      ['TRD-34','Should','Price alerts that open a pre-filled ticket, never auto-submit.','Alert tap opens ticket, not an order.']
+    ]],
+    ['Operations and audit', [
+      ['TRD-35','Must','Provide a kill switch that stops new orders globally, per broker or per user, within 10 seconds, leaving cancel available.','Kill switch drill passes monthly.'],
+      ['TRD-36','Must','Keep an immutable audit log of every ticket, check result, submit, broker response and user action.','Support can replay an order\'s full history.'],
+      ['TRD-37','Must','Give support staff read-only views of a user\'s orders and link status, with access logged.','Support cannot place or cancel orders.'],
+      ['TRD-38','Should','Daily reconciliation report of orders, fills and positions against the broker.','Mismatches create a ticket for operations.']
+    ]],
+    ['Future: automation', [
+      ['TRD-39','Could','Recurring buys (e.g. $100 of VOO weekly) with pause and edit.','Each run creates a normal order with audit trail.'],
+      ['TRD-40','Could','Rule-based trading from signals, only after compliance sign-off, with per-strategy limits and a user-controlled on/off switch.','Strategies can\'t exceed their configured limits.']
+    ]]
+  ];
+  const fr = document.getElementById('fr');
+  fr.innerHTML = FR.map(([cat, rows]) => `
+    <section class="grp" data-cat="${cat}">
+      <h3>${cat}</h3>
+      <div class="scroll"><table>
+        <thead><tr><th>ID</th><th>Priority</th><th>Requirement</th><th>Acceptance criteria</th></tr></thead>
+        <tbody>${rows.map(r => `<tr data-p="${r[1]}"><td class="id">${r[0]}</td><td><span class="pri ${r[1]}">${r[1]}</span></td><td>${r[2]}</td><td class="ac">${r[3]}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </section>`).join('');
+  const all = FR.flatMap(g => g[1]);
+  const c = p => all.filter(r => r[1] === p).length;
+  document.getElementById('summary').innerHTML = `
+    <div class="sum"><div class="k">Requirements</div><div class="v">${all.length}</div></div>
+    <div class="sum"><div class="k">Must</div><div class="v">${c('Must')}</div></div>
+    <div class="sum"><div class="k">Should</div><div class="v">${c('Should')}</div></div>
+    <div class="sum"><div class="k">Could</div><div class="v">${c('Could')}</div></div>
+    <div class="sum"><div class="k">Non-functional</div><div class="v">8</div></div>`;
+  let pri = 'All';
+  const q = document.getElementById('q'), count = document.getElementById('count');
+  const apply = () => {
+    const term = q.value.trim().toLowerCase(); let shown = 0;
+    fr.querySelectorAll('.grp').forEach(g => {
+      let any = 0;
+      g.querySelectorAll('tbody tr').forEach(tr => {
+        const ok = (pri === 'All' || tr.dataset.p === pri) && (!term || tr.textContent.toLowerCase().includes(term) || g.dataset.cat.toLowerCase().includes(term));
+        tr.classList.toggle('hide', !ok); if (ok) { any++; shown++; }
+      });
+      g.classList.toggle('hide', !any);
+    });
+    count.textContent = `${shown} of ${all.length} shown`;
+    let e = fr.querySelector('.empty');
+    if (!shown && !e) { e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No requirements match. Clear the search or pick another priority.'; fr.appendChild(e); }
+    if (shown && e) e.remove();
+  };
+  document.querySelectorAll('#priSeg button').forEach(b => b.addEventListener('click', () => {
+    pri = b.dataset.p; document.querySelectorAll('#priSeg button').forEach(x => x.setAttribute('aria-pressed', x === b)); apply();
+  }));
+  q.addEventListener('input', apply);
+  apply();
+})();
+</script>
+
+</body>
+</html>

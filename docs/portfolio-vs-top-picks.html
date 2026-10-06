@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portfolio vs. Top Picks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#F2F4F7;--surface:#FFFFFF;--sunk:#EEF1F5;--ink:#10151C;--ink2:#4A5462;--muted:#5A6472;--line:#DCE1E7;--line2:#EEF1F5;
+  --you:#1F4FD1;--you-soft:#E3ECFF;--pick:#D9731A;--pick-soft:#FDF1E4;--pick-line:#F0C9A0;--bench:#7C8794;
+  --pos:#13795B;--neg:#B42318;--warn:#8A4B06;--warn-soft:#FCEBD6;--hold:#3E4958;--hold-soft:#ECEFF3;
+  --sans:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#0D1117;--surface:#151B23;--sunk:#1C2430;--ink:#E6EBF1;--ink2:#B3BDC9;--muted:#95A1AF;--line:#2A3441;--line2:#202935;
+  --you:#6E95FF;--you-soft:#1A2848;--pick:#F09A4E;--pick-soft:#2E2013;--pick-line:#6B4420;--bench:#8C97A5;
+  --pos:#4CC38A;--neg:#F2837A;--warn:#F0B067;--warn-soft:#352513;--hold:#C5CDD7;--hold-soft:#242D39;}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0D1117;--surface:#151B23;--sunk:#1C2430;--ink:#E6EBF1;--ink2:#B3BDC9;--muted:#95A1AF;--line:#2A3441;--line2:#202935;
+  --you:#6E95FF;--you-soft:#1A2848;--pick:#F09A4E;--pick-soft:#2E2013;--pick-line:#6B4420;--bench:#8C97A5;
+  --pos:#4CC38A;--neg:#F2837A;--warn:#F0B067;--warn-soft:#352513;--hold:#C5CDD7;--hold-soft:#242D39;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans)}
+a{color:var(--you)}
+.wrap{max-width:1360px;margin:0 auto;padding:32px 40px 56px;display:flex;flex-direction:column;gap:24px}
+.mono{font-family:var(--mono)}
+.label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 24px}
+h1{margin:0;font-size:38px;line-height:1.1;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+h2{margin:0;font-size:20px;font-weight:600}
+h3{margin:0;font-size:15px;font-weight:600}
+header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap}
+header.top .intro{display:flex;flex-direction:column;gap:8px;max-width:820px}
+header.top p{margin:0;color:var(--ink2);font-size:16px}
+.crumb{display:flex;gap:8px;font-size:14px;color:var(--muted)}
+.crumb a{text-decoration:none}
+.meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.badge{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--warn);background:var(--warn-soft);padding:5px 9px;border-radius:6px}
+.asof{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.controls{display:grid;grid-template-columns:300px minmax(0,1fr) auto;gap:28px;align-items:start}
+.ctl{display:flex;flex-direction:column;gap:8px;min-width:0}
+select{width:100%;max-width:100%;min-width:0;height:44px;border:1px solid var(--line);border-radius:8px;padding:0 12px;font:15px var(--sans);color:var(--ink);background:var(--surface)}
+.seg{display:flex;gap:4px;padding:4px;background:var(--sunk);border-radius:10px;width:fit-content;flex-wrap:wrap}
+.seg button{min-height:40px;padding:0 14px;border:0;border-radius:7px;font:600 14px var(--sans);cursor:pointer;background:transparent;color:var(--ink2)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(16,21,28,.14)}
+.seg button:focus-visible,select:focus-visible,a:focus-visible,.retry:focus-visible{outline:2px solid var(--you);outline-offset:2px}
+.goal-desc{font-size:14px;color:var(--ink2)}
+.headline{margin:0;font-size:24px;line-height:1.4;font-weight:500;max-width:1100px;text-wrap:pretty}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.sc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 24px;display:flex;flex-direction:column;gap:12px}
+.sc.you{border:2px solid var(--you)}.sc.pick{border:2px solid var(--pick)}
+.sc .hd{display:flex;align-items:center;gap:10px}
+.sw{width:12px;height:12px;border-radius:3px;flex:none}
+.sc .hd .aside{margin-left:auto;font-size:13px;color:var(--muted)}
+.big{font-family:var(--mono);font-size:40px;font-weight:600;line-height:1.1}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;font-size:13px;color:var(--muted)}
+.kv div{display:flex;flex-direction:column;gap:2px}
+.kv b{font-family:var(--mono);font-size:15px;color:var(--ink)}
+.kv b.txt{font-family:var(--sans)}
+.chartcard{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:28px}
+.chart-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--ink2);flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:16px;height:3px}
+svg text{font-family:var(--mono)}
+.drivers{border-left:1px solid var(--line2);padding-left:24px;display:flex;flex-direction:column;gap:4px}
+.drv{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line2)}
+.drv div{display:flex;flex-direction:column}
+.drv b{font-family:var(--mono);font-size:14px}
+.drv span.n{font-size:13px;color:var(--muted)}
+.drv .v{font-family:var(--mono);font-size:15px;font-weight:600}
+.note{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.cols{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:24px;align-items:start}
+.sec-hd{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.sec-hd .aside{font-size:13px;color:var(--muted)}
+.hrow{display:grid;grid-template-columns:120px 70px 90px 110px 100px minmax(0,1fr);gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line2)}
+.hrow.head{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);padding:8px 0}
+.num{text-align:right;font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums}
+.tk{display:flex;flex-direction:column}
+.tk b{font-family:var(--mono);font-size:14px}
+.tk span{font-size:12px;color:var(--muted)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px;white-space:nowrap}
+.pill.BUY{color:var(--you);background:var(--you-soft)}.pill.HOLD{color:var(--hold);background:var(--hold-soft)}.pill.TRIM{color:var(--warn);background:var(--warn-soft)}
+.sig{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.fund{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:10px;border:1px solid transparent;border-bottom-color:var(--line2)}
+.fund.first{background:var(--pick-soft);border-color:var(--pick-line)}
+.fund .rk{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--muted);width:24px}
+.fund .body{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+.fund .t{display:flex;gap:8px;align-items:baseline;min-width:0}
+.fund .t b{font-family:var(--mono);font-size:15px}
+.fund .t span{font-size:13px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fund .why{font-size:13px;color:var(--muted)}
+.fund .m{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.fund .r{font-family:var(--mono);font-size:16px;font-weight:600}
+.stocks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.stk{border:1px solid var(--line2);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.stk .top{display:flex;align-items:center;gap:8px}
+.stk .top .rk{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.stk .top b{font-family:var(--mono);font-size:15px}
+.own{font-size:11px;font-weight:600;color:var(--you);background:var(--you-soft);padding:3px 7px;border-radius:99px}
+.stk .top .pill{margin-left:auto}
+.stk .sub{font-size:13px;color:var(--muted)}
+.stk .bot{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.stk .r{font-family:var(--mono);font-size:24px;font-weight:600}
+footer{font-size:13px;color:var(--muted);max-width:1100px;display:flex;flex-direction:column;gap:4px}
+.pos{color:var(--pos)}.neg{color:var(--neg)}.mut{color:var(--muted)}
+/* states */
+.busy .dyn{opacity:.5;transition:opacity .15s}
+.sk{background:linear-gradient(90deg,var(--sunk),var(--line2),var(--sunk));background-size:200% 100%;border-radius:8px;animation:sh 1.2s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}}
+.err{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.retry{min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 14px var(--sans);cursor:pointer}
+[hidden]{display:none!important}
+/* responsive */
+@media (max-width:1100px){
+  .controls{grid-template-columns:repeat(2,minmax(0,1fr))}.controls .ctl.goal{grid-column:1/-1;order:3}
+  .cols{grid-template-columns:minmax(0,1fr)}
+  .stocks{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  .wrap{padding:20px 16px 40px;gap:18px}
+  h1{font-size:28px}header.top p{font-size:14px}.meta{align-items:flex-start}
+  .controls{grid-template-columns:minmax(0,1fr);gap:14px}
+  .seg{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  #winSeg{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .seg button{min-height:44px;padding:0 6px}
+  .headline{font-size:19px}
+  .cards{grid-template-columns:1fr;gap:10px}
+  .sc{padding:14px 16px;gap:8px}.big{font-size:28px}
+  .kv{grid-template-columns:repeat(3,minmax(0,1fr));font-size:12px}.kv b{font-size:13px}
+  .card{padding:16px}
+  .chartcard{grid-template-columns:1fr;gap:16px}
+  .drivers{border-left:0;padding-left:0}
+  .hrow{grid-template-columns:minmax(0,1fr) auto auto}
+  .hrow .c-w,.hrow .c-spark,.hrow.head{display:none}
+  .hrow .c-sig{grid-column:1/-1;order:5}
+  .hrow .c-ret,.hrow .c-con{font-size:13px}
+  .stocks{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .stk{padding:12px}.stk .r{font-size:20px}.stk .bot svg{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="intro">
+      <nav class="crumb" aria-label="Breadcrumb"><a href="/portfolio">Portfolio</a><span>/</span><span>Compare</span></nav>
+      <h1>Portfolio vs. Top Picks</h1>
+      <p>How your holdings are really doing, next to the screener’s top-ranked funds and the best-performing S&amp;P 500 stocks for the goal you pick. A benchmark to learn from, not a prompt to switch.</p>
+    </div>
+    <div class="meta">
+      <span class="badge" id="sampleBadge">Sample data</span>
+      <span class="asof" id="asOf">Prices as of —</span>
+    </div>
+  </header>
+
+  <section class="card controls" aria-label="Comparison settings">
+    <div class="ctl">
+      <label class="label" for="pf">Portfolio</label>
+      <select id="pf">
+        <option value="p_1">My Portfolio · 8 holdings</option>
+        <option value="p_2">Rashmi Robinhood · 11 holdings</option>
+        <option value="p_3">My Diversified Index at Robinhood · 7 holdings</option>
+        <option value="p_4">Diversified – US S&amp;P 500 – Long Term · 22 holdings</option>
+      </select>
+    </div>
+    <div class="ctl goal">
+      <span class="label" id="goalLbl">Compare against goal</span>
+      <div class="seg" id="goalSeg" role="group" aria-labelledby="goalLbl"></div>
+      <span class="goal-desc" id="goalDesc"></span>
+    </div>
+    <div class="ctl">
+      <span class="label" id="winLbl">Window</span>
+      <div class="seg" id="winSeg" role="group" aria-labelledby="winLbl"></div>
+    </div>
+  </section>
+
+  <div class="card err" id="errBox" hidden role="alert">
+    <span>Couldn’t load the comparison. Check your connection and try again.</span>
+    <button class="retry" type="button" id="retry">Retry</button>
+  </div>
+
+  <main id="content" class="dyn" style="display:flex;flex-direction:column;gap:24px" aria-live="polite">
+    <section aria-label="Summary" style="display:flex;flex-direction:column;gap:18px">
+      <p class="headline" id="headline"><span class="sk" style="display:block;height:30px;width:70%"></span></p>
+      <div class="cards">
+        <div class="sc you">
+          <div class="hd"><span class="sw" style="background:var(--you)"></span><h3>Your portfolio</h3><span class="aside" id="pfName"></span></div>
+          <div class="big" id="pfRet"><span class="sk" style="display:block;height:40px;width:140px"></span></div>
+          <div class="kv">
+            <div>Volatility<b id="pfVol">—</b></div>
+            <div>Max drawdown<b id="pfDd">—</b></div>
+            <div>Signals<b class="txt" id="pfSig">—</b></div>
+          </div>
+        </div>
+        <div class="sc pick">
+          <div class="hd"><span class="sw" style="background:var(--pick)"></span><h3 id="topTitle">#1 pick</h3><span class="aside" id="topScore"></span></div>
+          <div class="big" id="topRet"><span class="sk" style="display:block;height:40px;width:140px"></span></div>
+          <div class="kv">
+            <div>Volatility<b id="topVol">—</b></div>
+            <div>Expense ratio<b id="topEr">—</b></div>
+            <div>Overlap with you<b id="topOv">—</b></div>
+          </div>
+        </div>
+        <div class="sc">
+          <div class="hd"><span class="sw" style="background:var(--bench)"></span><h3>S&amp;P 500 · SPY</h3><span class="aside">Benchmark</span></div>
+          <div class="big" id="spyRet"><span class="sk" style="display:block;height:40px;width:140px"></span></div>
+          <div class="kv">
+            <div>Volatility<b id="spyVol">—</b></div>
+            <div>You vs. SPY<b id="spyGap">—</b></div>
+            <div>Expense ratio<b id="spyEr">—</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card chartcard" aria-label="Growth of $10,000">
+      <div>
+        <div class="chart-hd">
+          <h2 id="chartTitle">Growth of $10,000</h2>
+          <div class="legend">
+            <span><i style="background:var(--you)"></i>Your portfolio</span>
+            <span><i style="background:var(--pick)"></i><span id="legPick">Top pick</span></span>
+            <span><i style="height:0;border-top:2px dashed var(--bench)"></i>S&amp;P 500</span>
+          </div>
+        </div>
+        <div id="chart"><div class="sk" style="height:260px"></div></div>
+      </div>
+      <div class="drivers">
+        <h3>Where the gap comes from</h3>
+        <div id="drivers"></div>
+        <p class="note">Contribution = holding weight × holding return, in percentage points of the portfolio’s return.</p>
+      </div>
+    </section>
+
+    <div class="cols">
+      <section class="card" aria-label="Your holdings">
+        <div class="sec-hd"><h2>Your holdings</h2><span class="aside" id="holdAside">Sorted by contribution</span></div>
+        <div class="hrow head"><span>Holding</span><span class="num">Weight</span><span class="num">Return</span><span class="num">Contribution</span><span>Trend</span><span>Model signal</span></div>
+        <div id="holdings"></div>
+      </section>
+      <section class="card" aria-label="Top-ranked funds">
+        <div class="sec-hd"><h2 id="fundsTitle">Top-ranked funds</h2><a href="/screener">Open Fund Screener</a></div>
+        <div id="funds"></div>
+        <p class="note" id="fundsNote"></p>
+      </section>
+    </div>
+
+    <section class="card" aria-label="Best-performing S&amp;P 500 stocks">
+      <div class="sec-hd"><h2 id="stocksTitle">Best-performing S&amp;P 500 stocks</h2><span class="aside">Top 8 by total return, with the model’s current signal</span></div>
+      <div class="stocks" id="stocks"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Returns are total returns including dividends, for the selected window. Portfolio return is weighted by holdings at the window start. Model signals come from the quant model and show its confidence; they are not personal advice.</span>
+    <span>Past performance doesn’t predict future results. Comparing against a fund shows what a simpler alternative did over the same period.</span>
+  </footer>
+</div>
+
+<script>
+/* =====================================================================
+   DATA LAYER
+   Replace fetchCompare() with the real call:
+     fetch(`/api/portfolios/${id}/compare?goal=${goal}&window=${win}`).then(r => r.json())
+   The sample generator below returns the same response shape
+   described in the build notes.
+   ===================================================================== */
+const USE_SAMPLE = true;
+
+const GOALS = [
+  { code: 'balanced', label: 'Balanced core', description: 'Broad, diversified, low-cost funds to anchor a long-term portfolio.' },
+  { code: 'cost',     label: 'Lowest cost',   description: 'Broad-market funds with the lowest expense ratios.' },
+  { code: 'growth',   label: 'Best growth',   description: 'Highest risk-adjusted growth over the last 3 years.' },
+  { code: 'stable',   label: 'Most stable',   description: 'Lowest volatility and shallowest drawdowns.' }
+];
+const WINDOWS = [
+  { code: '10D', label: '10 days' }, { code: '30D', label: '30 days' }, { code: '60D', label: '60 days' },
+  { code: '90D', label: '90 days' }, { code: '1Y', label: '1 year' }
+];
+
+async function fetchCompare(portfolioId, goal, win) {
+  if (!USE_SAMPLE) {
+    const r = await fetch(`/api/portfolios/${encodeURIComponent(portfolioId)}/compare?goal=${goal}&window=${win}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
+  await new Promise(r => setTimeout(r, 250)); // simulate latency
+  return sampleCompare(portfolioId, goal, win);
+}
+
+function sampleCompare(portfolioId, goalCode, win) {
+  const F = { '10D': .15, '30D': .4, '60D': .7, '90D': 1, '1Y': 3.2 };
+  const START = { '10D': '2026-09-11', '30D': '2026-08-26', '60D': '2026-07-28', '90D': '2026-06-27', '1Y': '2025-09-25' };
+  const f = F[win];
+  const wig = (i, s) => Math.sin(i * 1.7 + s) * .35 + Math.sin(i * .6 + s * 2) * .25;
+  const spark = (r, s) => Array.from({ length: 14 }, (_, i) => r * (i / 13) + wig(i, s) * Math.max(1.5, Math.abs(r) * .25));
+  const N = 32, startD = new Date(START[win] + 'T12:00:00Z'), endD = new Date('2026-09-25T12:00:00Z');
+  const series = (R, s, amp) => Array.from({ length: N }, (_, i) => {
+    const t = i / (N - 1), d = new Date(startD.getTime() + (endD - startD) * t);
+    const v = i === N - 1 ? 10000 * (1 + R / 100) : 10000 * (1 + R / 100 * t + amp * wig(i, s) * Math.sqrt(t) / 100);
+    return [d.toISOString().slice(0, 10), +v.toFixed(2)];
+  });
+  const amp = Math.max(.6, Math.sqrt(f) * 1.2);
+  const FUNDS = {
+    balanced: [['VTI','Vanguard Total Stock Market ETF',5.3,.03,13.1,92,'Whole US market in one fund',34],['VOO','Vanguard S&P 500 ETF',5.1,.03,13.4,90,'Large-cap core, lowest tracking error',41],['VIG','Vanguard Dividend Appreciation ETF',4.4,.05,11.2,86,'Quality dividend growers, lower drawdowns',22],['SCHD','Schwab US Dividend Equity ETF',3.2,.06,11.0,84,'Value tilt, steady income',9],['AOR','iShares Core 60/40 Balanced ETF',3.6,.15,9.1,81,'Stocks and bonds in one fund',18]],
+    cost: [['SPLG','SPDR Portfolio S&P 500 ETF',5.1,.02,13.4,94,'Cheapest S&P 500 tracker',41],['VOO','Vanguard S&P 500 ETF',5.1,.03,13.4,93,'Deep liquidity at 0.03%',41],['VTI','Vanguard Total Stock Market ETF',5.3,.03,13.1,92,'Total market at 0.03%',34],['IVV','iShares Core S&P 500 ETF',5.1,.03,13.4,92,'S&P 500 at 0.03%',41],['SCHB','Schwab US Broad Market ETF',5.2,.03,13.2,91,'Broad market at 0.03%',33]],
+    growth: [['QQQM','Invesco Nasdaq 100 ETF',7.9,.15,19.2,91,'Top Nasdaq names, strongest 3-year return',38],['SCHG','Schwab US Large-Cap Growth ETF',7.6,.04,18.4,90,'Growth at a 0.04% fee',36],['MGK','Vanguard Mega Cap Growth ETF',7.4,.07,19.0,87,'Concentrated mega-cap growth',37],['VUG','Vanguard Growth ETF',7.2,.04,18.1,87,'Broad large-cap growth',35],['IWF','iShares Russell 1000 Growth ETF',6.9,.19,18.3,83,'Russell growth index',34]],
+    stable: [['USMV','iShares MSCI USA Min Vol ETF',2.8,.15,9.3,90,'Built to minimize volatility',16],['VIG','Vanguard Dividend Appreciation ETF',4.4,.05,11.2,88,'Quality growers, shallow drawdowns',22],['SPLV','Invesco S&P 500 Low Volatility ETF',2.1,.25,9.0,85,'100 least volatile S&P 500 stocks',12],['SCHD','Schwab US Dividend Equity ETF',3.2,.06,11.0,84,'Dividend value, lower beta',9],['BND','Vanguard Total Bond Market ETF',1.6,.03,5.2,80,'Core bonds to damp swings',0]]
+  };
+  const HOLD = [['AAPL','Apple',18,6.2,'HOLD',62],['MSFT','Microsoft',16,4.1,'BUY',71],['NVDA','Nvidia',14,14.8,'HOLD',55],['AMZN','Amazon',12,3.5,'BUY',66],['JPM','JPMorgan Chase',10,5.9,'HOLD',58],['UNH','UnitedHealth',10,-8.4,'TRIM',64],['XOM','Exxon Mobil',10,-2.1,'HOLD',51],['KO','Coca-Cola',10,1.8,'HOLD',60]];
+  const STK = [['PLTR','Palantir','Technology',38.2,'HOLD',57],['AVGO','Broadcom','Semiconductors',24.6,'BUY',68],['GE','GE Aerospace','Industrials',21.3,'BUY',63],['NFLX','Netflix','Comm. services',19.7,'HOLD',59],['ANET','Arista Networks','Technology',18.4,'BUY',61],['VST','Vistra','Utilities',17.9,'HOLD',54],['GS','Goldman Sachs','Financials',15.2,'HOLD',56],['NVDA','Nvidia','Semiconductors',14.8,'HOLD',55]];
+
+  const holdings = HOLD.map((h, i) => {
+    const ret = h[3] * f;
+    return { ticker: h[0], name: h[1], weightPct: h[2], returnPct: ret, contributionPts: h[2] / 100 * ret, spark: spark(ret, i + 1), signal: { action: h[4], confidence: h[5], asOf: '2026-09-25' } };
+  }).sort((a, b) => b.contributionPts - a.contributionPts);
+  const pRet = holdings.reduce((a, h) => a + h.contributionPts, 0);
+  const topFunds = FUNDS[goalCode].map((r, i) => ({ rank: i + 1, ticker: r[0], name: r[1], score: r[5], reason: r[6], returnPct: r[2] * f, expenseRatioPct: r[3], volatilityPct: r[4], overlapPct: r[7], series: i === 0 ? series(r[2] * f, 3, amp * (r[4] < 6 ? .4 : .9)) : [] }));
+  const byC = [...holdings].sort((a, b) => a.contributionPts - b.contributionPts);
+  const owned = new Set(HOLD.map(h => h[0]));
+  const counts = { buy: 0, hold: 0, trim: 0 }; holdings.forEach(h => counts[h.signal.action.toLowerCase()]++);
+  const pfNames = { p_1: 'My Portfolio', p_2: 'Rashmi Robinhood', p_3: 'My Diversified Index', p_4: 'Diversified – US S&P 500' };
+
+  return {
+    asOf: '2026-09-25',
+    window: { code: win, start: START[win], end: '2026-09-25' },
+    goal: GOALS.find(g => g.code === goalCode),
+    portfolio: { id: portfolioId, name: pfNames[portfolioId] || 'Portfolio', holdingsCount: holdings.length, returnPct: pRet, volatilityPct: 16.2, maxDrawdownPct: -4.1 * Math.sqrt(f), signals: counts, series: series(pRet, 1, amp * 1.2) },
+    benchmark: { ticker: 'SPY', returnPct: 5.1 * f, volatilityPct: 13.4, expenseRatioPct: .09, series: series(5.1 * f, 5, amp) },
+    topFunds,
+    holdings,
+    gapDrivers: [
+      { ticker: holdings[0].ticker, kind: 'lift', contributionPts: holdings[0].contributionPts },
+      { ticker: byC[0].ticker, kind: 'drag', contributionPts: byC[0].contributionPts },
+      { ticker: byC[1].ticker, kind: 'drag', contributionPts: byC[1].contributionPts }
+    ],
+    topStocks: STK.map((s, i) => ({ rank: i + 1, ticker: s[0], name: s[1], sector: s[2], returnPct: s[3] * f, owned: owned.has(s[0]), spark: spark(s[3] * f, i + 7), signal: { action: s[4], confidence: s[5] } }))
+  };
+}
+
+/* =====================================================================
+   RENDERING
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const sgn = x => (x >= 0 ? '+' : '−');
+const pct = x => sgn(x) + Math.abs(x).toFixed(1) + '%';
+const pts = x => sgn(x) + Math.abs(x).toFixed(2) + ' pts';
+const cls = x => (x >= 0 ? 'pos' : 'neg');
+const money = v => '$' + Math.round(v).toLocaleString('en-US');
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtDay = iso => { const m = +iso.slice(5, 7), d = +iso.slice(8, 10); return MONTHS[m - 1] + ' ' + d; };
+const ACTION = { BUY: 'Buy', HOLD: 'Hold', TRIM: 'Trim' };
+
+function sparkSvg(vals, color) {
+  if (!vals || vals.length < 2) return '';
+  const lo = Math.min(...vals), hi = Math.max(...vals), sp = hi - lo || 1;
+  const p = vals.map((v, i) => (i * 96 / (vals.length - 1)).toFixed(1) + ',' + (25 - (v - lo) / sp * 22).toFixed(1)).join(' ');
+  return `<svg viewBox="0 0 96 28" width="96" height="28" aria-hidden="true"><polyline points="${p}" fill="none" stroke="${color}" stroke-width="1.75"/></svg>`;
+}
+
+function chartSvg(d) {
+  const W = 900, H = 280, L = 70, R = 880, T = 16, B = 244;
+  const P = d.portfolio.series.map(x => x[1]), Tp = (d.topFunds[0]?.series || []).map(x => x[1]), S = d.benchmark.series.map(x => x[1]);
+  const all = P.concat(Tp, S), lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo) * .12 || 50;
+  const y0 = lo - pad, y1 = hi + pad, Y = v => B - (v - y0) / (y1 - y0) * (B - T);
+  const line = v => v.map((x, i) => (L + i * (R - L) / (v.length - 1)).toFixed(1) + ',' + Y(x).toFixed(1)).join(' ');
+  const ticks = [0.15, 0.5, 0.85].map(t => y0 + (y1 - y0) * t);
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Growth of 10,000 dollars: your portfolio ${money(P.at(-1))}, ${esc(d.topFunds[0]?.ticker)} ${money(Tp.at(-1))}, S&P 500 ${money(S.at(-1))}">
+    ${ticks.map(v => `<line x1="${L}" x2="${R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line2)"/><text x="${L - 8}" y="${(Y(v) + 4).toFixed(1)}" font-size="12" fill="var(--muted)" text-anchor="end">${money(v)}</text>`).join('')}
+    <polyline points="${line(S)}" fill="none" stroke="var(--bench)" stroke-width="2" stroke-dasharray="5 5"/>
+    ${Tp.length ? `<polyline points="${line(Tp)}" fill="none" stroke="var(--pick)" stroke-width="2.5"/><circle cx="${R}" cy="${Y(Tp.at(-1)).toFixed(1)}" r="4" fill="var(--pick)"/>` : ''}
+    <polyline points="${line(P)}" fill="none" stroke="var(--you)" stroke-width="3"/>
+    <circle cx="${R}" cy="${Y(P.at(-1)).toFixed(1)}" r="5" fill="var(--you)"/>
+    <text x="${L}" y="${H - 8}" font-size="12" fill="var(--muted)">${fmtDay(d.window.start)}</text>
+    <text x="${R}" y="${H - 8}" font-size="12" fill="var(--muted)" text-anchor="end">${fmtDay(d.window.end)}</text>
+  </svg>`;
+}
+
+function render(d) {
+  const winLabel = WINDOWS.find(w => w.code === d.window.code).label;
+  const top = d.topFunds[0], p = d.portfolio, spy = d.benchmark;
+  const gap = (x, what) => Math.abs(x) < .05 ? 'level with ' + what : Math.abs(x).toFixed(1) + ' pts ' + (x > 0 ? 'ahead of ' : 'behind ') + what;
+
+  $('asOf').textContent = 'Prices as of ' + fmtDay(d.asOf) + ', ' + d.asOf.slice(0, 4) + ' close';
+  $('goalDesc').textContent = d.goal.description;
+  $('headline').textContent = 'Your portfolio is ' + (p.returnPct >= 0 ? 'up ' : 'down ') + Math.abs(p.returnPct).toFixed(1) + '% over ' + winLabel + ' — ' +
+    gap(p.returnPct - spy.returnPct, 'the S&P 500') + ' and ' + gap(p.returnPct - top.returnPct, top.ticker + ', the top ' + d.goal.label.toLowerCase() + ' pick') + '.';
+
+  $('pfName').textContent = p.name;
+  $('pfRet').innerHTML = `<span class="${cls(p.returnPct)}">${pct(p.returnPct)}</span>`;
+  $('pfVol').textContent = p.volatilityPct.toFixed(1) + '%';
+  $('pfDd').textContent = pct(p.maxDrawdownPct);
+  $('pfSig').textContent = `${p.signals.buy} Buy · ${p.signals.hold} Hold · ${p.signals.trim} Trim`;
+
+  $('topTitle').textContent = `#1 ${d.goal.label} pick · ${top.ticker}`;
+  $('topScore').textContent = 'Score ' + top.score;
+  $('topRet').innerHTML = `<span class="${cls(top.returnPct)}">${pct(top.returnPct)}</span>`;
+  $('topVol').textContent = top.volatilityPct.toFixed(1) + '%';
+  $('topEr').textContent = top.expenseRatioPct.toFixed(2) + '%';
+  $('topOv').textContent = top.overlapPct + '%';
+
+  $('spyRet').innerHTML = `<span class="${cls(spy.returnPct)}">${pct(spy.returnPct)}</span>`;
+  $('spyVol').textContent = spy.volatilityPct.toFixed(1) + '%';
+  const g = p.returnPct - spy.returnPct;
+  $('spyGap').innerHTML = `<span class="${cls(g)}">${pts(g)}</span>`;
+  $('spyEr').textContent = spy.expenseRatioPct.toFixed(2) + '%';
+
+  $('chartTitle').textContent = 'Growth of $10,000 over ' + winLabel;
+  $('legPick').textContent = top.ticker;
+  $('chart').innerHTML = chartSvg(d);
+
+  const NOTE = { lift: 'Biggest lift', drag: 'Drag' };
+  $('drivers').innerHTML = d.gapDrivers.map((x, i) => `<div class="drv"><div><b>${esc(x.ticker)}</b><span class="n">${x.kind === 'drag' && i === 1 ? 'Biggest drag' : NOTE[x.kind]}</span></div><span class="v ${cls(x.contributionPts)}">${pts(x.contributionPts)}</span></div>`).join('');
+
+  $('holdAside').textContent = 'Sorted by contribution · ' + winLabel;
+  $('holdings').innerHTML = d.holdings.map(h => {
+    const c = h.returnPct >= 0 ? 'var(--pos)' : 'var(--neg)';
+    const sig = h.signal ? `<span class="pill ${h.signal.action}">${ACTION[h.signal.action]}</span>${h.signal.confidence}% confidence` : '<span class="mut">No current signal</span>';
+    return `<div class="hrow">
+      <div class="tk"><b>${esc(h.ticker)}</b><span>${esc(h.name)}</span></div>
+      <span class="num c-w">${h.weightPct}%</span>
+      <span class="num c-ret ${cls(h.returnPct)}" style="font-weight:600">${pct(h.returnPct)}</span>
+      <span class="num c-con ${cls(h.returnPct)}">${pts(h.contributionPts)}</span>
+      <span class="c-spark">${sparkSvg(h.spark, c)}</span>
+      <div class="sig c-sig">${sig}</div>
+    </div>`;
+  }).join('');
+
+  $('fundsTitle').textContent = 'Top-ranked for ' + d.goal.label;
+  $('funds').innerHTML = d.topFunds.map((x, i) => `<div class="fund${i === 0 ? ' first' : ''}">
+    <span class="rk">#${x.rank}</span>
+    <div class="body"><div class="t"><b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div><span class="why">${esc(x.reason)}</span><span class="m">ER ${x.expenseRatioPct.toFixed(2)}% · Vol ${x.volatilityPct.toFixed(1)}% · Score ${x.score}</span></div>
+    <span class="r ${cls(x.returnPct)}">${pct(x.returnPct)}</span>
+  </div>`).join('');
+  $('fundsNote').textContent = `Ranked by the Fund Screener’s ${d.goal.label} score (return, cost, volatility and drawdown over 3 years). Returns shown for ${winLabel}.`;
+
+  $('stocksTitle').textContent = 'Best-performing S&P 500 stocks · ' + winLabel;
+  $('stocks').innerHTML = d.topStocks.map(s => {
+    const c = s.returnPct >= 0 ? 'var(--pos)' : 'var(--neg)';
+    return `<div class="stk">
+      <div class="top"><span class="rk">#${s.rank}</span><b>${esc(s.ticker)}</b>${s.owned ? '<span class="own">You own</span>' : ''}<span class="pill ${s.signal.action}">${ACTION[s.signal.action]}</span></div>
+      <span class="sub">${esc(s.name)} · ${esc(s.sector)}</span>
+      <div class="bot"><span class="r ${cls(s.returnPct)}">${pct(s.returnPct)}</span>${sparkSvg(s.spark, c)}</div>
+    </div>`;
+  }).join('');
+}
+
+/* =====================================================================
+   STATE, CONTROLS, URL
+   ===================================================================== */
+const params = new URLSearchParams(location.search);
+const state = {
+  p: params.get('p') || 'p_1',
+  goal: GOALS.some(g => g.code === params.get('goal')) ? params.get('goal') : 'balanced',
+  win: WINDOWS.some(w => w.code === params.get('window')) ? params.get('window') : '90D'
+};
+$('sampleBadge').hidden = !USE_SAMPLE;
+$('pf').value = state.p;
+
+function drawControls() {
+  $('goalSeg').innerHTML = GOALS.map(g => `<button type="button" data-goal="${g.code}" aria-pressed="${g.code === state.goal}">${g.label}</button>`).join('');
+  $('winSeg').innerHTML = WINDOWS.map(w => `<button type="button" data-win="${w.code}" aria-pressed="${w.code === state.win}" aria-label="${w.label}">${w.code}</button>`).join('');
+  $('goalDesc').textContent = GOALS.find(g => g.code === state.goal).description;
+}
+
+function syncUrl() {
+  try { history.replaceState(null, '', `?p=${encodeURIComponent(state.p)}&goal=${state.goal}&window=${state.win}`); } catch (e) {}
+}
+
+let reqId = 0;
+async function load() {
+  const my = ++reqId;
+  document.body.classList.add('busy');
+  $('errBox').hidden = true;
+  try {
+    const d = await fetchCompare(state.p, state.goal, state.win);
+    if (my !== reqId) return;           // a newer request superseded this one
+    render(d);
+    $('content').hidden = false;
+  } catch (e) {
+    if (my !== reqId) return;
+    $('errBox').hidden = false;
+    $('content').hidden = true;
+  } finally {
+    if (my === reqId) document.body.classList.remove('busy');
+  }
+}
+
+$('goalSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.goal = b.dataset.goal; drawControls(); syncUrl(); load(); });
+$('winSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.win = b.dataset.win; drawControls(); syncUrl(); load(); });
+$('pf').addEventListener('change', e => { state.p = e.target.value; syncUrl(); load(); });
+$('retry').addEventListener('click', load);
+
+drawControls();
+load();
+</script>
+</body>
+</html>

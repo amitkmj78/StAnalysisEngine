@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stock Analysis Features Requirements</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#F3F5F8;--surface:#FFFFFF;--sunk:#EAEEF3;--ink:#121925;--muted:#566173;--line:#D5DCE5;
+  --accent:#1F4FD1;--accent-soft:#E3ECFF;
+  --must:#B42318;--must-soft:#FBE3E0;--should:#9A6212;--should-soft:#F8ECD5;--could:#4B5B8A;--could-soft:#E4E8F4;
+  --have:#1A7F5A;--have-soft:#E1F3EA;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--bg:#0D1117;--surface:#151B23;--sunk:#1C2430;--ink:#E6EBF1;--muted:#98A3B2;--line:#2A3441;
+  --accent:#6E95FF;--accent-soft:#1A2848;
+  --must:#F2837A;--must-soft:#3A1714;--should:#E3AE5A;--should-soft:#352813;--could:#9DB0E8;--could-soft:#1D2440;
+  --have:#5FC79A;--have-soft:#123626;}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#0D1117;--surface:#151B23;--sunk:#1C2430;--ink:#E6EBF1;--muted:#98A3B2;--line:#2A3441;
+  --accent:#6E95FF;--accent-soft:#1A2848;
+  --must:#F2837A;--must-soft:#3A1714;--should:#E3AE5A;--should-soft:#352813;--could:#9DB0E8;--could-soft:#1D2440;
+  --have:#5FC79A;--have-soft:#123626;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);padding-inline:16px;padding-block:0 72px}
+.wrap{max-width:1120px;margin:0 auto}
+header.top{padding-block:28px 20px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+h1{font:600 32px/1.15 var(--cond);margin:0;text-wrap:balance}
+.meta{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:13.5px;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:500}
+.layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:36px;padding-top:8px}
+.toc{position:sticky;top:12px;align-self:start;display:grid;gap:2px;font-size:13.5px;padding-top:24px}
+.toc a{color:var(--muted);text-decoration:none;padding:4px 8px;border-radius:6px}
+.toc a:hover{color:var(--ink);background:var(--sunk)}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+h2{font:600 22px/1.25 var(--cond);margin:36px 0 10px;text-wrap:balance;scroll-margin-top:12px}
+h3{font:600 15px/1.3 var(--sans);margin:22px 0 8px}
+p{margin:0 0 12px;max-width:74ch}
+ul,ol{margin:0 0 12px;padding-left:22px;max-width:74ch}
+li{margin:3px 0}
+code{font:13px/1.4 var(--mono);background:var(--sunk);padding:1px 5px;border-radius:4px}
+.scroll{overflow-x:auto;margin:0 0 16px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 12px/1.3 var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;background:var(--sunk);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.id{font:500 13px/1.4 var(--mono);white-space:nowrap}
+td.ac{color:var(--muted);font-size:13.5px}
+.pri{display:inline-block;font:600 11.5px/1 var(--sans);padding:4px 8px;border-radius:99px;white-space:nowrap}
+.Must{color:var(--must);background:var(--must-soft)}.Should{color:var(--should);background:var(--should-soft)}.Could{color:var(--could);background:var(--could-soft)}
+.Have{color:var(--have);background:var(--have-soft)}.Partial{color:var(--should);background:var(--should-soft)}.Missing{color:var(--must);background:var(--must-soft)}
+td.gap{color:var(--muted);font-size:13.5px;max-width:34ch}
+.filters{position:sticky;top:0;z-index:4;background:var(--bg);display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);margin-bottom:6px}
+.filters input{flex:1 1 220px;font:14px/1.4 var(--sans);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:8px 10px;min-width:0}
+.seg{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--surface)}
+.seg button{font:500 13px/1 var(--sans);border:0;background:none;color:var(--muted);padding:9px 12px;cursor:pointer;min-height:36px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink)}
+.count{font-size:13px;color:var(--muted);margin-left:auto}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:18px 0}
+.sum{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:12px 14px}
+.sum .k{font:500 12px/1.2 var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.sum .v{font:600 24px/1.2 var(--cond);font-variant-numeric:tabular-nums;margin-top:4px}
+.empty{padding:22px;text-align:center;color:var(--muted)}
+.hide{display:none}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 8px;font-size:13.5px}
+.flow .s{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px}
+.flow .s.k{border-color:var(--accent);background:var(--accent-soft)}
+.flow .a{color:var(--muted)}
+.states{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:8px 0 16px}
+.states div{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px 12px;font-size:13.5px}
+.states b{display:block;font-family:var(--mono);font-size:13px}
+.states span{color:var(--muted)}
+.callout{border:1px solid var(--should);background:var(--should-soft);border-radius:10px;padding:12px 16px;font-size:14px;margin:0 0 16px}
+.phase{display:inline-block;font:600 11.5px/1 var(--sans);padding:4px 8px;border-radius:6px;background:var(--accent-soft);color:var(--accent);margin-right:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Requirements · stock prediction app · analysis features</div>
+    <h1>Stock Analysis Features Requirements</h1>
+    <div class="meta">
+      <span>Version <b>0.1 draft</b></span>
+      <span>Date <b>Sep 27, 2026</b></span>
+      <span>Author <b>Amit Kumar Maharaj</b></span>
+      <span>Universe <b>S&amp;P 500 stocks + screened ETFs</b></span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" aria-label="Contents">
+      <a href="#purpose">1. Purpose and principles</a>
+      <a href="#roadmap">2. Roadmap</a>
+      <a href="#reqs">3. Functional requirements</a>
+      <a href="#metrics">4. Track record metrics</a>
+      <a href="#explain">5. How explanations work</a>
+      <a href="#data">6. Data sources</a>
+      <a href="#nfr">7. Non-functional requirements</a>
+      <a href="#compliance">8. Disclosures and compliance</a>
+      <a href="#scenarios">9. Acceptance scenarios</a>
+      <a href="#open">10. Open questions</a>
+    </nav>
+
+    <main>
+      <h2 id="purpose">1. Purpose and principles</h2>
+      <p>Turn the app from "a model that makes predictions" into a research tool people trust: every signal is explained, every past call is checkable, and every page answers a real question about a stock or a portfolio.</p>
+      <ul>
+        <li><b>Explain, don't just predict.</b> Every score shows what drove it.</li>
+        <li><b>Show the record, good and bad.</b> Live results are never mixed with backtests, and misses are shown.</li>
+        <li><b>Probabilities, not promises.</b> Signals show confidence and horizon; nothing says a stock "will" go up.</li>
+        <li><b>Always compare to the simple option.</b> Results are shown against the S&amp;P 500.</li>
+        <li><b>No look-ahead.</b> Every score and backtest uses only data available on that date.</li>
+      </ul>
+      <div class="summary" id="summary"></div>
+
+      <h2 id="roadmap">2. Roadmap</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Phase</th><th>Features</th><th>Why this order</th></tr></thead>
+        <tbody>
+          <tr><td><b>1 · Trust</b></td><td>Stock detail page, short and long-term scores, explainable signals, public track record</td><td>Makes every prediction understandable and checkable; everything else builds on these</td></tr>
+          <tr><td><b>2 · Discovery and portfolio</b></td><td>Screener, earnings calendar, portfolio health check, market regime banner, smart alerts</td><td>Helps users find ideas and understand their own holdings</td></tr>
+          <tr><td><b>3 · AI and engagement</b></td><td>Scenario tests, ask-about-a-stock, filing and earnings-call summaries, daily brief, paper challenges, learning tooltips</td><td>Adds depth and daily habit once the core is trusted</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 id="reqs">3. Functional requirements</h2>
+      <p>Priority: <span class="pri Must">Must</span> for that feature's release, <span class="pri Should">Should</span> soon after, <span class="pri Could">Could</span> later.</p>
+      <div class="callout">
+        <b>Code audit — Sep 28, 2026, updated after Phase 1 ("Trust") shipped the same day.</b> Every requirement
+        below was checked against the actual StAnalysisEngine codebase (not just similarly-named files) and marked
+        <span class="pri Have">Have</span> (fully meets the acceptance criteria), <span class="pri Partial">Partial</span>
+        (something exists but falls short — see Gap), or <span class="pri Missing">Missing</span> (nothing found).
+        Of 96 requirements: 77 Have, 12 Partial, 0 Missing, 7 Not started (AGT-21 to 24: AI reviewer; AGT-30 to 32: validation backtest). Use the Status filter below to see just what's missing.
+      </div>
+      <div class="filters" role="search">
+        <input id="q" type="search" placeholder="Search, e.g. earnings, SHAP, alert, drawdown" aria-label="Search requirements">
+        <div class="seg" role="group" aria-label="Phase filter" id="phSeg">
+          <button type="button" data-ph="All" aria-pressed="true">All phases</button>
+          <button type="button" data-ph="1" aria-pressed="false">Phase 1</button>
+          <button type="button" data-ph="2" aria-pressed="false">Phase 2</button>
+          <button type="button" data-ph="3" aria-pressed="false">Phase 3</button>
+        </div>
+        <div class="seg" role="group" aria-label="Priority filter" id="priSeg">
+          <button type="button" data-p="All" aria-pressed="true">All</button>
+          <button type="button" data-p="Must" aria-pressed="false">Must</button>
+          <button type="button" data-p="Should" aria-pressed="false">Should</button>
+          <button type="button" data-p="Could" aria-pressed="false">Could</button>
+        </div>
+        <div class="seg" role="group" aria-label="Status filter" id="stSeg">
+          <button type="button" data-st="All" aria-pressed="true">All statuses</button>
+          <button type="button" data-st="Have" aria-pressed="false">Have</button>
+          <button type="button" data-st="Partial" aria-pressed="false">Partial</button>
+          <button type="button" data-st="Missing" aria-pressed="false">Missing</button>
+        </div>
+        <span class="count" id="count"></span>
+      </div>
+      <div id="fr"></div>
+
+      <h2 id="metrics">4. Track record metrics</h2>
+      <p>Computed for every prediction ever published, grouped by horizon (10, 30, 60, 90 days) and signal type; a prediction is scored only after its horizon ends.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Metric</th><th>Definition</th><th>Shown as</th></tr></thead>
+        <tbody>
+          <tr><td><b>Hit rate</b></td><td>Share of predictions where the direction was right (Buy → stock rose, Trim → stock fell or lagged)</td><td>% with sample size, e.g. "58% of 1,240"</td></tr>
+          <tr><td><b>Average return</b></td><td>Mean total return of the stock over the horizon, by signal</td><td>% per signal type</td></tr>
+          <tr><td><b>Excess return</b></td><td>Stock return minus S&amp;P 500 (SPY) return over the same window</td><td>pts, with the share of predictions that beat SPY</td></tr>
+          <tr><td><b>Rank correlation (IC)</b></td><td>Correlation between the score's ranking of stocks and their actual return ranking</td><td>Monthly value and 12-month average</td></tr>
+          <tr><td><b>Calibration</b></td><td>For each confidence bucket (50–60%, 60–70%…), the actual hit rate</td><td>Chart: stated confidence vs actual</td></tr>
+          <tr><td><b>Worst misses</b></td><td>Largest losses on Buy signals and largest gains on Trim signals</td><td>Top 10 list, never hidden</td></tr>
+          <tr><td><b>Model portfolio</b></td><td>Equal-weight portfolio of Buy signals, rebalanced at each signal date, after assumed trading costs</td><td>Growth of $10,000 vs SPY</td></tr>
+        </tbody>
+      </table></div>
+      <ul>
+        <li>Predictions are stored at publish time and are append-only; nothing is edited or deleted.</li>
+        <li>Groups with fewer than 30 scored predictions show "not enough data yet" instead of a percentage.</li>
+        <li>A model version change starts a new record; older versions stay visible.</li>
+      </ul>
+
+      <h2 id="explain">5. How explanations work</h2>
+      <p>Each score is decomposed into factor contributions so users see why, in plain words.</p>
+      <ol>
+        <li><b>Contributions:</b> for tree-based models, compute SHAP values per feature; for linear or rules-based scores, use weight × standardized value.</li>
+        <li><b>Group:</b> roll features up into 6–8 understandable factor groups: Momentum, Earnings revisions, Earnings surprise, Valuation, Quality, Growth, Volatility, Market regime.</li>
+        <li><b>Rank:</b> show the top 3 positive and top 2 negative groups, with a bar showing size and direction.</li>
+        <li><b>Words:</b> each group has a sentence template filled with the real value, e.g. "Analysts raised next-year earnings estimates 6% in 30 days."</li>
+        <li><b>Change:</b> show what moved the score since last week ("Score fell from 72 to 61, mostly Valuation after a 15% rise").</li>
+      </ol>
+
+      <h2 id="data">6. Data sources</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Data</th><th>Used for</th><th>Source</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Daily adjusted prices, 3+ years</td><td>Momentum, returns, volatility, track record</td><td>Existing price store</td><td>Have</td></tr>
+          <tr><td>Point-in-time fundamentals</td><td>Quality, value, growth scores; health check</td><td>Data vendor with as-reported history</td><td>New</td></tr>
+          <tr><td>Analyst estimates and revisions</td><td>Revisions factor, earnings calendar</td><td>Data vendor</td><td>New</td></tr>
+          <tr><td>Earnings dates and results</td><td>Calendar, surprise factor</td><td>Data vendor</td><td>New</td></tr>
+          <tr><td>SEC filings (10-K, 10-Q, 8-K)</td><td>Filing summaries, risk changes</td><td>SEC EDGAR (free)</td><td>New</td></tr>
+          <tr><td>Earnings call transcripts</td><td>Call summaries, management tone</td><td>Data vendor</td><td>New</td></tr>
+          <tr><td>News and sentiment</td><td>Ask-about-a-stock, daily brief, regime</td><td>News API</td><td>Partly (sentiment feature)</td></tr>
+          <tr><td>Macro series (rates, oil, VIX)</td><td>Regime banner, stress tests</td><td>FRED and market data</td><td>Partly</td></tr>
+          <tr><td>ETF holdings</td><td>Fund overlap, health check</td><td>Issuer files or vendor</td><td>New</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 id="nfr">7. Non-functional requirements</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>ID</th><th>Priority</th><th>Quality</th><th>Requirement</th></tr></thead>
+        <tbody>
+          <tr><td class="id">NFR-1</td><td><span class="pri Must">Must</span></td><td><b>Point-in-time data</b></td><td>Scores, backtests and track record use only data available at each date; enforced by tests that fail on future data</td></tr>
+          <tr><td class="id">NFR-2</td><td><span class="pri Must">Must</span></td><td><b>Performance</b></td><td>Stock detail page p95 under 1.5 s; screener results under 1 s for the full universe</td></tr>
+          <tr><td class="id">NFR-3</td><td><span class="pri Must">Must</span></td><td><b>Freshness</b></td><td>Scores recomputed nightly after close; every score shows its as-of date</td></tr>
+          <tr><td class="id">NFR-4</td><td><span class="pri Must">Must</span></td><td><b>Reproducibility</b></td><td>Every published prediction stores model version, feature values and explanation, so it can be regenerated</td></tr>
+          <tr><td class="id">NFR-5</td><td><span class="pri Must">Must</span></td><td><b>AI grounding</b></td><td>AI answers use only the app's data and cited sources; no invented numbers; show sources and as-of dates</td></tr>
+          <tr><td class="id">NFR-6</td><td><span class="pri Should">Should</span></td><td><b>Cost control</b></td><td>AI features cached per stock per day; per-user daily question limit on free tier</td></tr>
+          <tr><td class="id">NFR-7</td><td><span class="pri Should">Should</span></td><td><b>Accessibility</b></td><td>WCAG 2.1 AA; charts have text summaries; color never the only signal</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 id="compliance">8. Disclosures and compliance</h2>
+      <div class="callout">Questions to confirm with a securities lawyer; not legal advice.</div>
+      <ul>
+        <li>Label signals as general research, not personal advice; the health check and AI answers must avoid telling a specific user to buy or sell a specific security unless the adviser question is resolved.</li>
+        <li>Label backtests and the model portfolio as hypothetical, with methodology, cost assumptions and limitations next to every chart.</li>
+        <li>Show live track record separately from backtests, including losses and worst misses.</li>
+        <li>Display "Past performance doesn't predict future results" wherever returns are shown.</li>
+        <li>Respect data licenses: real-time quotes, transcripts and news are shown under each vendor's display terms.</li>
+      </ul>
+
+      <h2 id="scenarios">9. Acceptance scenarios</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>#</th><th>Given</th><th>When</th><th>Then</th></tr></thead>
+        <tbody>
+          <tr><td class="id">S1</td><td>MSFT has a Buy signal with 68% confidence over 60 days</td><td>A user opens MSFT</td><td>They see the signal, horizon, confidence, top 3 reasons and 2 risks in plain words, and the as-of date</td></tr>
+          <tr><td class="id">S2</td><td>The model issued 1,240 90-day predictions that have matured</td><td>A user opens Track record</td><td>Hit rate, excess return vs SPY, calibration and worst misses match a recomputation from stored predictions</td></tr>
+          <tr><td class="id">S3</td><td>A backtest accidentally uses next-quarter earnings</td><td>The build runs</td><td>The point-in-time test fails and blocks release</td></tr>
+          <tr><td class="id">S4</td><td>A user's portfolio has 45% in technology</td><td>They run the health check</td><td>Sector concentration is flagged with the S&amp;P 500's tech weight for comparison, without telling them to sell</td></tr>
+          <tr><td class="id">S5</td><td>A user asks "Why did NVDA drop today?"</td><td>The AI answers</td><td>The answer cites today's price move and at least one dated news source, or says it found no clear cause</td></tr>
+          <tr><td class="id">S6</td><td>A watchlisted stock's short-term score flips from Buy to Hold</td><td>The nightly run finishes</td><td>The user gets one alert with the old and new signal and the main reason</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 id="open">10. Open questions</h2>
+      <ul>
+        <li>Which fundamentals and estimates vendor, and does its license allow display to users?</li>
+        <li>Is the track record public (no login) as a marketing asset, or for signed-in users only?</li>
+        <li>Which model versions count toward the live record, and from what start date?</li>
+        <li>Free vs paid: which features are premium (e.g. AI questions, stress tests, advanced screener)?</li>
+        <li>Will scores expand beyond the S&amp;P 500 (mid-caps, ETFs as first-class)?</li>
+      </ul>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+  // Each row: [ID, Priority, Requirement, Acceptance criteria, Status, Gap]
+  // Status/Gap added by a code audit (Sep 28, 2026) -- see the callout
+  // above section 3. Have = fully meets the acceptance criteria; Partial
+  // = something exists but falls short (Gap says what); Missing =
+  // nothing found. Gap is blank for Have rows.
+  const FR = [
+    ['1', 'Stock detail page', [
+      ['DET-1','Must','One page per stock: price chart with 1D to 5Y ranges, key stats, the model\'s current signals, reasons, fundamentals, earnings date and news.','Page loads in under 1.5 s with all sections filled or explained if missing.','Have','/stock/{ticker} has a price chart with all six ranges (1D — 5-minute intraday bars, the one genuinely new piece of plumbing — through 5Y), key stats, current signal + reasons, fundamentals, earnings date, dividends, and a news/sentiment reading. Sentiment loads on a button click rather than the initial page load (real search + LLM cost per call), same allowance the acceptance criteria gives a missing section, applied to a deliberately deferred one instead.'],
+      ['DET-2','Must','Show the user\'s position when owned: shares, cost basis, gain/loss, weight in their portfolio.','Numbers match the Portfolio page.','Have','GET /stock/{ticker}/position shows shares, avg cost, gain/loss % and portfolio weight (via the same concentration function the Portfolio page\'s own flagging uses), read from the same portfolio_positions table as the Portfolio page.'],
+      ['DET-3','Must','Show this stock\'s own prediction history: past signals, what happened, hit or miss.','Every past signal for the stock is listed with its outcome.','Have','Every day\'s short/long signal is evaluated against the ticker\'s own realized price move: Buy/Trim get hit or miss once their horizon elapses (10 trading days short-term, ~1 trading year long-term); Hold shows the realized return with no verdict, since it made no directional call. A row too recent to have matured reports a null outcome rather than a guess -- honest, not silently omitted.'],
+      ['DET-4','Should','Mark signal changes, earnings dates and dividends on the price chart.','Markers show a tooltip with details.','Have','Earnings (diamond), dividend (circle) and signal-change (triangle) markers plot on the price chart, each snapped to that date\'s close and with a hover tooltip (EPS, dividend amount, or the specific short/long signal change). Skipped on the 1D range, whose x-axis is intraday timestamps with no meaningful snap point for a date-only event.'],
+      ['DET-5','Should','Show peers: 5 closest stocks by sector and size with their scores.','Clicking a peer opens its page.','Have','GET /stock/{ticker}/peers finds 5 real same-sector, closest-market-cap tickers, merges in each one\'s latest short/long score and signal (one query, DISTINCT ON picks the newest row per peer), and links to each one\'s page. A peer with nothing computed yet just shows no badge, same honest-gap convention as everywhere else.']
+    ]],
+    ['1', 'Short-term and long-term scores', [
+      ['SCR-1','Must','Compute two scores (0–100) per stock nightly: short term (10–90 days: momentum, earnings revisions, earnings surprise, short-term reversal) and long term (1–3 years: quality, value, growth, low volatility).','Both scores exist for every stock in the universe each trading day.','Have','All 8 factors now compute: short-term = momentum + reversal + earnings surprise + earnings revisions; long-term = value + growth + low-volatility + quality. The earlier "no data source exists" conclusion for the 3 missing factors was re-investigated and found wrong -- yfinance (already this app\'s data source) has real, usable data for all of them (Surprise(%), eps_trend, ROE/profit-margin), confirmed by hand-calculating real AAPL/MSFT/NVDA values. Earnings surprise/revisions are always source: "live" (quarterly/rolling-consensus data, not a daily series, so no PIT table); Quality blends ROE%+profit-margin% (debt/equity deliberately excluded -- it\'s lower-is-better, and averaging it in pre-percentile with two higher-is-better metrics would distort the blend). Weights rebalanced (both sum to 1.0) -- reasoned defaults, not backtested, same as the original 5-factor weights.'],
+      ['SCR-2','Must','Map scores to signals (Buy / Hold / Trim) with a confidence % and a stated horizon.','Signal, confidence and horizon always appear together.','Have','GET /stock-scores/{ticker} always returns signal (Buy ≥70 / Hold / Trim ≤30), confidence (score + label) and a fixed horizon string together -- never one without the others.'],
+      ['SCR-3','Must','Show each score\'s rank in the universe and within its sector.','"Top 8% of S&P 500, top 3 of 22 in Semis".','Have','Live on /stock/{ticker}, verified against real production data: "Top 25% of S&P 500, top 28 of 85 in Information Technology" -- the exact target format. Universe-wide percentile is percentile_rank() over the whole universe\'s composite scores (distinct from the weighted-average-of-factor-percentiles that produced the score itself); sector rank+count is a genuine ordinal position (pandas rank with ties sharing the same rank), not a percentage.'],
+      ['SCR-4','Must','Show the score trend over 12 weeks and flag big changes.','A 15-point weekly change is highlighted.','Have','flag_12week_trend flags a week-over-week move ≥15 pts exactly; the sparkline and "±X pts this week" badge on the stock page only render when flagged.']
+    ]],
+    ['1', 'Explainable signals', [
+      ['EXP-1','Must','Break every score into factor-group contributions (section 5) and show the top 3 drivers and top 2 drags.','Contributions add up to the score\'s distance from average.','Have','Drivers/drags are correctly ranked and split top-3/top-2, both scores have 4 factors each (SCR-1) so "top 3 drivers" can genuinely surface 3, and compute_factor_contributions now renormalizes weights the same way the score itself does -- verified on real production data for a ticker missing a factor (VMRK: momentum 6.13 + reversal 6.87 + earnings_revisions 1.48 = 14.48, matching score(64.47)−50=14.47 to the penny; previously off by ~20%, proportional to the missing weight\'s share).'],
+      ['EXP-2','Must','Write each driver as a plain sentence with the real number.','"Analysts raised next-year EPS estimates 6% in 30 days."','Have','Deterministic sentence templates (not LLM) fill in the real captured number and percentile per factor, e.g. "Momentum: up 6.2% over the trailing 30 trading days — 82nd percentile."'],
+      ['EXP-3','Must','Explain what changed since last week.','Weekly change names the factor that moved most.','Have','weekly_change_explanation names the single factor whose contribution moved most vs. ~7 days ago, shown as "Since {date}: {factor} moved the most."'],
+      ['EXP-4','Should','Let users open a factor to see its history and how the stock compares to its sector.','Factor view shows 1-year history and sector median.','Partial','Clicking any factor sentence opens a chart of that factor\'s own history against its sector median (GET /stock-scores/{ticker}/factor/{factor}, one query using percentile_cont for the median). History is capped at 252 trading days but stock_scores itself has only ~2 days on record so far, so the "1-year" acceptance criterion is honestly unmet by data depth, not by the feature -- it self-heals as history accumulates.']
+    ]],
+    ['1', 'Public track record', [
+      ['TRK-1','Must','Store every published prediction append-only with time, model version, horizon, signal, confidence and features.','No update or delete path exists for published predictions.','Have','The published-signals table has no update/delete route (a separate user-facing saved-predictions table does allow delete, but that\'s not the public record).'],
+      ['TRK-2','Must','Score matured predictions and show the metrics in section 4, by horizon, signal and model version.','Metrics recompute nightly and match an offline check.','Have','Average return, excess-vs-SPY, rank correlation (IC), a model-version breakdown, and now a signal breakdown are all shown, recomputed nightly for horizons 10/30/60/90. published_signals has no signal-type column at all (a pure momentum rank, not just single-valued in today\'s data) -- per explicit user decision, metrics_by_signal returns the one real group this record has ({"Buy": {...}}) with an explicit note why, rather than fabricating a split or changing what the live system actually publishes. Live-verified: Buy group\'s 105 picks exactly match the overall total.'],
+      ['TRK-3','Must','Show calibration: stated confidence vs actual hit rate.','Chart shows each confidence bucket with its sample size.','Have','Calibration buckets (50–60…90–100%) with hit rate and sample size render on the Live tab. Confidence is now a stability proxy genuinely sourced from this ranking\'s own 41-day publication history (was a ticker in the top-N that day, fed through the same flip-count/stability functions Stage A\'s own signal uses) instead of a different, unrelated signal\'s stability -- not a literal stated probability (this is a pure rank, not a probabilistic forecast), but no longer borrowed. Live-verified: real hit-rate data now populates 2 of 5 buckets (70-80%: 70.0% over 80 picks; 90-100%: 70.0% over 20 picks).'],
+      ['TRK-4','Must','Keep live results and backtests on separate tabs with different labels.','Backtest tab is labeled "Hypothetical" on every chart.','Have','Live and Hypothetical are separate tabs with a persistent "Hypothetical" label on that tab\'s panels; the $10k-vs-SPY chart lives only on the Live tab.'],
+      ['TRK-5','Must','List worst misses openly.','Top 10 misses per horizon are visible.','Have','Top-10 worst-misses table per horizon, with an explicit note that only Buy-side misses exist since no Trim signals are published under this record.'],
+      ['TRK-6','Should','Show the model portfolio (equal-weight Buys, after costs) vs SPY.','Growth-of-$10,000 chart with assumptions listed.','Have','A genuine non-overlapping-period growth-of-$10,000 chart for equal-weight Buys vs SPY, now after assumed trading costs: 10 bps one-way (20 bps round-trip per rebalance -- selling the outgoing cohort, buying the incoming one), a reasoned retail slippage/spread default for liquid S&P 500 names, not backtested. SPY\'s own curve isn\'t charged this (a real buy-and-hold benchmark isn\'t repeatedly traded). The exact bps figure is returned by the API and shown on-screen. Live-verified: first period compounds to $10,579.60 post-cost.']
+    ]],
+    ['2', 'Screener', [
+      ['SCN-1','Must','Filter the universe by short and long-term score, signal, sector, market cap, valuation, momentum, volatility, dividend yield, and owned / watchlisted.','Any combination returns results in under 1 s.','Have','All listed dimensions now filterable client-side (µs-scale over the already-fetched result set, well under 1s): short/long-term score + signal (bulk-merged server-side from stock_scores), sector, market cap, forward P/E (valuation), 3-month return (momentum), 6-month volatility, dividend yield (live from yfinance, corrected to not be double-scaled), and owned/watchlisted (bulk-joined from portfolio_positions/watchlist_alerts, excluding auto-created price-alert rows so "watchlisted" stays distinct from "owned"). Live-verified with real filtering (e.g. a preset narrowed 503->10 tickers) and real per-ticker values.'],
+      ['SCN-2','Must','Sort by any column and show results as a table with sparklines.','Sorting keeps filters applied.','Have','Sort-keeps-filters was already correct. Added a Spark 90D column: last 90 closes, zero new fetches (reuses the history already pulled per row), rendered inline via the existing Sparkline component, colored by the row\'s own 1-month-return sign. Live-verified rendering with real, varied per-ticker shapes.'],
+      ['SCN-3','Should','Save screens and get an alert when a stock enters or leaves one.','Saved screen alert fires after the nightly run.','Have','New nightly job (16:30 ET, after scores compute) re-applies each saved screen\'s own filters server-side (apply_filters mirrors the page\'s own client-side predicate exactly) to the day\'s fresh table, diffs against the prior day\'s full matching-ticker set, and emails the owner only on a genuine enter/leave change -- gated behind an admin opt-in flag (off by default; the account holder enabled it live during testing). Live-verified end-to-end on a real saved screen: a real membership change was detected, a real email was sent, and emailed_at was correctly stamped (a bug caught and fixed during this same verification pass).'],
+      ['SCN-4','Could','Offer preset screens ("High quality at a fair price", "Rising estimates", "Low volatility dividend").','Each preset explains its rules.','Have','All three named presets ship as a static, code-defined list (not editable/deletable user data), each with a plain-English rules sentence shown directly under its name -- not hidden behind a click. Loading a preset sets the goal/filters exactly like loading a saved screen. Live-verified: each preset visibly narrows the real result set as its rules describe.']
+    ]],
+    ['2', 'Earnings calendar', [
+      ['ERN-1','Must','Show upcoming earnings for held and watchlisted stocks with date, time (before/after market) and consensus estimates.','Calendar covers the next 30 days.','Have','New /earnings page + GET /api/v1/earnings/calendar: unions owned (portfolio_positions) and manually-watchlisted (watchlist_alerts, excluding portfolio-auto-created rows) tickers, shows every one with an earnings date in the next 30 days -- date, before/after-market (inferred from the report timestamp, disclosed as inferred, not a confirmed provider flag), and EPS consensus estimate. Live-verified against this account\'s real 30+ held tickers.'],
+      ['ERN-2','Must','Show the last 8 quarters: beat/miss on EPS and revenue and the stock\'s move the next day.','History table per stock.','Have','A real 8-quarter history table now renders on every stock\'s detail page: EPS estimate/actual/beat-miss/surprise% (confirmed against real data, e.g. AAPL\'s 6.74% surprise matches this session\'s earlier hand-calculation) and a before/after-market-aware next-day move (before-market compares the prior close to earnings-day\'s; after-market compares earnings-day\'s close to the next day\'s). Revenue beat/miss is disclosed as "Not available" for every quarter, not fabricated or silently dropped -- no data source anywhere (yfinance or otherwise) has a historical record of what revenue was estimated to be at the time of a past quarter, only forward-looking current-consensus snapshots.'],
+      ['ERN-3','Should','Show the typical earnings-day move size (average absolute move).','Displayed as "usually moves ±5.2%".','Have','"Usually moves ±X% the day after reporting (based on N of the last 8 quarters)" now shown above the earnings history table -- the average of the absolute next-day moves ERN-2 computes, with the quarter count disclosed so a thin sample (e.g. a recent IPO) doesn\'t read as a full 8-quarter average. Live-verified: AAPL shows ±2.5% across all 8 quarters.']
+    ]],
+    ['2', 'Portfolio health check', [
+      ['HLT-1','Must','Show concentration: largest positions, sector weights vs the S&P 500, fund overlap (including ETF look-through).','A stock held directly and through ETFs is combined.','Have','New Portfolio Health Check page: largest positions and a sector-weight-vs-S&P-500 comparison (reusing the existing market-cap-weighted S&P 500 approximation), plus fund overlap/ETF look-through -- a stock held directly and through a fund combines into one exposure row, computed against each fund\'s disclosed top-10 holdings (yfinance\'s hard ceiling; ~38-56% of fund weight in this account\'s real funds, clearly labeled in the UI, not implied to be complete). Sector weights are recomputed on the look-through-expanded set so ETFs (which carry no sector of their own) don\'t understate real exposure -- live-verified: this account\'s true tech exposure is 18.2% once look-through is applied, not the 0% raw positions alone would suggest.'],
+      ['HLT-2','Must','Show risk: volatility, beta, max drawdown over 1 and 3 years, correlation to the S&P 500.','Figures use daily data and state the period.','Have','Real-portfolio volatility, beta, correlation to SPY (a new computation -- zero prior use of correlation anywhere in this app), and max drawdown now shown side by side for both 1-year and 3-year windows, each stating the exact date range of the data actually used. Live-verified with real, sane figures (e.g. 1Y beta 0.98, correlation 0.98, volatility 13.1%).'],
+      ['HLT-3','Should','Show dividend income (trailing and projected) and fund fee drag in dollars per year.','Fee drag = Σ fund value × expense ratio.','Have','Trailing (last 12mo, summed by inferred payment frequency rather than a naive day-count window that was confirmed live to over-count) and projected (Yahoo\'s own forward dividend rate) income, plus fund fee drag in dollars (market value × expense ratio, confirmed live that field is already a percentage-point value) aggregated across real holdings. Live-verified: $2,565.82 trailing / $1,080.62 projected income, $75.79/year total fee drag on this account\'s real funds.'],
+      ['HLT-4','Should','List tax-loss harvesting candidates (positions below cost) with wash-sale caution.','Only shown for taxable accounts.','Have','Real positions below cost are listed (reusing the already-stored unrealized P&L), sorted by loss size, only for portfolios marked Taxable (a new account_type field, editable per portfolio, defaulting to Taxable) -- non-taxable accounts see a stated reason instead of silent emptiness. Every candidate carries an explicit wash-sale caution disclosing that this app has no transaction/lot history, so a genuine personalized 30-day repurchase check isn\'t possible -- disclosed, not faked. Live-verified against this account\'s real positions.'],
+      ['HLT-5','Must','Phrase findings as observations, not instructions ("45% in tech vs 31% in the S&P 500").','No finding says "sell" or "buy".','Have','Portfolio Review\'s flagged-position summaries are phrased as observations, with an explicit instruction not to tell the user to buy/sell.']
+    ]],
+    ['2', 'Market regime banner', [
+      ['REG-1','Must','Show a site-wide regime summary from the sentiment/regime score: trend, volatility, breadth, rates, with a label (risk-on, neutral, risk-off).','Banner updates daily with its as-of date.','Have','A site-wide RegimeBanner (shown on every authenticated page) reads a daily-computed market_regime_daily row via GET /api/v1/market/regime, showing the label plus honest breadth/volatility/trend/risk-appetite readings and the as-of date. Shipped by explicit, informed product-owner override despite the underlying engine having failed its own validation gate three times -- a permanent, non-collapsible disclosure of that gate history and the 2008 GFC finding is shown in the banner itself.'],
+      ['REG-2','Should','Show how the model\'s hit rate has differed by regime.','Track record can be filtered by regime.','Have','GET /signals/track-record joins market_regime_daily onto every outcome row and exposes a metrics_by_regime breakdown plus a regime query param that filters the whole response; the track-record page has a regime selector and a By Regime table.'],
+      ['REG-3','Could','Lower signal confidence or add a caution note in risk-off regimes.','Caution note appears on signals when regime is risk-off.','Have','A caution pill appears on stock detail pages\' score cards and a matching line in the site-wide banner when the attached regime is Risk-Off/Cautious. Deliberately does not mutate the existing confidence score/label (which would have corrupted REG-2\'s calibration math for historical rows) -- the regime is attached alongside confidence as its own field instead.']
+    ]],
+    ['2', 'Smart alerts', [
+      ['ALR-1','Must','Alert on signal changes, score crossing a threshold, earnings in 2 days, price crossing a level, and a holding falling a set % from cost.','User chooses alert types per stock or globally.','Have','All five trigger types now exist: watchlist_alerts gained score_above/score_below alongside the original price_above/price_below (one-shot, user-created per ticker); new signal_change_alerts (day-over-day stock_scores signal change), earnings_alert_log (reuses ERN-1\'s upcoming_earnings_in_window at window_days=2), and cost_drop_alerts (vs. avg_cost, distinct from the existing prior-close drop scan) each run as their own daily/interval scheduler job. /alerts/settings lets a user enable/disable each of the three new types and choose channels globally or mute one type for a specific ticker.'],
+      ['ALR-2','Must','Deliver by push, email and in-app, with quiet hours and a daily digest option.','No more than one alert per stock per type per day.','Partial','Email, in-app, quiet hours and a daily digest all now work via a single notification_dispatcher funnel (queues into pending_digest_items during quiet hours or digest mode, an hourly job flushes one consolidated email); the one-per-day cap is enforced by each alert table\'s own unique(user_id, ticker, alert_date, ...) constraint. Push is the one channel still missing -- deliberately deferred (no service worker/VAPID/subscription infrastructure exists yet, and it is the one channel this app\'s curl/psql/Playwright verification discipline cannot directly confirm).'],
+      ['ALR-3','Should','Webhook delivery for power users.','Webhook payload includes stock, alert type, values and link.','Have','notification_dispatcher fires an HMAC-SHA256-signed POST (X-Signature header, verified live against a real external endpoint from production) whenever a user has a webhook configured, independent of their email quiet-hours/digest settings. Payload is exactly {ticker, alert_type, values, link}; the signing secret is generated once server-side and shown to the user exactly one time.']
+    ]],
+    ['3', 'Scenario and stress tests', [
+      ['STR-1','Should','Estimate portfolio impact of preset shocks: rates +1%, oil +30%, tech −20%, market −10%, and historical replays (2008, 2020, 2022).','Result shows estimated $ and % change with method.','Have','New /portfolio/stress-test page. Preset shocks are beta-based estimates against a disclosed real-world proxy (SPY/XLK/USO/TLT) -- live-verified against a real portfolio: the SPY-shock beta (0.985) matches the already-shipped Portfolio Health risk page\'s own beta_to_spy exactly, since both now share one extracted function. The rates "+1%" preset is translated into a disclosed, hedged -17% TLT proxy move (TLT\'s commonly-cited ~17yr duration), never presented as exact. Historical replays (2008 GFC, 2020 COVID, 2022 bear market) use each holding\'s own actual realized return over the fixed window -- live-verified: the 2020 COVID replay showed a real -30.15%/-$33,145 impact matching known real fund drawdowns from that crash. A holding with no price history that far back is excluded with disclosure, not estimated via a second model.'],
+      ['STR-2','Could','Let users build a custom scenario by sector and factor moves.','Custom scenario saves and reruns.','Have','Sector components apply directly (1:1) to holdings classified in that GICS sector; factor components apply via the same portfolio-beta math the presets use. Components combine by simple addition, explicitly disclosed as not modeling cross-factor correlation. Save/list/delete live-verified end-to-end against the real account, including RLS scoping confirmed via psql; rerun is entirely client-side (loads the saved config back into the builder), same precedent as Stock Finder\'s saved screens.'],
+      ['STR-3','Must','Label all scenario results as estimates with the method (betas or historical replay).','Method and assumptions shown under every result.','Have','Every preset, replay, and custom-scenario result carries its own plain-English `method` string, rendered directly under the result in the same amber-disclosure-box convention used elsewhere in the app (e.g. Portfolio Health\'s fund-overlap disclosure) -- confirmed present and non-empty for every preset/replay via a dedicated regression test, and live-verified in each curl response above.']
+    ]],
+    ['3', 'Ask about a stock or portfolio', [
+      ['ASK-1','Should','Answer questions about a stock or the user\'s portfolio using app data and news, with cited sources.','Every factual claim has a source or app-data reference.','Have','Chat now has a portfolio-wide mode (holdings/sector/risk data, cross-checked live against the already-shipped /health/risk endpoint — exact match) alongside single-ticker mode. News claims carry real article URLs taken from the structured search response (never LLM-reparsed) via a Sources: block; other claims are attributed to the app tool that produced them. Honest caveat: non-news "sources" are tool-attribution, not independent third-party citations.'],
+      ['ASK-2','Must','Say "I don\'t know" or "no clear cause found" instead of guessing.','Tested on questions with no available answer.','Have','System prompt and the post-tool summarization prompt both explicitly instruct the model to say it doesn\'t know rather than guess; failed tool calls are tracked separately from real data so a failure can never be summarized as if it were a fact, and a request where every tool fails returns an honest message directly without ever invoking the LLM. Live-verified: a nonsense ticker ("ZZZZQ") asked about a price move returned "no clear driver" instead of a fabricated explanation; automated tests cover both the all-tools-fail and one-tool-fails cases.'],
+      ['ASK-3','Must','Refuse personalized buy/sell instructions and point to the signals and disclosures instead.','Prompt tests cover this.','Have','The financial agent\'s prompt explicitly forbids investment advice or buy/sell recommendations.']
+    ]],
+    ['3', 'Filing and earnings-call summaries', [
+      ['SUM-1','Should','Summarize each new 10-Q/10-K: what changed vs last filing (revenue drivers, margins, new risks, guidance).','Summary appears within 24 h of filing, with section links.','Have','Real SEC EDGAR filing text (no paid API), diffed against the prior same-type filing, daily opt-in job. Live-verified on AAPL\'s real 10-K/10-Q: correctly surfaced the 2025 tariff/Section 232 risk additions vs the 2024 filing, and correctly said guidance "is not addressed in either filing" rather than inventing any. "Section links" honestly go to the full filing document (SEC\'s HTML has no stable per-section anchor), with the summary naming which Item each point is drawn from.'],
+      ['SUM-2','Should','Summarize earnings calls: key numbers, guidance up/down/same, management tone, analyst concerns.','Summary links to the transcript sections it used.','Partial','Deliberately narrower than the requirement, disclosed as such in-product: real SEC EDGAR 8-K Exhibit 99.1 earnings press release (free, no account needed), covering key numbers, guidance, and management tone -- but NOT analyst concerns, since EDGAR has no call transcript or Q&A at all, and the UI/prompt both say "Earnings Release Summary," never "Earnings Call Summary," so that gap is stated, not implied away. Live-verified on MSFT\'s real Q4 2026 release: correctly surfaced real figures (revenue, EPS, segment growth) and correctly said guidance figures aren\'t disclosed in the release rather than inventing any. Built behind a small provider seam so a real transcript provider (e.g. Equibles/Alpha Vantage) can close the Q&A gap later -- needs an account/API key only a human can set up, not pursued this round.']
+    ]],
+    ['3', 'Daily brief', [
+      ['BRF-1','Should','Morning brief per user: holdings\' overnight moves, signal changes, earnings today, regime, top news on their stocks.','Readable in about 2 minutes; sent before market open.','Have','Shipped Oct 2026: daily job (weekdays 07:00 ET, off by default -- admin opts in via the Scheduler page) emails every user with an active-portfolio position a 5-section brief: overnight moves (via compute_portfolio_performance), today\'s signal changes (signal_change_alerts), earnings today (upcoming_earnings_in_window, window_days=1), market regime (regime_as_of), and top news on up to 3 most-moved/signal-changed tickers (score_tickers_sentiment, capped at 3 real LLM calls/user/day -- cache hits are free -- to avoid the per-holding LLM fan-out that exhausted Groq\'s daily quota during the SUM-1/SUM-2 backfill). Live-verified against a real account; market regime cross-checked directly against market_regime_daily.'],
+      ['BRF-2','Could','Evening recap of the day\'s moves in their portfolio vs the S&P 500.','Sent after close with the day\'s contribution by holding.','Have','Shipped Oct 2026: daily job (weekdays 16:30 ET, off by default -- admin opts in via the Scheduler page) emails every user with an active-portfolio position their day\'s $/% vs SPY\'s own day move, plus top 3 contributors/detractors by holding. Pure arithmetic reuse of compute_portfolio_performance, routed through the existing notification_dispatcher funnel so quiet hours/digest/channel preference apply. Live-verified against a real account\'s positions and cross-checked SPY\'s % against the live benchmark endpoint.']
+    ]],
+    ['3', 'Paper portfolios and challenges', [
+      ['PPR-1','Should','Let users run paper portfolios with virtual cash and compare against the model portfolio and SPY.','Paper results use real prices and costs.','Partial','A real Alpaca paper-trading account (virtual cash, real prices/order tickets) now exists, built for a separate live-trading spec -- but nothing compares its results against SPY or the TRK-6 model portfolio.'],
+      ['PPR-2','Could','Monthly challenges with leaderboards among friends.','Leaderboard shows returns and risk, not just returns.','Have',"Shipped Oct 2026, then extended in four rounds. Core: private challenges joined by code, ranking members' linked paper accounts over the challenge window, with return, max drawdown and annualized volatility per member; members with no data see a next step, not a fabricated 0%. Invites: email, or a connect request to an opted-in user that the recipient must accept. Scoring: the creator picks raw return, excess return vs S&P 500, Sharpe, Sortino or Calmar; Sharpe and Sortino assume a zero risk-free rate and scores need 5+ days. Every row shows its S&P 500 comparison. Equity curves rebase each member to 100 with SPY dashed; raw balances are not shown. The quant model can be added as a hypothetical daily member (its published picks, equal-weight, 10 bps per side), always labelled hypothetical. Notifications (daily rank, passed-you, ending reminder, final result) go through the alert funnel, once per member per day, behind an admin switch that is off. Badges: Top 1-3, Lowest Drawdown, Most Consistent, only for real members with full risk history. Member emails are masked everywhere. Still open: fair starting balance, rank-change column, win rate and trade count, best and worst pick, shareable final results pages, comments, copy-trading, seasons, and a 'not ranked yet' message for members without a score."]
+    ]],
+    ['3', 'Learning', [
+      ['LRN-1','Should','Plain-language tooltip on every metric and factor ("What is drawdown?").','Every metric label has a tooltip.','Partial','Built a real shared glossary (lib/glossary.ts, ~100 consolidated terms) and a self-contained MetricLabel component, replacing 9 pages\' worth of copy-pasted per-page tooltip code -- fixed 2 real dead-tooltip bugs found in the process. Extended real coverage to 3 previously-uncovered data-heavy pages (Portfolio Health -- including the literal "What is drawdown?" example, live-verified -- Stress Test, and the stock detail page). Still Partial, honestly: roughly 28 of this app\'s 40 pages are outside this pass and have no tooltip coverage yet; "every metric app-wide" isn\'t done, but the infrastructure now makes each additional page a small diff instead of a redesign.'],
+      ['LRN-2','Could','Short guides on reading signals, risk and diversification.','Guides link from relevant pages.','Have','Shipped Oct 2026: /guides index + 3 guide pages (Signals, Risk, Diversification), real prose grounded in this app’s own mechanics, linked from a Guides nav entry and from Entry/Screener/Quant-vs-Analyst/Portfolio (Signals), Health Check/Stress Test (Risk), and Health Check/Build Index (Diversification).']
+    ]],
+    ['4', 'Automated trading agent', [
+      ["AGT-1", "Must", "Three modes: Plan, Paper, Live. Default is Plan.", "A new install places no orders until the mode is changed.", "Have", "Default plan. Live is accepted as a setting only to be rejected and journaled; no live order path can execute."],
+      ["AGT-2", "Must", "Live mode requires the validation gate, typed opt-in, and a server-side ALLOW_LIVE_TRADING flag.", "Live orders are rejected if any gate is missing; the rejection is logged.", "Partial", "Live is hard-blocked and every attempt is journaled with the reason (live-verified). The three gates are not separately checked yet: the validation gate (AGT-30) does not exist, so live stays off by construction."],
+      ["AGT-3", "Must", "Kill switch: one control (UI and admin) stops all new orders immediately, leaving protective stops in place.", "After activation, no new order is submitted on the next run; stops remain open.", "Have", "Per-user kill on the Trading Agent page and a global admin kill switch. Both are re-read before every submit. Unit-tested that stops are untouched; not yet exercised live."],
+      ["AGT-4", "Must", "Runs on a schedule (15:45 ET trading days), only when the broker clock says the market is open.", "No orders on market holidays or outside session hours.", "Have", "Scheduled job at 15:45 ET weekdays. Orders require the broker clock to report open, which covers holidays. Plan runs still compute outside hours; they place nothing."],
+      ["AGT-5", "Must", "Candidates come from SCR-1 scores, restricted to Buy signals.", "Every buy traces to a stored score and signal for that date.", "Have", "Candidates read the latest stock_scores rows for universe All with short_signal = Buy."],
+      ["AGT-6", "Must", "Trend filter: only buy stocks above their 200-day moving average.", "No buy for a stock below its 200-DMA on that date.", "Have", "Enforced in filter_candidates. The live plan run skipped four candidates below their 200-day average, each with its reason journaled."],
+      ["AGT-7", "Must", "Liquidity filter: 20-day average dollar volume of $50M or more.", "Illiquid names never appear in orders.", "Have", "Enforced in filter_candidates using close times volume over 20 sessions."],
+      ["AGT-8", "Must", "Earnings blackout: no new buys within 2 trading days before earnings.", "Candidates with earnings in the window are skipped, with the reason logged.", "Partial", "Uses a conservative 4-calendar-day window because the earnings helper counts calendar days; it is stricter than 2 trading days in most weeks. Disclosed in config."],
+      ["AGT-9", "Must", "Exit when signal drops to Trim, closes below 200-DMA, or leaves the top-ranked set.", "Each exit order records which rule triggered it.", "Have", "Each exit carries its trigger (signal_trim, below_200dma, left_top_set) and plain-language reason."],
+      ["AGT-10", "Should", "Rebalance band: skip trades changing a weight by less than 1% of equity.", "Small weight drifts produce no orders.", "Have", "Enforced in plan_orders; skipped drifts are journaled."],
+      ["AGT-11", "Must", "Size positions inversely to volatility.", "Weights are recorded with each stock's 63-day volatility used to compute them.", "Partial", "Inverse-volatility weights are computed from 63-day volatility. The per-order journal reason does not yet print the volatility figure."],
+      ["AGT-12", "Must", "Cap any single position at 5% of equity and any sector at 25%.", "No fill takes a position or sector above its cap.", "Have", "Enforced in sizing and again in preflight, which rejects any buy that would breach either cap."],
+      ["AGT-13", "Must", "Cap the number of positions at 20 (configurable).", "Portfolio never exceeds the cap.", "Have", "max_positions in config; enforced in sizing and preflight."],
+      ["AGT-14", "Should", "Volatility target: estimated portfolio volatility at or below 15% annualized.", "Pre-trade estimated volatility is logged and does not exceed the target.", "Have", "Covariance-based estimate is journaled on every plan and exposure is scaled down when it exceeds 15%. The live plan estimated 10.25%."],
+      ["AGT-15", "Must", "Regime exposure cap: Risk-On 100%, Neutral 80%, Cautious 50%, Risk-Off 20%.", "Total exposure after each run is at or below the cap for that day's label.", "Have", "Caps applied in sizing and preflight. The live plan totalled $68,836 against an 80% Neutral cap of $80,000. Caveat: the regime label has failed its own release gate three times (shown on the page)."],
+      ["AGT-16", "Must", "Protective trailing stop on every position at 2.5 x ATR (3-15%), placed broker-side.", "Every open position has an active stop at the broker; a stop is not reset unless the position size changes.", "Have", "Trailing stops submitted to Alpaca as GTC sell orders, re-sized only when quantity changes. Stop integrity runs at the end of every paper run and after a failed run. Not yet exercised with real paper orders."],
+      ["AGT-17", "Must", "Daily loss limit: equity down 2% or more from prior close switches to reduce-only.", "A simulated -2% day blocks all buys and logs the reason.", "Have", "Unit-tested: a simulated -2% day blocks buys and keeps sells."],
+      ["AGT-18", "Must", "Drawdown circuit breaker: 10% below peak caps exposure at 20%; manual reset required.", "Breach triggers the cap and an alert; normal sizing resumes only after a user reset.", "Have", "Latched in agent_user_settings; reset is a journaled user action, and a trip sends an alert. Unit-tested."],
+      ["AGT-19", "Must", "Pre-trade checks on every order: no shorting, no leverage, sells within holdings, AGT-12 to AGT-15 caps.", "Orders failing any check are rejected with the specific reason.", "Have", "preflight() returns the specific reason for each rejection. Unit-tested for every check."],
+      ["AGT-20", "Must", "Sells execute before buys in each run.", "Order log shows all sells timestamped before buys in the same run.", "Have", "plan_orders returns sells first and submission follows that order. Verified in the plan journal."],
+      ["AGT-21", "Should", "AI reviewer may remove buys with a stated, dated reason.", "Output is limited to removals; any attempt to add or enlarge a trade is ignored and logged.", "Not started", "Deferred to the follow-up round, per the scope decision for this phase."],
+      ["AGT-22", "Must", "The AI reviewer cannot block or change sells, stops or risk-limit actions.", "Prompt tests confirm sells pass through unchanged.", "Not started", "Depends on AGT-21."],
+      ["AGT-23", "Must", "If the reviewer fails, the run proceeds with the deterministic plan and logs that review was skipped.", "A simulated API failure produces a completed run with a review-skipped entry.", "Not started", "Depends on AGT-21."],
+      ["AGT-24", "Must", "The reviewer's reasons cite the headline and its date.", "Every removal has a source and date.", "Not started", "Depends on AGT-21."],
+      ["AGT-25", "Must", "Append-only journal of every run and order with its reason.", "No update or delete path exists; each order links to its run.", "Have", "agent_runs and agent_order_events are insert-only by grant (no update or delete for any app role), with RLS on user_id. Status changes are new event rows."],
+      ["AGT-26", "Must", "Trading Agent page: positions, open stops, today's plan, recent orders with reasons, risk state.", "Every field matches the journal and the broker.", "Have", "Positions and stops come live from Alpaca; plan and journal come from the database. Live-verified against the broker (no positions, no stops after the plan run)."],
+      ["AGT-27", "Must", "Performance vs SPY: return, volatility, max drawdown, Sharpe, worst month, costs; Paper and Live separate.", "Paper and Live results are never combined.", "Partial", "Paper return, volatility, max drawdown, Sharpe and SPY over the same window are shown. Worst month is not computed yet (needs a month of snapshots), and costs are stated as not modelled (Alpaca paper charges no commission). No Live section exists."],
+      ["AGT-28", "Should", "Alerts on fills, stop triggers, risk-state changes and failed runs.", "Each event sends one alert within 5 minutes.", "Partial", "Alerts sent for fills (on reconcile), failed runs, positions missing stops, and breaker trips. Stop-trigger alerts are not wired; a triggered broker stop is only seen at the next reconcile."],
+      ["AGT-29", "Must", "If a scheduled run fails, no positions are left without stops, and the user is alerted.", "Fault-injection tests show stops remain and an alert is sent.", "Have", "Fault-injection test: the first position read fails mid-run; the failure path places the missing stop and alerts, with no buy attempted. An ambiguous submit is reconciled by client_order_id, not retried."],
+      ["AGT-30", "Must", "Validation gate before Live: 10-year backtest after costs beating SPY and the no-rules version on drawdown, plus 3 months of paper trading.", "Report shows both comparisons; Live stays disabled until it passes.", "Not started", "Deferred. The backtest and report are the follow-up round. The 3-month paper requirement is calendar time that cannot be shortened. Live stays disabled."],
+      ["AGT-31", "Must", "Backtests use point-in-time data and constituents, or are labeled with a survivorship-bias caveat.", "Report names its data sources and states any bias.", "Not started", "Depends on AGT-30. Point-in-time constituents only go back to when capture began, so a caveat will be required."],
+      ["AGT-32", "Must", "Backtests charge 10 bps per side and model stop exits at the next available price.", "Assumptions appear on every backtest chart, with the Hypothetical label.", "Not started", "Depends on AGT-30."],
+      ["AGT-33", "Should", "All limits in one config file; every change versioned and logged.", "Journal entries show the config version used for each run.", "Have", "services/agent/config.py holds every limit. config_version is a hash of the canonical config and is written to every run header."],
+      ["AGT-34", "Must", "Until legal review, the agent trades only the account owner's own account.", "No multi-user trading path is enabled.", "Have", "Only the owner is enabled. Enablement is admin-only and requires a compliance reference, so no other account can start trading without an admin action."],
+      ["AGT-35", "Must", "Before other users may enable automated trading, a securities lawyer must confirm whether registration or broker approval is required.", "Written sign-off is recorded before the feature flag opens to other users.", "Partial", "Enablement requires a recorded compliance reference. The legal review itself is an external process that has not happened. This is not legal advice."],
+      ["AGT-36", "Must", "Show 'Automated trading can lose money; past performance doesn't predict future results.' on the agent page and at opt-in.", "Disclosure visible on both screens.", "Have", "Shown on the Trading Agent page, which is also where admins enable users. A separate opt-in dialog for users is not built."]
+    ]],
+    ['2', 'Market regime additions', [
+      ["REG-4", "Must", "Add a rates dimension: the 3-month change in the 10-year Treasury yield plus the MOVE index, scored -1 / 0 / +1 (-1 if yields rose more than 0.50 pts or MOVE is above 120; +1 if yields fell and MOVE is below 90).", "Per spec.", "Have", "Live: 10-year yield up 0.80 pts over 3 months to 5.28%, MOVE 107; scored -1. Display-only: the existing regime label is unchanged."],
+      ["REG-5", "Should", "Add a credit dimension: the HYG / IEF ratio vs its 50-day average (+1 above, -1 below).", "Per spec.", "Have", "Live: HYG/IEF 0.864 against its 50-day average of 0.857; scored +1."],
+      ["REG-6", "Must", "Measure trend and breadth on both 50-day and 200-day windows: SPY vs its 50-DMA and 200-DMA, and % of S&P 500 stocks above each.", "Per spec.", "Have", "Shown in the banner: SPY against its 50- and 200-day averages, and the share of S&P 500 stocks above each (24.7% and 45.7% today)."],
+      ["REG-7", "Must", "Show a divergence flag when SPY is above its 50-DMA but fewer than 35% of S&P 500 stocks are.", "Per spec.", "Have", "Divergence flag set on the 35% rule. Live today: SPY above its 50-day average with 24.7% of stocks above theirs."],
+      ["REG-8", "Must", "Define every reading on screen, including risk appetite, with the ratio and window used.", "Per spec.", "Have", "Every reading names its ratio and window, e.g. 'Equal-weight vs S&P 500 (RSP/SPY), last 3 months: -4.7%'. Open: the quick-glance 'Risk appetite' chip (-0.8%) uses a different measure from this reading (-4.7%) and is not yet aligned."],
+      ["REG-9", "Must", "Explain each dimension in a plain sentence with the real number, using deterministic templates.", "Per spec.", "Have", "Every reading and takeaway sentence is built from fixed templates with the real numbers."],
+      ["REG-10", "Must", "Validate the regime label on forward risk, not forward return. Agree on the test before tuning thresholds.", "Risk-Off/Cautious days show higher average 21-day forward volatility and deeper worst drawdown than Risk-On days; divergence flag tested the same way.", "Partial", "Test agreed in advance and run once, unchanged. Result: insufficient data for both the label and divergence tests (25 Cautious days, 0 Risk-On days; 7 divergence days). The stored history cannot pass it yet. No thresholds were tuned."],
+      ["REG-11", "Should", "Use point-in-time constituents for breadth history, or label breadth backtests as subject to survivorship bias.", "Per spec.", "Have", "Met by the spec's labelling option: the methodology page states that breadth history is built from the current S&P 500 universe and is subject to survivorship bias. Point-in-time constituents are not built."],
+      ["REG-12", "Must", "Replace the banner caveat with a short plain-language disclosure; move statistics to a methodology page linked from the banner. Remove internal file paths from the UI.", "Per spec.", "Have", "Done: the banner disclosure is one plain line; statistics and test results are on /regime/methodology. No internal file paths remain in the user-facing UI."]
+    ]]
+  ];
+  const fr = document.getElementById('fr');
+  fr.innerHTML = FR.map(([ph, cat, rows]) => `
+    <section class="grp" data-ph="${ph}" data-cat="${cat}">
+      <h3><span class="phase">Phase ${ph}</span>${cat}</h3>
+      <div class="scroll"><table>
+        <thead><tr><th>ID</th><th>Priority</th><th>Requirement</th><th>Acceptance criteria</th><th>Status</th><th>Gap</th></tr></thead>
+        <tbody>${rows.map(r => `<tr data-p="${r[1]}" data-st="${r[4]}"><td class="id">${r[0]}</td><td><span class="pri ${r[1]}">${r[1]}</span></td><td>${r[2]}</td><td class="ac">${r[3]}</td><td><span class="pri ${r[4]}">${r[4]}</span></td><td class="gap">${r[5] || '—'}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </section>`).join('');
+  const all = FR.flatMap(g => g[2].map(r => [g[0], ...r]));
+  const byPh = p => all.filter(r => r[0] === p).length;
+  const byStatus = s => all.filter(r => r[5] === s).length;
+  document.getElementById('summary').innerHTML = `
+    <div class="sum"><div class="k">Features</div><div class="v">${FR.length}</div></div>
+    <div class="sum"><div class="k">Requirements</div><div class="v">${all.length}</div></div>
+    <div class="sum"><div class="k">Phase 1</div><div class="v">${byPh('1')}</div></div>
+    <div class="sum"><div class="k">Phase 2</div><div class="v">${byPh('2')}</div></div>
+    <div class="sum"><div class="k">Phase 3</div><div class="v">${byPh('3')}</div></div>
+    <div class="sum"><div class="k">Have</div><div class="v" style="color:var(--have)">${byStatus('Have')}</div></div>
+    <div class="sum"><div class="k">Partial</div><div class="v" style="color:var(--should)">${byStatus('Partial')}</div></div>
+    <div class="sum"><div class="k">Missing</div><div class="v" style="color:var(--must)">${byStatus('Missing')}</div></div>`;
+  let ph = 'All', pri = 'All', st = 'All';
+  const q = document.getElementById('q'), count = document.getElementById('count');
+  const apply = () => {
+    const term = q.value.trim().toLowerCase(); let shown = 0;
+    fr.querySelectorAll('.grp').forEach(g => {
+      let any = 0; const phOk = ph === 'All' || g.dataset.ph === ph;
+      g.querySelectorAll('tbody tr').forEach(tr => {
+        const ok = phOk && (pri === 'All' || tr.dataset.p === pri) && (st === 'All' || tr.dataset.st === st) && (!term || tr.textContent.toLowerCase().includes(term) || g.dataset.cat.toLowerCase().includes(term));
+        tr.classList.toggle('hide', !ok); if (ok) { any++; shown++; }
+      });
+      g.classList.toggle('hide', !any);
+    });
+    count.textContent = `${shown} of ${all.length} shown`;
+    let e = fr.querySelector('.empty');
+    if (!shown && !e) { e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No requirements match. Clear the search or change the filters.'; fr.appendChild(e); }
+    if (shown && e) e.remove();
+  };
+  const wire = (id, key, set) => document.querySelectorAll(`#${id} button`).forEach(b => b.addEventListener('click', () => {
+    set(b.dataset[key]); document.querySelectorAll(`#${id} button`).forEach(x => x.setAttribute('aria-pressed', x === b)); apply();
+  }));
+  wire('phSeg', 'ph', v => ph = v);
+  wire('priSeg', 'p', v => pri = v);
+  wire('stSeg', 'st', v => st = v);
+  q.addEventListener('input', apply);
+  apply();
+})();
+</script>
+
+</body>
+</html>
