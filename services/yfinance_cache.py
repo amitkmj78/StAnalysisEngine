@@ -36,10 +36,28 @@ def get_cached_info(ticker: str) -> dict:
     return fetch_with_backoff(lambda: yf.Ticker(ticker).info) or {}
 
 
-@ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
 def get_cached_history(
     ticker: str, period: str, auto_adjust: bool | None = None, interval: str | None = None
 ) -> pd.DataFrame:
+    """Price history for every chart, screen and backtest. Follows the admin price-source switch: Yahoo through
+    yfinance, or Alpaca's bars. The provider is part of the cache key, so a switch never serves the other source's data."""
+    from .price_provider import get_price_provider
+
+    provider = get_price_provider()
+    if provider == "alpaca":
+        return _alpaca_history(ticker, period, interval)
+    return _yahoo_history(ticker, period, auto_adjust, interval)
+
+
+@ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
+def _alpaca_history(ticker: str, period: str, interval: str | None) -> pd.DataFrame:
+    from .alpaca_client import get_alpaca_history
+
+    return get_alpaca_history(ticker, period, interval)
+
+
+@ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
+def _yahoo_history(ticker: str, period: str, auto_adjust: bool | None, interval: str | None) -> pd.DataFrame:
     """
     Shared yf.Ticker(ticker).history(period=period, ...). `auto_adjust`
     defaults to None (yfinance's own default) rather than True, so
