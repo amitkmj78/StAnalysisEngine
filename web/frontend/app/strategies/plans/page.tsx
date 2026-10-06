@@ -18,6 +18,7 @@ import type {
   AccountType,
   DollarsMode,
   GoalPlan,
+  GoalPlanFix,
   ReturnAssumptionRow,
   SavedStrategyPlan,
   SolveMode,
@@ -208,8 +209,8 @@ export default function StrategiesPage() {
     }
   }
 
-  async function runPlan(e: React.FormEvent) {
-    e.preventDefault();
+  // Runs the plan with the given form values. A fix button passes its own values, so the form and the result always match.
+  async function requestPlan(values: { targetAmount: number; years: number; monthlyContribution: number }) {
     setLoading(true);
     setError(null);
     try {
@@ -224,9 +225,9 @@ export default function StrategiesPage() {
         stock_universe: stockUniverse,
         top_n: String(topN),
       };
-      if (mode !== "achievable_amount") params.target_amount = String(targetAmount);
-      if (mode !== "time_to_goal") params.years = String(years);
-      if (mode !== "required_contribution") params.monthly_contribution = String(monthlyContribution);
+      if (mode !== "achievable_amount") params.target_amount = String(values.targetAmount);
+      if (mode !== "time_to_goal") params.years = String(values.years);
+      if (mode !== "required_contribution") params.monthly_contribution = String(values.monthlyContribution);
       if (mode !== "required_return") params.annual_return_pct = String(annualReturnPct);
 
       const res = await getStrategiesSummary(params);
@@ -239,13 +240,32 @@ export default function StrategiesPage() {
     }
   }
 
+  function runPlan(e: React.FormEvent) {
+    e.preventDefault();
+    void requestPlan({ targetAmount, years, monthlyContribution });
+  }
+
+  // STRAT-8: a fix fills the form with its value and re-runs the plan.
+  function applyFix(fix: GoalPlanFix) {
+    const next = { targetAmount, years, monthlyContribution };
+    if (fix.type === "more_time" && fix.years_needed != null) next.years = Math.ceil(fix.years_needed * 10) / 10;
+    if (fix.type === "more_contribution" && fix.monthly_contribution_needed != null) next.monthlyContribution = Math.ceil(fix.monthly_contribution_needed);
+    if (fix.type === "lower_target" && fix.achievable_target_future_dollars != null) {
+      next.targetAmount = dollarsMode === "today" ? Math.floor(fix.achievable_target_today_dollars ?? fix.achievable_target_future_dollars) : Math.floor(fix.achievable_target_future_dollars);
+    }
+    setYears(next.years);
+    setMonthlyContribution(next.monthlyContribution);
+    setTargetAmount(next.targetAmount);
+    void requestPlan(next);
+  }
+
   const plan = data?.plan ?? null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <h1 className="font-display text-2xl font-semibold text-slate-900">Strategies</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Build a feasible plan — pick what to solve for, see whether it's realistic, and get the candidates behind it.
+        Build a feasible plan — pick what to solve for, see whether it&apos;s realistic, and get the candidates behind it.
       </p>
 
       {plansError && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{plansError}</p>}
@@ -448,15 +468,53 @@ export default function StrategiesPage() {
         <div className="mt-6 flex flex-col gap-6">
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-semibold text-slate-900">{plan.solved_field_label}</h2>
+            {plan.mode === "required_return" && plan.solved_value !== null && (
+              <div className="mt-3">
+                <p className="text-2xl font-semibold text-slate-900">
+                  You&apos;d need about <span className={plan.solved_value > 15 ? "text-red-700" : "text-slate-900"}>{plan.solved_value.toFixed(0)}%</span> a year
+                  for {plan.years.toFixed(0)} years.
+                </p>
+                <div className="mt-3 flex flex-col gap-1.5 text-xs text-slate-600">
+                  {[
+                    { label: "Needed", value: plan.solved_value, tone: "bg-red-600" },
+                    { label: "S&P 500 long-run average", value: plan.sp500_long_run_pct ?? 10, tone: "bg-slate-500" },
+                    { label: "Your inputs at 8% a year", value: plan.realistic_return_pct ?? 8, tone: "bg-emerald-700" },
+                  ].map((bar) => (
+                    <div key={bar.label} className="flex items-center gap-2">
+                      <span className="w-44 shrink-0">{bar.label}</span>
+                      <span className="h-2 flex-1 overflow-hidden rounded bg-slate-100">
+                        <span className={`block h-full ${bar.tone}`} style={{ width: `${Math.min(100, (bar.value / Math.max(plan.solved_value ?? 0, 10)) * 100)}%` }} />
+                      </span>
+                      <span className="w-12 shrink-0 text-right font-mono">{bar.value.toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">The S&amp;P 500 long-run figure is a rounded average before fees and inflation.</p>
+              </div>
+            )}
+            {plan.mode === "required_return" && plan.solved_value === null && (
+              <p className="mt-1 text-2xl font-semibold text-slate-900">Over 1,000% a year for {plan.years.toFixed(0)} years.</p>
+            )}
+            {plan.mode !== "required_return" && (
             <p className="mt-1 text-2xl font-semibold text-slate-900">
-              {plan.mode === "required_return"
-                ? plan.solved_value !== null ? `${plan.solved_value.toFixed(1)}%` : "Not reachable"
-                : plan.mode === "required_contribution"
+              {plan.mode === "required_contribution"
                 ? fmtMoney(plan.solved_value) + "/mo"
                 : plan.mode === "time_to_goal"
                 ? plan.solved_value !== null ? `${plan.solved_value.toFixed(1)} years` : "Not within 60 years"
                 : fmtMoney(plan.solved_value)}
             </p>
+            )}
+            {plan.reach_today_dollars != null && (
+              <p className="mt-3 text-sm text-slate-700">
+                At {plan.realistic_return_pct ?? 8}% a year, these inputs reach about{" "}
+                <span className="font-mono font-semibold">{fmtMoney(plan.reach_today_dollars)}</span> in today&apos;s dollars.
+                {plan.target_vs_reach_ratio != null && plan.target_vs_reach_ratio > 3 && (
+                  <span className="mt-1 block text-amber-800">
+                    The target is about {plan.target_vs_reach_ratio.toFixed(1)} times what these inputs reach at {plan.realistic_return_pct ?? 8}% a year.
+                  </span>
+                )}
+              </p>
+            )}
             <p className="mt-2 text-sm text-slate-600">
               Target: {fmtMoney(plan.target_today_dollars)} in today&apos;s dollars ·{" "}
               {fmtMoney(plan.target_future_dollars)} in future dollars (at {plan.years.toFixed(1)}y, {plan.inflation_pct}% inflation)
@@ -477,19 +535,33 @@ export default function StrategiesPage() {
               <p className="text-sm font-medium text-red-800">{plan.feasibility_message}</p>
               {plan.fixes && (
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {plan.fixes.map((fix) => (
-                    <div key={fix.type} className="rounded-md border border-red-200 bg-white p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-red-700">{fix.label}</p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {fix.type === "more_time" && (fix.years_needed != null ? `${fix.years_needed} years instead of ${plan.years.toFixed(1)}` : "N/A")}
-                        {fix.type === "more_contribution" &&
-                          (fix.monthly_contribution_needed != null
-                            ? `${fmtMoney(fix.monthly_contribution_needed)}/mo instead of ${fmtMoney(plan.monthly_contribution)}/mo`
-                            : "N/A")}
-                        {fix.type === "lower_target" && `${fmtMoney(fix.achievable_target_future_dollars)} instead of ${fmtMoney(plan.target_future_dollars)}`}
-                      </p>
-                    </div>
-                  ))}
+                  {plan.fixes.map((fix) => {
+                    const available =
+                      (fix.type === "more_time" && fix.years_needed != null) ||
+                      (fix.type === "more_contribution" && fix.monthly_contribution_needed != null) ||
+                      (fix.type === "lower_target" && fix.achievable_target_future_dollars != null);
+                    return (
+                      <div key={fix.type} className="rounded-md border border-red-200 bg-white p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-red-700">{fix.label}</p>
+                        <p className="mt-1 text-sm text-slate-800">
+                          {fix.type === "more_time" && (fix.years_needed != null ? `${fix.years_needed} years instead of ${plan.years.toFixed(1)}` : "Not within 60 years")}
+                          {fix.type === "more_contribution" &&
+                            (fix.monthly_contribution_needed != null
+                              ? `${fmtMoney(fix.monthly_contribution_needed)}/mo instead of ${fmtMoney(plan.monthly_contribution)}/mo`
+                              : "N/A")}
+                          {fix.type === "lower_target" && `${fmtMoney(fix.achievable_target_future_dollars)} instead of ${fmtMoney(plan.target_future_dollars)}`}
+                        </p>
+                        <button
+                          type="button"
+                          disabled={!available || loading}
+                          onClick={() => applyFix(fix)}
+                          className="mt-2 rounded-md border border-red-300 px-2.5 py-1 text-xs font-medium text-red-800 hover:bg-red-50 disabled:opacity-40"
+                        >
+                          Use this
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               {plan.return_assumption_table && <ReturnAssumptionTable rows={plan.return_assumption_table} tone="red" />}

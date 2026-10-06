@@ -489,6 +489,11 @@ export interface GoalPlan {
   feasibility_message: string | null;
   fixes: GoalPlanFix[] | null;
   return_assumption_table: ReturnAssumptionRow[] | null;
+  realistic_return_pct?: number;
+  sp500_long_run_pct?: number;
+  reach_today_dollars?: number | null;
+  reach_future_dollars?: number | null;
+  target_vs_reach_ratio?: number | null;
   horizon_warnings: string[];
   monte_carlo: MonteCarloResult | null;
 }

@@ -268,6 +268,12 @@ def get_diverse_strategy_picks(
 # ---------------------------------------------------------------------------
 
 FEASIBILITY_WARN_THRESHOLD_PCT = 12.0
+# STRAT-8: the plain benchmark and the realistic return the fixes are solved at. The S&P 500 long-run figure is a
+# rounded, widely quoted average of the index's total return before fees and inflation.
+REALISTIC_RETURN_PCT = 8.0
+SP500_LONG_RUN_PCT = 10.0
+# STRAT-8: the required return is searched up to this, so an unreachable goal still shows a number.
+REQUIRED_RETURN_SEARCH_MAX_PCT = 1000.0
 FEASIBILITY_BLOCK_THRESHOLD_PCT = 15.0
 
 # Taxable assumes a modest annual "tax alpha" drag from dividend/turnover
@@ -360,11 +366,11 @@ def solve_required_return(
     target: float, years: float, starting_capital: float, monthly_contribution: float, annual_increase_pct: float
 ) -> Optional[float]:
     """Annual return % (net of any tax drag -- caller adds drag back for
-    display) needed to reach `target`. None if unreachable even at 50%, or
+    display) needed to reach `target`. None if unreachable even at REQUIRED_RETURN_SEARCH_MAX_PCT, or
     if the target is already met at -20% (contribution/capital alone carry
     it, no return is "needed")."""
     months = round(years * 12)
-    return _bisect(lambda r: _future_value(starting_capital, monthly_contribution, annual_increase_pct, r, months), -20.0, 50.0, target)
+    return _bisect(lambda r: _future_value(starting_capital, monthly_contribution, annual_increase_pct, r, months), -20.0, REQUIRED_RETURN_SEARCH_MAX_PCT, target)
 
 
 def solve_required_contribution(
@@ -638,6 +644,11 @@ class GoalPlanResult:
     return_assumption_table: Optional[list[dict]]
     horizon_warnings: list[str]
     monte_carlo: Optional[dict]
+    realistic_return_pct: float = REALISTIC_RETURN_PCT
+    sp500_long_run_pct: float = SP500_LONG_RUN_PCT
+    reach_today_dollars: Optional[float] = None
+    reach_future_dollars: Optional[float] = None
+    target_vs_reach_ratio: Optional[float] = None
 
 
 _SOLVED_FIELD_LABELS = {
@@ -761,13 +772,13 @@ def compute_goal_plan(
             )
         )
         fix_years = solve_time_to_goal(
-            target_future, starting_capital, contribution_for_fixes, FEASIBILITY_WARN_THRESHOLD_PCT - tax_drag_pct, annual_contribution_increase_pct
+            target_future, starting_capital, contribution_for_fixes, REALISTIC_RETURN_PCT - tax_drag_pct, annual_contribution_increase_pct
         )
         fix_contribution = solve_required_contribution(
-            target_future, years_for_fixes, starting_capital, FEASIBILITY_WARN_THRESHOLD_PCT - tax_drag_pct, annual_contribution_increase_pct
+            target_future, years_for_fixes, starting_capital, REALISTIC_RETURN_PCT - tax_drag_pct, annual_contribution_increase_pct
         )
         fix_target_future = solve_achievable_amount(
-            years_for_fixes, starting_capital, contribution_for_fixes, FEASIBILITY_WARN_THRESHOLD_PCT - tax_drag_pct, annual_contribution_increase_pct
+            years_for_fixes, starting_capital, contribution_for_fixes, REALISTIC_RETURN_PCT - tax_drag_pct, annual_contribution_increase_pct
         )
         fixes = [
             {
@@ -831,6 +842,17 @@ def compute_goal_plan(
         else None
     )
 
+    # STRAT-8: what the current inputs reach at the realistic return, in future and today's dollars.
+    reach_future = reach_today = target_ratio = None
+    if years:
+        reach_future = _future_value(
+            starting_capital, contribution_for_fixes, annual_contribution_increase_pct,
+            REALISTIC_RETURN_PCT - tax_drag_pct, round(years * 12),
+        )
+        reach_today = reach_future / ((1 + inflation_pct / 100) ** years)
+        if reach_future > 0:
+            target_ratio = target_future / reach_future
+
     return GoalPlanResult(
         mode=mode,
         target_today_dollars=round(target_today, 2),
@@ -854,4 +876,9 @@ def compute_goal_plan(
         return_assumption_table=return_assumption_table,
         horizon_warnings=horizon_warnings,
         monte_carlo=monte_carlo,
+        realistic_return_pct=REALISTIC_RETURN_PCT,
+        sp500_long_run_pct=SP500_LONG_RUN_PCT,
+        reach_today_dollars=round(reach_today, 2) if reach_today is not None else None,
+        reach_future_dollars=round(reach_future, 2) if reach_future is not None else None,
+        target_vs_reach_ratio=round(target_ratio, 2) if target_ratio is not None else None,
     )

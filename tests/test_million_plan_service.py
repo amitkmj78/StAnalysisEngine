@@ -169,7 +169,7 @@ def test_feasibility_blocked_when_required_return_unreachable():
         annual_return_pct=None, inflation_pct=0, account_type="Taxable", fund_category="All",
     )
     assert plan.feasibility_level == "blocked"
-    assert plan.gross_return_pct is None
+    assert plan.gross_return_pct is not None and plan.gross_return_pct > 15  # STRAT-8: always shown, even when unrealistic
     assert plan.fixes is not None
     for fix in plan.fixes:
         # None of the three fixes should themselves crash/omit a figure just
