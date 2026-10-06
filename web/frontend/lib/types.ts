@@ -1489,6 +1489,9 @@ export interface StockDetailResponse {
 
 export type StockPriceHistoryRange = "1D" | "5D" | "1M" | "6M" | "1Y" | "5Y";
 
+// CHT-6: bar size. Intraday sizes are capped by yfinance (1 min: 7 days, 5 and 15 min: 60 days, 1 hour: 2 years).
+export type StockPriceHistoryInterval = "1m" | "5m" | "15m" | "1h" | "1D" | "1W" | "1M";
+
 export interface StockPriceHistoryRow {
   date: string;
   close: number;

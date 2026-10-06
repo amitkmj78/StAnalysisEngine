@@ -57,6 +57,11 @@ PRICE_HISTORY_RANGES = {
 INTRADAY_RANGE = "1D"
 INTRADAY_INTERVAL = "5m"
 
+# CHT-6: bar sizes the price chart offers. Intraday ones fetch the longest window yfinance keeps for that interval.
+PRICE_HISTORY_INTERVALS = ("1m", "5m", "15m", "1h", "1D", "1W", "1M")
+INTRADAY_PERIODS = {"1m": "7d", "5m": "60d", "15m": "60d", "1h": "730d"}
+PERIOD_DAYS = {"1d": 1, "5d": 5, "7d": 7, "1mo": 31, "6mo": 182, "1y": 365, "60d": 60, "730d": 730, "5y": 1826}
+
 
 @router.get("/{ticker}/detail")
 @limiter.limit("60/minute")
@@ -140,7 +145,12 @@ def _chart_indicators(history: pd.DataFrame) -> dict | None:
 
 @router.get("/{ticker}/price-history")
 @limiter.limit("60/minute")
-async def get_stock_price_history(request: Request, ticker: str, range: str = Query("1Y")):
+async def get_stock_price_history(
+    request: Request,
+    ticker: str,
+    range: str = Query("1Y"),
+    interval: str | None = Query(None, description="CHT-6: 1m, 5m, 15m, 1h, 1D, 1W or 1M. Omit for the range's default."),
+):
     """DET-1's price chart. No existing endpoint anywhere in this app
     returns raw OHLC/close history for a single ticker on demand (every
     other chart is forecast/prediction-derived, or PIT-store closes --
@@ -156,14 +166,36 @@ async def get_stock_price_history(request: Request, ticker: str, range: str = Qu
     if period is None:
         raise HTTPException(status_code=400, detail=f"range must be one of {sorted(PRICE_HISTORY_RANGES)}")
 
-    intraday = range == INTRADAY_RANGE
-    interval = INTRADAY_INTERVAL if intraday else None
-    history = await run_in_threadpool(get_cached_history, ticker, period, True, interval)
+    # CHT-6: an explicit interval picks the bar size. Without one, the old behaviour holds: 1D is 5-minute bars, the rest daily.
+    # Case-sensitive on purpose: "1m" is one minute, "1M" is one month.
+    resolved = interval or ("5m" if range == INTRADAY_RANGE else "1D")
+    if resolved not in PRICE_HISTORY_INTERVALS:
+        raise HTTPException(status_code=400, detail=f"interval must be one of {list(PRICE_HISTORY_INTERVALS)}")
+    intraday = resolved in INTRADAY_PERIODS
+    if intraday:
+        # The range's own window when yfinance keeps that much at this interval, otherwise the longest it keeps.
+        cap = INTRADAY_PERIODS[resolved]
+        fetch_period = period if PERIOD_DAYS[period] <= PERIOD_DAYS[cap] else cap
+        fetch_interval = resolved
+    else:
+        if range == INTRADAY_RANGE:
+            raise HTTPException(status_code=400, detail="Pick a range longer than 1D for daily, weekly or monthly bars.")
+        fetch_period, fetch_interval = period, None
+    history = await run_in_threadpool(get_cached_history, ticker, fetch_period, True, fetch_interval)
+    if resolved in ("1W", "1M") and not history.empty:
+        rule = "W-FRI" if resolved == "1W" else "ME"
+        bars = history.resample(rule).agg(
+            {"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}
+        ).dropna(subset=["Close"])
+        # Label each bar with its last trading day, not the period end (which can be in the future for this week or month).
+        bars.index = history.index.to_series().resample(rule).max().reindex(bars.index)
+        history = bars
     return {
         "ticker": ticker,
         "range": range,
-        # Daily ranges only: the intraday VWAP would be anchored to the first 5-minute bar.
-        "indicators": None if intraday else _chart_indicators(history),
+        "interval": resolved,
+        # Daily bars only: the intraday VWAP would be anchored to the first bar, and weekly/monthly bars are not what the indicators are tuned for.
+        "indicators": _chart_indicators(history) if resolved == "1D" else None,
         "history": [
             {
                 "date": ts.isoformat() if intraday else ts.date().isoformat(),

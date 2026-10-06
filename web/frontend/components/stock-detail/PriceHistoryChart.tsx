@@ -8,6 +8,7 @@ import { CHART_CONTROL_INFO } from "@/components/stock-detail/chartControlInfo";
 import { getStockPriceHistory } from "@/lib/api";
 import type {
   RegimeHistoryResponse,
+  StockPriceHistoryInterval,
   StockPriceHistoryRange,
   StockPriceHistoryResponse,
   StockPriceHistoryRow,
@@ -15,6 +16,19 @@ import type {
 } from "@/lib/types";
 
 const RANGES: StockPriceHistoryRange[] = ["1D", "5D", "1M", "6M", "1Y", "5Y"];
+
+// CHT-6: bar sizes. "Auto" keeps the range's own bar size (5-minute bars on 1D, daily otherwise).
+const BAR_SIZES: { key: StockPriceHistoryInterval | null; label: string }[] = [
+  { key: null, label: "Auto" },
+  { key: "1m", label: "1 min" },
+  { key: "5m", label: "5 min" },
+  { key: "15m", label: "15 min" },
+  { key: "1h", label: "1 hour" },
+  { key: "1D", label: "Day" },
+  { key: "1W", label: "Week" },
+  { key: "1M", label: "Month" },
+];
+const INTRADAY_BARS: StockPriceHistoryInterval[] = ["1m", "5m", "15m", "1h"];
 
 type PastEarnings = { date: string; reported_eps: number | null };
 type Dividend = { date: string; amount: number };
@@ -151,6 +165,8 @@ export default function PriceHistoryChart({
   data,
   range,
   onRangeChange,
+  interval = null,
+  onIntervalChange,
   loading,
   pastEarnings = [],
   recentDividends = [],
@@ -163,6 +179,8 @@ export default function PriceHistoryChart({
   data: StockPriceHistoryResponse | null;
   range: StockPriceHistoryRange;
   onRangeChange: (range: StockPriceHistoryRange) => void;
+  interval?: StockPriceHistoryInterval | null;
+  onIntervalChange?: (interval: StockPriceHistoryInterval | null) => void;
   loading: boolean;
   pastEarnings?: PastEarnings[];
   recentDividends?: Dividend[];
@@ -187,7 +205,10 @@ export default function PriceHistoryChart({
   const [extraTickers, setExtraTickers] = useState<string[]>([]);
   const extraKey = extraTickers.join(",");
 
-  const isDaily = range !== "1D";
+  // The bar size actually shown. Overlays, comparison and indicators only work on daily bars.
+  const bars = interval ?? (range === "1D" ? "5m" : "1D");
+  const isDaily = bars === "1D";
+  const isIntraday = INTRADAY_BARS.includes(bars);
   const history: StockPriceHistoryRow[] = useMemo(() => data?.history ?? [], [data]);
   const indicators = isDaily ? data?.indicators ?? null : null;
 
@@ -522,7 +543,7 @@ export default function PriceHistoryChart({
       anchor: "y",
       rangeslider: { visible: false },
       showticklabels: subPanels.length === 0,
-      ...(range === "1D" ? { tickformat: "%-I:%M %p" } : {}),
+      ...(isIntraday ? { tickformat: "%-I:%M %p" } : {}),
     },
     yaxis: {
       domain: [1 - priceShare, 1],
@@ -573,6 +594,34 @@ export default function PriceHistoryChart({
           ))}
         </div>
       </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
+        <span className="mr-1 text-slate-500">Bars:</span>
+        {BAR_SIZES.map((b) => {
+          const selected = (b.key ?? null) === (interval ?? null);
+          // Day, week and month bars need a range longer than 1D.
+          const disabled = range === "1D" && b.key !== null && !INTRADAY_BARS.includes(b.key);
+          return (
+            <button
+              key={b.label}
+              type="button"
+              disabled={disabled || !onIntervalChange}
+              onClick={() => onIntervalChange?.(b.key)}
+              className={`rounded-md px-2 py-1 font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
+                selected ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
+              }`}
+            >
+              {b.label}
+            </button>
+          );
+        })}
+      </div>
+      {isIntraday && (
+        <p className="mt-1 text-xs text-slate-400">
+          Intraday bars cover the last 7 days (1 min), 60 days (5 and 15 min) or 2 years (1 hour). Longer than that is not
+          available from the data source.
+        </p>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         {CHART_TYPES.map((c) => (

@@ -132,6 +132,7 @@ import type {
   StockDetailResponse,
   StockPeersResponse,
   StockPositionResponse,
+  StockPriceHistoryInterval,
   StockPriceHistoryRange,
   StockPriceHistoryResponse,
   StockRankResponse,
@@ -889,8 +890,11 @@ export function getMarketRegime() {
   return apiFetch<MarketRegimeResponse>("/api/v1/market/regime");
 }
 
-export function getStockPriceHistory(ticker: string, range: StockPriceHistoryRange = "1Y") {
-  return apiFetch<StockPriceHistoryResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/price-history`, { range });
+export function getStockPriceHistory(ticker: string, range: StockPriceHistoryRange = "1Y", interval?: StockPriceHistoryInterval) {
+  return apiFetch<StockPriceHistoryResponse>(`/api/v1/stock/${encodeURIComponent(ticker)}/price-history`, {
+    range,
+    ...(interval ? { interval } : {}),
+  });
 }
 
 export function getStockPosition(ticker: string, portfolioId?: number) {

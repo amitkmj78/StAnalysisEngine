@@ -30,6 +30,7 @@ import type {
   StockDetailResponse,
   StockPeersResponse,
   StockPositionResponse,
+  StockPriceHistoryInterval,
   StockPriceHistoryRange,
   StockPriceHistoryResponse,
   StockSentimentResponse,
@@ -254,6 +255,8 @@ export default function StockScorePage() {
   const [peers, setPeers] = useState<StockPeersResponse | null>(null);
 
   const [priceRange, setPriceRange] = useState<StockPriceHistoryRange>("1Y");
+  // CHT-6: null keeps the range's own bar size.
+  const [priceInterval, setPriceInterval] = useState<StockPriceHistoryInterval | null>(null);
   const [priceHistory, setPriceHistory] = useState<StockPriceHistoryResponse | null>(null);
   // DIF-9: stored regime label per day, shown as shading on the price chart (signed-in users only).
   const [regimeHistory, setRegimeHistory] = useState<RegimeHistoryResponse | null>(null);
@@ -375,11 +378,11 @@ export default function StockScorePage() {
   useEffect(() => {
     if (!ticker) return;
     setPriceLoading(true);
-    getStockPriceHistory(ticker, priceRange)
+    getStockPriceHistory(ticker, priceRange, priceInterval ?? undefined)
       .then(setPriceHistory)
       .catch(() => setPriceHistory(null))
       .finally(() => setPriceLoading(false));
-  }, [ticker, priceRange]);
+  }, [ticker, priceRange, priceInterval]);
 
   // DIF-9: the regime history is shared, so it is fetched once for signed-in users.
   useEffect(() => {
@@ -488,7 +491,13 @@ export default function StockScorePage() {
           ticker={ticker}
           data={priceHistory}
           range={priceRange}
-          onRangeChange={setPriceRange}
+          onRangeChange={(r) => {
+            setPriceRange(r);
+            // Day bars can't be shown over the 1D range, so drop a daily-or-longer bar size when the range goes to 1D.
+            if (r === "1D" && priceInterval && !["1m", "5m", "15m", "1h"].includes(priceInterval)) setPriceInterval(null);
+          }}
+          interval={priceInterval}
+          onIntervalChange={setPriceInterval}
           loading={priceLoading}
           pastEarnings={detail?.past_earnings ?? []}
           recentDividends={detail?.recent_dividends ?? []}
