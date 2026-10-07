@@ -324,6 +324,22 @@ export default function StrategiesPage() {
                       {" · saved "}
                       {new Date(p.created_at).toLocaleDateString()}
                     </p>
+                    <p className="mt-1 text-sm font-medium text-slate-800">
+                      Target {fmtMoney(p.target_amount)} by {new Date(p.created_at).getFullYear() + Math.round(p.years)}
+                    </p>
+                    {p.success_pct != null && (
+                      <p className="mt-0.5 text-xs text-slate-700">
+                        {p.success_pct.toFixed(0)}% chance of reaching it ·{" "}
+                        <span className="font-semibold">
+                          {p.success_pct >= 75 ? "Realistic" : p.success_pct >= 50 ? "Stretch" : "Unlikely"}
+                        </span>
+                      </p>
+                    )}
+                    {p.annual_return_pct > 10 && (
+                      <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                        This assumes {p.annual_return_pct.toFixed(1)}% a year. The S&amp;P 500 has averaged about 10% a year over the long run, so treat this as optimistic.
+                      </p>
+                    )}
                   </div>
                   {/* Before a full month has passed there is nothing to judge: the gap is zero by construction. */}
                   <span

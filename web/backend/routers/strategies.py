@@ -21,7 +21,8 @@ from services.index_fund_service import GOAL_WEIGHTS as FUND_GOAL_WEIGHTS
 from services.portfolio_performance_service import compute_total_portfolio_value
 from services.stock_finder_service import STOCK_UNIVERSES
 from services.data_service import get_effective_price
-from services.goal_links import sleeve_drift, steering, target_mix
+from services.million_plan_service import run_monte_carlo
+from services.goal_links import long_term_alerts, sleeve_drift, steering, target_mix
 from services.strategy_plan_service import compute_plan_progress, elapsed_months
 
 from web.backend.auth import verify_bearer_token
@@ -246,6 +247,22 @@ async def save_plan(body: SavePlanRequest, request: Request):
     return _plan_out(row, progress)
 
 
+def _success_pct(row) -> Optional[float]:
+    """STRAT-1's chance of reaching the goal, from the same seeded simulation as the plan page. None if it can't run."""
+    try:
+        result = run_monte_carlo(
+            _starting_for_progress(row),
+            float(row["monthly_contribution"]),
+            float(row["annual_contribution_increase_pct"] or 0),
+            float(row["annual_return_pct"]),
+            int(round(float(row["years"]) * 12)),
+            float(row["target_amount"]),
+        )
+    except Exception:
+        return None
+    return result.get("probability_of_success_pct") if result else None
+
+
 def _starting_for_progress(row) -> float:
     """A goal saved with a portfolio snapshot starts from that snapshot. Older goals (no snapshot) start from the amount typed."""
     try:
@@ -278,7 +295,7 @@ async def list_plans(request: Request):
             current_portfolio_value=current_value,
             annual_increase_pct=row["annual_contribution_increase_pct"],
         )
-        plans.append(_plan_out(row, progress))
+        plans.append({**_plan_out(row, progress), "success_pct": _success_pct(row)})
 
     return {"plans": plans}
 
@@ -292,7 +309,8 @@ class GoalLinkIn(BaseModel):
 
 async def _plan_row(conn, user_id: str, plan_id: int):
     row = await conn.fetchrow(
-        "SELECT id, years, monthly_contribution, created_at FROM strategy_plans WHERE id = $1 AND user_id = $2::uuid",
+        "SELECT id, years, monthly_contribution, annual_return_pct, annual_contribution_increase_pct, created_at "
+        "FROM strategy_plans WHERE id = $1 AND user_id = $2::uuid",
         plan_id, user_id,
     )
     if row is None:
@@ -336,8 +354,25 @@ async def list_goal_links(request: Request, plan_id: int):
         })
     drift = sleeve_drift(holdings, targets)
     plan_steering = steering(float(plan["monthly_contribution"] or 0), holdings, targets, prices) if holdings else None
+    months = elapsed_months(plan["created_at"])
+    linked_baseline = sum(link["baseline_value"] for link in links)
+    linked_value = sum(h["value"] for h in holdings)
+    # Progress on the linked holdings: what their starting value would have grown to at the goal's rate, with the stock
+    # share of the monthly contribution, against what they are worth now. Same contribute-then-grow maths as the plan.
+    stock_monthly = float(plan["monthly_contribution"] or 0) * targets["stock_pct"] / 100
+    progress = compute_plan_progress(
+        starting_capital=linked_baseline,
+        monthly_contribution=stock_monthly,
+        annual_return_pct=float(plan["annual_return_pct"]),
+        months_elapsed=months,
+        current_portfolio_value=linked_value,
+        annual_increase_pct=float(plan["annual_contribution_increase_pct"] or 0),
+    ) if links else None
     return {
         "plan_id": plan_id,
+        "months_elapsed": months,
+        "progress": progress,
+        "alerts": long_term_alerts(holdings, targets, drift, months),
         "targets": targets,
         "links": rows,
         "linked_value": round(sum(h["value"] for h in holdings), 2),

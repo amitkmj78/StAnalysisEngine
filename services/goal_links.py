@@ -93,3 +93,31 @@ def steering(monthly_amount: float, holdings: list[dict], targets: dict, prices:
     return {"monthly": round(monthly_amount, 2), "into_stocks": round(money, 2),
             "toward_bonds_outside_portfolio": round(monthly_amount - money, 2),
             "buys": buys, "cash": round(cash, 2)}
+
+
+REVIEW_EVERY_MONTHS = 12
+
+
+def long_term_alerts(holdings: list[dict], targets: dict, drift: dict, months_elapsed: int) -> list[dict]:
+    """Long-term alerts only: a stock past its cap, a role out of line with its target, and the yearly review. These use
+    weights and dates, not short-term price moves, which for a long-term goal mostly cause harmful selling."""
+    alerts = []
+    total = sum(h["value"] for h in holdings)
+    if total > 0:
+        for h in holdings:
+            if h["role"] != "pick":
+                continue
+            share = h["value"] / total * 100
+            cap = targets["picks_cap_pct"]
+            if share > cap:
+                alerts.append({
+                    "kind": "over_cap", "ticker": h["ticker"],
+                    "message": f"{h['ticker']} has grown to {share:.0f}% of this goal's stock holdings, above its {cap:.0f}% cap. "
+                               "Consider sending new money to the other holdings rather than selling.",
+                })
+    for message in drift.get("flags", []):
+        alerts.append({"kind": "drift", "ticker": None, "message": message})
+    if months_elapsed >= REVIEW_EVERY_MONTHS and months_elapsed % REVIEW_EVERY_MONTHS == 0:
+        alerts.append({"kind": "yearly_review", "ticker": None,
+                       "message": f"A year has passed since this goal was last reviewed. Check the mix against its target."})
+    return alerts

@@ -554,6 +554,16 @@ export interface GoalLinksResponse {
     cash: number;
   } | null;
   assumption_note: string;
+  months_elapsed: number;
+  progress: {
+    months_elapsed: number;
+    expected_value: number;
+    actual_value: number;
+    diff: number;
+    diff_pct: number | null;
+    on_track: boolean;
+  } | null;
+  alerts: { kind: "over_cap" | "drift" | "yearly_review"; ticker: string | null; message: string }[];
 }
 
 export interface StrategiesSummaryResponse {
@@ -573,6 +583,7 @@ export interface StrategyPlanProgress {
 }
 
 export interface SavedStrategyPlan {
+  success_pct?: number | null;
   id: number;
   name: string | null;
   target_amount: number;

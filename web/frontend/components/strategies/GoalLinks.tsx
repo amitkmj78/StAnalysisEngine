@@ -154,6 +154,36 @@ export default function GoalLinks({ planId }: { planId: number }) {
                 ))}
               </div>
 
+              {data.progress && (
+                <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-700">
+                  <p className="font-semibold text-slate-800">
+                    {data.months_elapsed < 1
+                      ? `Started ${new Date().toLocaleDateString()}: the linked holdings start at zero against plan.`
+                      : data.progress.on_track
+                        ? "Linked holdings are on track."
+                        : "Linked holdings are behind plan."}
+                  </p>
+                  <p className="mt-1">
+                    Linked holdings worth {money(data.linked_value)}, against {money(data.progress.expected_value)} expected by now.
+                    {data.months_elapsed >= 1 && data.progress.diff_pct !== null && (
+                      <> That is {data.progress.diff >= 0 ? "+" : ""}{money(data.progress.diff)} ({data.progress.diff_pct >= 0 ? "+" : ""}{data.progress.diff_pct.toFixed(1)}%) against plan.</>
+                    )}
+                  </p>
+                  <p className="mt-1 text-slate-500">Measured on the linked holdings only, from the value they had when linked. Assumes the monthly contribution was made.</p>
+                </div>
+              )}
+
+              {data.alerts.length > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  <p className="font-semibold">Long-term alerts</p>
+                  <ul className="mt-1 list-disc pl-5">
+                    {data.alerts.map((a) => (
+                      <li key={a.message}>{a.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {data.steering && data.steering.buys.length > 0 && (
                 <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
                   <p className="font-semibold">Next {money(data.steering.monthly)}: put {money(data.steering.into_stocks)} into these holdings</p>
