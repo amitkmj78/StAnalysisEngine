@@ -36,6 +36,12 @@ class AgentConfig:
     rebalance_band_pct: float = 1.0
     vol_target_annual_pct: float = 15.0
     max_candidates_scanned: int = 40
+    # AGT-21/23: the AI reviewer's own bounds -- a hard wall-clock limit on
+    # the LLM call (AGT-23 requires the deterministic plan to proceed
+    # unreviewed, not block, if review fails or is slow) and how far back
+    # a candidate's headlines are pulled for grounding (AGT-24).
+    ai_reviewer_timeout_seconds: float = 20.0
+    ai_reviewer_headline_lookback_days: int = 14
 
 
 CONFIG = AgentConfig()

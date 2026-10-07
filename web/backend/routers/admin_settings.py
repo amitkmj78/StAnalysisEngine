@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from services.price_provider import PRICE_PROVIDERS, set_price_provider
 from web.backend.admin import require_admin
 from web.backend.app_settings import (
+    AI_REVIEWER_ENABLED_KEY,
     BASKET_REBALANCE_ENABLED_KEY,
     DAILY_QUOTA_DEFAULT,
     DAILY_QUOTA_KEY,
@@ -107,6 +108,7 @@ async def get_settings():
             PAPER_TRADING_RESTRICTED_SYMBOLS_KEY, default=PAPER_TRADING_RESTRICTED_SYMBOLS_DEFAULT
         ),
         "stock_score_compute_enabled": await get_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, default=True),
+        "ai_reviewer_enabled": await get_setting_bool(AI_REVIEWER_ENABLED_KEY, default=False),
         "market_regime_enabled": await get_setting_bool(MARKET_REGIME_ENABLED_KEY, default=False),
         "filing_summaries_enabled": await get_setting_bool(FILING_SUMMARIES_ENABLED_KEY, default=False),
         "news_8k_enabled": await get_setting_bool(NEWS_8K_ENABLED_KEY, default=False),
@@ -132,6 +134,22 @@ async def enable_verify_predictions():
 async def disable_verify_predictions():
     await set_setting_bool(VERIFY_PREDICTIONS_ENABLED_KEY, False)
     return {"verify_predictions_enabled": False}
+
+
+@router.post("/ai-reviewer/enable")
+async def enable_ai_reviewer():
+    """AGT-21..24: turns on the trading agent's AI reviewer step
+    (services/agent/reviewer.py) -- see AI_REVIEWER_ENABLED_KEY's
+    docstring in app_settings.py for why this defaults off (a real LLM
+    call plus an external news fetch on every scheduled run)."""
+    await set_setting_bool(AI_REVIEWER_ENABLED_KEY, True)
+    return {"ai_reviewer_enabled": True}
+
+
+@router.post("/ai-reviewer/disable")
+async def disable_ai_reviewer():
+    await set_setting_bool(AI_REVIEWER_ENABLED_KEY, False)
+    return {"ai_reviewer_enabled": False}
 
 
 @router.post("/stock-score-compute/enable")
@@ -550,18 +568,6 @@ async def set_paper_trading_restricted_symbols(body: PaperTradingRestrictedSymbo
     order submission — no restart needed."""
     await set_setting_str(PAPER_TRADING_RESTRICTED_SYMBOLS_KEY, body.restricted_symbols)
     return {"paper_trading_restricted_symbols": body.restricted_symbols}
-
-
-@router.post("/stock-score-compute/enable")
-async def enable_stock_score_compute():
-    await set_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, True)
-    return {"stock_score_compute_enabled": True}
-
-
-@router.post("/stock-score-compute/disable")
-async def disable_stock_score_compute():
-    await set_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, False)
-    return {"stock_score_compute_enabled": False}
 
 
 class PriceDataProviderUpdate(BaseModel):

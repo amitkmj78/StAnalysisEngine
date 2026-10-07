@@ -6,6 +6,7 @@ import pandas as pd
 from services.agent.config import CONFIG
 from services.agent.validation import (
     CRISIS_WINDOWS,
+    DEFAULT_COST_BPS,
     MIN_YEARS_REQUIRED,
     _rolling_atr,
     _stop_trail_pct,
@@ -39,7 +40,8 @@ def _trending_then_crashing_ohlc(
     close = pd.Series(close, index=dates)
     high = close * 1.01
     low = close * 0.99
-    return pd.DataFrame({"Close": close, "High": high, "Low": low})
+    open_ = close.copy()  # no gap by default; test_agt32... below overrides this where it matters
+    return pd.DataFrame({"Open": open_, "High": high, "Low": low, "Close": close})
 
 
 def test_rolling_atr_matches_scalar_atr_at_the_tail():
@@ -92,6 +94,36 @@ def test_stop_reduces_max_drawdown_on_a_sharp_crash():
     dd_without = max_drawdown_pct(without_stop.daily_returns_pct)
     # Less negative == smaller drawdown.
     assert dd_with > dd_without
+
+
+def test_agt32_stop_fills_at_the_gapped_down_open_not_the_theoretical_stop_price():
+    """AGT-32: a stop exit must be modeled at the next available price,
+    not an idealized fill exactly at the stop level. Here the triggering
+    day's entire bar gaps down far below any plausible stop level -- the
+    realized fill must be that (worse) open, same min(open, level)
+    convention services/strategy_engine.py already uses for its own
+    protective exits."""
+    df = _trending_then_crashing_ohlc()
+    trigger_day = 20 * 21  # well into the established uptrend, a position is already held here
+    prev_close = df["Close"].iloc[trigger_day - 1]
+
+    # Replace the whole bar with a severe, internally-consistent overnight
+    # gap: Low is the day's minimum, Open/Close/High sit above it, and all
+    # four are far below any stop level the earlier uptrend could produce
+    # (stop_max_pct caps the trail at 15%, so even the loosest stop sits
+    # well above half of the prior close).
+    gapped = df.copy()
+    cols = ["Open", "High", "Low", "Close"]
+    gapped.iloc[trigger_day, [gapped.columns.get_loc(c) for c in cols]] = [
+        prev_close * 0.48, prev_close * 0.52, prev_close * 0.45, prev_close * 0.50,
+    ]
+
+    with_stop = simulate_trend_following(gapped, use_stop=True)
+
+    gapped_open = gapped["Open"].iloc[trigger_day]
+    realized_return_pct = with_stop.daily_returns_pct[trigger_day]
+    worst_case_return_pct = (gapped_open / prev_close - 1.0) * 100.0 - DEFAULT_COST_BPS / 100.0
+    assert math.isclose(realized_return_pct, worst_case_return_pct, rel_tol=1e-6)
 
 
 def test_no_stop_variant_ignores_the_trail_percent_entirely():

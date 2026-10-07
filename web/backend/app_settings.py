@@ -126,6 +126,13 @@ STOCK_SCORE_COMPUTE_ENABLED_KEY = "stock_score_compute_enabled"
 # services/market_internals_service.py's module docstring). An admin
 # opts in via /admin/settings with that history in view, not by deploy.
 MARKET_REGIME_ENABLED_KEY = "market_regime_enabled"
+# AGT-21..24: gates the trading agent's AI reviewer step (services/agent/
+# reviewer.py), which may only remove a proposed new-entry buy, never add
+# or resize one. Defaults OFF, same deliberate-opt-in rationale as
+# MARKET_REGIME_ENABLED_KEY -- this is a real LLM call plus an external
+# news fetch on every scheduled run, not something deploying code alone
+# should turn on.
+AI_REVIEWER_ENABLED_KEY = "agent_ai_reviewer_enabled"
 # SUM-1: gates services/filing_summary_service.py's daily scheduler job.
 # Defaults OFF, same deliberate-opt-in rationale as MARKET_REGIME_ENABLED_
 # KEY -- this one hits a real external (SEC EDGAR) API plus LLM cost on a

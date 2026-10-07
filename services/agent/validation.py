@@ -36,7 +36,10 @@ proxy, re-checked monthly like the agent's own rebalance.
 
 What this DOES answer: does the agent's exact ATR trailing-stop formula
 reduce max drawdown versus the same trend-following entry/exit without
-it, over a window spanning 2008, 2020, and 2022, after per-trade costs?
+it, over a window spanning 2008, 2020, and 2022, after per-trade costs
+(AGT-32: cost_bps_per_trade on each side, stop exits filled at the next
+available price -- min(that day's open, the theoretical stop level), not
+an idealized fill exactly at the stop)?
 
 What it does NOT answer: whether the agent's actual candidate-selection
 logic would have performed well in 2008 (untestable -- no historical
@@ -117,11 +120,12 @@ def simulate_trend_following(
     checked every session (not just at rebalance), closing the position
     the day it fires rather than waiting for the next month-start check.
 
-    df must have Close/High/Low columns and a DatetimeIndex, ascending,
-    with no gaps the caller cares about preserved (NaNs in High/Low/Close
-    are dropped up front). Returns daily %, 0.0 on days spent in cash.
+    df must have Open/Close/High/Low columns and a DatetimeIndex,
+    ascending, with no gaps the caller cares about preserved (NaNs in
+    Open/High/Low/Close are dropped up front). Returns daily %, 0.0 on
+    days spent in cash.
     """
-    df = df.dropna(subset=["Close", "High", "Low"]).copy()
+    df = df.dropna(subset=["Open", "Close", "High", "Low"]).copy()
     sma = df["Close"].rolling(config.trend_sma_days).mean()
     atr14 = _rolling_atr(df["High"], df["Low"], df["Close"], 14)
     trail_pct = _stop_trail_pct(df["Close"], atr14, config)
@@ -129,6 +133,7 @@ def simulate_trend_following(
     periods = df.index.to_series().dt.to_period("M")
     is_month_start = (periods != periods.shift(1)).to_numpy()
 
+    opens = df["Open"].to_numpy()
     closes = df["Close"].to_numpy()
     highs = df["High"].to_numpy()
     lows = df["Low"].to_numpy()
@@ -149,12 +154,16 @@ def simulate_trend_following(
 
         # 1. Stop check first, against today's LOW (a real trailing-stop
         #    broker order fires intraday the moment price crosses it, not
-        #    only once the bar closes) -- realized at the stop price
-        #    itself, not the close, same as a real stop fill.
+        #    only once the bar closes). AGT-32: realized at the next
+        #    available price, not the theoretical stop level -- a gap-down
+        #    open below the stop fills at that worse open price, same
+        #    min(open, level) convention services/strategy_engine.py
+        #    already uses for its own protective exits.
         if use_stop and in_position and peak_since_entry and not math.isnan(trail_vals[i]):
             stop_price = peak_since_entry * (1.0 - trail_vals[i] / 100.0)
             if lows[i] <= stop_price:
-                day_return_pct = (stop_price / prev_price - 1.0) * 100.0 - cost_bps / 100.0
+                fill_price = min(opens[i], stop_price)
+                day_return_pct = (fill_price / prev_price - 1.0) * 100.0 - cost_bps / 100.0
                 in_position = False
                 peak_since_entry = None
                 trade_count += 1

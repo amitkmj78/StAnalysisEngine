@@ -1813,6 +1813,7 @@ export interface AdminSettings {
   paper_account_equity_capture_enabled: boolean;
   challenge_notifications_enabled: boolean;
   stock_score_compute_enabled: boolean;
+  ai_reviewer_enabled: boolean;
 }
 
 export interface BackupRun {

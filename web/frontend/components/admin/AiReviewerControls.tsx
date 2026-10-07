@@ -1,0 +1,79 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import { ApiError, disableAiReviewer, enableAiReviewer, getAdminSettings } from "@/lib/api";
+
+export default function AiReviewerControls() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setError(null);
+    try {
+      const settings = await getAdminSettings();
+      setEnabled(settings.ai_reviewer_enabled);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load AI reviewer status.");
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function handleToggle() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = enabled ? await disableAiReviewer() : await enableAiReviewer();
+      setEnabled(result.ai_reviewer_enabled);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update setting.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="font-semibold text-slate-900">Trading Agent: AI Reviewer (AGT-21..24)</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            On every run, reads each proposed new-entry buy&apos;s recent dated headlines and may remove -- never
+            add or resize -- a buy, citing a real headline and date. Never sees sells, stops, or rebalances. Any
+            failed or slow (20s) review fails open: the deterministic plan proceeds unreviewed, logged as skipped.
+            Off by default: a real LLM call plus an external news fetch on every scheduled run.
+          </p>
+        </div>
+        {enabled !== null && (
+          <span
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
+              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            {enabled ? "Reviewing" : "Off"}
+          </span>
+        )}
+      </div>
+
+      {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+      <div className="mt-4">
+        <button
+          onClick={handleToggle}
+          disabled={busy || enabled === null}
+          className={`rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 ${
+            enabled
+              ? "border border-red-200 text-red-700 hover:bg-red-50"
+              : "bg-slate-900 text-white hover:bg-slate-800"
+          }`}
+        >
+          {busy ? "Updating…" : enabled ? "Turn off" : "Turn on"}
+        </button>
+      </div>
+    </div>
+  );
+}

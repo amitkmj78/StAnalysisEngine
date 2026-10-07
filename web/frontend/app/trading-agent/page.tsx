@@ -407,9 +407,20 @@ export default function TradingAgentPage() {
 
             {agt30Result && (
               <div className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-xs">
-                <p className={`font-semibold ${agt30Result.passed ? "text-emerald-700" : "text-red-700"}`}>
-                  {agt30Result.passed ? "Passed" : "Did not pass"} — {agt30Result.years_covered} years covered
-                  (scope: {agt30Result.scope})
+                <div className="flex items-center gap-2">
+                  {/* AGT-32: same persistent "Hypothetical" labeling convention as the Track Record page's backtest tab (TRK-4) -- this is a simulation, not a live result. */}
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                    Hypothetical
+                  </span>
+                  <p className={`font-semibold ${agt30Result.passed ? "text-emerald-700" : "text-red-700"}`}>
+                    {agt30Result.passed ? "Passed" : "Did not pass"} — {agt30Result.years_covered} years covered
+                    (scope: {agt30Result.scope})
+                  </p>
+                </div>
+                <p className="mt-1 text-slate-500">
+                  Assumes {agt30Result.cost_bps_per_trade}bps cost per trade side; stop exits fill at the next
+                  available price (the worse of that day&apos;s open or the theoretical stop level), not an
+                  idealized fill exactly at the stop.
                 </p>
                 <dl className="mt-2 grid grid-cols-3 gap-2">
                   <div>

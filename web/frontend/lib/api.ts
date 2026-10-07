@@ -1430,6 +1430,14 @@ export function disableVerifyPredictions() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/verify-predictions/disable", "POST");
 }
 
+export function enableAiReviewer() {
+  return apiSend<{ ai_reviewer_enabled: boolean }>("/api/v1/admin/settings/ai-reviewer/enable", "POST");
+}
+
+export function disableAiReviewer() {
+  return apiSend<{ ai_reviewer_enabled: boolean }>("/api/v1/admin/settings/ai-reviewer/disable", "POST");
+}
+
 export function enableStockScoreCompute() {
   return apiSend<{ stock_score_compute_enabled: boolean }>("/api/v1/admin/settings/stock-score-compute/enable", "POST");
 }

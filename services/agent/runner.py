@@ -45,14 +45,16 @@ from services.agent.risk import (
     scale_for_vol_target,
     size_positions,
 )
+from services.agent.reviewer import review_new_entries
 from services.alpaca_trading_client import AlpacaTradingError
 from services.market_regime_service import regime_as_of
 from services.notification_dispatcher import EASTERN, dispatch_alert
 from services.stock_detail_service import upcoming_earnings_in_window
 from services.yfinance_cache import get_cached_earnings_dates, get_cached_history
-from web.backend.app_settings import AGENT_KILL_SWITCH_KEY, PAPER_TRADING_KILL_SWITCH_KEY, get_setting_bool
+from web.backend.app_settings import AGENT_KILL_SWITCH_KEY, AI_REVIEWER_ENABLED_KEY, PAPER_TRADING_KILL_SWITCH_KEY, get_setting_bool
 from web.backend.crypto_utils import decrypt_token
 from web.backend.db import service_conn
+from web.backend.llm_cache import cached_init_llms, ordered_llms
 
 logger = logging.getLogger(__name__)
 
@@ -506,6 +508,29 @@ async def _run_with_creds(user_id: str, settings: dict, creds: dict, account_row
     for o in orders:
         await _journal(run_id, user_id, "proposed", o.reason, ticker=o.ticker, side=o.side, qty=o.qty,
                        est_price=o.est_price, est_value=o.est_value, trigger=o.trigger)
+
+    # AGT-21..24: the AI reviewer may only remove a proposed new-entry buy,
+    # never add or resize one -- it is only ever handed that subset of
+    # `orders`, so sells/stops/rebalances (AGT-22) are structurally outside
+    # what it can see or act on, not just outside what it's told to touch.
+    if await get_setting_bool(AI_REVIEWER_ENABLED_KEY, default=False):
+        new_entry_buys = [o for o in orders if o.side == "buy" and o.trigger == "new_entry"]
+        if new_entry_buys:
+            llm_openai, llm_groq, llm_claude, llm_ollama, llm_labels = await run_in_threadpool(cached_init_llms)
+            llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, llm_labels)
+            outcome = await review_new_entries(new_entry_buys, llms, CONFIG.ai_reviewer_timeout_seconds)
+            removed_tickers = {r["ticker"] for r in outcome.removed}
+            if removed_tickers:
+                orders = [o for o in orders if o.ticker not in removed_tickers]
+            for r in outcome.removed:
+                await _journal(run_id, user_id, "ai_review_removed",
+                               f'AI review removed this buy, citing "{r["headline"]}" ({r["date"]}): {r["reason"]}',
+                               ticker=r["ticker"], trigger="ai_review_removed")
+            for ig in outcome.ignored:
+                await _journal(run_id, user_id, "ai_review_ignored", ig.get("why_ignored", "Ignored."),
+                               ticker=ig.get("ticker"), detail=ig)
+            if outcome.skipped:
+                await _journal(run_id, user_id, "ai_review_skipped", outcome.skip_reason or "AI review skipped.")
 
     if mode == "live":
         for o in orders:

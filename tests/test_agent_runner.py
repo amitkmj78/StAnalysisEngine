@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from services.agent import runner
+from services.agent.reviewer import ReviewOutcome
 from services.alpaca_trading_client import AlpacaTradingError
 
 
@@ -283,6 +284,83 @@ def test_paper_mode_submits_buy_then_protects_it_with_a_trailing_stop(harness):
     stop_positions = [o for o in broker.open_orders if o["type"] == "trailing_stop"]
     assert stop_positions and stop_positions[0]["side"] == "sell"
     assert "stop_placed" in _types(harness)
+
+
+# --- AGT-21/22/23/24: AI reviewer integration ---
+
+def test_ai_reviewer_disabled_by_default_leaves_the_plan_untouched(harness):
+    """AI_REVIEWER_ENABLED_KEY defaults False -- confirms enabling the
+    plumbing didn't change any existing behavior when left off."""
+    called = []
+    monkeypatch_review = lambda *a, **k: called.append(1)
+    harness["monkeypatch"].setattr(runner, "review_new_entries", monkeypatch_review)
+
+    broker = FakeBroker()
+    _wire(harness, broker, "paper")
+    result = asyncio.run(runner.run_agent_for_user("u1"))
+    assert result["status"] == "completed"
+    assert "submit_order" in broker.calls  # AAA's buy still went through, unreviewed
+    assert called == []  # review_new_entries was never even called
+
+
+def test_ai_reviewer_removal_keeps_the_ticker_out_of_submission(harness):
+    """Enabled, and the (fake) review removes AAA -- it must never reach
+    preflight/submit, and the removal is journaled with its reason."""
+    flags = harness["flags"]
+
+    async def fake_setting_with_reviewer_on(key, default):
+        if key == runner.AI_REVIEWER_ENABLED_KEY:
+            return True
+        if key == runner.AGENT_KILL_SWITCH_KEY:
+            return flags["agent_kill"]
+        if key == runner.PAPER_TRADING_KILL_SWITCH_KEY:
+            return flags["paper_kill"]
+        return default
+
+    harness["monkeypatch"].setattr(runner, "get_setting_bool", fake_setting_with_reviewer_on)
+
+    async def fake_review(candidates, llms, timeout_seconds):
+        removed = [{"ticker": "AAA", "date": "2026-10-02", "headline": "Pending lawsuit disclosed", "reason": "Litigation risk."}]
+        return ReviewOutcome(kept=[], removed=removed, ignored=[], skipped=False)
+
+    harness["monkeypatch"].setattr(runner, "review_new_entries", fake_review)
+
+    broker = FakeBroker()
+    _wire(harness, broker, "paper")
+    result = asyncio.run(runner.run_agent_for_user("u1"))
+    assert result["status"] == "completed"
+    assert "submit_order" not in broker.calls  # AAA never reached submission
+    assert "ai_review_removed" in _types(harness)
+    removed_row = next(e for e in harness["journal"] if e["event_type"] == "ai_review_removed")
+    assert removed_row["ticker"] == "AAA"
+    assert "Pending lawsuit disclosed" in removed_row["reason"]
+
+
+def test_ai_reviewer_skip_leaves_the_plan_unchanged_and_is_journaled(harness):
+    flags = harness["flags"]
+
+    async def fake_setting_with_reviewer_on(key, default):
+        if key == runner.AI_REVIEWER_ENABLED_KEY:
+            return True
+        if key == runner.AGENT_KILL_SWITCH_KEY:
+            return flags["agent_kill"]
+        if key == runner.PAPER_TRADING_KILL_SWITCH_KEY:
+            return flags["paper_kill"]
+        return default
+
+    harness["monkeypatch"].setattr(runner, "get_setting_bool", fake_setting_with_reviewer_on)
+
+    async def fake_review(candidates, llms, timeout_seconds):
+        return ReviewOutcome(kept=list(candidates), removed=[], ignored=[], skipped=True, skip_reason="AI review timed out after 20s.")
+
+    harness["monkeypatch"].setattr(runner, "review_new_entries", fake_review)
+
+    broker = FakeBroker()
+    _wire(harness, broker, "paper")
+    result = asyncio.run(runner.run_agent_for_user("u1"))
+    assert result["status"] == "completed"
+    assert "submit_order" in broker.calls  # unreviewed plan still went through
+    assert "ai_review_skipped" in _types(harness)
 
 
 def test_failed_run_still_protects_held_positions_and_alerts(harness):

@@ -187,3 +187,35 @@ def get_cached_eps_trend(ticker: str) -> pd.DataFrame:
         return result if result is not None else pd.DataFrame()
     except Exception:
         return pd.DataFrame()
+
+
+@ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
+def get_cached_ticker_news(ticker: str, lookback_days: int = 14) -> list[dict]:
+    """Shared yf.Ticker(ticker).news, normalized to [{"title",
+    "published_at"}], filtered to the last lookback_days -- the
+    per-ticker analog of services/market_news_service.py's broad-market
+    feed (same content.get("title")/content.get("pubDate") extraction),
+    used by the trading agent's AI reviewer (AGT-21/24) for dated
+    headline grounding. Empty list (never raises) on any failure, same
+    fail-open convention as every other function in this module."""
+    try:
+        raw = fetch_with_backoff(lambda: yf.Ticker(ticker).news)
+    except Exception:
+        return []
+
+    cutoff = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=lookback_days)
+    items: list[dict] = []
+    for entry in raw or []:
+        content = entry.get("content") or {}
+        title = content.get("title")
+        if not title:
+            continue
+        pub = content.get("pubDate")
+        if pub:
+            try:
+                if pd.Timestamp(pub) < cutoff:
+                    continue
+            except (ValueError, TypeError):
+                pass  # unparseable date -- keep the item rather than drop it silently
+        items.append({"title": title, "published_at": pub})
+    return items
