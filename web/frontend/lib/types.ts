@@ -1729,9 +1729,10 @@ export type AlertConditionType = "price_above" | "price_below" | "score_above" |
 // ALR-2: one normalized row per triggered alert across every source
 // table -- see web/backend/routers/alerts_inbox.py.
 export interface AlertInboxItem {
-  source: "watchlist" | "portfolio_drop" | "signal_change" | "earnings" | "cost_drop";
+  source: "watchlist" | "portfolio_drop" | "signal_change" | "earnings" | "cost_drop" | "agent";
   id: number;
-  ticker: string;
+  // null for a trading-agent event with no single ticker (e.g. a failed run).
+  ticker: string | null;
   alert_type: string;
   summary: string;
   created_at: string;
@@ -2475,6 +2476,35 @@ export interface AgentRunSummary {
   events: AgentEvent[];
 }
 
+// AGT-30: the stop-loss-rule-only, SPY-only backtest leg's report shape --
+// see services/agent/validation.py's module docstring for exactly what
+// this does and does not test (two narrowings disclosed in excluded_from_
+// this_test below, not silently assumed).
+export interface Agt30ValidationReport {
+  scope: string;
+  agent_config_version: string;
+  years_covered: number;
+  covers_required_years: boolean;
+  covers_crisis_windows: boolean;
+  cost_bps_per_trade: number;
+  full_period: {
+    with_stop_max_drawdown_pct: number | null;
+    without_stop_max_drawdown_pct: number | null;
+    spy_max_drawdown_pct: number | null;
+    beats_spy: boolean;
+    beats_no_stop_variant: boolean;
+  };
+  crisis_windows: Record<string, {
+    with_stop_max_drawdown_pct: number | null;
+    without_stop_max_drawdown_pct: number | null;
+    spy_max_drawdown_pct: number | null;
+  }>;
+  with_stop_trade_count: number;
+  without_stop_trade_count: number;
+  passed: boolean;
+  excluded_from_this_test: string[];
+}
+
 export interface TradingAgentStatus {
   enabled: boolean;
   mode: "plan" | "paper" | "live";
@@ -2492,7 +2522,17 @@ export interface TradingAgentStatus {
     drawdown_breaker_pct: number;
   };
   regime: { label: string | null; exposure_cap_pct: number; reason: string; disclosure: string };
-  live: { allowed: boolean; reason: string };
+  // AGT-2: the three live-mode gates, checked individually -- allowed is
+  // only ever true once all three actually pass.
+  live: {
+    allowed: boolean;
+    allow_live_trading_flag_set: boolean;
+    backtest_validation_passed: boolean | null;
+    paper_trading_days: number;
+    paper_trading_days_required: number;
+    paper_trading_meets_bar: boolean | null;
+    reasons: string[];
+  };
   disclosure: string;
   broker: { positions: { ticker: string; qty: number; market_value: number; stop: { qty: string; trail_percent: string } | null }[] } | { error: string } | null;
   performance_paper: {

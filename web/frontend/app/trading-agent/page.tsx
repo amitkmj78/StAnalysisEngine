@@ -8,6 +8,7 @@ import {
   adminEnableAgentUser,
   adminSetAgentGlobal,
   adminSetAgentKill,
+  adminValidateAgt30,
   ApiError,
   getCurrentUser,
   getTradingAgentJournal,
@@ -18,7 +19,7 @@ import {
   setAgentMode,
 } from "@/lib/api";
 import { isAdmin } from "@/lib/admin";
-import type { AgentRunSummary, TradingAgentStatus } from "@/lib/types";
+import type { AgentRunSummary, Agt30ValidationReport, TradingAgentStatus } from "@/lib/types";
 
 const PROPOSAL_EVENTS = ["proposed", "submitted", "filled", "rejected", "skipped", "stop_placed", "stop_replaced", "stop_failed", "run_failed"];
 
@@ -40,6 +41,10 @@ export default function TradingAgentPage() {
 
   const [adminEmail, setAdminEmail] = useState("");
   const [complianceRef, setComplianceRef] = useState("");
+
+  const [agt30Running, setAgt30Running] = useState(false);
+  const [agt30Result, setAgt30Result] = useState<Agt30ValidationReport | null>(null);
+  const [agt30Error, setAgt30Error] = useState<string | null>(null);
 
   function load() {
     getTradingAgentStatus()
@@ -72,6 +77,21 @@ export default function TradingAgentPage() {
       setError(err instanceof ApiError ? err.message : "That action failed.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleValidateAgt30() {
+    setAgt30Running(true);
+    setAgt30Error(null);
+    setAgt30Result(null);
+    try {
+      const report = await adminValidateAgt30();
+      setAgt30Result(report);
+      load(); // refreshes GET /status so the live gate reflects the new result
+    } catch (err) {
+      setAgt30Error(err instanceof ApiError ? err.message : "The backtest failed to run.");
+    } finally {
+      setAgt30Running(false);
     }
   }
 
@@ -128,15 +148,30 @@ export default function TradingAgentPage() {
                   className={`rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${
                     status.mode === m ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700"
                   }`}
-                  title={m === "live" ? status.live.reason : undefined}
+                  title={m === "live" ? status.live.reasons.join(" ") : undefined}
                 >
                   {m === "plan" ? "Plan (no orders)" : m === "paper" ? "Paper (Alpaca sandbox)" : "Live (blocked)"}
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-xs text-slate-500">
-              {status.live.reason}
-            </p>
+
+            {/* AGT-2: the three live-mode gates, shown individually rather than
+                one blanket "blocked" message. */}
+            <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <p className="font-medium text-slate-700">Live trading gate (AGT-2 / AGT-30)</p>
+              <ul className="mt-1 flex flex-col gap-0.5">
+                <li>{status.live.allow_live_trading_flag_set ? "✓" : "✗"} Server ALLOW_LIVE_TRADING flag set</li>
+                <li>
+                  {status.live.backtest_validation_passed ? "✓" : status.live.backtest_validation_passed === false ? "✗" : "—"} Backtest
+                  validation passed{status.live.backtest_validation_passed === null && " (not run yet)"}
+                </li>
+                <li>
+                  {status.live.paper_trading_meets_bar ? "✓" : "✗"} Paper trading: {status.live.paper_trading_days}/
+                  {status.live.paper_trading_days_required} days with drawdown inside limits
+                </li>
+              </ul>
+              {status.live.reasons.length > 0 && <p className="mt-2 text-slate-500">{status.live.reasons.join(" ")}</p>}
+            </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <button
@@ -205,6 +240,8 @@ export default function TradingAgentPage() {
                   <dd className="text-right">{fmtPct(status.performance_paper.max_drawdown_pct)}</dd>
                   <dt className="text-slate-500">Sharpe</dt>
                   <dd className="text-right">{status.performance_paper.sharpe ?? "—"}</dd>
+                  <dt className="text-slate-500">Worst month</dt>
+                  <dd className="text-right">{status.performance_paper.worst_month ?? "—"}</dd>
                 </dl>
               ) : (
                 <p className="mt-2 text-sm text-slate-600">{status.performance_paper?.note ?? "No paper history yet."}</p>
@@ -348,6 +385,53 @@ export default function TradingAgentPage() {
                 {status?.global_kill_engaged ? "Release global kill switch" : "Global kill switch (stop everyone)"}
               </button>
             </div>
+          </div>
+
+          <div className="mt-5 border-t border-indigo-200 pt-4">
+            <h3 className="text-sm font-semibold text-slate-900">AGT-30 backtest validation</h3>
+            <p className="mt-1 text-xs text-slate-600">
+              Runs the stop-loss-rule backtest against real SPY history and stores the result for the live gate above
+              to read back. Deliberately narrowed scope (regime excluded, SPY only, not the agent&apos;s own signal) --
+              see the result&apos;s own disclosure below. Not scheduled; re-run by hand whenever the agent&apos;s
+              stop-loss config changes.
+            </p>
+            <button
+              disabled={agt30Running}
+              onClick={handleValidateAgt30}
+              className="mt-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {agt30Running ? "Running…" : "Run AGT-30 validation now"}
+            </button>
+
+            {agt30Error && <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{agt30Error}</p>}
+
+            {agt30Result && (
+              <div className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-xs">
+                <p className={`font-semibold ${agt30Result.passed ? "text-emerald-700" : "text-red-700"}`}>
+                  {agt30Result.passed ? "Passed" : "Did not pass"} — {agt30Result.years_covered} years covered
+                  (scope: {agt30Result.scope})
+                </p>
+                <dl className="mt-2 grid grid-cols-3 gap-2">
+                  <div>
+                    <dt className="text-slate-500">With stop</dt>
+                    <dd className="font-medium text-slate-800">{fmtPct(agt30Result.full_period.with_stop_max_drawdown_pct)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Without stop</dt>
+                    <dd className="font-medium text-slate-800">{fmtPct(agt30Result.full_period.without_stop_max_drawdown_pct)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">SPY</dt>
+                    <dd className="font-medium text-slate-800">{fmtPct(agt30Result.full_period.spy_max_drawdown_pct)}</dd>
+                  </div>
+                </dl>
+                <ul className="mt-2 flex flex-col gap-0.5 text-slate-500">
+                  {agt30Result.excluded_from_this_test.map((line) => (
+                    <li key={line}>• {line}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </section>
       )}

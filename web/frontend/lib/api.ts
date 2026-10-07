@@ -28,6 +28,7 @@ import type {
   ChallengeLeaderboardResponse,
   DiscoverableUser,
   AgentRunSummary,
+  Agt30ValidationReport,
   TradingAgentStatus,
   ChatAskParams,
   ChatAskResponse,
@@ -1927,6 +1928,13 @@ export function adminSetAgentGlobal(enabled: boolean) {
 
 export function adminSetAgentKill(engaged: boolean) {
   return apiSend<{ agent_kill_switch: boolean }>("/api/v1/admin/trading-agent/kill-switch", "POST", { engaged });
+}
+
+// AGT-30: runs and persists the backtest leg for GET /trading-agent/status's
+// live gate to read back. See services/agent/validation.py's module docstring
+// for exactly what this does and does not test.
+export function adminValidateAgt30() {
+  return apiSend<Agt30ValidationReport>("/api/v1/admin/trading-agent/validate-agt30", "POST");
 }
 
 export function getChallengeEquityCurves(challengeId: number) {

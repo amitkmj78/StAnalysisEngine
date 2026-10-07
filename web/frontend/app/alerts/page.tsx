@@ -12,6 +12,7 @@ const SOURCE_LABEL: Record<string, string> = {
   signal_change: "Signal change",
   earnings: "Earnings",
   cost_drop: "Cost-basis drop",
+  agent: "Trading agent",
 };
 
 export default function AlertsInboxPage() {
@@ -94,7 +95,7 @@ export default function AlertsInboxPage() {
       </div>
       <p className="mt-1 text-sm text-slate-500">
         Every triggered alert in one place — watchlist price/score targets, portfolio drops, signal changes,
-        earnings, and cost-basis drops.
+        earnings, cost-basis drops, and trading agent fills/stop triggers/failed runs.
       </p>
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
