@@ -18,6 +18,97 @@ def _history_df(days=300, start=50.0, end=80.0):
                          "Volume": np.full(days, 2_000_000.0)})
 
 
+# --- AGT-8: earnings blackout measured in trading days, not calendar days ---
+
+@pytest.mark.parametrize("weekday_start,expected_calendar_days", [
+    (date(2026, 10, 5), 2),   # Monday -> Wed: 2 trading days = 2 calendar days
+    (date(2026, 10, 8), 4),   # Thursday -> Mon: Fri + Mon = 2 trading days, 4 calendar days (weekend skipped)
+    (date(2026, 10, 9), 4),   # Friday -> Tue: Mon + Tue = 2 trading days, 4 calendar days
+])
+def test_trading_days_ahead_skips_weekends(weekday_start, expected_calendar_days):
+    assert runner._trading_days_ahead_calendar_days(weekday_start, 2) == expected_calendar_days
+
+
+# --- AGT-28: a triggered stop is reconciled and alerted, not just inferred later ---
+
+def test_reconcile_outcome_none_while_order_still_open():
+    assert runner._reconcile_outcome("submitted", "AAA", "buy", {"status": "accepted"}) is None
+
+
+def test_reconcile_outcome_ordinary_fill_unchanged():
+    outcome = runner._reconcile_outcome(
+        "submitted", "AAA", "buy", {"status": "filled", "filled_qty": "10", "filled_avg_price": "80.0"}
+    )
+    assert outcome["journal_event"] == "filled"
+    assert outcome["side"] == "buy"
+    assert outcome["trigger"] is None
+    assert outcome["alert_type"] == "agent_fill"
+    assert "Filled 10 AAA" in outcome["reason"]
+
+
+def test_reconcile_outcome_stop_fill_is_labeled_as_a_stop_trigger_not_a_plain_fill():
+    outcome = runner._reconcile_outcome(
+        "stop_placed", "AAA", None, {"status": "filled", "filled_qty": "10", "filled_avg_price": "72.5"}
+    )
+    assert outcome["journal_event"] == "filled"
+    assert outcome["side"] == "sell"
+    assert outcome["trigger"] == "stop_triggered"
+    assert outcome["alert_type"] == "agent_stop_triggered"
+    assert "Protective stop triggered" in outcome["reason"]
+    assert "72.50" in outcome["reason"]
+
+
+def test_reconcile_outcome_canceled_stop_has_no_alert():
+    outcome = runner._reconcile_outcome("stop_placed", "AAA", None, {"status": "canceled"})
+    assert outcome["journal_event"] == "canceled"
+    assert outcome["alert_type"] is None
+
+
+class _FakeConn:
+    def __init__(self, rows):
+        self._rows = rows
+
+    async def fetch(self, *a, **k):
+        return self._rows
+
+
+class _FakeConnCtx:
+    def __init__(self, rows):
+        self._rows = rows
+
+    async def __aenter__(self):
+        return _FakeConn(self._rows)
+
+    async def __aexit__(self, *a):
+        return False
+
+
+def test_reconcile_submitted_alerts_a_stop_trigger_end_to_end(monkeypatch):
+    journal: list[dict] = []
+    alerts: list[dict] = []
+
+    async def fake_journal(run_id, user_id, event_type, reason, **fields):
+        journal.append({"event_type": event_type, "reason": reason, **fields})
+
+    async def fake_alert(user_id, ticker, alert_type, subject, text_body, values=None):
+        alerts.append({"alert_type": alert_type, "subject": subject})
+
+    pending_row = {"alpaca_order_id": "stop-1", "ticker": "AAA", "side": None, "qty": None, "event_type": "stop_placed"}
+    broker = FakeBroker()  # get_order() always returns a filled order, per FakeBroker's own stub
+
+    monkeypatch.setattr(runner, "_journal", fake_journal)
+    monkeypatch.setattr(runner, "dispatch_alert", fake_alert)
+    monkeypatch.setattr(runner, "service_conn", lambda: _FakeConnCtx([pending_row]))
+    monkeypatch.setattr(runner, "_broker", broker)
+
+    asyncio.run(runner._reconcile_submitted(1, "user-1", {"key": "k", "secret": "s"}))
+
+    assert journal[0]["event_type"] == "filled"
+    assert journal[0]["trigger"] == "stop_triggered"
+    assert alerts[0]["alert_type"] == "agent_stop_triggered"
+    assert "Stop triggered: AAA" in alerts[0]["subject"]
+
+
 class FakeBroker:
     def __init__(self, positions=None, open_orders=None, is_open=True, equity=100_000.0,
                  last_equity=100_000.0, cash=100_000.0):

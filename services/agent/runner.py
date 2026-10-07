@@ -24,7 +24,7 @@ import logging
 import math
 import time
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 import httpx
@@ -172,11 +172,29 @@ def _indicators(df) -> Optional[dict]:
     }
 
 
+def _trading_days_ahead_calendar_days(as_of: date, trading_days: int) -> int:
+    """AGT-8: the calendar-day span covering the next `trading_days`
+    trading sessions from as_of, skipping weekends -- exchange holidays
+    aren't modelled (a known, disclosed simplification), so this can
+    occasionally be one session short around a holiday, but it is no
+    longer the flat 4-calendar-day window that was stricter than 2
+    trading days on most weeks (Mon-Wed starts) and looser on others."""
+    d = as_of
+    counted = 0
+    calendar_days = 0
+    while counted < trading_days:
+        d += timedelta(days=1)
+        calendar_days += 1
+        if d.weekday() < 5:  # Mon-Fri
+            counted += 1
+    return calendar_days
+
+
 async def _earnings_blackout(ticker: str) -> bool:
     frame = await run_in_threadpool(get_cached_earnings_dates, ticker)
-    upcoming = upcoming_earnings_in_window(
-        frame, as_of=datetime.now(EASTERN).date(), window_days=CONFIG.earnings_blackout_calendar_days
-    )
+    today = datetime.now(EASTERN).date()
+    window_days = _trading_days_ahead_calendar_days(today, CONFIG.earnings_blackout_trading_days)
+    upcoming = upcoming_earnings_in_window(frame, as_of=today, window_days=window_days)
     return upcoming is not None
 
 
@@ -256,18 +274,56 @@ async def _ensure_stops(run_id: int, user_id: str, creds: dict, positions: list[
 
 # --- fills (AGT-25/28) ---
 
+def _reconcile_outcome(event_type: str, ticker: str, side: Optional[str], order: dict) -> Optional[dict]:
+    """Pure: classifies one order's current broker status into what to
+    journal/alert, given which agent_order_events row it came from --
+    'submitted' for the agent's own rebalance order, 'stop_placed' for a
+    broker-side protective stop (AGT-16/29). Returns None if the order
+    isn't terminal yet (still pending/open), same as the caller's own
+    prior inline logic, just extracted so it can be tested without a DB."""
+    status = order.get("status")
+    is_stop = event_type == "stop_placed"
+    if status == "filled":
+        filled_qty = order.get("filled_qty")
+        filled_price = _f(order.get("filled_avg_price"))
+        if is_stop:
+            reason = f"Protective stop triggered: sold {filled_qty} {ticker} at about ${filled_price:,.2f}."
+            return {
+                "journal_event": "filled", "side": "sell", "trigger": "stop_triggered",
+                "alert_type": "agent_stop_triggered", "alert_subject": f"Stop triggered: {ticker}", "reason": reason,
+            }
+        reason = f"Filled {filled_qty} {ticker} at about ${filled_price:,.2f}."
+        return {
+            "journal_event": "filled", "side": side, "trigger": None,
+            "alert_type": "agent_fill", "alert_subject": f"Agent {side} filled: {ticker}", "reason": reason,
+        }
+    if status in ("canceled", "rejected", "expired"):
+        return {
+            "journal_event": status, "side": side or "sell", "trigger": None,
+            "alert_type": None, "alert_subject": None, "reason": f"Order ended as {status}.",
+        }
+    return None
+
+
 async def _reconcile_submitted(run_id: int, user_id: str, creds: dict) -> None:
+    """AGT-25/28. Covers both the agent's own rebalance orders
+    (event_type='submitted') and its broker-side protective stops
+    (event_type='stop_placed', from _ensure_stops) -- a triggered stop
+    used to only be discovered implicitly, the next time _ensure_stops
+    happened to notice the position was gone; it is now reconciled and
+    alerted the same run-to-run cadence as any other fill, not just
+    inferred later."""
     async with service_conn() as conn:
         pending = await conn.fetch(
             """
-            SELECT e.alpaca_order_id, e.ticker, e.side, e.qty FROM agent_order_events e
-            WHERE e.user_id = $1::uuid AND e.event_type = 'submitted' AND e.alpaca_order_id IS NOT NULL
+            SELECT e.alpaca_order_id, e.ticker, e.side, e.qty, e.event_type FROM agent_order_events e
+            WHERE e.user_id = $1::uuid AND e.event_type = ANY($2::text[]) AND e.alpaca_order_id IS NOT NULL
               AND NOT EXISTS (
                 SELECT 1 FROM agent_order_events t
-                WHERE t.alpaca_order_id = e.alpaca_order_id AND t.event_type = ANY($2::text[])
+                WHERE t.alpaca_order_id = e.alpaca_order_id AND t.event_type = ANY($3::text[])
               )
             """,
-            user_id, list(TERMINAL_EVENTS),
+            user_id, ["submitted", "stop_placed"], list(TERMINAL_EVENTS),
         )
     for row in pending:
         try:
@@ -275,16 +331,15 @@ async def _reconcile_submitted(run_id: int, user_id: str, creds: dict) -> None:
         except (AlpacaTradingError, httpx.HTTPError) as e:
             logger.warning("Agent reconcile failed for %s: %s", row["alpaca_order_id"], e)
             continue
-        status = order.get("status")
-        if status == "filled":
-            reason = f"Filled {order.get('filled_qty')} {row['ticker']} at about ${_f(order.get('filled_avg_price')):,.2f}."
-            await _journal(run_id, user_id, "filled", reason, ticker=row["ticker"], side=row["side"],
-                           qty=_f(order.get("filled_qty")), alpaca_order_id=row["alpaca_order_id"],
-                           detail={"filled_avg_price": order.get("filled_avg_price")})
-            await dispatch_alert(user_id, row["ticker"], "agent_fill", f"Agent {row['side']} filled: {row['ticker']}", reason)
-        elif status in ("canceled", "rejected", "expired"):
-            await _journal(run_id, user_id, status, f"Order ended as {status}.", ticker=row["ticker"],
-                           side=row["side"], alpaca_order_id=row["alpaca_order_id"])
+        outcome = _reconcile_outcome(row["event_type"], row["ticker"], row["side"], order)
+        if outcome is None:
+            continue
+        await _journal(run_id, user_id, outcome["journal_event"], outcome["reason"], ticker=row["ticker"],
+                       side=outcome["side"], qty=_f(order.get("filled_qty")) if outcome["journal_event"] == "filled" else None,
+                       alpaca_order_id=row["alpaca_order_id"], trigger=outcome["trigger"],
+                       detail={"filled_avg_price": order.get("filled_avg_price")} if outcome["journal_event"] == "filled" else {})
+        if outcome["alert_type"]:
+            await dispatch_alert(user_id, row["ticker"], outcome["alert_type"], outcome["alert_subject"], outcome["reason"])
 
 
 # --- the run ---

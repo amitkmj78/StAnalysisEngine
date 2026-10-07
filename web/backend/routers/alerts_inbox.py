@@ -1,13 +1,20 @@
 """
 ALR-2: a single in-app inbox across every alert-producing table --
 watchlist_alerts (triggered only), portfolio_drop_alerts,
-signal_change_alerts, earnings_alert_log, cost_drop_alerts. No new
-storage: each row here already exists as its own table's in-app record,
-this just UNIONs and normalizes them into one feed, same "no extra work
-needed for in-app delivery" point services/notification_dispatcher.py's
-docstring makes. Relies on user_conn's RLS scoping per source table
-(same convention web/backend/routers/watchlist.py already uses), not an
-explicit WHERE user_id filter.
+signal_change_alerts, earnings_alert_log, cost_drop_alerts, and (AGT-28)
+agent_order_events for the trading agent's own fills, stop triggers, and
+failed runs. No new storage: each row here already exists as its own
+table's in-app record, this just UNIONs and normalizes them into one feed,
+same "no extra work needed for in-app delivery" point services/
+notification_dispatcher.py's docstring makes. Relies on user_conn's RLS
+scoping per source table (same convention web/backend/routers/watchlist.py
+already uses), not an explicit WHERE user_id filter.
+
+AGT-28 note: the agent's drawdown-circuit-breaker trips (event_type
+"agent_risk_state" in services/agent/runner.py) are emailed/webhooked via
+dispatch_alert but are not journaled as their own agent_order_events row
+(only recorded in agent_runs' own risk_state column), so they do not yet
+appear here -- a disclosed gap, not an oversight.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -17,7 +24,7 @@ from web.backend.db import user_conn
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts-inbox"], dependencies=[Depends(verify_bearer_token)])
 
-_SOURCE_TABLES = {"watchlist", "portfolio_drop", "signal_change", "earnings", "cost_drop"}
+_SOURCE_TABLES = {"watchlist", "portfolio_drop", "signal_change", "earnings", "cost_drop", "agent"}
 
 _INBOX_QUERY = """
 SELECT 'watchlist' AS source, id, ticker, condition_type AS alert_type,
@@ -56,6 +63,14 @@ SELECT 'cost_drop' AS source, id, ticker, 'cost_drop' AS alert_type,
        created_at, created_at AS event_at, seen_at
 FROM cost_drop_alerts
 
+UNION ALL
+
+SELECT 'agent' AS source, id, ticker, COALESCE(trigger, event_type) AS alert_type,
+       reason AS summary,
+       created_at, created_at AS event_at, seen_at
+FROM agent_order_events
+WHERE event_type IN ('filled', 'run_failed')
+
 ORDER BY event_at DESC
 LIMIT 200
 """
@@ -77,10 +92,10 @@ async def list_inbox(request: Request):
 
 @router.post("/{source}/{alert_id}/dismiss")
 async def dismiss_inbox_item(request: Request, source: str, alert_id: int):
-    """Marks one row from any of the five source tables as seen -- the
+    """Marks one row from any of the source tables as seen -- the
     table is chosen from `source` (validated against a fixed allowlist,
     never interpolated from unchecked user input) rather than exposing
-    five near-duplicate dismiss endpoints."""
+    one near-duplicate dismiss endpoint per table."""
     if source not in _SOURCE_TABLES:
         raise HTTPException(422, f"source must be one of {sorted(_SOURCE_TABLES)}")
     table = {
@@ -89,6 +104,7 @@ async def dismiss_inbox_item(request: Request, source: str, alert_id: int):
         "signal_change": "signal_change_alerts",
         "earnings": "earnings_alert_log",
         "cost_drop": "cost_drop_alerts",
+        "agent": "agent_order_events",
     }[source]
 
     user_id = request.state.user["id"]

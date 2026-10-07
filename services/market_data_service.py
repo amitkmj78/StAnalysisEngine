@@ -124,6 +124,19 @@ def fetch_market_internals_history(period: str = "3y") -> pd.DataFrame:
         return pd.DataFrame()
 
     aux_df = pd.DataFrame(aux)
+    # Any one of these failing to fetch (e.g. a transient Yahoo rate limit on
+    # just ^VIX) used to raise a bare KeyError below and take the whole
+    # regime banner down with it -- the same "one ticker's failure
+    # shouldn't sink the whole computation" gap already fixed in
+    # services/stock_score_capture_service.py. Missing here means this run
+    # can't produce a usable row; the caller already treats an empty frame
+    # as "no live internals this time" and falls back to the last persisted
+    # regime instead of failing the whole request.
+    missing = [t for t in INTERNALS_AUX_TICKERS if t not in aux_df.columns]
+    if missing:
+        logger.warning("Market internals: missing aux series %s this fetch, skipping", missing)
+        return pd.DataFrame()
+
     df = breadth.join(aux_df, how="inner")
     df["vix"] = df["^VIX"]
     df["vix3m"] = df["^VIX3M"]
@@ -144,6 +157,10 @@ def fetch_rates_and_move_history(period: str = "3y") -> pd.DataFrame:
     if not closes:
         return pd.DataFrame()
     raw = pd.DataFrame(closes)
+    missing = [t for t in DIMENSION_RATE_TICKERS if t not in raw.columns]
+    if missing:
+        logger.warning("Market internals: missing rates series %s this fetch, skipping", missing)
+        return pd.DataFrame()
     return pd.DataFrame({"tnx": raw["^TNX"], "move": raw["^MOVE"]})
 
 

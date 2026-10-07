@@ -1642,6 +1642,9 @@ drop policy if exists agent_order_events_isolation on agent_order_events;
 create policy agent_order_events_isolation on agent_order_events
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
+-- AGT-28: lets a fill/stop-trigger/failed-run event be dismissed from the
+-- generic in-app alerts inbox, same convention every other inbox source uses.
+alter table agent_order_events add column if not exists seen_at timestamptz;
 
 create table if not exists challenge_rank_history (
   challenge_id bigint not null references challenges(id) on delete cascade,

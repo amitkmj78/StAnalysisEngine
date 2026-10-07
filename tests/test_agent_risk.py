@@ -162,6 +162,19 @@ def test_small_drift_inside_band_produces_no_order():
     assert "within 1%" in skipped[0][1]
 
 
+def test_new_entry_reason_names_the_volatility_it_was_sized_from():
+    # AGT-11: sizing was already correct (inverse-volatility weights); the
+    # journal reason just didn't say so. It should now name both the
+    # resulting weight and the volatility figure that produced it.
+    sized = [{"ticker": "NEW", "sector": "Energy", "target_value": 5_000.0, "weight_pct": 5.0,
+              "volatility_pct": 22.5, "price": 100.0}]
+    st = risk_state(100_000.0, 100_000.0, 100_000.0, False, 100.0)
+    orders, _ = plan_orders([], sized, 100_000.0, st)
+    assert orders[0].trigger == "new_entry"
+    assert "5% of equity" in orders[0].reason
+    assert "22.5% annualized volatility" in orders[0].reason
+
+
 def test_reduce_only_keeps_sells_but_blocks_buys():
     holdings = [Holding("OLD", "Tech", 100, 50.0, "Trim", 40.0)]
     sized = [{"ticker": "NEW", "sector": "Energy", "target_value": 5_000.0, "weight_pct": 5.0,

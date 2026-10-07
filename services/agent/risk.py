@@ -130,7 +130,7 @@ def filter_candidates(
         elif c.avg_dollar_volume is None or c.avg_dollar_volume < config.min_avg_dollar_volume:
             rejected.append((c.ticker, f"20-day average dollar volume is below ${config.min_avg_dollar_volume / 1e6:.0f}M."))
         elif c.earnings_blackout:
-            rejected.append((c.ticker, f"Earnings within {config.earnings_blackout_calendar_days} calendar days; new buys skipped."))
+            rejected.append((c.ticker, f"Earnings within {config.earnings_blackout_trading_days} trading days; new buys skipped."))
         elif c.volatility_pct is None or c.volatility_pct <= 0:
             rejected.append((c.ticker, "Not enough return history to size the position."))
         else:
@@ -276,7 +276,11 @@ def plan_orders(
         if qty <= 0:
             skipped.append((s["ticker"], "Target weight is smaller than one share."))
             continue
-        buys.append(Order(s["ticker"], "buy", qty, s["price"], round(qty * s["price"], 2), "new_entry", "New Buy signal passed all filters; entering at its inverse-volatility weight."))
+        buys.append(Order(
+            s["ticker"], "buy", qty, s["price"], round(qty * s["price"], 2), "new_entry",
+            f"New Buy signal passed all filters; entering at its inverse-volatility weight "
+            f"({s['weight_pct']:g}% of equity, sized from {s['volatility_pct']:.1f}% annualized volatility).",
+        ))
 
     return sells + buys, skipped
 

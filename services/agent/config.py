@@ -29,7 +29,10 @@ class AgentConfig:
     dollar_volume_window_days: int = 20
     volatility_window_days: int = 63
     trend_sma_days: int = 200
-    earnings_blackout_calendar_days: int = 4
+    # AGT-8: the spec's own "2 trading days", not a calendar-day
+    # approximation -- runner.py's _earnings_blackout converts this to an
+    # actual calendar-day span (weekend-aware) before checking the window.
+    earnings_blackout_trading_days: int = 2
     rebalance_band_pct: float = 1.0
     vol_target_annual_pct: float = 15.0
     max_candidates_scanned: int = 40

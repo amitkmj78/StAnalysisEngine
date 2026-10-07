@@ -16,17 +16,31 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from starlette.concurrency import run_in_threadpool
 
+import json
+
 from services import alpaca_trading_client
 from services.agent.config import CONFIG, config_version
 from services.agent.runner import LIVE_BLOCK_REASON, run_agent_for_user
 from services.agent.risk import regime_cap_pct
+from services.agent.validation import (
+    AGT30_BACKTEST_VALIDATION_SETTING_KEY,
+    PAPER_TRADING_MIN_DAYS,
+    live_trading_gate_status,
+    run_agt30_stop_validation,
+)
 from services.alpaca_trading_client import AlpacaTradingError
 from services.backtest_engine import max_drawdown_pct, sharpe
 from services.challenge_service import compute_member_performance
 from services.market_regime_service import REGIME_GATE_DISCLOSURE, regime_as_of
 from services.yfinance_cache import get_cached_history
 from web.backend.admin import require_admin
-from web.backend.app_settings import AGENT_ENABLED_KEY, AGENT_KILL_SWITCH_KEY, get_setting_bool, set_setting_bool
+from web.backend.app_settings import (
+    AGENT_ENABLED_KEY,
+    AGENT_KILL_SWITCH_KEY,
+    get_setting_bool,
+    set_setting_bool,
+    set_setting_str,
+)
 from web.backend.auth import verify_bearer_token
 from web.backend.crypto_utils import decrypt_token
 from web.backend.db import service_conn
@@ -40,8 +54,14 @@ admin_router = APIRouter(prefix="/api/v1/admin/trading-agent", tags=["trading-ag
 AGENT_DISCLOSURE = "Automated trading can lose money. Past performance doesn't predict future results."
 
 
+# AGT-2(b): the exact phrase a request must type to count as "explicit
+# user opt-in" for live mode -- a plain mode="live" alone is not consent.
+LIVE_TRADING_CONFIRMATION_PHRASE = "I UNDERSTAND THE RISK AND WANT LIVE TRADING"
+
+
 class ModeRequest(BaseModel):
     mode: str = Field(pattern="^(plan|paper|live)$")
+    live_confirmation_phrase: Optional[str] = None
 
 
 class KillRequest(BaseModel):
@@ -98,6 +118,32 @@ async def _live_positions(user_id: str) -> Optional[dict]:
     }
 
 
+def _worst_month(snaps: list[dict]) -> Optional[dict]:
+    """AGT-27: groups the account's own daily equity snapshots by calendar
+    month and returns the worst finished one (first vs last snapshot in
+    that month) -- None while every month on record is still in progress,
+    rather than reporting today's partial month as if it were finished."""
+    by_month: dict[str, list[dict]] = {}
+    for s in snaps:
+        by_month.setdefault(s["as_of_date"].strftime("%Y-%m"), []).append(s)
+
+    this_month = date.today().strftime("%Y-%m")
+    worst = None
+    for month, rows in by_month.items():
+        if month == this_month:
+            continue
+        rows = sorted(rows, key=lambda r: r["as_of_date"])
+        if len(rows) < 2:
+            continue
+        start_equity, end_equity = float(rows[0]["equity"]), float(rows[-1]["equity"])
+        if start_equity <= 0:
+            continue
+        return_pct = round((end_equity / start_equity - 1.0) * 100.0, 2)
+        if worst is None or return_pct < worst["return_pct"]:
+            worst = {"month": month, "return_pct": return_pct}
+    return worst
+
+
 async def _performance(user_id: str) -> Optional[dict]:
     """AGT-27, paper only. Return, volatility, drawdown and Sharpe on the
     account's own equity snapshots, against SPY over the same window."""
@@ -113,6 +159,11 @@ async def _performance(user_id: str) -> Optional[dict]:
             """,
             user_id, start, today,
         )
+        fills = await conn.fetchval(
+            "SELECT count(*) FROM agent_order_events WHERE user_id = $1::uuid AND event_type = 'filled' "
+            "AND created_at >= $2",
+            user_id, start,
+        )
     if len(rows) < 2:
         return {"days_of_data": len(rows), "note": "Not enough equity history yet. Snapshots start once the paper equity capture job runs."}
     snaps = [{"as_of_date": r["as_of_date"], "equity": r["equity"]} for r in rows]
@@ -126,6 +177,7 @@ async def _performance(user_id: str) -> Optional[dict]:
             spy_return = round((float(window.iloc[-1]) / float(window.iloc[0]) - 1.0) * 100.0, 2)
     except Exception:  # noqa: BLE001 -- SPY is comparison context; never fail the page over it
         logger.warning("SPY comparison unavailable for agent performance")
+    worst = _worst_month(snaps)
     return {
         "days_of_data": perf["days_of_data"],
         "return_pct": perf["return_pct"],
@@ -133,8 +185,11 @@ async def _performance(user_id: str) -> Optional[dict]:
         "max_drawdown_pct": max_drawdown_pct(daily),
         "sharpe": sharpe(daily, 0.0, 252),
         "spy_return_pct": spy_return,
-        "costs_paid": "Alpaca paper trading charges no commissions; costs are not modelled here.",
-        "worst_month": "Not computed yet (needs a full month of snapshots).",
+        "costs_paid": f"{fills} order(s) filled in this window; $0 in commissions (Alpaca paper trading charges none).",
+        "worst_month": (
+            f"{worst['month']}: {worst['return_pct']:+.1f}%" if worst
+            else "Not computed yet (needs at least one full finished calendar month of snapshots)."
+        ),
     }
 
 
@@ -162,6 +217,7 @@ async def get_status(request: Request):
                 latest_run = {"run": dict(run), "events": [dict(e) for e in events]}
 
     broker = await _live_positions(user_id) if settings and settings["enabled"] else None
+    live_gate = await live_trading_gate_status(user_id)
     return {
         "enabled": bool(settings and settings["enabled"]),
         "mode": settings["mode"] if settings else "plan",
@@ -180,7 +236,19 @@ async def get_status(request: Request):
         },
         "regime": {"label": regime, "exposure_cap_pct": regime_cap, "reason": regime_reason,
                    "disclosure": REGIME_GATE_DISCLOSURE},
-        "live": {"allowed": False, "reason": LIVE_BLOCK_REASON},
+        # AGT-2: the three gates, checked individually -- allowed is only
+        # ever True once all three actually pass. services/agent/runner.py
+        # also blocks live unconditionally underneath this, regardless of
+        # what this reports.
+        "live": {
+            "allowed": live_gate.passed,
+            "allow_live_trading_flag_set": live_gate.allow_live_trading_flag_set,
+            "backtest_validation_passed": live_gate.backtest_validation_passed,
+            "paper_trading_days": live_gate.paper_trading_days,
+            "paper_trading_days_required": PAPER_TRADING_MIN_DAYS,
+            "paper_trading_meets_bar": live_gate.paper_trading_meets_bar,
+            "reasons": live_gate.reasons,
+        },
         "disclosure": AGENT_DISCLOSURE,
         "broker": broker,
         "performance_paper": await _performance(user_id) if settings and settings["enabled"] else None,
@@ -225,19 +293,30 @@ async def set_mode(request: Request, body: ModeRequest):
     user_id = request.state.user["id"]
     await _require_enabled(user_id)
     if body.mode == "live":
+        # AGT-2: each of the three gates is checked and named individually
+        # here, rather than one unconditional block -- but the outcome is
+        # the same today regardless, since services/agent/runner.py also
+        # blocks live unconditionally underneath this.
+        gate = await live_trading_gate_status(user_id)
+        reasons = list(gate.reasons)
+        if body.live_confirmation_phrase != LIVE_TRADING_CONFIRMATION_PHRASE:
+            reasons.append(
+                f'Typed confirmation required: send live_confirmation_phrase exactly as "{LIVE_TRADING_CONFIRMATION_PHRASE}".'
+            )
+        reason_text = LIVE_BLOCK_REASON if not reasons else "Live trading is blocked: " + " ".join(reasons)
         async with service_conn() as conn:
             run_id = await conn.fetchval(
                 """
                 INSERT INTO agent_runs (user_id, mode, status, config_version, reason)
-                VALUES ($1::uuid, 'live', 'skipped', $2, 'Live mode was requested and blocked.') RETURNING id
+                VALUES ($1::uuid, 'live', 'skipped', $2, $3) RETURNING id
                 """,
-                user_id, config_version(),
+                user_id, config_version(), reason_text,
             )
             await conn.execute(
                 "INSERT INTO agent_order_events (run_id, user_id, event_type, reason) VALUES ($1, $2::uuid, 'rejected', $3)",
-                run_id, user_id, LIVE_BLOCK_REASON,
+                run_id, user_id, reason_text,
             )
-        raise HTTPException(400, LIVE_BLOCK_REASON)
+        raise HTTPException(400, reason_text)
     async with service_conn() as conn:
         await conn.execute(
             "UPDATE agent_user_settings SET mode = $2, updated_at = now() WHERE user_id = $1::uuid", user_id, body.mode
@@ -332,3 +411,22 @@ async def admin_set_global(body: GlobalRequest):
 async def admin_set_kill(body: KillRequest):
     await set_setting_bool(AGENT_KILL_SWITCH_KEY, body.engaged)
     return {"agent_kill_switch": body.engaged}
+
+
+@admin_router.post("/validate-agt30")
+async def admin_validate_agt30():
+    """Runs and persists the AGT-30 backtest leg (services/agent/
+    validation.py) against SPY's real price history, for GET /status's
+    live_trading_gate_status to read back. Not scheduled -- re-run by
+    hand whenever the agent's stop-loss config changes; a stored result
+    from under a different config_version is treated as stale, not as a
+    current pass. See validation.py's own module docstring for exactly
+    what this does and does not test (the regime cap is excluded, and
+    this tests the stop-loss rule on SPY itself, not a multi-stock
+    universe -- both disclosed in the result)."""
+    spy = await run_in_threadpool(get_cached_history, "SPY", "max", True)
+    if spy.empty:
+        raise HTTPException(502, "No SPY history returned -- cannot run the validation.")
+    report = run_agt30_stop_validation(spy)
+    await set_setting_str(AGT30_BACKTEST_VALIDATION_SETTING_KEY, json.dumps(report))
+    return report
