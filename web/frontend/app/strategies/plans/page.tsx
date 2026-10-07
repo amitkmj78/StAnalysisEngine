@@ -7,6 +7,7 @@ import MetricLabel from "@/components/MetricLabel";
 import MonteCarloChart from "@/components/strategies/MonteCarloChart";
 import {
   ApiError,
+  createPortfolioFromGoal,
   deleteStrategyPlan,
   getPortfolioSummary,
   getStrategiesOptions,
@@ -127,6 +128,8 @@ export default function StrategiesPage() {
   const [plans, setPlans] = useState<SavedStrategyPlan[] | null>(null);
   const [plansError, setPlansError] = useState<string | null>(null);
   const [planName, setPlanName] = useState("");
+  const [buildingFor, setBuildingFor] = useState<number | null>(null);
+  const [goalPortfolioMsg, setGoalPortfolioMsg] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -170,6 +173,20 @@ export default function StrategiesPage() {
 
   const preflightHorizonWarnings = useMemo(() => horizonConflictWarnings(years, fundCategory), [years, fundCategory]);
 
+  // Builds a portfolio from a saved goal: half to one broad fund, half across the stock picks, in whole shares.
+  async function handleCreatePortfolio(p: SavedStrategyPlan) {
+    setBuildingFor(p.id);
+    try {
+      const res = await createPortfolioFromGoal({ name: p.name || `Goal ${p.id}`, monthly_amount: p.monthly_contribution });
+      const holdings = res.holdings.map((h) => `${h.shares} × ${h.ticker}`).join(", ");
+      setGoalPortfolioMsg((m) => ({ ...m, [p.id]: `Created "${res.name}": ${holdings}. Cash left: $${res.cash.toFixed(0)}. ${res.note}` }));
+    } catch (err) {
+      setGoalPortfolioMsg((m) => ({ ...m, [p.id]: err instanceof ApiError ? err.message : "The portfolio could not be created." }));
+    } finally {
+      setBuildingFor(null);
+    }
+  }
+
   async function handleSavePlan() {
     if (!data) return;
     setSaving(true);
@@ -198,6 +215,7 @@ export default function StrategiesPage() {
   }
 
   async function handleDeletePlan(id: number) {
+    if (!window.confirm("Remove this goal? Its progress history goes with it.")) return;
     setDeletingId(id);
     try {
       await deleteStrategyPlan(id);
@@ -306,12 +324,17 @@ export default function StrategiesPage() {
                       {new Date(p.created_at).toLocaleDateString()}
                     </p>
                   </div>
+                  {/* Before a full month has passed there is nothing to judge: the gap is zero by construction. */}
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      p.progress.on_track ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                      p.progress.months_elapsed < 1
+                        ? "bg-slate-100 text-slate-700"
+                        : p.progress.on_track ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
                     }`}
                   >
-                    {p.progress.on_track ? "On track" : "Behind pace"}
+                    {p.progress.months_elapsed < 1
+                      ? `Started ${new Date(p.created_at).toLocaleDateString()}`
+                      : p.progress.on_track ? "On track" : "Behind pace"}
                   </span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -324,7 +347,7 @@ export default function StrategiesPage() {
                     <p className="font-medium text-slate-800">{fmtMoney(p.progress.actual_value)}</p>
                   </div>
                 </div>
-                <p className={`mt-2 text-xs font-medium ${p.progress.on_track ? "text-emerald-600" : "text-red-600"}`}>
+                <p className={`mt-2 text-xs font-medium ${p.progress.months_elapsed < 1 ? "text-slate-600" : p.progress.on_track ? "text-emerald-600" : "text-red-600"}`}>
                   {p.progress.diff >= 0 ? "+" : ""}
                   {fmtMoney(p.progress.diff)}
                   {p.progress.diff_pct !== null && ` (${p.progress.diff_pct >= 0 ? "+" : ""}${p.progress.diff_pct.toFixed(1)}%)`}
@@ -332,12 +355,21 @@ export default function StrategiesPage() {
                   vs. plan · {p.progress.months_elapsed} mo in
                 </p>
                 <button
+                  type="button"
+                  onClick={() => handleCreatePortfolio(p)}
+                  disabled={buildingFor === p.id}
+                  className="mt-3 mr-2 rounded-md border border-indigo-300 px-2.5 py-1 text-xs font-medium text-indigo-800 hover:bg-indigo-50 disabled:opacity-50"
+                >
+                  {buildingFor === p.id ? "Creating…" : "Create portfolio from this goal"}
+                </button>
+                <button
                   onClick={() => handleDeletePlan(p.id)}
                   disabled={deletingId === p.id}
                   className="mt-3 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
                 >
                   {deletingId === p.id ? "Removing…" : "Remove"}
                 </button>
+                {goalPortfolioMsg[p.id] && <p className="mt-2 text-xs text-slate-700">{goalPortfolioMsg[p.id]}</p>}
               </div>
             ))}
           </div>

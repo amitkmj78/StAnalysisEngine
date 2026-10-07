@@ -214,24 +214,26 @@ async def save_plan(body: SavePlanRequest, request: Request):
     await enforce_daily_quota(request, "strategies/plans/save")
     user_id = request.state.user["id"]
 
+    # Snapshot the portfolio's value now, so progress is measured from the day the goal was saved (a gap of zero).
+    positions = await _user_positions(user_id)
+    baseline_value = await run_in_threadpool(compute_total_portfolio_value, positions)
     async with user_conn(user_id) as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO strategy_plans (
                 user_id, name, target_amount, years, starting_capital, annual_return_pct, monthly_contribution,
-                annual_contribution_increase_pct, account_type, inflation_pct
-            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                annual_contribution_increase_pct, account_type, inflation_pct, baseline_value
+            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             RETURNING *
             """,
             user_id, body.name, body.target_amount, body.years,
             body.starting_capital, body.annual_return_pct, body.monthly_contribution,
-            body.annual_contribution_increase_pct, body.account_type, body.inflation_pct,
+            body.annual_contribution_increase_pct, body.account_type, body.inflation_pct, baseline_value,
         )
 
-    positions = await _user_positions(user_id)
-    current_value = await run_in_threadpool(compute_total_portfolio_value, positions)
+    current_value = baseline_value
     progress = compute_plan_progress(
-        starting_capital=row["starting_capital"],
+        starting_capital=_starting_for_progress(row),
         monthly_contribution=row["monthly_contribution"],
         annual_return_pct=row["annual_return_pct"],
         months_elapsed=elapsed_months(row["created_at"]),
@@ -239,6 +241,15 @@ async def save_plan(body: SavePlanRequest, request: Request):
         annual_increase_pct=row["annual_contribution_increase_pct"],
     )
     return _plan_out(row, progress)
+
+
+def _starting_for_progress(row) -> float:
+    """A goal saved with a portfolio snapshot starts from that snapshot. Older goals (no snapshot) start from the amount typed."""
+    try:
+        baseline = row["baseline_value"]
+    except KeyError:
+        baseline = None
+    return float(baseline) if baseline is not None else row["starting_capital"]
 
 
 @router.get("/plans")
@@ -257,7 +268,7 @@ async def list_plans(request: Request):
     plans = []
     for row in rows:
         progress = compute_plan_progress(
-            starting_capital=row["starting_capital"],
+            starting_capital=_starting_for_progress(row),
             monthly_contribution=row["monthly_contribution"],
             annual_return_pct=row["annual_return_pct"],
             months_elapsed=elapsed_months(row["created_at"]),

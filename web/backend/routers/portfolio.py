@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from services.acquired_at_utils import acquired_at_or_today, is_missing_date
@@ -22,7 +22,9 @@ from services.goal_plan_service import (
     solve_goal_plan,
 )
 from services.index_fund_service import GOAL_DESCRIPTIONS, GOAL_WEIGHTS
+from services.goal_portfolio import allocate_monthly
 from services.manual_positions import build_manual_positions
+from services.million_plan_service import get_diverse_strategy_picks
 from services.market_regime_service import regime_as_of
 from services.monthly_investing_service import get_best_monthly_pick
 from services.portfolio_alert_service import build_drop_analysis, get_price_and_prev_close
@@ -748,6 +750,82 @@ async def submit_manual_positions(request: Request, body: ManualPositionsRequest
         portfolio_id = await _resolve_portfolio_id(conn, user_id, body.portfolio_id)
         merged_df = await _merge_with_existing(conn, user_id, portfolio_id, holdings_df)
         return await _save_and_respond(conn, user_id, portfolio_id, merged_df, body.risk_profile, body.risk_factor, "Manual")
+
+
+class PortfolioFromGoalRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    monthly_amount: float = Field(gt=0, le=1_000_000)
+    fund_category: str = "All"
+    stock_universe: str = "All"
+    top_n: int = Field(default=1, ge=1, le=5)
+    account_type: str = "Taxable"
+
+
+@router.post("/from-goal")
+@limiter.limit("5/minute")
+async def portfolio_from_goal(request: Request, body: PortfolioFromGoalRequest):
+    """Creates a portfolio from a goal's monthly contribution: half to one broad fund, half split across the stock picks.
+    No trades are placed; these are the holdings the portfolio starts with, at today's prices, in whole shares."""
+    await enforce_daily_quota(request, "portfolio/from-goal")
+    if body.account_type not in ACCOUNT_TYPES:
+        raise HTTPException(422, f"account_type must be one of {ACCOUNT_TYPES}")
+    user_id = request.state.user["id"]
+
+    picks = await run_in_threadpool(get_diverse_strategy_picks, body.fund_category, body.stock_universe, body.top_n)
+    names = {pick.ticker: pick.name for pick in picks}
+    fund = None
+    fund_picks = [pick for pick in picks if pick.asset_type == "Fund"]
+    if fund_picks:
+        price = await run_in_threadpool(get_effective_price, fund_picks[0].ticker)
+        if price:
+            fund = (fund_picks[0].ticker, float(price))
+    stocks = []
+    for pick in (pick for pick in picks if pick.asset_type == "Stock"):
+        price = await run_in_threadpool(get_effective_price, pick.ticker)
+        if price:
+            stocks.append((pick.ticker, float(price)))
+    if fund is None and not stocks:
+        raise HTTPException(503, "No prices are available for the picks right now. Try again later.")
+
+    allocation = allocate_monthly(body.monthly_amount, fund, stocks)
+    if not allocation["holdings"]:
+        raise HTTPException(422, "The monthly amount is too small to buy one whole share of any holding.")
+
+    today = date.today()
+    async with user_conn(user_id) as conn:
+        record = await conn.fetchrow(
+            "INSERT INTO portfolios (user_id, name, account_type) VALUES ($1::uuid, $2, $3) RETURNING id",
+            user_id, body.name.strip(), body.account_type,
+        )
+        portfolio_id = record["id"]
+        holdings = allocation["holdings"]
+        holdings_df = build_manual_positions(
+            names=[names.get(h["ticker"], h["ticker"]) for h in holdings],
+            tickers=[h["ticker"] for h in holdings],
+            shares=[float(h["shares"]) for h in holdings],
+            current_prices=[h["price"] for h in holdings],
+            avg_costs=[h["price"] for h in holdings],
+            total_returns=[0.0 for _ in holdings],
+            acquired_dates=[today for _ in holdings],
+        )
+        merged_df = await _merge_with_existing(conn, user_id, portfolio_id, holdings_df)
+        await _save_and_respond(conn, user_id, portfolio_id, merged_df, "Balanced", 5, "Manual")
+        await conn.execute("UPDATE portfolios SET cash_balance = $1 WHERE id = $2 AND user_id = $3::uuid",
+                           allocation["cash"], portfolio_id, user_id)
+
+    return {
+        "portfolio_id": portfolio_id,
+        "name": body.name.strip(),
+        "holdings": holdings,
+        "cash": allocation["cash"],
+        "invested": allocation["invested"],
+        "fund": fund[0] if fund else None,
+        "stock_picks_used": len(stocks),
+        "note": (
+            "No stock picks were available, so the stock half is held as cash." if not stocks
+            else "Stock picks are not yet checked against Scan results."
+        ),
+    }
 
 
 @router.post("/import-csv")

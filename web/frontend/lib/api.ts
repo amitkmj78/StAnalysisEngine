@@ -658,6 +658,20 @@ export function getPortfolios() {
   return apiFetch<PortfolioListResponse>("/api/v1/portfolio/list");
 }
 
+// A portfolio built from a goal's monthly contribution: half to a broad fund, half across the stock picks.
+export function createPortfolioFromGoal(body: { name: string; monthly_amount: number; fund_category?: string; stock_universe?: string; top_n?: number; account_type?: string }) {
+  return apiSend<{
+    portfolio_id: number;
+    name: string;
+    holdings: { ticker: string; shares: number; price: number; role: string }[];
+    cash: number;
+    invested: number;
+    fund: string | null;
+    stock_picks_used: number;
+    note: string;
+  }>("/api/v1/portfolio/from-goal", "POST", body);
+}
+
 export function createPortfolio(name: string) {
   return apiSend<Portfolio>("/api/v1/portfolio/create", "POST", { name });
 }
