@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Optional
 from dataclasses import asdict
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -19,6 +20,8 @@ from services.million_plan_service import (
 from services.index_fund_service import GOAL_WEIGHTS as FUND_GOAL_WEIGHTS
 from services.portfolio_performance_service import compute_total_portfolio_value
 from services.stock_finder_service import STOCK_UNIVERSES
+from services.data_service import get_effective_price
+from services.goal_links import sleeve_drift, steering, target_mix
 from services.strategy_plan_service import compute_plan_progress, elapsed_months
 
 from web.backend.auth import verify_bearer_token
@@ -278,6 +281,122 @@ async def list_plans(request: Request):
         plans.append(_plan_out(row, progress))
 
     return {"plans": plans}
+
+
+class GoalLinkIn(BaseModel):
+    portfolio_id: int
+    ticker: str = Field(min_length=1, max_length=12)
+    share_pct: float = Field(gt=0, le=100)
+    role: Literal["core", "pick"]
+
+
+async def _plan_row(conn, user_id: str, plan_id: int):
+    row = await conn.fetchrow(
+        "SELECT id, years, monthly_contribution, created_at FROM strategy_plans WHERE id = $1 AND user_id = $2::uuid",
+        plan_id, user_id,
+    )
+    if row is None:
+        raise HTTPException(404, "Goal not found.")
+    return row
+
+
+@router.get("/plans/{plan_id}/links")
+@limiter.limit("60/minute")
+async def list_goal_links(request: Request, plan_id: int):
+    """STRAT-10: the holdings linked to a goal, their current value, the drift against the target mix, and where the
+    next monthly contribution should go."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        plan = await _plan_row(conn, user_id, plan_id)
+        links = await conn.fetch(
+            "SELECT id, portfolio_id, ticker, share_pct, role, baseline_value FROM goal_links WHERE plan_id = $1 AND user_id = $2::uuid ORDER BY id",
+            plan_id, user_id,
+        )
+        positions = await conn.fetch(
+            "SELECT portfolio_id, ticker, shares FROM portfolio_positions WHERE user_id = $1::uuid",
+            user_id,
+        )
+    shares_by_holding = {(p["portfolio_id"], p["ticker"]): float(p["shares"]) for p in positions}
+    tickers = sorted({link["ticker"] for link in links})
+    prices = {}
+    for ticker in tickers:
+        price = await run_in_threadpool(get_effective_price, ticker)
+        prices[ticker] = float(price) if price else 0.0
+
+    targets = target_mix(float(plan["years"]))
+    holdings, rows = [], []
+    for link in links:
+        held = shares_by_holding.get((link["portfolio_id"], link["ticker"]), 0.0)
+        value = held * prices.get(link["ticker"], 0.0) * link["share_pct"] / 100
+        holdings.append({"ticker": link["ticker"], "role": link["role"], "value": value})
+        rows.append({
+            "id": link["id"], "portfolio_id": link["portfolio_id"], "ticker": link["ticker"],
+            "share_pct": link["share_pct"], "role": link["role"], "value": round(value, 2),
+            "baseline_value": link["baseline_value"], "gain": round(value - link["baseline_value"], 2),
+        })
+    drift = sleeve_drift(holdings, targets)
+    plan_steering = steering(float(plan["monthly_contribution"] or 0), holdings, targets, prices) if holdings else None
+    return {
+        "plan_id": plan_id,
+        "targets": targets,
+        "links": rows,
+        "linked_value": round(sum(h["value"] for h in holdings), 2),
+        "linked_baseline": round(sum(r["baseline_value"] for r in rows), 2),
+        "drift": drift,
+        "steering": plan_steering,
+        "assumption_note": "Bonds are assumed to sit outside this portfolio; drift and steering are for the linked stock sleeve.",
+    }
+
+
+@router.post("/plans/{plan_id}/links")
+@limiter.limit("30/minute")
+async def add_goal_link(request: Request, plan_id: int, body: GoalLinkIn):
+    """Links a share of one holding to a goal. The same shares can't count toward two goals."""
+    user_id = request.state.user["id"]
+    ticker = body.ticker.strip().upper()
+    async with user_conn(user_id) as conn:
+        await _plan_row(conn, user_id, plan_id)
+        position = await conn.fetchrow(
+            "SELECT shares FROM portfolio_positions WHERE user_id = $1::uuid AND portfolio_id = $2 AND ticker = $3",
+            user_id, body.portfolio_id, ticker,
+        )
+        if position is None or float(position["shares"]) <= 0:
+            raise HTTPException(422, f"{ticker} is not held in that portfolio.")
+        already = await conn.fetchval(
+            "SELECT COALESCE(SUM(share_pct), 0) FROM goal_links WHERE user_id = $1::uuid AND portfolio_id = $2 AND ticker = $3",
+            user_id, body.portfolio_id, ticker,
+        )
+        if float(already) + body.share_pct > 100.0001:
+            raise HTTPException(422, f"Only {100 - float(already):.0f}% of {ticker} is unassigned, so it can't fund this share.")
+        price = await run_in_threadpool(get_effective_price, ticker)
+        if not price:
+            raise HTTPException(503, f"No current price for {ticker} right now. Try again later.")
+        baseline = float(position["shares"]) * float(price) * body.share_pct / 100
+        try:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO goal_links (user_id, plan_id, portfolio_id, ticker, share_pct, role, baseline_value)
+                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7) RETURNING id
+                """,
+                user_id, plan_id, body.portfolio_id, ticker, body.share_pct, body.role, baseline,
+            )
+        except Exception:
+            raise HTTPException(409, f"{ticker} is already linked to this goal in that portfolio.")
+    return {"id": row["id"], "baseline_value": round(baseline, 2)}
+
+
+@router.delete("/plans/{plan_id}/links/{link_id}")
+@limiter.limit("30/minute")
+async def remove_goal_link(request: Request, plan_id: int, link_id: int):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        deleted = await conn.fetchval(
+            "DELETE FROM goal_links WHERE id = $1 AND plan_id = $2 AND user_id = $3::uuid RETURNING id",
+            link_id, plan_id, user_id,
+        )
+    if deleted is None:
+        raise HTTPException(404, "Link not found.")
+    return {"ok": True}
 
 
 @router.delete("/plans/{plan_id}")

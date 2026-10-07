@@ -527,6 +527,35 @@ export interface MonteCarloResult {
   assumptions: MonteCarloAssumptions;
 }
 
+// STRAT-10: a goal's linked holdings and their drift and steering.
+export interface GoalLinkRow {
+  id: number;
+  portfolio_id: number;
+  ticker: string;
+  share_pct: number;
+  role: "core" | "pick";
+  value: number;
+  baseline_value: number;
+  gain: number;
+}
+
+export interface GoalLinksResponse {
+  plan_id: number;
+  targets: { stock_pct: number; bonds_pct: number; picks_pct: number; core_pct: number; picks_cap_pct: number };
+  links: GoalLinkRow[];
+  linked_value: number;
+  linked_baseline: number;
+  drift: { total: number; rows: { role: string; actual_pct: number; target_pct: number; drift_points: number }[]; flags: string[] };
+  steering: {
+    monthly: number;
+    into_stocks: number;
+    toward_bonds_outside_portfolio: number;
+    buys: { ticker: string; role: string; amount: number; shares: number; price: number; spent: number }[];
+    cash: number;
+  } | null;
+  assumption_note: string;
+}
+
 export interface StrategiesSummaryResponse {
   plan: GoalPlan;
   picks: StrategyPickRow[] | null;

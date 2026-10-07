@@ -54,6 +54,7 @@ import type {
   FundRankResponse,
   FundReturnSince,
   FundScoreResponse,
+  GoalLinksResponse,
   GoalPlanResponse,
   ManualPositionInput,
   MarketNewsResponse,
@@ -659,6 +660,19 @@ export function getPortfolios() {
 }
 
 // A portfolio built from a goal's monthly contribution: half to a broad fund, half across the stock picks.
+// STRAT-10: holdings linked to a goal, with their drift against the target mix and where the next money should go.
+export function getGoalLinks(planId: number) {
+  return apiFetch<GoalLinksResponse>(`/api/v1/strategies/plans/${planId}/links`);
+}
+
+export function addGoalLink(planId: number, body: { portfolio_id: number; ticker: string; share_pct: number; role: "core" | "pick" }) {
+  return apiSend<{ id: number; baseline_value: number }>(`/api/v1/strategies/plans/${planId}/links`, "POST", body);
+}
+
+export function removeGoalLink(planId: number, linkId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/strategies/plans/${planId}/links/${linkId}`, "DELETE");
+}
+
 export function createPortfolioFromGoal(body: { name: string; monthly_amount: number; fund_category?: string; stock_universe?: string; top_n?: number; account_type?: string }) {
   return apiSend<{
     portfolio_id: number;

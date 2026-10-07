@@ -1,5 +1,6 @@
 "use client";
 
+import GoalLinks from "@/components/strategies/GoalLinks";
 import { cloneElement, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import type { ColumnInfo } from "@/components/InfoModal";
@@ -370,6 +371,7 @@ export default function StrategiesPage() {
                   {deletingId === p.id ? "Removing…" : "Remove"}
                 </button>
                 {goalPortfolioMsg[p.id] && <p className="mt-2 text-xs text-slate-700">{goalPortfolioMsg[p.id]}</p>}
+                <GoalLinks planId={p.id} />
               </div>
             ))}
           </div>
