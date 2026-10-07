@@ -56,3 +56,5 @@ class PredictionNarrativeOut(BaseModel):
     provider: str
     narrative: str
     sentiment_context: str
+    # NFR-5: real, structured sources for sentiment_context above.
+    sentiment_sources: list[dict] = []

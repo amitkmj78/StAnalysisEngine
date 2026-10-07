@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from Agent.meta_agent import ask_meta_agent, build_agent
+from Agent.meta_agent import ask_meta_agent_with_sources, build_agent
 
 from services.ai_answer_cache import ai_answer_key, get_ai_answer, put_ai_answer
 from services.cited_analyst_service import answer_cited
@@ -93,7 +93,7 @@ async def ask(request: Request, body: ChatRequest):
     else:
         if not body.ticker or not body.ticker.strip():
             raise HTTPException(422, "ticker is required when scope is 'ticker'")
-        answer, actual_llm = await _ask_ticker(body, llms)
+        answer, actual_llm, sources = await _ask_ticker(body, llms)
         result_ticker = body.ticker.strip().upper()
 
     actual_provider = provider
@@ -107,7 +107,7 @@ async def ask(request: Request, body: ChatRequest):
     return response
 
 
-async def _ask_ticker(body: ChatRequest, llms: list) -> tuple[str, object]:
+async def _ask_ticker(body: ChatRequest, llms: list) -> tuple[str, object, list[dict]]:
     ticker = body.ticker.strip().upper()
 
     # Each provider needs its own agent (bind_tools is provider-specific,
@@ -122,14 +122,15 @@ async def _ask_ticker(body: ChatRequest, llms: list) -> tuple[str, object]:
     # trying before showing the user a bare warning.
     answer = "No LLM provider was available to answer."
     actual_llm = None
+    sources: list[dict] = []
     for candidate in llms:
         agent = await run_in_threadpool(build_agent, candidate)
-        answer = await run_in_threadpool(ask_meta_agent, agent, ticker, body.question)
+        answer, sources = await run_in_threadpool(ask_meta_agent_with_sources, agent, ticker, body.question)
         if not answer.startswith("❌ Meta-agent crashed:") and not answer.startswith("⚠️ Meta-agent responded"):
             actual_llm = candidate
             break
 
-    return answer, actual_llm
+    return answer, actual_llm, sources
 
 
 async def _ask_portfolio(request: Request, body: ChatRequest, llms: list) -> tuple[str, object]:

@@ -1,5 +1,6 @@
 import threading
 import time
+from datetime import date, timedelta
 from typing import Optional
 
 import numpy as np
@@ -16,6 +17,7 @@ from .backtest_engine import (
 )
 from .index_fund_service import INDEX_FUND_UNIVERSE
 from .rate_limit_utils import fetch_with_backoff
+from .sp500_membership import members_on, removed_after
 from .stock_finder_service import _universe_tickers as _resolve_stock_universe_tickers
 
 # A single yf.download() call for the full "All"/S&P 500 universe
@@ -53,24 +55,60 @@ DEFAULT_HORIZON_DAYS = 30
 DEFAULT_CAPACITY_ADV_FRACTION = 0.01
 
 
-def _universe_tickers(asset_type: str, universe_key: str) -> list[str]:
-    if asset_type == "Stock":
+def _universe_tickers(
+    asset_type: str, universe_key: str, years: int = 0, current_only: bool = False
+) -> tuple[list[str], dict]:
+    """Returns (tickers, universe_info) -- universe_info discloses which
+    basis produced the list, same shape strategy_builder.py's /scan
+    route already reports (SCAN-2).
+
+    NFR-1: a "years"-long walk-forward backtest that resolves its
+    candidate universe from TODAY's membership is survivorship-biased --
+    every ticker that has since left the S&P 500 never gets a chance to
+    be ranked for a rebalance date years in the past, even though it was
+    a real candidate then. Default (current_only=False) resolves to the
+    S&P 500 as it stood at the start of the backtest window instead
+    (services/sp500_membership.py::members_on, the same point-in-time
+    source SCAN-2's /scan route already proved out). A ticker removed
+    since then is still included in the candidate pool; if yfinance
+    can no longer serve its price history (it generally can't for a
+    delisted name), _download_universe_history already drops it
+    silently via its existing try/except -- the same honest degrade
+    this app uses elsewhere, not a new failure mode."""
+    if asset_type != "Stock" or universe_key not in ("All", "US - S&P 500"):
+        # No point-in-time membership source exists for fund universes or
+        # non-S&P stock universes -- unchanged, today's membership.
+        if asset_type == "Stock":
+            return list(_resolve_stock_universe_tickers(universe_key)), {"basis": "current_members"}
+        if universe_key == "All":
+            return [f.ticker for f in INDEX_FUND_UNIVERSE], {"basis": "current_members"}
+        return [f.ticker for f in INDEX_FUND_UNIVERSE if f.category == universe_key], {"basis": "current_members"}
+
+    if current_only:
         # "All" and "US - S&P 500" are deliberately empty placeholders in
-        # STOCK_UNIVERSES itself (see that dict's own comment) -- they
-        # resolve lazily via a live, 24h-cached Wikipedia fetch
-        # (stock_finder_service.fetch_sp500_tickers), not a static lookup.
-        # This function used to do `STOCK_UNIVERSES.get(universe_key, [])`
-        # directly, which silently returned an empty list for both of
-        # those keys -- a real, 100%-reproducible bug (not transient/rate
-        # -limit related) that made every "Stock" backtest against "All"
-        # or "US - S&P 500" fail with "not enough historical data",
-        # regardless of horizon_days/years/lookback_days. Reusing
-        # stock_finder_service's own resolver instead of reimplementing
-        # it here is what keeps this from silently diverging again.
-        return list(_resolve_stock_universe_tickers(universe_key))
-    if universe_key == "All":
-        return [f.ticker for f in INDEX_FUND_UNIVERSE]
-    return [f.ticker for f in INDEX_FUND_UNIVERSE if f.category == universe_key]
+        # STOCK_UNIVERSES itself -- they resolve lazily via a live,
+        # 24h-cached Wikipedia fetch (stock_finder_service.
+        # fetch_sp500_tickers), not a static lookup. This used to be the
+        # only path; kept as an explicit, labeled opt-in for anyone who
+        # wants the old (biased) behavior.
+        tickers = list(_resolve_stock_universe_tickers(universe_key))
+        return tickers, {"basis": "current_members_biased"}
+
+    start = date.today() - timedelta(days=int(years * 365.25) + 1)
+    start_members = members_on(start)
+    if not start_members:
+        # Membership history unavailable -- fail open to current
+        # membership rather than returning no candidates at all, same
+        # "degrade, don't crash" convention as everywhere else in this
+        # service, but the caller can tell from universe_info that this
+        # run isn't actually point-in-time.
+        tickers = list(_resolve_stock_universe_tickers(universe_key))
+        return tickers, {"basis": "current_members_fallback", "reason": "membership history unavailable"}
+    left = removed_after(start)
+    return sorted(start_members), {
+        "basis": "point_in_time", "as_of": start.isoformat(),
+        "members_at_start": len(start_members), "left_index_in_window": left,
+    }
 
 
 def _download_universe_history(tickers: list[str], period: str) -> dict[str, pd.DataFrame]:
@@ -118,6 +156,7 @@ def backtest_momentum_ranking(
     commission_bps: float = DEFAULT_COMMISSION_BPS,
     borrow_cost_bps_annual: float = DEFAULT_BORROW_COST_BPS_ANNUAL,
     risk_free_rate_annual: float = 0.0,
+    current_only: bool = False,
 ) -> Optional[dict]:
     """
     Hand-rolled cache instead of the shared @ttl_cache decorator, on
@@ -133,7 +172,7 @@ def backtest_momentum_ranking(
     """
     cache_key = (
         asset_type, universe_key, lookback_days, top_n, years, horizon_days,
-        slippage_bps, commission_bps, borrow_cost_bps_annual, risk_free_rate_annual,
+        slippage_bps, commission_bps, borrow_cost_bps_annual, risk_free_rate_annual, current_only,
     )
     with _backtest_cache_lock:
         cached_at = _backtest_cache_ts.get(cache_key)
@@ -142,7 +181,7 @@ def backtest_momentum_ranking(
 
     result = _compute_backtest_momentum_ranking(
         asset_type, universe_key, lookback_days, top_n, years, horizon_days,
-        slippage_bps, commission_bps, borrow_cost_bps_annual, risk_free_rate_annual,
+        slippage_bps, commission_bps, borrow_cost_bps_annual, risk_free_rate_annual, current_only,
     )
 
     if result is not None:
@@ -163,6 +202,7 @@ def _compute_backtest_momentum_ranking(
     commission_bps: float,
     borrow_cost_bps_annual: float,
     risk_free_rate_annual: float,
+    current_only: bool = False,
 ) -> Optional[dict]:
     """
     Event-driven walk-forward backtest of a pure trailing-return ranking
@@ -191,7 +231,7 @@ def _compute_backtest_momentum_ranking(
     Best Index Fund, which can't be walk-forward backtested without a
     point-in-time fundamentals source this app doesn't have.
     """
-    tickers = _universe_tickers(asset_type, universe_key)
+    tickers, universe_info = _universe_tickers(asset_type, universe_key, years, current_only)
     if len(tickers) < top_n + 1:
         return None
 
@@ -299,6 +339,7 @@ def _compute_backtest_momentum_ranking(
     return {
         "asset_type": asset_type,
         "universe": universe_key,
+        "universe_info": universe_info,
         "lookback_days": lookback_days,
         "top_n": top_n,
         "years": years,

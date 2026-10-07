@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import date
 
@@ -118,6 +119,7 @@ async def scan_portfolios_for_drops(threshold_pct: float | None = None, user_id:
         else:
             analysis = {
                 "sentiment_summary": None,
+                "sentiment_sources": [],
                 "predicted_signal": None,
                 "predicted_expected_return_pct": None,
                 "predicted_target_price": None,
@@ -160,13 +162,14 @@ async def scan_portfolios_for_drops(threshold_pct: float | None = None, user_id:
                 """
                 INSERT INTO portfolio_drop_alerts (
                     user_id, ticker, alert_date, prev_close, price_at_check, pct_change,
-                    sentiment_summary, predicted_signal, predicted_expected_return_pct,
+                    sentiment_summary, sentiment_sources, predicted_signal, predicted_expected_return_pct,
                     predicted_target_price, recommended_action
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12)
                 ON CONFLICT (user_id, ticker, alert_date) DO NOTHING
                 """,
                 user_id, ticker, today, data["prev_close"], data["price"], data["pct_change"],
-                data["sentiment_summary"], data["predicted_signal"], data["predicted_expected_return_pct"],
+                data["sentiment_summary"], json.dumps(data.get("sentiment_sources") or []),
+                data["predicted_signal"], data["predicted_expected_return_pct"],
                 data["predicted_target_price"], data["recommended_action"],
             )
             if result == "INSERT 0 1":

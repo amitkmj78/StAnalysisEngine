@@ -86,6 +86,21 @@ export default function HypotheticalTab({ data }: { data: PublishedSignalsRespon
               {backtest.commission_bps}bps commission, {backtest.borrow_cost_bps_annual}bps/yr borrow · risk-free
               rate {(backtest.risk_free_rate_annual * 100).toFixed(1)}%/yr.
             </p>
+            {backtest.universe_info?.basis === "point_in_time" && (
+              <p className="mt-1 text-xs text-slate-500">
+                Candidates are the S&amp;P 500 as it stood on {backtest.universe_info.as_of} (
+                {backtest.universe_info.members_at_start} members
+                {backtest.universe_info.left_index_in_window?.length
+                  ? `, ${backtest.universe_info.left_index_in_window.length} since left the index`
+                  : ""}
+                ), not today&apos;s membership — survivorship-bias aware.
+              </p>
+            )}
+            {backtest.universe_info?.basis === "current_members_biased" && (
+              <p className="mt-1 text-xs text-amber-700">
+                Candidates are today&apos;s S&amp;P 500 members tested back in time — survivorship-biased.
+              </p>
+            )}
           </>
         )}
       </div>

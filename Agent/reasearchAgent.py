@@ -9,7 +9,19 @@ to perform deep qualitative research on a stock.
 IMPORTANT:
 - This version does NOT depend on get_research_llm().
 - LLM must be passed in from app.py or handled at agent level.
+
+NFR-5: there is no data input here at all -- no search, no filings, no
+app data -- the model answers purely from its own general knowledge, with
+no way to check any of it against something real. UNVERIFIED_DISCLOSURE
+is appended to every real response so this reads as the model's own
+general reasoning, not a researched, fact-checked report.
 """
+
+UNVERIFIED_DISCLOSURE = (
+    "\n\n⚠ General knowledge only, not researched — no search or filing data was used to produce "
+    "this; treat it as a starting point for your own research, not a fact-checked report."
+)
+
 
 def research(company_stock: str, user_prompt: str | None = None, llm=None):
     """
@@ -45,7 +57,8 @@ Write in 2–4 short paragraphs, clear and professional.
     if llm:
         try:
             result = llm.invoke(final_prompt)
-            return getattr(result, "content", str(result))
+            content = getattr(result, "content", str(result))
+            return content + UNVERIFIED_DISCLOSURE
         except Exception as e:
             return f"[ResearchAgent LLM error: {e}]"
 

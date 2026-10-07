@@ -25,16 +25,27 @@ from services.llm_setup import invoke_with_fallback
 from .client import SearchResponse, format_results, search
 
 
-def summarize_results(response: SearchResponse, llms: list, focus: Optional[str] = None) -> str:
+def summarize_results(response: SearchResponse, llms: list, focus: Optional[str] = None) -> tuple[str, list[dict]]:
     """
+    Returns (summary_text, sources) -- sources is built directly from the
+    real SearchResult list (title/url), structurally separate from
+    whatever the summarizing LLM echoes back (NFR-5: the prompt below
+    asks the model to condense facts, not to preserve citations, and it
+    shouldn't be trusted to -- same reasoning Agent/newAgent.py's own
+    news_summary_with_sources already documents for why it keeps sources
+    out of the LLM's own output). Every caller gets real, dated-at-the-
+    source citations for free, since they were already being thrown away
+    here before reaching any narrative/analysis prompt downstream.
+
     Falls back to the raw formatted text (never raises) if every LLM in
     `llms` fails, or there are no results to summarize — a
     summarization hiccup must not block whatever narrative/analysis is
-    waiting on this.
+    waiting on this. sources is still returned in that case.
     """
+    sources = [{"title": r.title, "url": r.url} for r in response.results]
     raw_text = format_results(response)
     if not response.results:
-        return raw_text
+        return raw_text, sources
 
     focus_line = f" Focus specifically on: {focus}." if focus else ""
     prompt = (
@@ -49,12 +60,12 @@ def summarize_results(response: SearchResponse, llms: list, focus: Optional[str]
     )
     try:
         content, _ = invoke_with_fallback(llms, prompt)
-        return content
+        return content, sources
     except Exception:
-        return raw_text
+        return raw_text, sources
 
 
-def search_summary(query: str, llms: list, max_results: int = 5) -> str:
-    """Search + LLM-summarize in one call."""
+def search_summary(query: str, llms: list, max_results: int = 5) -> tuple[str, list[dict]]:
+    """Search + LLM-summarize in one call. Returns (summary_text, sources)."""
     response = search(query, max_results=max_results, include_raw_content=False)
     return summarize_results(response, llms, focus=query)

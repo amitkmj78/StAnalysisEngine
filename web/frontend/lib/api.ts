@@ -1784,6 +1784,7 @@ export function getMomentumBacktest(
   topN = 5,
   years = 3,
   horizonDays = 30,
+  currentOnly = false,
 ) {
   return apiFetch<MomentumBacktestResponse>("/api/v1/momentum/backtest", {
     asset_type: assetType,
@@ -1792,6 +1793,7 @@ export function getMomentumBacktest(
     top_n: String(topN),
     years: String(years),
     horizon_days: String(horizonDays),
+    current_only: String(currentOnly),
   });
 }
 

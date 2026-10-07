@@ -109,6 +109,11 @@ async def _annotate_with_user_state(records: list[dict], user_id: str) -> None:
         r["Short-Term Signal"] = s.get("short_signal")
         r["Long-Term Score"] = s.get("long_score")
         r["Long-Term Signal"] = s.get("long_signal")
+        # NFR-3: these two columns come from the nightly job, not this
+        # request -- they can be a day or more stale if a night's run
+        # failed, so the row that shows them must also show when they're from.
+        as_of_date = s.get("as_of_date")
+        r["Score As Of"] = as_of_date.isoformat() if as_of_date else None
 
 
 @router.get("/rank")

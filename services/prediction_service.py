@@ -4,7 +4,7 @@ import pandas as pd
 
 from .data_service import get_stock_data
 from .feature_service import FEATURE_COLUMNS, build_feature_frame, next_step_features
-from .model_service import RETURN_SHRINKAGE, get_price_model, train_model_on_frame
+from .model_service import RETURN_SHRINKAGE, get_price_model, model_version, train_model_on_frame
 
 
 # ============================================
@@ -15,6 +15,19 @@ def predict_next_price(ticker: str, period: str, tune: bool = False) -> Optional
     """
     Predict the next-day closing price.
     """
+    result = predict_next_price_with_features(ticker, period, tune)
+    return result[0] if result is not None else None
+
+
+def predict_next_price_with_features(
+    ticker: str, period: str, tune: bool = False
+) -> Optional[tuple[float, dict, str]]:
+    """NFR-4: same prediction as predict_next_price, but also returns the
+    exact feature values that went into it and a model_version hash --
+    what a published prediction needs to actually be regenerable later,
+    not just the final number. A separate function (not a changed return
+    shape on predict_next_price) so the three existing display-only
+    callers of that function are untouched."""
     data = get_stock_data(ticker, period)
     if data.empty or len(data) < 20:
         return None
@@ -27,9 +40,11 @@ def predict_next_price(ticker: str, period: str, tune: bool = False) -> Optional
     if model is None:
         return None
     X_new = next_step_features(df)
+    feature_values = dict(zip(FEATURE_COLUMNS, X_new[0].tolist()))
     pred_return = float(model.predict(X_new)[0]) * RETURN_SHRINKAGE
     last_close = float(df["Close"].iloc[-1])
-    return last_close * (1 + pred_return)
+    next_price = last_close * (1 + pred_return)
+    return next_price, feature_values, model_version(tune)
 
 
 def predict_backtest_prices(

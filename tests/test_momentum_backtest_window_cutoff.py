@@ -37,7 +37,7 @@ def test_a_recently_listed_ticker_does_not_shrink_the_whole_window():
 
     with patch(
         "services.momentum_backtest_service._universe_tickers",
-        return_value=list(frames.keys()),
+        return_value=(list(frames.keys()), {"basis": "test"}),
     ), patch(
         "services.momentum_backtest_service._download_universe_history",
         return_value=frames,
@@ -70,7 +70,7 @@ def test_all_tickers_too_recent_returns_none_not_a_crash():
         f"T{i}": _frame_for(_price_series("2026-07-01", 45, base=100.0 + i)) for i in range(6)
     }
     with patch(
-        "services.momentum_backtest_service._universe_tickers", return_value=list(frames.keys())
+        "services.momentum_backtest_service._universe_tickers", return_value=(list(frames.keys()), {"basis": "test"})
     ), patch(
         "services.momentum_backtest_service._download_universe_history", return_value=frames
     ):

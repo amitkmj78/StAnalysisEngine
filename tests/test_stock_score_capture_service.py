@@ -285,3 +285,58 @@ def test_compute_and_persist_daily_scores_survives_a_whole_stage_failing(monkeyp
     # computes from whatever the other short-term factors (momentum, reversal,
     # earnings revisions) provided.
     assert inserted == 1
+
+
+# --- NFR-1: the PIT-bound fetchers must actually bind as_of_date into their
+# query, not just accept the parameter and ignore it -- the realistic way
+# this protection would silently regress is someone forgetting to thread a
+# changed/renamed as_of_date_ through to the query, not Postgres getting
+# "<=" wrong. The pure-indicator layer (tests/test_point_in_time.py) and the
+# price-filtering layer (tests/test_pit_lookahead_safety.py) already cover
+# lookahead safety elsewhere; this is the one layer neither of those touches.
+
+class _RecordingFakeConn:
+    def __init__(self):
+        self.fetch_calls: list[tuple] = []
+
+    async def fetch(self, sql, *args):
+        self.fetch_calls.append((sql, args))
+        return []
+
+
+class _RecordingFakeConnCtx:
+    def __init__(self, conn):
+        self._conn = conn
+
+    async def __aenter__(self):
+        return self._conn
+
+    async def __aexit__(self, *a):
+        return False
+
+
+def test_value_growth_quality_fetch_binds_the_requested_as_of_date(monkeypatch):
+    conn = _RecordingFakeConn()
+    monkeypatch.setattr(capture_service, "service_conn", lambda: _RecordingFakeConnCtx(conn))
+
+    cutoff = date(2024, 3, 15)
+    asyncio.run(capture_service.fetch_value_growth_and_quality_inputs(["AAPL"], cutoff))
+
+    assert len(conn.fetch_calls) == 1
+    sql, args = conn.fetch_calls[0]
+    assert "as_of_date <= $2" in sql
+    assert args == (["AAPL"], cutoff)
+
+
+def test_resolve_sector_map_binds_the_requested_as_of_date(monkeypatch):
+    conn = _RecordingFakeConn()
+    monkeypatch.setattr(capture_service, "service_conn", lambda: _RecordingFakeConnCtx(conn))
+    monkeypatch.setattr(capture_service, "get_cached_info", lambda t: {})
+
+    cutoff = date(2024, 3, 15)
+    asyncio.run(capture_service.resolve_sector_map(["AAPL"], cutoff))
+
+    assert len(conn.fetch_calls) == 1
+    sql, args = conn.fetch_calls[0]
+    assert "as_of_date <= $2" in sql
+    assert args == (["AAPL"], cutoff)

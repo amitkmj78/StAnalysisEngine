@@ -1,6 +1,7 @@
 from datetime import date
 
 from services.stock_score_service import (
+    LONG_TERM_WEIGHTS,
     compute_factor_contributions,
     compute_long_score,
     compute_short_score,
@@ -12,7 +13,21 @@ from services.stock_score_service import (
     sector_rank,
     select_top_and_bottom_factors,
     weekly_change_explanation,
+    weights_version,
 )
+
+
+# --- NFR-4: reproducibility -- a stored row must be tied to the weights
+# that produced it, same config_version() pattern services/agent/
+# config.py already uses for the trading agent's own limits.
+
+def test_weights_version_is_stable_and_changes_with_the_weights(monkeypatch):
+    before = weights_version()
+    assert before == weights_version()  # stable across repeated calls, same inputs
+
+    original_value_weight = LONG_TERM_WEIGHTS["value"]
+    monkeypatch.setitem(LONG_TERM_WEIGHTS, "value", original_value_weight + 0.01)
+    assert weights_version() != before
 
 
 def test_percentile_rank_higher_is_better():

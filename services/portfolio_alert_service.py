@@ -83,7 +83,7 @@ def build_drop_analysis(llms: list, ticker: str, drop: Dict[str, float]) -> Dict
     outage) doesn't produce "Recommendation unavailable" as long as
     another configured provider is healthy.
     """
-    sentiment_text = get_sentiment_summary(ticker, llms=llms)
+    sentiment_text, sentiment_sources = get_sentiment_summary(ticker, llms=llms)
 
     signal = None
     try:
@@ -104,6 +104,9 @@ def build_drop_analysis(llms: list, ticker: str, drop: Dict[str, float]) -> Dict
 
     return {
         "sentiment_summary": sentiment_text,
+        # NFR-5: real, structured sources for the news/earnings context
+        # above -- see get_sentiment_summary's own docstring.
+        "sentiment_sources": sentiment_sources,
         "predicted_signal": signal["signal"] if signal else None,
         "predicted_expected_return_pct": signal["expected_return_pct"] if signal else None,
         "predicted_target_price": signal["target_price"] if signal else None,

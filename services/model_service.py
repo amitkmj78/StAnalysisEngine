@@ -1,3 +1,6 @@
+import hashlib
+import json
+
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 
@@ -75,6 +78,28 @@ def train_model_on_frame(df, tune: bool = False) -> GradientBoostingRegressor:
     X = trainable[FEATURE_COLUMNS].values
     y = trainable["Target"].values
     return _fit(X, y, tune)
+
+
+def model_version(tune: bool = False) -> str:
+    """NFR-4: a short hash of everything that determines what
+    predict_next_price would regenerate for the same ticker/period/tune --
+    the feature set, the training hyperparameters (including the fixed
+    random_state=42, which is what makes this genuinely reproducible
+    rather than just best-effort: no unseeded randomness anywhere in
+    this module, GridSearchCV's TimeSeriesSplit included), and the
+    return-shrinkage applied to the model's raw prediction. Changing any
+    of FEATURE_COLUMNS, RETURN_SHRINKAGE, or _base_gbm's hyperparameters
+    changes this hash."""
+    canonical = json.dumps(
+        {
+            "feature_columns": FEATURE_COLUMNS,
+            "return_shrinkage": RETURN_SHRINKAGE,
+            "gbm_params": {"n_estimators": 400, "learning_rate": 0.01, "max_depth": 4, "random_state": 42},
+            "tune": tune,
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
 @ttl_cache(maxsize=128, ttl_seconds=MODEL_TTL_SECONDS)

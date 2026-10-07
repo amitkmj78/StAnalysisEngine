@@ -763,6 +763,17 @@ export default function PredictPage() {
                         <p className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-md bg-slate-50 p-3">
                           {narrative.sentiment_context}
                         </p>
+                        {narrative.sentiment_sources && narrative.sentiment_sources.length > 0 && (
+                          <ul className="mt-2 flex flex-col gap-1">
+                            {narrative.sentiment_sources.map((s) => (
+                              <li key={s.url}>
+                                <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                                  {s.title}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </details>
                       <div className="flex items-center gap-3">
                         <button onClick={handleSaveNarrative} disabled={savingNarrative} className={`${PF.btn} disabled:opacity-50`}>

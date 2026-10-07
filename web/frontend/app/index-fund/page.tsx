@@ -270,7 +270,7 @@ export default function IndexFundPage() {
 
       {windowStart && windowEnd && (
         <p className="mt-2 text-xs text-slate-400">
-          Showing {windowLabel(windowValue)}: {windowStart} – {windowEnd}
+          Showing {windowLabel(windowValue)}: {windowStart} – {windowEnd}. Score as of {windowEnd}.
         </p>
       )}
 

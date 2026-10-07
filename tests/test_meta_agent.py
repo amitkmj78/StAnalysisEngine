@@ -1,6 +1,6 @@
 from langchain_core.messages import AIMessage
 
-from Agent.meta_agent import SYSTEM_PROMPT, ask_meta_agent
+from Agent.meta_agent import SYSTEM_PROMPT, ask_meta_agent, ask_meta_agent_with_sources
 
 
 class _FakeTool:
@@ -150,3 +150,42 @@ def test_all_tools_failing_returns_honest_message_without_calling_llm():
 def test_system_prompt_instructs_against_guessing():
     assert "don't know" in SYSTEM_PROMPT.lower()
     assert "guess" in SYSTEM_PROMPT.lower()
+
+
+# --- NFR-5: ask_meta_agent_with_sources surfaces the news_sentiment tool's
+# real, structured sources (written into meta_agent["_state"]), instead of
+# those sources only existing flattened inside the answer's prose.
+
+def test_ask_meta_agent_with_sources_returns_sources_a_tool_wrote_to_state():
+    agent = _FakeAgent(_tool_call_response())
+    llm = _FakePlainLLM("XLK is a large, diversified tech-sector ETF.")
+    state = {"sources": []}
+
+    class _ToolThatWritesState(_FakeTool):
+        def run(self, args):
+            # Simulates what the real news_sentiment tool does as a side
+            # effect of running -- see Agent/meta_agent.py::build_agent.
+            state["sources"] = [{"title": "Fake headline", "url": "https://example.com"}]
+            return super().run(args)
+
+    tools = [_ToolThatWritesState("company_basics", "Name: Technology Select Sector SPDR Fund")]
+    meta_agent = {"agent": agent, "tools": tools, "llm": llm, "_state": state}
+
+    text, sources = ask_meta_agent_with_sources(meta_agent, "XLK", "is this ok to hold")
+
+    assert text == "XLK is a large, diversified tech-sector ETF."
+    assert sources == [{"title": "Fake headline", "url": "https://example.com"}]
+
+
+def test_ask_meta_agent_with_sources_resets_stale_sources_from_a_prior_call():
+    # A reused meta_agent (same build_agent() object across several
+    # questions) must never leak a PRIOR question's sources into an
+    # answer that didn't call news_sentiment this time.
+    agent = _FakeAgent(AIMessage(content="No tool needed for this one."))
+    llm = _FakePlainLLM("should not be called")
+    state = {"sources": [{"title": "Stale from last question", "url": "https://old.example.com"}]}
+    meta_agent = {"agent": agent, "tools": [], "llm": llm, "_state": state}
+
+    text, sources = ask_meta_agent_with_sources(meta_agent, "XLK", "something unrelated")
+
+    assert sources == []

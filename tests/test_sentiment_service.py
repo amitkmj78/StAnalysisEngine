@@ -25,42 +25,47 @@ class _RaisingLLM:
         raise RuntimeError("provider unavailable")
 
 
+_FAKE_SOURCES = [{"title": "Fake headline", "url": "https://example.com/a"}]
+
+
 def test_score_ticker_sentiment_parses_bullish_label_and_reasoning():
     llm = _FakeLLM("SENTIMENT: Bullish\nREASON: Strong earnings beat with raised guidance.")
-    with patch("services.sentiment_service.get_sentiment_summary", return_value="fake context"):
+    with patch("services.sentiment_service.get_sentiment_summary", return_value=("fake context", _FAKE_SOURCES)):
         result = score_ticker_sentiment("AAPL", [llm])
-    assert result == {"label": "Bullish", "reasoning": "Strong earnings beat with raised guidance."}
+    assert result == {
+        "label": "Bullish", "reasoning": "Strong earnings beat with raised guidance.", "sources": _FAKE_SOURCES,
+    }
 
 
 def test_score_ticker_sentiment_is_case_and_punctuation_tolerant():
     llm = _FakeLLM("sentiment: bearish.\nreason: Guidance cut spooked investors.")
-    with patch("services.sentiment_service.get_sentiment_summary", return_value="fake context"):
+    with patch("services.sentiment_service.get_sentiment_summary", return_value=("fake context", [])):
         result = score_ticker_sentiment("XYZ", [llm])
-    assert result == {"label": "Bearish", "reasoning": "Guidance cut spooked investors."}
+    assert result == {"label": "Bearish", "reasoning": "Guidance cut spooked investors.", "sources": []}
 
 
 def test_score_ticker_sentiment_returns_none_on_unparseable_response():
     llm = _FakeLLM("I'm not sure how to answer that.")
-    with patch("services.sentiment_service.get_sentiment_summary", return_value="fake context"):
+    with patch("services.sentiment_service.get_sentiment_summary", return_value=("fake context", [])):
         result = score_ticker_sentiment("AAPL", [llm])
-    assert result == {"label": None, "reasoning": None}
+    assert result == {"label": None, "reasoning": None, "sources": []}
 
 
 def test_score_ticker_sentiment_returns_none_when_all_providers_fail():
-    with patch("services.sentiment_service.get_sentiment_summary", return_value="fake context"):
+    with patch("services.sentiment_service.get_sentiment_summary", return_value=("fake context", [])):
         result = score_ticker_sentiment("AAPL", [_RaisingLLM()])
-    assert result == {"label": None, "reasoning": None}
+    assert result == {"label": None, "reasoning": None, "sources": []}
 
 
 def test_score_ticker_sentiment_returns_none_when_summary_lookup_raises():
     with patch("services.sentiment_service.get_sentiment_summary", side_effect=RuntimeError("search down")):
         result = score_ticker_sentiment("AAPL", [_FakeLLM("SENTIMENT: Bullish\nREASON: n/a")])
-    assert result == {"label": None, "reasoning": None}
+    assert result == {"label": None, "reasoning": None, "sources": []}
 
 
 def test_score_tickers_sentiment_returns_one_entry_per_input_ticker():
     llm = _FakeLLM("SENTIMENT: Neutral\nREASON: Mixed signals in recent coverage.")
-    with patch("services.sentiment_service.get_sentiment_summary", return_value="fake context"):
+    with patch("services.sentiment_service.get_sentiment_summary", return_value=("fake context", [])):
         results = score_tickers_sentiment(["AAPL", "MSFT"], [llm])
     assert set(results.keys()) == {"AAPL", "MSFT"}
     assert all(r["label"] == "Neutral" for r in results.values())
@@ -77,6 +82,15 @@ def test_score_ticker_sentiment_prompt_warns_against_mislabeling_guidance_quarte
     # forward guidance belongs to the quarter it's forecasting, not the
     # one whose results were just announced.
     llm = _FakeLLM("SENTIMENT: Bullish\nREASON: Earnings beat with strong forward guidance.")
-    with patch("services.sentiment_service.get_sentiment_summary", return_value="fake context"):
+    with patch("services.sentiment_service.get_sentiment_summary", return_value=("fake context", [])):
         score_ticker_sentiment("MSFT", [llm])
     assert "NEXT quarter" in llm.prompts[-1]
+
+
+# --- NFR-5: the sentiment result carries real, structured sources ---
+
+def test_score_ticker_sentiment_passes_through_real_sources():
+    llm = _FakeLLM("SENTIMENT: Bullish\nREASON: Strong earnings beat.")
+    with patch("services.sentiment_service.get_sentiment_summary", return_value=("fake context", _FAKE_SOURCES)):
+        result = score_ticker_sentiment("AAPL", [llm])
+    assert result["sources"] == _FAKE_SOURCES

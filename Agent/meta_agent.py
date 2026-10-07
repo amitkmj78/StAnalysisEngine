@@ -62,7 +62,13 @@ def build_agent(llm):
     actually answers financial/filings/news/research/recommendation
     sub-questions, instead of those tools silently hardcoding their own
     model regardless of the user's selection.
+
+    `state["sources"]` is a mutable container the news_sentiment tool
+    below fills in with its real, structured source list (NFR-5) --
+    read back by ask_meta_agent_with_sources after a call, since a
+    LangChain @tool can only return a string to the model itself.
     """
+    state: dict = {"sources": []}
 
     @tool
     def company_basics(ticker: str):
@@ -95,6 +101,7 @@ def build_agent(llm):
         explaining a large recent move or an after-hours/pre-market jump."""
         from Agent.newAgent import news_summary_with_sources
         result = news_summary_with_sources(ticker, llm=llm)
+        state["sources"] = result["sources"]
         # ASK-1: real article URLs, taken straight from the structured search
         # response (never re-parsed out of the LLM's summary text, which
         # drops/mangles them) and appended here in plain, non-LLM-generated
@@ -140,7 +147,7 @@ def build_agent(llm):
     # that's structurally incapable of responding with another tool call
     # instead of text — see the comment at that call site for why this
     # matters.
-    return {"agent": agent_runnable, "tools": tools, "llm": llm}
+    return {"agent": agent_runnable, "tools": tools, "llm": llm, "_state": state}
 
 
 # ------------------------------------------------------------
@@ -263,3 +270,21 @@ def ask_meta_agent(meta_agent, ticker: str, question: str) -> str:
 
     log_debug("ASK_META_AGENT — PARSED TEXT", text)
     return text
+
+
+def ask_meta_agent_with_sources(meta_agent, ticker: str, question: str) -> tuple[str, list[dict]]:
+    """NFR-5: same call as ask_meta_agent, but also returns the real,
+    structured sources the news_sentiment tool collected this call (if
+    it was called) via meta_agent["_state"] -- instead of those sources
+    only existing flattened inside the answer's prose. A separate
+    function, not a changed return shape on ask_meta_agent itself, so
+    its other callers (services/analysis_service.py, services/app.py)
+    are untouched.
+
+    Resets _state["sources"] before calling, so a reused meta_agent
+    (same build_agent() object across several questions) never leaks a
+    PRIOR question's sources into an answer that didn't call the tool
+    this time."""
+    meta_agent["_state"]["sources"] = []
+    text = ask_meta_agent(meta_agent, ticker, question)
+    return text, meta_agent["_state"]["sources"]

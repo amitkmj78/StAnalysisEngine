@@ -217,7 +217,7 @@ def _cached_ticker_sentiment(ticker: str) -> dict:
     happens to be configured when it's first requested."""
     llm_openai, llm_groq, llm_claude, llm_ollama, labels = cached_init_llms()
     if not labels:
-        return {"label": None, "reasoning": None}
+        return {"label": None, "reasoning": None, "sources": []}
     llms = ordered_llms(None, llm_openai, llm_groq, llm_claude, llm_ollama, labels)
     return score_ticker_sentiment(ticker, llms)
 

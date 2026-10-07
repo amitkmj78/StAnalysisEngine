@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -15,6 +16,7 @@ from services.prediction_service import (
     predict_backtest_prices,
     predict_future_prices,
     predict_next_price,
+    predict_next_price_with_features,
 )
 from services.prediction_verification_service import verify_prediction
 
@@ -258,6 +260,7 @@ async def predict_narrative(
         provider=actual_provider,
         narrative=result["narrative"],
         sentiment_context=result["sentiment_context"],
+        sentiment_sources=result.get("sentiment_sources") or [],
     )
 
 
@@ -397,7 +400,14 @@ async def save_prediction(request: Request, body: SavePredictionRequest):
         if last_close is None:
             raise HTTPException(422, "No price data available for that ticker.")
 
-        next_price = await run_in_threadpool(predict_next_price, ticker, body.period, False)
+        # NFR-4: predict_next_price_with_features (not predict_next_price)
+        # so this saved row can actually be regenerated later -- the
+        # model is deterministic (fixed random_state, see model_service.py's
+        # model_version docstring), so storing the exact feature values and
+        # a version hash of the feature set/hyperparameters is genuinely
+        # sufficient, not just best-effort.
+        prediction = await run_in_threadpool(predict_next_price_with_features, ticker, body.period, False)
+        next_price, feature_values, model_version_ = prediction if prediction is not None else (None, None, None)
         future_df = await run_in_threadpool(predict_future_prices, ticker, body.period, body.days_ahead, False)
         if future_df is None or future_df.empty:
             raise HTTPException(422, "Not enough history to forecast this ticker yet.")
@@ -412,12 +422,14 @@ async def save_prediction(request: Request, body: SavePredictionRequest):
             """
             INSERT INTO saved_predictions (
                 user_id, ticker, period, last_close, next_price,
-                signal, expected_return_pct, target_price, target_date
-            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+                signal, expected_return_pct, target_price, target_date,
+                feature_values, model_version
+            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
             RETURNING *
             """,
             user_id, ticker, body.period, last_close, next_price,
             signal, expected_return_pct, target_price, target_date,
+            json.dumps(feature_values) if feature_values is not None else None, model_version_,
         )
     return {"prediction": _record_to_dict(record), "already_saved_today": False}
 

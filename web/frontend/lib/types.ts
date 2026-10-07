@@ -48,6 +48,8 @@ export interface PredictionNarrative {
   provider: string;
   narrative: string;
   sentiment_context: string;
+  // NFR-5: real, structured sources for sentiment_context above.
+  sentiment_sources?: { title: string; url: string }[];
 }
 
 export interface SavedNarrative {
@@ -2183,6 +2185,15 @@ export interface MomentumBacktestResponse {
   run_id: number;
   asset_type: string;
   universe: string;
+  // NFR-1: which basis resolved the candidate universe -- point-in-time
+  // (default, survivorship-aware) vs current_members_biased (explicit opt-in).
+  universe_info?: {
+    basis: "point_in_time" | "current_members_biased" | "current_members" | "current_members_fallback";
+    as_of?: string;
+    members_at_start?: number;
+    left_index_in_window?: string[];
+    reason?: string;
+  };
   lookback_days: number;
   top_n: number;
   years: number;

@@ -118,6 +118,7 @@ async def momentum_backtest(
     commission_bps: float = Query(DEFAULT_COMMISSION_BPS, ge=0),
     borrow_cost_bps_annual: float = Query(DEFAULT_BORROW_COST_BPS_ANNUAL, ge=0),
     risk_free_rate_annual: float = Query(0.0, ge=0),
+    current_only: bool = Query(False, description="NFR-1: test today's S&P 500 members back in time (survivorship-biased). Off by default."),
 ):
     """
     Story B / TR-7: event-driven walk-forward validation of the pure
@@ -128,6 +129,13 @@ async def momentum_backtest(
     costs are applied by default (see the service module's documented
     defaults), and every run is persisted with its full parameter set,
     retrievable later by id via GET /momentum/backtest-runs/{id}.
+
+    NFR-1: for a Stock/S&P-500 universe, the candidate pool defaults to
+    the S&P 500 as it stood at the start of the window (services/
+    sp500_membership.py), not today's membership -- survivorship-bias
+    aware by default, same SCAN-2 pattern /strategy-builder/scan already
+    uses. current_only is an explicit, labeled opt-in to the old (biased)
+    behavior; see the result's own universe_info for which basis ran.
     """
     await enforce_daily_quota(request, "momentum/backtest")
 
@@ -146,7 +154,7 @@ async def momentum_backtest(
 
     result = await run_in_threadpool(
         backtest_momentum_ranking, asset_type, universe, lookback_days, top_n, years, horizon_days,
-        slippage_bps, commission_bps, borrow_cost_bps_annual, risk_free_rate_annual,
+        slippage_bps, commission_bps, borrow_cost_bps_annual, risk_free_rate_annual, current_only,
     )
     if result is None:
         raise HTTPException(422, "Not enough historical data to run this backtest for the chosen settings.")
@@ -156,6 +164,7 @@ async def momentum_backtest(
         "top_n": top_n, "years": years, "horizon_days": horizon_days,
         "slippage_bps": slippage_bps, "commission_bps": commission_bps,
         "borrow_cost_bps_annual": borrow_cost_bps_annual, "risk_free_rate_annual": risk_free_rate_annual,
+        "current_only": current_only,
     }
     run_id = await _persist_backtest_run(params, result)
 

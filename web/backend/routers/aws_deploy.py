@@ -628,6 +628,8 @@ create table if not exists portfolio_drop_alerts (
   unique (user_id, ticker, alert_date)
 );
 alter table portfolio_drop_alerts add column if not exists updated_at timestamptz;
+-- NFR-5: real, structured sources for sentiment_summary above.
+alter table portfolio_drop_alerts add column if not exists sentiment_sources jsonb;
 create index if not exists portfolio_drop_alerts_user_idx on portfolio_drop_alerts(user_id, created_at desc);
 alter table portfolio_drop_alerts enable row level security;
 drop policy if exists portfolio_drop_alerts_isolation on portfolio_drop_alerts;
@@ -732,6 +734,12 @@ create table if not exists saved_predictions (
   verified_at timestamptz
 );
 create index if not exists saved_predictions_user_idx on saved_predictions(user_id, ticker, predicted_at desc);
+-- NFR-4: the feature values and model version that produced this
+-- prediction, so it can be regenerated later -- see services/
+-- model_service.py's model_version docstring for why this is genuinely
+-- sufficient (deterministic model), not just best-effort disclosure.
+alter table saved_predictions add column if not exists feature_values jsonb;
+alter table saved_predictions add column if not exists model_version text;
 alter table saved_predictions enable row level security;
 drop policy if exists saved_predictions_isolation on saved_predictions;
 create policy saved_predictions_isolation on saved_predictions for all
@@ -1277,6 +1285,10 @@ alter table stock_scores add column if not exists short_sector_rank int;
 alter table stock_scores add column if not exists short_sector_count int;
 alter table stock_scores add column if not exists long_sector_rank int;
 alter table stock_scores add column if not exists long_sector_count int;
+-- NFR-4: ties this row to the exact weights that produced it (services/
+-- stock_score_service.py::weights_version) -- factor_detail already
+-- stores the raw inputs; this is the model-version piece.
+alter table stock_scores add column if not exists weights_version text;
 
 -- Shared, ticker-keyed (not user-scoped) LLM sentiment reading — one row
 -- per ticker per day, reused across every user/portfolio holding that

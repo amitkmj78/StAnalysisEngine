@@ -51,6 +51,7 @@ from services.stock_score_service import (
     score_to_signal,
     sector_percentile,
     sector_rank,
+    weights_version,
 )
 from services.yfinance_cache import get_cached_earnings_dates, get_cached_eps_trend, get_cached_history, get_cached_info
 from web.backend.db import service_conn
@@ -398,7 +399,7 @@ async def fetch_latest_scores(tickers: list[str], universe_id: str = "All") -> d
     async with service_conn() as conn:
         rows = await conn.fetch(
             """
-            SELECT DISTINCT ON (ticker) ticker, short_score, short_signal, long_score, long_signal
+            SELECT DISTINCT ON (ticker) ticker, short_score, short_signal, long_score, long_signal, as_of_date
             FROM stock_scores
             WHERE ticker = ANY($1::text[]) AND universe_id = $2
             ORDER BY ticker, as_of_date DESC
@@ -534,6 +535,7 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
     long_sec_rank = sector_rank(long_scores, sector_map)
 
     inserted = 0
+    weights_version_ = weights_version()
     async with service_conn() as conn:
         for ticker in tickers:
             short_score = short_scores.get(ticker)
@@ -639,8 +641,9 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
                     long_score, long_signal, long_confidence_score, long_confidence_label,
                     sector_key, short_sector_percentile, long_sector_percentile, factor_detail,
                     short_universe_percentile, long_universe_percentile,
-                    short_sector_rank, short_sector_count, long_sector_rank, long_sector_count
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21)
+                    short_sector_rank, short_sector_count, long_sector_rank, long_sector_count,
+                    weights_version
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21,$22)
                 ON CONFLICT (as_of_date, universe_id, ticker) DO NOTHING
                 """,
                 as_of_date_, universe_id, ticker,
@@ -652,6 +655,7 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
                 short_universe_pct.get(ticker), long_universe_pct.get(ticker),
                 (short_sec_rank.get(ticker) or {}).get("rank"), (short_sec_rank.get(ticker) or {}).get("of"),
                 (long_sec_rank.get(ticker) or {}).get("rank"), (long_sec_rank.get(ticker) or {}).get("of"),
+                weights_version_,
             )
             if result == "INSERT 0 1":
                 inserted += 1

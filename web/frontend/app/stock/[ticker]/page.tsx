@@ -179,6 +179,7 @@ function ScoreCard({
   sectorKey,
   trend,
   regime,
+  asOfDate,
 }: {
   title: string;
   horizon: string;
@@ -191,6 +192,8 @@ function ScoreCard({
   sectorKey: string;
   trend?: { weekly_series: [string, number][]; flagged: boolean; change_pts: number | null };
   regime: string | null;
+  // NFR-3: every score shows its own as-of date, not just the page header's.
+  asOfDate: string | null;
 }) {
   const caution = regimeCautionCopy(regime);
   // SCR-3's exact target format: "Top 8% of S&P 500, top 3 of 22 in Semis".
@@ -217,6 +220,7 @@ function ScoreCard({
         </span>
         <span className="pb-1 text-sm text-slate-400">/ 100</span>
       </div>
+      {asOfDate && <p className="text-[11px] text-slate-400">as of {asOfDate}</p>}
       <p className="mt-1 text-xs text-slate-500">
         {rankParts.length > 0 ? rankParts.join(", ") : `No rank yet — ${sectorKey}`}
       </p>
@@ -602,6 +606,7 @@ export default function StockScorePage() {
               sectorKey={data.sector_key}
               trend={history?.short_term}
               regime={data.regime}
+              asOfDate={data.as_of_date}
             />
             <ScoreCard
               title="Long-Term Score"
@@ -615,6 +620,7 @@ export default function StockScorePage() {
               sectorKey={data.sector_key}
               trend={history?.long_term}
               regime={data.regime}
+              asOfDate={data.as_of_date}
             />
           </div>
 

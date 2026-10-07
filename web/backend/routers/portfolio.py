@@ -2295,6 +2295,7 @@ async def refresh_drop_alert(alert_id: int, request: Request):
     else:
         analysis = {
             "sentiment_summary": None,
+            "sentiment_sources": [],
             "predicted_signal": None,
             "predicted_expected_return_pct": None,
             "predicted_target_price": None,
@@ -2309,14 +2310,14 @@ async def refresh_drop_alert(alert_id: int, request: Request):
             """
             UPDATE portfolio_drop_alerts
             SET prev_close = $1, price_at_check = $2, pct_change = $3,
-                sentiment_summary = $4, predicted_signal = $5,
-                predicted_expected_return_pct = $6, predicted_target_price = $7,
-                recommended_action = $8, updated_at = now()
-            WHERE id = $9 AND user_id = $10::uuid
+                sentiment_summary = $4, sentiment_sources = $5::jsonb, predicted_signal = $6,
+                predicted_expected_return_pct = $7, predicted_target_price = $8,
+                recommended_action = $9, updated_at = now()
+            WHERE id = $10 AND user_id = $11::uuid
             RETURNING *
             """,
             drop["prev_close"], drop["price"], drop["pct_change"],
-            analysis["sentiment_summary"], analysis["predicted_signal"],
+            analysis["sentiment_summary"], json.dumps(analysis["sentiment_sources"]), analysis["predicted_signal"],
             analysis["predicted_expected_return_pct"], analysis["predicted_target_price"],
             analysis["recommended_action"], alert_id, user_id,
         )

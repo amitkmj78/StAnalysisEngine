@@ -60,11 +60,18 @@ def build_prediction_narrative(llms: list, ticker: str, context: Dict[str, Any])
     actually answered, letting the caller report which one that was if
     it differs from what was originally preferred.
     """
-    sentiment_text = get_sentiment_summary(ticker, llms=llms)
+    sentiment_text, sentiment_sources = get_sentiment_summary(ticker, llms=llms)
     prompt = _build_prompt(ticker, context, sentiment_text)
     try:
         narrative, provider_index = invoke_with_fallback(llms, prompt)
     except Exception:
         narrative = "Narrative unavailable — the language model call failed. See the quant signal and news/earnings context above."
         provider_index = None
-    return {"narrative": narrative, "sentiment_context": sentiment_text, "provider_index": provider_index}
+    # NFR-5: real, structured sources for the news/earnings context this
+    # narrative weighs the model's view against -- see get_sentiment_
+    # summary's own docstring for why these are never re-parsed out of
+    # the LLM's prose.
+    return {
+        "narrative": narrative, "sentiment_context": sentiment_text,
+        "sentiment_sources": sentiment_sources, "provider_index": provider_index,
+    }

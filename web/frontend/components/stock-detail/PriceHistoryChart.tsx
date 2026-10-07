@@ -334,6 +334,25 @@ export default function PriceHistoryChart({
   const history: StockPriceHistoryRow[] = useMemo(() => data?.history ?? [], [data]);
   const indicators = isDaily ? data?.indicators ?? null : null;
 
+  // NFR-7: a text equivalent of what the chart shows, for anyone who can't
+  // read the plotted line itself (screen reader, or just a quick skim).
+  // Demonstrates the pattern on the highest-traffic chart in the app;
+  // the other Plotly charts don't have one yet (see NFR-7's tracker note).
+  const rangeSummary = useMemo(() => {
+    if (history.length === 0) return null;
+    const first = history[0].close;
+    const last = history[history.length - 1].close;
+    const high = Math.max(...history.map((p) => p.close));
+    const low = Math.min(...history.map((p) => p.close));
+    const changePct = first !== 0 ? ((last - first) / first) * 100 : 0;
+    const direction = changePct > 0.05 ? "up" : changePct < -0.05 ? "down" : "roughly flat";
+    return (
+      `${ticker} over ${range}: ${direction} ${Math.abs(changePct).toFixed(1)}%, ` +
+      `from $${first.toFixed(2)} to $${last.toFixed(2)}. ` +
+      `Range high $${high.toFixed(2)}, range low $${low.toFixed(2)}.`
+    );
+  }, [history, ticker, range]);
+
   // Compare mode is only meaningful on daily bars; it swaps the price panel to % change.
   const compareActive = compare && isDaily;
   // Drawings are price levels, so they are hidden while the panel shows percentage comparison instead.
@@ -965,33 +984,36 @@ export default function PriceHistoryChart({
       )}
       {compareWaiting && !loading && <p className="mt-4 text-sm text-slate-500">Loading comparison…</p>}
       {!loading && data && data.history.length > 0 && !compareWaiting && (
-        <PlotlyChart
-          data={[...priceTraces, ...subTraces]}
-          onClick={(e) => {
-            if (drawingsActive && drawTool) {
-              void handleDrawClick(e);
-              return;
-            }
-            const idx = e.points[0]?.customdata;
-            setSelectedSignal(typeof idx === "number" ? idx : null);
-          }}
-          layout={{
-            ...(layoutAxes as Partial<Layout>),
-            paper_bgcolor: "#ffffff",
-            plot_bgcolor: "#ffffff",
-            height: chartHeight,
-            margin: { t: 16, r: 24, b: 32, l: 56 },
-            autosize: true,
-            hovermode: "x unified",
-            shapes: drawingsActive ? [...regimeShapes, ...drawn.shapes] : regimeShapes,
-            annotations: drawingsActive ? [...drawn.annotations, ...pendingAnnotations] : [],
-            showlegend: true,
-            legend: { orientation: "h", y: -0.15 },
-          }}
-          style={{ width: "100%" }}
-          useResizeHandler
-          config={{ displayModeBar: false }}
-        />
+        <>
+          {rangeSummary && <p className="sr-only">{rangeSummary}</p>}
+          <PlotlyChart
+            data={[...priceTraces, ...subTraces]}
+            onClick={(e) => {
+              if (drawingsActive && drawTool) {
+                void handleDrawClick(e);
+                return;
+              }
+              const idx = e.points[0]?.customdata;
+              setSelectedSignal(typeof idx === "number" ? idx : null);
+            }}
+            layout={{
+              ...(layoutAxes as Partial<Layout>),
+              paper_bgcolor: "#ffffff",
+              plot_bgcolor: "#ffffff",
+              height: chartHeight,
+              margin: { t: 16, r: 24, b: 32, l: 56 },
+              autosize: true,
+              hovermode: "x unified",
+              shapes: drawingsActive ? [...regimeShapes, ...drawn.shapes] : regimeShapes,
+              annotations: drawingsActive ? [...drawn.annotations, ...pendingAnnotations] : [],
+              showlegend: true,
+              legend: { orientation: "h", y: -0.15 },
+            }}
+            style={{ width: "100%" }}
+            useResizeHandler
+            config={{ displayModeBar: false }}
+          />
+        </>
       )}
 
       {selectedSignal !== null && shortMarkers[selectedSignal] && (

@@ -12,7 +12,7 @@ SENTIMENT_LABELS = ("Bullish", "Neutral", "Bearish")
 MAX_PARALLEL_SENTIMENT_FETCHES = 4
 
 
-def get_sentiment_summary(ticker: str, llms: list | None = None) -> str:
+def get_sentiment_summary(ticker: str, llms: list | None = None) -> tuple[str, list[dict]]:
     """
     Self-hosted search (services.web_search — DuckDuckGo + real content
     extraction) for recent news and earnings context for the ticker, as
@@ -31,25 +31,38 @@ def get_sentiment_summary(ticker: str, llms: list | None = None) -> str:
     falls back to the raw formatted text (search_text), same behavior
     as before summarization existed — this keeps the function usable by
     any caller that doesn't have an LLM in scope.
+
+    Returns (context_text, sources) -- NFR-5: sources is the real,
+    structured source list search_summary now returns (title + url per
+    result), not re-parsed out of the LLM's own prose. Empty without
+    `llms`, since search_text already keeps each result's URL inline in
+    the text itself rather than needing a separate structured list.
     """
     sections = []
-    fetch = (lambda q: search_summary(q, llms)) if llms else search_text
+    sources: list[dict] = []
+
+    def _fetch(query: str) -> str:
+        if llms:
+            text, found = search_summary(query, llms)
+            sources.extend(found)
+            return text
+        return search_text(query)
 
     try:
-        news_results = fetch(f"{ticker} stock recent news headlines and outlook")
+        news_results = _fetch(f"{ticker} stock recent news headlines and outlook")
         sections.append(f"Recent News for {ticker}:\n\n{news_results}")
     except Exception as e:
         sections.append(f"Error fetching recent news for {ticker}: {e}")
 
     try:
-        earnings_results = fetch(
+        earnings_results = _fetch(
             f"{ticker} latest quarterly earnings report EPS revenue guidance analyst reaction"
         )
         sections.append(f"Recent Earnings Context for {ticker}:\n\n{earnings_results}")
     except Exception as e:
         sections.append(f"Error fetching earnings context for {ticker}: {e}")
 
-    return "\n\n".join(sections)
+    return "\n\n".join(sections), sources
 
 
 def score_ticker_sentiment(ticker: str, llms: list) -> dict:
@@ -68,12 +81,12 @@ def score_ticker_sentiment(ticker: str, llms: list) -> dict:
     now; it makes no claim about where the price goes next.
 
     Returns {"label": one of SENTIMENT_LABELS or None, "reasoning": str
-    or None}. label/reasoning are None (not raised) on any search or LLM
-    failure, so one ticker's bad day doesn't break the rest of a
-    portfolio's sentiment column.
+    or None, "sources": list[dict]}. label/reasoning are None (not
+    raised, sources empty) on any search or LLM failure, so one ticker's
+    bad day doesn't break the rest of a portfolio's sentiment column.
     """
     try:
-        context = get_sentiment_summary(ticker, llms=llms)
+        context, sources = get_sentiment_summary(ticker, llms=llms)
         prompt = (
             f"Based only on the following real news and earnings context for {ticker}, "
             "classify today's market sentiment toward this stock.\n\n"
@@ -88,7 +101,7 @@ def score_ticker_sentiment(ticker: str, llms: list) -> dict:
         )
         response, _ = invoke_with_fallback(llms, prompt)
     except Exception:
-        return {"label": None, "reasoning": None}
+        return {"label": None, "reasoning": None, "sources": []}
 
     label = None
     reasoning = None
@@ -104,8 +117,8 @@ def score_ticker_sentiment(ticker: str, llms: list) -> dict:
             reasoning = line.split(":", 1)[1].strip()
 
     if label is None:
-        return {"label": None, "reasoning": None}
-    return {"label": label, "reasoning": reasoning}
+        return {"label": None, "reasoning": None, "sources": []}
+    return {"label": label, "reasoning": reasoning, "sources": sources}
 
 
 def score_tickers_sentiment(tickers: list[str], llms: list) -> dict[str, dict]:

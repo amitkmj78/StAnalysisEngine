@@ -123,6 +123,7 @@ const ALL_COLUMNS = [
   "Short-Term Signal",
   "Long-Term Score",
   "Long-Term Signal",
+  "Score As Of",
   "Owned",
   "Watchlisted",
 ];
@@ -483,6 +484,19 @@ export default function StockFinderPage() {
       return 0;
     });
   }, [filteredResults, sortKeys]);
+
+  // NFR-3: Short-Term/Long-Term Score come from the nightly job (SCR-1..4),
+  // not this request -- a single shared date covers the normal case (the
+  // job runs for the whole universe at once); if rows actually disagree
+  // (e.g. a partial night), say the range instead of picking one silently.
+  const scoreAsOfSummary = useMemo(() => {
+    const dates = Array.from(
+      new Set(results.map((r) => r["Score As Of"] as string | null).filter((d): d is string => !!d))
+    ).sort();
+    if (dates.length === 0) return null;
+    if (dates.length === 1) return dates[0];
+    return `${dates[0]} to ${dates[dates.length - 1]} (varies by ticker)`;
+  }, [results]);
 
   // Selecting more columns than fit the viewport makes the table wider than
   // its wrapper with no visible cue that the rest is one scroll away
@@ -927,6 +941,14 @@ export default function StockFinderPage() {
                   {sortKeys.length > 0 &&
                     ` · sorted by ${sortKeys.map((k) => `${k.column} (${k.direction})`).join(", ")}`}
                 </span>
+                {scoreAsOfSummary && (
+                  // NFR-3: Short/Long-Term Score come from the nightly job, not
+                  // this request -- they can be a day or more stale if a
+                  // night's run failed, so this must say when they're from.
+                  <span className={`text-xs ${PF.muted}`} title="Short-Term/Long-Term Score and Signal columns">
+                    Scores as of {scoreAsOfSummary}
+                  </span>
+                )}
                 {tableOverflowing && (
                   <span className={`flex items-center gap-1.5 text-xs font-medium ${PF.warnText} ${PF.warnBg} rounded-full py-0.5 pl-2.5 pr-1`}>
                     {visibleColumns.length} columns selected — table scrolls sideways

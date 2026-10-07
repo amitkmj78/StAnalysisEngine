@@ -29,6 +29,8 @@ signal.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Optional
 
 import pandas as pd
@@ -43,6 +45,22 @@ TRIM_AT = 30.0
 
 SHORT_TERM_WEIGHTS = {"momentum": 0.35, "reversal": 0.25, "earnings_surprise": 0.20, "earnings_revisions": 0.20}
 LONG_TERM_WEIGHTS = {"value": 0.30, "growth": 0.25, "low_vol": 0.20, "quality": 0.25}
+
+
+def weights_version() -> str:
+    """NFR-4: a short hash of the two weight sets above, the same
+    config_version() pattern services/agent/config.py already uses for
+    the trading agent's own limits. stock_scores stores this per row
+    (services/stock_score_capture_service.py) so an old row can be tied
+    to the exact weights that produced it -- factor_detail already
+    stores the raw/percentile/contribution inputs; this is the one piece
+    that was missing for "store the model version, so it can be
+    regenerated." Changing either weight dict changes this hash."""
+    canonical = json.dumps(
+        {"short_term_weights": SHORT_TERM_WEIGHTS, "long_term_weights": LONG_TERM_WEIGHTS, "buy_at": BUY_AT, "trim_at": TRIM_AT},
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 # Same threshold/streak convention as web/backend/pit_prices.py's
 # get_signal_stability_for_ticker, applied to this new score's own
