@@ -17,6 +17,10 @@ function plain(v: number | null | undefined, digits = 2) {
 
 export default function SavedStrategiesPage() {
   const [rows, setRows] = useState<StrategySavedRow[] | null>(null);
+  // The saved strategy with the highest CAGR, highlighted so it can be seen at a glance.
+  const bestId = rows && rows.length > 0
+    ? rows.reduce((best, r) => ((r.summary.cagr_pct ?? -Infinity) > (best.summary.cagr_pct ?? -Infinity) ? r : best)).id
+    : null;
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<number[]>([]);
   const [compare, setCompare] = useState<StrategyCompareRow[] | null>(null);
@@ -96,13 +100,26 @@ export default function SavedStrategiesPage() {
         {rows?.length === 0 && <p className="p-5 text-sm text-slate-500">Nothing saved yet. Run a backtest in the builder and choose Save this run.</p>}
         <ul className="divide-y divide-slate-100">
           {rows?.map((row) => (
-            <li key={row.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <li
+              key={row.id}
+              className={`flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between ${row.id === bestId ? "bg-emerald-50" : ""}`}
+            >
               <label className="flex items-start gap-3">
                 <input type="checkbox" checked={picked.includes(row.id)} onChange={() => toggle(row.id)} className="mt-1" aria-label={`Compare ${row.name}`} />
                 <span>
                   <span className="font-medium text-slate-900">{row.name}</span>
                   <span className="block text-xs text-slate-500">
                     Saved {new Date(row.created_at).toLocaleDateString()} · data to {row.data_end ?? "–"} · excess CAGR vs same stocks {pct(row.summary.excess_cagr_vs_basket_pct)} · Sharpe vs SPY {plain(row.summary.sharpe_vs_spy)}
+                  </span>
+                  <span className="mt-1 block text-sm">
+                    <span className="text-slate-600">Return </span>
+                    <span className="font-mono font-semibold text-slate-900">{pct(row.summary.cagr_pct)}</span>
+                    <span className="text-slate-600"> a year · best stock </span>
+                    <span className="font-semibold text-slate-900">{row.summary.top_stock ?? "–"}</span>
+                    {row.summary.top_stock_share_pct != null && (
+                      <span className="text-slate-600"> ({plain(row.summary.top_stock_share_pct, 0)}% of the gain)</span>
+                    )}
+                    {row.id === bestId && <span className="ml-2 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Best return</span>}
                   </span>
                 </span>
               </label>

@@ -2713,6 +2713,8 @@ export interface StrategySummary {
   max_drawdown_pct: number | null;
   sharpe: number | null;
   excess_cagr_vs_basket_pct: number | null;
+  top_stock?: string | null;
+  top_stock_share_pct?: number | null;
   excess_cagr_vs_spy_pct: number | null;
   sharpe_vs_basket: number | null;
   sharpe_vs_spy: number | null;

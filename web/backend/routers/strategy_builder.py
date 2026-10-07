@@ -286,6 +286,9 @@ def _verdict_row(result: dict) -> dict:
         "deflated_probability": (result.get("deflated_sharpe") or {}).get("probability"),
         "checks_failed": sum(1 for c in checks if c.get("status") == "fail"),
         "checks_caution": sum(1 for c in checks if c.get("status") == "caution"),
+        # The stock that produced the most of the gain, and its share of it (None when the total gain isn't positive).
+        "top_stock": (result.get("top_ticker") or {}).get("ticker"),
+        "top_stock_share_pct": (result.get("top_ticker") or {}).get("share_pct"),
     }
 
 
