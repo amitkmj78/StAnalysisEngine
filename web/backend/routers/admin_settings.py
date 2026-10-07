@@ -134,6 +134,24 @@ async def disable_verify_predictions():
     return {"verify_predictions_enabled": False}
 
 
+@router.post("/stock-score-compute/enable")
+async def enable_stock_score_compute():
+    """Phase 1 ("Trust"): turns on the nightly (weekdays 16:15 ET) two-
+    score computation (services/stock_score_capture_service.py via
+    _compute_stock_scores_job) -- see STOCK_SCORE_COMPUTE_ENABLED_KEY's
+    docstring in app_settings.py for why this defaults ON, unlike every
+    other job on this page: it's internal accumulation (no external
+    emails/LLM cost), and most of this app depends on it having run."""
+    await set_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, True)
+    return {"stock_score_compute_enabled": True}
+
+
+@router.post("/stock-score-compute/disable")
+async def disable_stock_score_compute():
+    await set_setting_bool(STOCK_SCORE_COMPUTE_ENABLED_KEY, False)
+    return {"stock_score_compute_enabled": False}
+
+
 @router.post("/market-regime/enable")
 async def enable_market_regime():
     """REG-1: turns on the daily scheduler job (services/market_regime_

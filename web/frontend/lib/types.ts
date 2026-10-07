@@ -1811,6 +1811,7 @@ export interface AdminSettings {
   morning_brief_enabled: boolean;
   paper_account_equity_capture_enabled: boolean;
   challenge_notifications_enabled: boolean;
+  stock_score_compute_enabled: boolean;
 }
 
 export interface BackupRun {

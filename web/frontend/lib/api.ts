@@ -1429,6 +1429,20 @@ export function disableVerifyPredictions() {
   return apiSend<AdminSettings>("/api/v1/admin/settings/verify-predictions/disable", "POST");
 }
 
+export function enableStockScoreCompute() {
+  return apiSend<{ stock_score_compute_enabled: boolean }>("/api/v1/admin/settings/stock-score-compute/enable", "POST");
+}
+
+export function disableStockScoreCompute() {
+  return apiSend<{ stock_score_compute_enabled: boolean }>("/api/v1/admin/settings/stock-score-compute/disable", "POST");
+}
+
+export function computeStockScoresNow(universeId = "All") {
+  return apiSend<{ universe_id: string; as_of_date: string; inserted: number }>(
+    `/api/v1/stock-scores/compute-now?universe_id=${encodeURIComponent(universeId)}`, "POST"
+  );
+}
+
 export function enableMarketRegime() {
   return apiSend<{ market_regime_enabled: boolean }>("/api/v1/admin/settings/market-regime/enable", "POST");
 }

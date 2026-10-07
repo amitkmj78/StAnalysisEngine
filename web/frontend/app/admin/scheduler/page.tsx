@@ -7,6 +7,7 @@ import PitPriceControls from "@/components/admin/PitPriceControls";
 import PortfolioDropAlertsControls from "@/components/admin/PortfolioDropAlertsControls";
 import PublishSignalsControls from "@/components/admin/PublishSignalsControls";
 import SchedulerControls from "@/components/admin/SchedulerControls";
+import StockScoreComputeControls from "@/components/admin/StockScoreComputeControls";
 import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
 
@@ -27,6 +28,7 @@ export default async function AdminSchedulerPage() {
 
       <div className="mt-6 flex flex-col gap-4">
         <SchedulerControls />
+        <StockScoreComputeControls />
         <PublishSignalsControls />
         <HorizonSubscriptionControls />
         <PitPriceControls />
