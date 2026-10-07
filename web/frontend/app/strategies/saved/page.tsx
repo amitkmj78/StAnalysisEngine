@@ -114,7 +114,25 @@ export default function SavedStrategiesPage() {
                   Delete
                 </button>
               </div>
-              {shareLinks[row.id] && <p className="w-full break-all rounded bg-slate-50 px-2 py-1 font-mono text-xs text-slate-600 sm:basis-full">{shareLinks[row.id]}</p>}
+              {shareLinks[row.id] && (
+                <div className="flex w-full flex-wrap items-center gap-2 rounded bg-slate-50 px-2 py-1 sm:basis-full">
+                  <a
+                    href={shareLinks[row.id]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all font-mono text-xs text-indigo-700 underline underline-offset-2"
+                  >
+                    {shareLinks[row.id]}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => void navigator.clipboard?.writeText(shareLinks[row.id])}
+                    className="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-100"
+                  >
+                    Copy
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>
