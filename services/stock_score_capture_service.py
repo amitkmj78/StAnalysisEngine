@@ -118,7 +118,11 @@ def _annualized_volatility(closes: pd.Series) -> Optional[float]:
 
 
 def _live_momentum(ticker: str) -> dict:
-    hist = get_cached_history(ticker, "3mo", auto_adjust=True)
+    try:
+        hist = get_cached_history(ticker, "3mo", auto_adjust=True)
+    except Exception as e:
+        logger.warning("Live momentum failed for %s: %s", ticker, e)
+        return {"raw": None, "source": "live"}
     close = hist["Close"].dropna() if not hist.empty else hist
     if close.empty or len(close) < MOMENTUM_LOOKBACK_DAYS + 1:
         return {"raw": None, "source": "live"}
@@ -129,14 +133,22 @@ def _live_momentum(ticker: str) -> dict:
 
 
 def _live_reversal(ticker: str) -> dict:
-    hist = get_cached_history(ticker, "3mo", auto_adjust=True)
+    try:
+        hist = get_cached_history(ticker, "3mo", auto_adjust=True)
+    except Exception as e:
+        logger.warning("Live reversal failed for %s: %s", ticker, e)
+        return {"raw": None, "source": "live"}
     if hist.empty:
         return {"raw": None, "source": "live"}
     return {"raw": _compute_rsi(hist["Close"].dropna().tolist()), "source": "live"}
 
 
 def _live_volatility(ticker: str) -> dict:
-    hist = get_cached_history(ticker, "1y", auto_adjust=True)
+    try:
+        hist = get_cached_history(ticker, "1y", auto_adjust=True)
+    except Exception as e:
+        logger.warning("Live volatility failed for %s: %s", ticker, e)
+        return {"raw": None, "source": "live"}
     if hist.empty:
         return {"raw": None, "source": "live"}
     return {"raw": _annualized_volatility(hist["Close"].dropna()), "source": "live"}
@@ -291,7 +303,11 @@ def _latest_eps_surprise(earnings_df: pd.DataFrame) -> Optional[float]:
 
 
 def _live_earnings_surprise(ticker: str) -> dict:
-    return {"raw": _latest_eps_surprise(get_cached_earnings_dates(ticker)), "source": "live"}
+    try:
+        return {"raw": _latest_eps_surprise(get_cached_earnings_dates(ticker)), "source": "live"}
+    except Exception as e:
+        logger.warning("Live earnings surprise failed for %s: %s", ticker, e)
+        return {"raw": None, "source": "live"}
 
 
 async def fetch_earnings_surprise_inputs(tickers: list[str]) -> dict[str, dict]:
@@ -315,7 +331,11 @@ def _eps_revision_from_trend(eps_trend_df: pd.DataFrame) -> Optional[float]:
 
 
 def _live_earnings_revisions(ticker: str) -> dict:
-    return {"raw": _eps_revision_from_trend(get_cached_eps_trend(ticker)), "source": "live"}
+    try:
+        return {"raw": _eps_revision_from_trend(get_cached_eps_trend(ticker)), "source": "live"}
+    except Exception as e:
+        logger.warning("Live earnings revisions failed for %s: %s", ticker, e)
+        return {"raw": None, "source": "live"}
 
 
 async def fetch_earnings_revisions_inputs(tickers: list[str]) -> dict[str, dict]:
@@ -344,13 +364,19 @@ async def resolve_sector_map(tickers: list[str], as_of_date_: date) -> dict[str,
             tickers, as_of_date_,
         )
     by_ticker = {r["ticker"]: r["sector"] for r in rows}
-    result: dict[str, str] = {}
-    for ticker in tickers:
-        raw_sector = by_ticker.get(ticker)
-        if raw_sector is None:
-            raw_sector = get_cached_info(ticker).get("sector")
-        result[ticker] = _gics_sector(raw_sector)
-    return result
+    missing = [t for t in tickers if by_ticker.get(t) is None]
+
+    def _live_sector(ticker: str) -> Optional[str]:
+        try:
+            return get_cached_info(ticker).get("sector")
+        except Exception as e:
+            logger.warning("Live sector lookup failed for %s: %s", ticker, e)
+            return None
+
+    if missing:
+        live_sectors = await asyncio.gather(*[asyncio.to_thread(_live_sector, t) for t in missing])
+        by_ticker.update(dict(zip(missing, live_sectors)))
+    return {ticker: _gics_sector(by_ticker.get(ticker)) for ticker in tickers}
 
 
 def resolve_universe_tickers(universe_id: str) -> list[str]:
@@ -427,10 +453,21 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
     if not tickers:
         return 0
 
-    (
-        momentum_reversal, volatility, value_growth_quality, sector_map, prior_history,
-        earnings_surprise, earnings_revisions,
-    ) = await asyncio.gather(
+    stage_labels = (
+        "momentum/reversal", "low volatility", "value/growth/quality", "sector map",
+        "prior signal history", "earnings surprise", "earnings revisions",
+    )
+    stage_defaults = (
+        {t: {"momentum": {"raw": None, "source": "live"}, "reversal": {"raw": None, "source": "live"}} for t in tickers},
+        {t: {"raw": None, "source": "live"} for t in tickers},
+        {t: {"value": {"raw": None, "source": "pit"}, "growth": {"raw_revenue": None, "raw_earnings": None, "source": "pit"},
+             "quality": {"raw_roe": None, "raw_margin": None, "source": "pit"}} for t in tickers},
+        {},
+        {},
+        {t: {"raw": None, "source": "live"} for t in tickers},
+        {t: {"raw": None, "source": "live"} for t in tickers},
+    )
+    stage_results = await asyncio.gather(
         fetch_momentum_and_reversal_inputs(tickers, as_of_date_),
         fetch_low_volatility_inputs(tickers, as_of_date_),
         fetch_value_growth_and_quality_inputs(tickers, as_of_date_),
@@ -438,7 +475,19 @@ async def compute_and_persist_daily_scores(universe_id: str = "All", as_of_date_
         _fetch_prior_signal_history(tickers, universe_id, as_of_date_),
         fetch_earnings_surprise_inputs(tickers),
         fetch_earnings_revisions_inputs(tickers),
+        return_exceptions=True,
     )
+    resolved = []
+    for label, default, result in zip(stage_labels, stage_defaults, stage_results):
+        if isinstance(result, Exception):
+            logger.warning("Stock score factor %r failed for the whole run; scoring without it tonight: %s", label, result)
+            resolved.append(default)
+        else:
+            resolved.append(result)
+    (
+        momentum_reversal, volatility, value_growth_quality, sector_map, prior_history,
+        earnings_surprise, earnings_revisions,
+    ) = resolved
 
     momentum_raw = {t: momentum_reversal[t]["momentum"]["raw"] for t in tickers}
     reversal_raw = {t: momentum_reversal[t]["reversal"]["raw"] for t in tickers}

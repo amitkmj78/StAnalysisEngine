@@ -588,7 +588,21 @@ def _score_group(group: pd.DataFrame, weights: Dict[str, float]) -> pd.DataFrame
                 }
             )
 
-    group["Score"] = (score * 100).round(1)
+    # A fund with too little data can't be scored fairly. Missing metrics count as neutral in the sum above, so without
+    # this a fund with no data would show a score of 0, which reads as a real result. Below half the weight present, the
+    # score is withheld (None), and the screen says so.
+    total_weight = sum(w for m, w in weights.items() if m in group.columns)
+    coverage = pd.Series(0.0, index=group.index)
+    for metric, weight in weights.items():
+        if metric in group.columns:
+            coverage += group[metric].notna().astype(float) * weight
+    if total_weight > 0:
+        coverage = coverage / total_weight
+    else:
+        coverage = coverage * 0.0
+    group["Coverage"] = (coverage * 100).round(0)
+    scores = (score * 100).round(1)
+    group["Score"] = [float(v) if c >= 0.5 else None for v, c in zip(scores, coverage)]
     group["_breakdown"] = [breakdown_by_row[idx] for idx in group.index]
     return group
 

@@ -58,5 +58,5 @@ export async function signup(formData: FormData) {
     path: "/",
   });
 
-  redirect("/predict");
+  redirect("/stock/SPY");
 }

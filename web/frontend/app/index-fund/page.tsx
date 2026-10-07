@@ -336,7 +336,7 @@ export default function IndexFundPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MetricTile label="Score" value={`${winner.Score >= 0 ? "+" : ""}${winner.Score}`} term="Fund Score" />
+            <MetricTile label="Score" value={winner.Score == null ? "Not enough data" : `${winner.Score >= 0 ? "+" : ""}${winner.Score}`} term="Fund Score" />
             <MetricTile label="Price" value={`$${Number(winner.Price).toFixed(2)}`} />
             <MetricTile
               label="Expense Ratio"
@@ -463,7 +463,7 @@ function FundTable({
                   </td>
                   {columns.map((col) => (
                     <td key={col.key} className="px-3 py-2 text-slate-700">
-                      {formatCell(row[col.key])}
+                      {col.key === "Score" && row.Score == null ? "Not enough data" : formatCell(row[col.key])}
                     </td>
                   ))}
                 </tr>

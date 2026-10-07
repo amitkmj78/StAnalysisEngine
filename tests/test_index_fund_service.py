@@ -272,3 +272,18 @@ def test_rank_funds_overall_empty_df_is_a_noop():
 
 def test_goal_descriptions_cover_every_preset_goal():
     assert set(GOAL_DESCRIPTIONS) == set(GOAL_WEIGHTS)
+
+
+def test_a_fund_with_no_data_has_no_score_instead_of_zero():
+    import pandas as pd
+    from services.index_fund_service import GOAL_WEIGHTS, _score_group
+
+    group = pd.DataFrame({
+        "Category": ["Bond", "Bond", "Bond"],
+        "return_1y": [None, None, 4.0],
+        "return_3y_annualized": [None, 3.0, 5.0],
+        "expense_ratio": [None, 0.1, 0.2],
+    })
+    scored = _score_group(group, GOAL_WEIGHTS["Balanced Core"])
+    assert pd.isna(scored["Score"].iloc[0])
+    assert not pd.isna(scored["Score"].iloc[2])

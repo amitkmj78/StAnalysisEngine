@@ -8,8 +8,9 @@ data.
 
 import json
 from datetime import date, timedelta
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from services.factor_narrative_service import (
     earnings_revisions_sentence,
@@ -22,8 +23,9 @@ from services.factor_narrative_service import (
     value_sentence,
 )
 from services.market_regime_service import regime_as_of
-from services.stock_score_capture_service import MOMENTUM_LOOKBACK_DAYS
+from services.stock_score_capture_service import MOMENTUM_LOOKBACK_DAYS, compute_and_persist_daily_scores
 from services.stock_score_service import flag_12week_trend, select_top_and_bottom_factors, weekly_change_explanation
+from web.backend.admin import require_admin
 from web.backend.db import service_conn
 from web.backend.rate_limit import limiter
 
@@ -37,6 +39,24 @@ FACTOR_KEYS = {
     "momentum", "reversal", "earnings_surprise", "earnings_revisions",
     "value", "growth", "low_vol", "quality",
 }
+
+
+@router.post("/compute-now", dependencies=[Depends(require_admin)])
+async def compute_now(
+    universe_id: str = Query(DEFAULT_UNIVERSE),
+    as_of_date_: Optional[date] = Query(None, alias="as_of_date"),
+):
+    """Manual trigger for the same nightly scoring run _compute_stock_scores_job
+    fires at 16:15 ET (web/backend/scheduler.py) — for catching up a night the
+    job skipped or failed on, not routine use. As of the resilience fix below,
+    one ticker's or one factor's failure degrades that piece to "no data"
+    rather than aborting the whole run, so this is safe to re-run after a
+    partial night; ON CONFLICT DO NOTHING in compute_and_persist_daily_scores
+    means re-running a day that already has rows just inserts the ones still
+    missing. Admin-only: it's a real Yahoo/Alpaca load across ~500 tickers,
+    not something to expose to end users."""
+    inserted = await compute_and_persist_daily_scores(universe_id=universe_id, as_of_date_=as_of_date_)
+    return {"universe_id": universe_id, "as_of_date": (as_of_date_ or date.today()).isoformat(), "inserted": inserted}
 
 
 def _parse_factor_detail(row) -> dict:

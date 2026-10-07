@@ -1,7 +1,9 @@
+import asyncio
 from datetime import date
 
 import pandas as pd
 
+import services.stock_score_capture_service as capture_service
 from services.stock_score_capture_service import (
     RSI_MIN_ROWS,
     VOLATILITY_TRADING_DAYS,
@@ -9,6 +11,11 @@ from services.stock_score_capture_service import (
     _compute_rsi,
     _eps_revision_from_trend,
     _latest_eps_surprise,
+    _live_earnings_revisions,
+    _live_earnings_surprise,
+    _live_momentum,
+    _live_reversal,
+    _live_volatility,
     _momentum_and_reversal_from_rows,
     _volatility_from_rows,
     blend_growth,
@@ -183,3 +190,98 @@ def test_eps_revision_from_trend_none_when_30days_ago_is_zero():
 
 def test_eps_revision_from_trend_none_for_empty_frame():
     assert _eps_revision_from_trend(pd.DataFrame()) is None
+
+
+# One ticker's Yahoo call failing (rate limit, timeout, anything) must degrade
+# that ticker to "no live data" rather than raising -- raising out of one of
+# these, run inside asyncio.gather(*[asyncio.to_thread(fn, t) for t in tickers]),
+# would otherwise take every OTHER ticker's result for that factor down with it.
+def test_live_momentum_degrades_to_no_data_on_fetch_failure(monkeypatch):
+    monkeypatch.setattr(capture_service, "get_cached_history", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("Too Many Requests")))
+    assert _live_momentum("AAPL") == {"raw": None, "source": "live"}
+
+
+def test_live_reversal_degrades_to_no_data_on_fetch_failure(monkeypatch):
+    monkeypatch.setattr(capture_service, "get_cached_history", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("Too Many Requests")))
+    assert _live_reversal("AAPL") == {"raw": None, "source": "live"}
+
+
+def test_live_volatility_degrades_to_no_data_on_fetch_failure(monkeypatch):
+    monkeypatch.setattr(capture_service, "get_cached_history", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("Too Many Requests")))
+    assert _live_volatility("AAPL") == {"raw": None, "source": "live"}
+
+
+def test_live_earnings_surprise_degrades_to_no_data_on_fetch_failure(monkeypatch):
+    monkeypatch.setattr(capture_service, "get_cached_earnings_dates", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("Too Many Requests")))
+    assert _live_earnings_surprise("AAPL") == {"raw": None, "source": "live"}
+
+
+def test_live_earnings_revisions_degrades_to_no_data_on_fetch_failure(monkeypatch):
+    monkeypatch.setattr(capture_service, "get_cached_eps_trend", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("Too Many Requests")))
+    assert _live_earnings_revisions("AAPL") == {"raw": None, "source": "live"}
+
+
+def test_compute_and_persist_daily_scores_survives_a_whole_stage_failing(monkeypatch):
+    # Even if an entire factor's fetch stage raises outright (e.g. a transient
+    # DB hiccup, not just one ticker), the run must still save whatever every
+    # other factor computed -- not abort before a single row is written.
+    monkeypatch.setattr(capture_service, "resolve_universe_tickers", lambda universe_id: ["AAPL"])
+
+    async def _boom(*a, **k):
+        raise RuntimeError("factor fetch exploded")
+
+    monkeypatch.setattr(capture_service, "fetch_earnings_surprise_inputs", _boom)
+
+    async def _fake_momentum_reversal(tickers, as_of_date_):
+        return {t: {"momentum": {"raw": 5.0, "source": "live"}, "reversal": {"raw": 50.0, "source": "live"}} for t in tickers}
+
+    async def _fake_volatility(tickers, as_of_date_):
+        return {t: {"raw": 10.0, "source": "live"} for t in tickers}
+
+    async def _fake_vgq(tickers, as_of_date_):
+        return {
+            t: {
+                "value": {"raw": 15.0, "source": "pit"},
+                "growth": {"raw_revenue": 5.0, "raw_earnings": 5.0, "source": "pit"},
+                "quality": {"raw_roe": 10.0, "raw_margin": 10.0, "source": "pit"},
+            }
+            for t in tickers
+        }
+
+    async def _fake_sector_map(tickers, as_of_date_):
+        return {t: "Technology" for t in tickers}
+
+    async def _fake_prior_history(tickers, universe_id, before_date):
+        return {}
+
+    async def _fake_earnings_revisions(tickers):
+        return {t: {"raw": 2.0, "source": "live"} for t in tickers}
+
+    monkeypatch.setattr(capture_service, "fetch_momentum_and_reversal_inputs", _fake_momentum_reversal)
+    monkeypatch.setattr(capture_service, "fetch_low_volatility_inputs", _fake_volatility)
+    monkeypatch.setattr(capture_service, "fetch_value_growth_and_quality_inputs", _fake_vgq)
+    monkeypatch.setattr(capture_service, "resolve_sector_map", _fake_sector_map)
+    monkeypatch.setattr(capture_service, "_fetch_prior_signal_history", _fake_prior_history)
+    monkeypatch.setattr(capture_service, "fetch_earnings_revisions_inputs", _fake_earnings_revisions)
+
+    class _FakeConn:
+        async def execute(self, *a, **k):
+            return "INSERT 0 1"
+
+    class _FakeConnCtx:
+        async def __aenter__(self):
+            return _FakeConn()
+
+        async def __aexit__(self, *a):
+            return False
+
+    monkeypatch.setattr(capture_service, "service_conn", lambda: _FakeConnCtx())
+
+    inserted = asyncio.run(
+        capture_service.compute_and_persist_daily_scores(universe_id="All", as_of_date_=date(2026, 10, 7))
+    )
+    # Didn't raise despite earnings-surprise exploding -- the degraded factor
+    # just contributes no data, and the short score (which needs it) still
+    # computes from whatever the other short-term factors (momentum, reversal,
+    # earnings revisions) provided.
+    assert inserted == 1

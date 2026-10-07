@@ -464,6 +464,9 @@ export default function StockScorePage() {
           )}
         </div>
         <form onSubmit={handleJump} className="flex flex-wrap items-center gap-2">
+          <Link href={`/predict?ticker=${encodeURIComponent(ticker)}`} className="btn-primary">
+            Forecast
+          </Link>
           {holdings.length > 0 && (
             <select
               value=""
