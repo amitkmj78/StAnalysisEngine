@@ -111,9 +111,16 @@ async def _load_settings(user_id: str) -> Optional[dict]:
 
 
 async def _load_paper_account(user_id: str) -> Optional[dict]:
+    """A user can now link one paper account per portfolio (web/backend/
+    routers/paper_trading.py), but the agent itself still manages a
+    single account per user, not one per portfolio -- its risk state,
+    journal, and run tracking are all per-user, not per-portfolio. When
+    more than one is linked, this deterministically picks the oldest
+    (the user's original/primary one) rather than an arbitrary row."""
     async with service_conn() as conn:
         row = await conn.fetchrow(
-            "SELECT id, api_key_id, api_secret_key_encrypted FROM alpaca_paper_accounts WHERE user_id = $1::uuid",
+            "SELECT id, api_key_id, api_secret_key_encrypted FROM alpaca_paper_accounts "
+            "WHERE user_id = $1::uuid ORDER BY created_at ASC LIMIT 1",
             user_id,
         )
         return dict(row) if row else None

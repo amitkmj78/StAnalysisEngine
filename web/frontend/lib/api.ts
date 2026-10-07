@@ -783,20 +783,37 @@ export function linkPaperAccount(apiKeyId: string, apiSecretKey: string, portfol
   });
 }
 
-export function acceptPaperTradingDisclosure() {
-  return apiSend<{ account: PaperAccount }>("/api/v1/paper-trading/disclosure-accept", "POST");
+export function acceptPaperTradingDisclosure(portfolioId?: number) {
+  return apiSend<{ account: PaperAccount }>("/api/v1/paper-trading/disclosure-accept", "POST", {
+    portfolio_id: portfolioId,
+  });
 }
 
-export function getPaperAccount() {
-  return apiFetch<{ account: PaperAccount; live: Record<string, unknown> | null }>("/api/v1/paper-trading/account");
+// Every paper account this user has linked (one per portfolio at most) --
+// for the account-management page once a user has more than one.
+export function getPaperAccounts() {
+  return apiFetch<{ accounts: PaperAccount[] }>("/api/v1/paper-trading/accounts");
 }
 
-export function getPaperClock() {
-  return apiFetch<PaperClock>("/api/v1/paper-trading/clock");
+export function getPaperAccount(portfolioId?: number) {
+  return apiFetch<{ account: PaperAccount; live: Record<string, unknown> | null }>(
+    "/api/v1/paper-trading/account",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined
+  );
 }
 
-export function unlinkPaperAccount() {
-  return apiSend<{ ok: boolean }>("/api/v1/paper-trading/link", "DELETE");
+export function getPaperClock(portfolioId?: number) {
+  return apiFetch<PaperClock>(
+    "/api/v1/paper-trading/clock",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined
+  );
+}
+
+export function unlinkPaperAccount(portfolioId?: number) {
+  const path = portfolioId !== undefined
+    ? `/api/v1/paper-trading/link?portfolio_id=${portfolioId}`
+    : "/api/v1/paper-trading/link";
+  return apiSend<{ ok: boolean }>(path, "DELETE");
 }
 
 export function getPaperOrders() {
@@ -814,6 +831,7 @@ export interface SubmitPaperOrderRequest {
   time_in_force: "day" | "gtc";
   qty: number;
   limit_price?: number;
+  portfolio_id?: number;
 }
 
 export function submitPaperOrder(body: SubmitPaperOrderRequest) {

@@ -3,6 +3,25 @@ import pandas as pd
 from services import market_data_service
 
 
+def test_fetch_close_series_always_uses_yahoo_regardless_of_the_admin_price_switch(monkeypatch):
+    """Regression: the admin's stock price-source switch (services/
+    price_provider.py) was observed live to silently break ^VIX/^VIX3M
+    (and intermittently the other internals tickers) once set to Alpaca,
+    which has no concept of an index ticker at all. This fetch must
+    always go through the Yahoo-only path, never the switchable one."""
+    calls = []
+
+    def fake_yahoo_only(ticker, period, auto_adjust=None, interval=None):
+        calls.append(ticker)
+        idx = pd.bdate_range("2026-01-01", periods=3)
+        return pd.DataFrame({"Close": [1.0, 2.0, 3.0]}, index=idx)
+
+    monkeypatch.setattr(market_data_service, "get_cached_history_yahoo_only", fake_yahoo_only)
+    result = market_data_service._fetch_close_series("^VIX", "3y")
+    assert calls == ["^VIX"]
+    assert result is not None
+
+
 def _fake_breadth():
     idx = pd.bdate_range("2026-01-01", periods=5)
     return pd.DataFrame({"breadth_50dma": [50.0] * 5, "breadth_200dma": [55.0] * 5}, index=idx)

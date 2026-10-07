@@ -6,12 +6,13 @@ import Link from "next/link";
 import {
   ApiError,
   acceptPaperTradingDisclosure,
-  getPaperAccount,
+  getPaperAccounts,
   getPaperOrders,
+  getPortfolios,
   linkPaperAccount,
   unlinkPaperAccount,
 } from "@/lib/api";
-import type { PaperAccount, PaperOrder } from "@/lib/types";
+import type { PaperAccount, PaperOrder, Portfolio } from "@/lib/types";
 
 function statusBadgeClass(status: PaperOrder["status"]): string {
   if (status === "FILLED") return "bg-emerald-50 text-emerald-700";
@@ -20,32 +21,29 @@ function statusBadgeClass(status: PaperOrder["status"]): string {
   return "bg-slate-100 text-slate-500";
 }
 
+type LinkFormState = { apiKeyId: string; apiSecretKey: string };
+
 export default function PaperTradingPage() {
-  const [account, setAccount] = useState<PaperAccount | null | undefined>(undefined); // undefined = loading
-  const [live, setLive] = useState<Record<string, unknown> | null>(null);
+  // A user can link one Alpaca paper account per portfolio -- each
+  // portfolio below shows either its linked account or a form to link one.
+  const [portfolios, setPortfolios] = useState<Portfolio[] | null>(null);
+  const [accounts, setAccounts] = useState<PaperAccount[] | null>(null);
   const [orders, setOrders] = useState<PaperOrder[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
-  const [apiKeyId, setApiKeyId] = useState("");
-  const [apiSecretKey, setApiSecretKey] = useState("");
-  const [linking, setLinking] = useState(false);
-  const [accepting, setAccepting] = useState(false);
-  const [unlinking, setUnlinking] = useState(false);
+  const [linkForms, setLinkForms] = useState<Record<number, LinkFormState>>({});
+  const [linkingPortfolioId, setLinkingPortfolioId] = useState<number | null>(null);
+  const [acceptingPortfolioId, setAcceptingPortfolioId] = useState<number | null>(null);
+  const [unlinkingPortfolioId, setUnlinkingPortfolioId] = useState<number | null>(null);
 
   function load() {
-    getPaperAccount()
-      .then((res) => {
-        setAccount(res.account);
-        setLive(res.live);
-      })
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 404) {
-          setAccount(null);
-        } else {
-          setError(err instanceof ApiError ? err.message : "Could not load your paper-trading account.");
-        }
-      });
+    getPortfolios()
+      .then((res) => setPortfolios(res.portfolios))
+      .catch(() => setPortfolios([]));
+    getPaperAccounts()
+      .then((res) => setAccounts(res.accounts))
+      .catch(() => setAccounts([]));
     getPaperOrders()
       .then((res) => setOrders(res.orders))
       .catch(() => {});
@@ -55,53 +53,66 @@ export default function PaperTradingPage() {
     load();
   }, []);
 
-  async function handleLink(e: React.FormEvent) {
+  function updateLinkForm(portfolioId: number, patch: Partial<LinkFormState>) {
+    setLinkForms((prev) => {
+      const current: LinkFormState = prev[portfolioId] ?? { apiKeyId: "", apiSecretKey: "" };
+      return { ...prev, [portfolioId]: { ...current, ...patch } };
+    });
+  }
+
+  async function handleLink(e: React.FormEvent, portfolioId: number) {
     e.preventDefault();
-    setLinking(true);
+    const form = linkForms[portfolioId];
+    if (!form) return;
+    setLinkingPortfolioId(portfolioId);
     setError(null);
     setNote(null);
     try {
-      const res = await linkPaperAccount(apiKeyId.trim(), apiSecretKey.trim());
+      const res = await linkPaperAccount(form.apiKeyId.trim(), form.apiSecretKey.trim(), portfolioId);
       setNote(`Linked. Synced ${res.positions_synced} position(s).`);
-      setApiKeyId("");
-      setApiSecretKey("");
+      setLinkForms((prev) => ({ ...prev, [portfolioId]: { apiKeyId: "", apiSecretKey: "" } }));
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not link this key pair.");
     } finally {
-      setLinking(false);
+      setLinkingPortfolioId(null);
     }
   }
 
-  async function handleAcceptDisclosure() {
-    setAccepting(true);
+  async function handleAcceptDisclosure(portfolioId: number) {
+    setAcceptingPortfolioId(portfolioId);
     setError(null);
     try {
-      const res = await acceptPaperTradingDisclosure();
-      setAccount(res.account);
+      await acceptPaperTradingDisclosure(portfolioId);
+      load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not record disclosure acceptance.");
     } finally {
-      setAccepting(false);
+      setAcceptingPortfolioId(null);
     }
   }
 
-  async function handleUnlink() {
-    if (!window.confirm("Unlink your paper-trading account? This removes its positions and order history from this app.")) {
+  async function handleUnlink(portfolioId: number) {
+    if (
+      !window.confirm("Unlink this paper-trading account? This removes its positions and order history from this app.")
+    ) {
       return;
     }
-    setUnlinking(true);
+    setUnlinkingPortfolioId(portfolioId);
     setError(null);
     try {
-      await unlinkPaperAccount();
-      setAccount(null);
-      setOrders([]);
+      await unlinkPaperAccount(portfolioId);
+      load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not unlink this account.");
     } finally {
-      setUnlinking(false);
+      setUnlinkingPortfolioId(null);
     }
   }
+
+  const loading = portfolios === null || accounts === null;
+  const accountByPortfolio = new Map((accounts ?? []).map((a) => [a.portfolio_id, a]));
+  const showPortfolioLabel = (accounts?.length ?? 0) > 1;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -110,7 +121,7 @@ export default function PaperTradingPage() {
           <h1 className="font-display text-2xl font-semibold text-slate-900">Paper Trading</h1>
           <p className="mt-1 text-sm text-slate-500">
             Practice placing orders with simulated money through Alpaca&apos;s paper-trading sandbox. No real money is
-            ever involved.
+            ever involved. You can link one account per portfolio.
           </p>
           <Link href="/challenges" className="mt-1 inline-block text-sm text-indigo-600 hover:underline">
             Compete with friends using this account →
@@ -124,125 +135,136 @@ export default function PaperTradingPage() {
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {note && <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{note}</p>}
 
-      {account === undefined ? (
+      {loading ? (
         <p className="mt-6 text-sm text-slate-500">Loading…</p>
-      ) : account === null ? (
-        <form onSubmit={handleLink} className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Link your Alpaca paper account</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Generate a paper-trading API key pair from your own Alpaca dashboard (paper account, not live) and paste
-            it below. The secret key is encrypted before it&apos;s stored.
-          </p>
-          <div className="mt-4 flex flex-col gap-3">
-            <label className="text-xs font-medium text-slate-600">
-              API Key ID
-              <input
-                value={apiKeyId}
-                onChange={(e) => setApiKeyId(e.target.value)}
-                required
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                placeholder="PK..."
-              />
-            </label>
-            <label className="text-xs font-medium text-slate-600">
-              API Secret Key
-              <input
-                value={apiSecretKey}
-                onChange={(e) => setApiSecretKey(e.target.value)}
-                required
-                type="password"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </label>
-          </div>
-          <button
-            type="submit"
-            disabled={linking}
-            className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            {linking ? "Linking…" : "Link Paper Account"}
-          </button>
-        </form>
+      ) : portfolios.length === 0 ? (
+        <p className="mt-6 text-sm text-slate-500">You don&apos;t have a portfolio yet.</p>
       ) : (
-        <>
-          <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-slate-900">Paper Account {account.account_number ?? ""}</span>
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">Paper</span>
-                </div>
-                {live && (
-                  <p className="mt-1 text-xs text-slate-500">
-                    Buying power ${Number(live.buying_power ?? 0).toLocaleString()} · Equity $
-                    {Number(live.equity ?? 0).toLocaleString()}
-                  </p>
+        <div className="mt-6 flex flex-col gap-4">
+          {portfolios.map((p) => {
+            const account = accountByPortfolio.get(p.id);
+            return (
+              <div key={p.id} className="rounded-xl border border-slate-200 bg-white p-5">
+                {portfolios.length > 1 && <h2 className="text-sm font-semibold text-slate-900">{p.name}</h2>}
+                {!account ? (
+                  <form onSubmit={(e) => handleLink(e, p.id)} className={portfolios.length > 1 ? "mt-3 flex flex-col gap-3" : "flex flex-col gap-3"}>
+                    {portfolios.length === 1 && <h2 className="text-sm font-semibold text-slate-900">Link your Alpaca paper account</h2>}
+                    <p className="text-xs text-slate-500">
+                      Generate a paper-trading API key pair from your own Alpaca dashboard (paper account, not live)
+                      and paste it below. The secret key is encrypted before it&apos;s stored.
+                    </p>
+                    <label className="text-xs font-medium text-slate-600">
+                      API Key ID
+                      <input
+                        value={linkForms[p.id]?.apiKeyId ?? ""}
+                        onChange={(e) => updateLinkForm(p.id, { apiKeyId: e.target.value })}
+                        required
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                        placeholder="PK..."
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-slate-600">
+                      API Secret Key
+                      <input
+                        value={linkForms[p.id]?.apiSecretKey ?? ""}
+                        onChange={(e) => updateLinkForm(p.id, { apiSecretKey: e.target.value })}
+                        required
+                        type="password"
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={linkingPortfolioId === p.id}
+                      className="self-start rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      {linkingPortfolioId === p.id ? "Linking…" : "Link Paper Account"}
+                    </button>
+                  </form>
+                ) : (
+                  <div className={portfolios.length > 1 ? "mt-3" : ""}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-900">Paper Account {account.account_number ?? ""}</span>
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">Paper</span>
+                      </div>
+                      <button
+                        onClick={() => handleUnlink(p.id)}
+                        disabled={unlinkingPortfolioId === p.id}
+                        className="rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {unlinkingPortfolioId === p.id ? "Unlinking…" : "Unlink"}
+                      </button>
+                    </div>
+
+                    {account.disclosure_accepted_at === null ? (
+                      <div className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+                        <p>
+                          This is a simulated, practice-only account backed by Alpaca&apos;s paper-trading sandbox. No
+                          real money is ever at risk, and orders never reach a real exchange. You must accept this
+                          before placing an order.
+                        </p>
+                        <button
+                          onClick={() => handleAcceptDisclosure(p.id)}
+                          disabled={acceptingPortfolioId === p.id}
+                          className="mt-2 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                        >
+                          {acceptingPortfolioId === p.id ? "Saving…" : "I understand, continue"}
+                        </button>
+                      </div>
+                    ) : (
+                      <Link
+                        href={`/portfolio/paper-trading/ticket?portfolio_id=${p.id}`}
+                        className="mt-4 inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                      >
+                        + New Order
+                      </Link>
+                    )}
+                  </div>
                 )}
               </div>
-              <button
-                onClick={handleUnlink}
-                disabled={unlinking}
-                className="rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-              >
-                {unlinking ? "Unlinking…" : "Unlink"}
-              </button>
-            </div>
+            );
+          })}
+        </div>
+      )}
 
-            {account.disclosure_accepted_at === null ? (
-              <div className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-                <p>
-                  This is a simulated, practice-only account backed by Alpaca&apos;s paper-trading sandbox. No real
-                  money is ever at risk, and orders never reach a real exchange. You must accept this before placing
-                  an order.
-                </p>
-                <button
-                  onClick={handleAcceptDisclosure}
-                  disabled={accepting}
-                  className="mt-2 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
-                >
-                  {accepting ? "Saving…" : "I understand, continue"}
-                </button>
-              </div>
-            ) : (
-              <Link
-                href="/portfolio/paper-trading/ticket"
-                className="mt-4 inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+      <h2 className="mt-8 text-sm font-semibold text-slate-900">Orders</h2>
+      {orders.length === 0 ? (
+        <p className="mt-2 text-sm text-slate-500">No orders yet.</p>
+      ) : (
+        <div className="mt-3 flex flex-col gap-2">
+          {orders.map((order) => {
+            const account = (accounts ?? []).find((a) => a.id === order.alpaca_paper_account_id);
+            const portfolioName = account ? portfolios?.find((p) => p.id === account.portfolio_id)?.name : null;
+            return (
+              <div
+                key={order.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
               >
-                + New Order
-              </Link>
-            )}
-          </div>
-
-          <h2 className="mt-8 text-sm font-semibold text-slate-900">Orders</h2>
-          {orders.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">No orders yet.</p>
-          ) : (
-            <div className="mt-3 flex flex-col gap-2">
-              {orders.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-900">
-                        {order.side === "buy" ? "Buy" : "Sell"} {order.qty} {order.ticker}
-                      </span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(order.status)}`}>
-                        {order.status.replace("_", " ")}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {order.order_type === "limit" ? `Limit $${order.limit_price}` : "Market"} · {order.time_in_force.toUpperCase()}
-                      {order.filled_qty > 0 && ` · Filled ${order.filled_qty}${order.filled_avg_price ? ` @ $${order.filled_avg_price}` : ""}`}
-                      {order.reject_reason && ` · ${order.reject_reason}`}
-                    </p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-slate-900">
+                      {order.side === "buy" ? "Buy" : "Sell"} {order.qty} {order.ticker}
+                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(order.status)}`}>
+                      {order.status.replace("_", " ")}
+                    </span>
+                    {showPortfolioLabel && portfolioName && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{portfolioName}</span>
+                    )}
                   </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {order.order_type === "limit" ? `Limit $${order.limit_price}` : "Market"} ·{" "}
+                    {order.time_in_force.toUpperCase()}
+                    {order.filled_qty > 0 &&
+                      ` · Filled ${order.filled_qty}${order.filled_avg_price ? ` @ $${order.filled_avg_price}` : ""}`}
+                    {order.reject_reason && ` · ${order.reject_reason}`}
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
-        </>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

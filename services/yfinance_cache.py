@@ -49,6 +49,20 @@ def get_cached_history(
     return _yahoo_history(ticker, period, auto_adjust, interval)
 
 
+def get_cached_history_yahoo_only(
+    ticker: str, period: str, auto_adjust: bool | None = None, interval: str | None = None
+) -> pd.DataFrame:
+    """Same as get_cached_history, but always Yahoo, regardless of the
+    admin price-source switch -- for index/ratio tickers (^VIX, ^TNX, ...)
+    Alpaca has no concept of at all, same reasoning get_cached_info's own
+    docstring gives for staying Yahoo-only. Switching the admin's stock
+    price source to Alpaca was observed to silently break
+    services/market_data_service.py's internals fetch this way (^VIX/
+    ^VIX3M always missing), since get_cached_history's dispatch doesn't
+    know these aren't ordinary equity tickers."""
+    return _yahoo_history(ticker, period, auto_adjust, interval)
+
+
 @ttl_cache(maxsize=1024, ttl_seconds=CACHE_TTL_SECONDS)
 def _alpaca_history(ticker: str, period: str, interval: str | None) -> pd.DataFrame:
     from .alpaca_client import get_alpaca_history

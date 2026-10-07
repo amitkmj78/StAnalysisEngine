@@ -460,7 +460,16 @@ async def get_challenge_equity_curves(request: Request, challenge_id: int):
             """
             SELECT u.email, a.id AS alpaca_paper_account_id
             FROM challenge_members m JOIN users u ON u.id = m.user_id
-            LEFT JOIN alpaca_paper_accounts a ON a.user_id = m.user_id
+            -- A user can now link one paper account per portfolio; a plain
+            -- join would duplicate this member once per linked account, so
+            -- this picks their oldest (primary) one deterministically, same
+            -- choice the trading agent itself makes (services/agent/
+            -- runner.py::_load_paper_account) -- challenges aren't
+            -- portfolio-scoped, so one consistent account per member is
+            -- the correct behavior here, not a stopgap.
+            LEFT JOIN alpaca_paper_accounts a ON a.id = (
+                SELECT id FROM alpaca_paper_accounts WHERE user_id = m.user_id ORDER BY created_at ASC LIMIT 1
+            )
             WHERE m.challenge_id = $1
             """,
             challenge_id,

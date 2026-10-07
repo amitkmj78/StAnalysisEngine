@@ -70,14 +70,32 @@ async def _audit(user_id: str, paper_order_id: Optional[int], event_type: str, d
         )
 
 
-async def _get_account_or_404(conn, user_id: str) -> dict:
+async def _get_account_or_404(conn, user_id: str, portfolio_id: Optional[int] = None) -> dict:
+    """A user may have one linked paper account per portfolio now, so
+    every lookup resolves (and ownership-checks) which portfolio via
+    _resolve_portfolio_id -- omitting portfolio_id resolves to the user's
+    oldest active portfolio, same as every other endpoint that helper
+    backs, which keeps every pre-multi-account caller's behavior
+    unchanged for a user who still only has one linked account."""
+    resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
     row = await conn.fetchrow(
-        f"SELECT {_ACCOUNT_PUBLIC_COLUMNS}, api_secret_key_encrypted FROM alpaca_paper_accounts WHERE user_id = $1::uuid",
-        user_id,
+        f"SELECT {_ACCOUNT_PUBLIC_COLUMNS}, api_secret_key_encrypted FROM alpaca_paper_accounts "
+        f"WHERE user_id = $1::uuid AND portfolio_id = $2",
+        user_id, resolved_portfolio_id,
     )
     if row is None:
-        raise HTTPException(404, "No paper-trading account linked yet.")
+        raise HTTPException(404, "No paper-trading account linked yet for this portfolio.")
     return dict(row)
+
+
+async def _list_accounts(conn, user_id: str) -> list[dict]:
+    rows = await conn.fetch(
+        f"SELECT {_ACCOUNT_PUBLIC_COLUMNS}, "
+        f"(SELECT name FROM portfolios p WHERE p.id = alpaca_paper_accounts.portfolio_id) AS portfolio_name "
+        f"FROM alpaca_paper_accounts WHERE user_id = $1::uuid ORDER BY created_at ASC",
+        user_id,
+    )
+    return [_record_to_dict(r) for r in rows]
 
 
 class LinkRequest(BaseModel):
@@ -100,9 +118,12 @@ async def link_paper_account(request: Request, body: LinkRequest):
     secret_encrypted = encrypt_token(body.api_secret_key)
     async with user_conn(user_id) as conn:
         resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, body.portfolio_id)
-        existing = await conn.fetchval("SELECT id FROM alpaca_paper_accounts WHERE user_id = $1::uuid", user_id)
+        existing = await conn.fetchval(
+            "SELECT id FROM alpaca_paper_accounts WHERE user_id = $1::uuid AND portfolio_id = $2",
+            user_id, resolved_portfolio_id,
+        )
         if existing is not None:
-            raise HTTPException(409, "A paper-trading account is already linked. Unlink it first to link a different one.")
+            raise HTTPException(409, "This portfolio already has a paper-trading account linked. Unlink it first to link a different one.")
         row = await conn.fetchrow(
             f"""
             INSERT INTO alpaca_paper_accounts (
@@ -119,28 +140,45 @@ async def link_paper_account(request: Request, body: LinkRequest):
     return {"account": _record_to_dict(row), "positions_synced": sync_count}
 
 
+class DisclosureAcceptRequest(BaseModel):
+    portfolio_id: Optional[int] = None
+
+
 @router.post("/disclosure-accept")
-async def accept_disclosure(request: Request):
+async def accept_disclosure(request: Request, body: DisclosureAcceptRequest = DisclosureAcceptRequest()):
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, body.portfolio_id)
         row = await conn.fetchrow(
             f"""
             UPDATE alpaca_paper_accounts SET disclosure_accepted_at = now()
-            WHERE user_id = $1::uuid
+            WHERE user_id = $1::uuid AND portfolio_id = $2
             RETURNING {_ACCOUNT_PUBLIC_COLUMNS}
             """,
-            user_id,
+            user_id, resolved_portfolio_id,
         )
     if row is None:
-        raise HTTPException(404, "No paper-trading account linked yet.")
+        raise HTTPException(404, "No paper-trading account linked yet for this portfolio.")
     return {"account": _record_to_dict(row)}
 
 
-@router.get("/account")
-async def get_account(request: Request):
+@router.get("/accounts")
+async def list_accounts(request: Request):
+    """Every paper account this user has linked, one per portfolio at
+    most -- for the account-management page once a user has more than one."""
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
-        account = await _get_account_or_404(conn, user_id)
+        accounts = await _list_accounts(conn, user_id)
+    for a in accounts:
+        a.pop("api_secret_key_encrypted", None)
+    return {"accounts": accounts}
+
+
+@router.get("/account")
+async def get_account(request: Request, portfolio_id: Optional[int] = None):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        account = await _get_account_or_404(conn, user_id, portfolio_id)
 
     secret_key = decrypt_token(account["api_secret_key_encrypted"])
     try:
@@ -149,17 +187,17 @@ async def get_account(request: Request):
         live = None
         if e.status_code in (401, 403):
             async with user_conn(user_id) as conn:
-                await conn.execute("UPDATE alpaca_paper_accounts SET status = 'invalid_key' WHERE user_id = $1::uuid", user_id)
+                await conn.execute("UPDATE alpaca_paper_accounts SET status = 'invalid_key' WHERE id = $1", account["id"])
 
     account.pop("api_secret_key_encrypted", None)
     return {"account": account, "live": live}
 
 
 @router.get("/clock")
-async def get_clock(request: Request):
+async def get_clock(request: Request, portfolio_id: Optional[int] = None):
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
-        account = await _get_account_or_404(conn, user_id)
+        account = await _get_account_or_404(conn, user_id, portfolio_id)
     secret_key = decrypt_token(account["api_secret_key_encrypted"])
     try:
         return await run_in_threadpool(alpaca_trading_client.get_clock, account["api_key_id"], secret_key)
@@ -169,13 +207,17 @@ async def get_clock(request: Request):
 
 @router.delete("/link")
 @limiter.limit("10/minute")
-async def unlink_paper_account(request: Request):
+async def unlink_paper_account(request: Request, portfolio_id: Optional[int] = None):
     await enforce_daily_quota(request, "paper-trading/unlink")
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
-        row = await conn.fetchval("DELETE FROM alpaca_paper_accounts WHERE user_id = $1::uuid RETURNING id", user_id)
+        resolved_portfolio_id = await _resolve_portfolio_id(conn, user_id, portfolio_id)
+        row = await conn.fetchval(
+            "DELETE FROM alpaca_paper_accounts WHERE user_id = $1::uuid AND portfolio_id = $2 RETURNING id",
+            user_id, resolved_portfolio_id,
+        )
     if row is None:
-        raise HTTPException(404, "No paper-trading account linked yet.")
+        raise HTTPException(404, "No paper-trading account linked yet for this portfolio.")
     return {"ok": True}
 
 
@@ -186,6 +228,7 @@ class OrderRequest(BaseModel):
     time_in_force: str = Field(pattern="^(day|gtc)$")
     qty: float = Field(gt=0)
     limit_price: Optional[float] = Field(default=None, gt=0)
+    portfolio_id: Optional[int] = None
 
 
 @router.get("/orders")
@@ -226,7 +269,7 @@ async def submit_order(request: Request, body: OrderRequest):
         raise HTTPException(503, "Paper trading isn't enabled yet.")
 
     async with user_conn(user_id) as conn:
-        account = await _get_account_or_404(conn, user_id)
+        account = await _get_account_or_404(conn, user_id, body.portfolio_id)
         if account["disclosure_accepted_at"] is None:
             raise HTTPException(403, "You must accept the paper-trading disclosures before placing an order.")
 

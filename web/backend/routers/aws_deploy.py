@@ -1422,7 +1422,9 @@ create table if not exists alpaca_paper_accounts (
   disclosure_accepted_at timestamptz,
   created_at timestamptz not null default now()
 );
-create unique index if not exists alpaca_paper_accounts_user_idx on alpaca_paper_accounts(user_id);
+-- One paper account per (user, portfolio) -- a user can link a separate
+-- paper-trading account for each portfolio they hold.
+create unique index if not exists alpaca_paper_accounts_user_portfolio_idx on alpaca_paper_accounts(user_id, portfolio_id);
 alter table alpaca_paper_accounts enable row level security;
 drop policy if exists alpaca_paper_accounts_isolation on alpaca_paper_accounts;
 create policy alpaca_paper_accounts_isolation on alpaca_paper_accounts

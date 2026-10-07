@@ -95,9 +95,13 @@ async def _require_enabled(user_id: str) -> dict:
 
 
 async def _live_positions(user_id: str) -> Optional[dict]:
+    # A user can link one paper account per portfolio now; the agent
+    # itself still manages a single one per user (services/agent/
+    # runner.py::_load_paper_account picks the same oldest/primary row).
     async with service_conn() as conn:
         account = await conn.fetchrow(
-            "SELECT api_key_id, api_secret_key_encrypted FROM alpaca_paper_accounts WHERE user_id = $1::uuid", user_id
+            "SELECT api_key_id, api_secret_key_encrypted FROM alpaca_paper_accounts "
+            "WHERE user_id = $1::uuid ORDER BY created_at ASC LIMIT 1", user_id
         )
     if account is None:
         return None
@@ -153,8 +157,9 @@ async def _performance(user_id: str) -> Optional[dict]:
         rows = await conn.fetch(
             """
             SELECT s.as_of_date, s.equity FROM paper_account_equity_snapshots s
-            JOIN alpaca_paper_accounts a ON a.id = s.alpaca_paper_account_id
-            WHERE a.user_id = $1::uuid AND s.as_of_date BETWEEN $2 AND $3
+            WHERE s.alpaca_paper_account_id = (
+                SELECT id FROM alpaca_paper_accounts WHERE user_id = $1::uuid ORDER BY created_at ASC LIMIT 1
+            ) AND s.as_of_date BETWEEN $2 AND $3
             ORDER BY s.as_of_date
             """,
             user_id, start, today,

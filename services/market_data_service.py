@@ -25,7 +25,7 @@ import pandas as pd
 
 from services.cache_utils import ttl_cache
 from services.stock_finder_service import SP500_UNIVERSE_NAME, _universe_tickers
-from services.yfinance_cache import get_cached_history
+from services.yfinance_cache import get_cached_history_yahoo_only
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,14 @@ DIMENSION_RATE_TICKERS = ["^TNX", "^MOVE"]
 
 def _fetch_close_series(ticker: str, period: str) -> pd.Series | None:
     try:
-        hist = get_cached_history(ticker, period, auto_adjust=True)
+        # Always Yahoo, regardless of the admin's stock price-source switch
+        # (services/price_provider.py): index tickers like ^VIX/^VIX3M/^TNX
+        # have no Alpaca equivalent at all, and that switch was never meant
+        # to cover this fixed, small internals list -- observed live to
+        # silently break ^VIX/^VIX3M every single fetch once Alpaca was
+        # selected, since get_cached_history's provider dispatch has no way
+        # to know these aren't ordinary equity tickers.
+        hist = get_cached_history_yahoo_only(ticker, period, auto_adjust=True)
         if hist.empty:
             return None
         close = hist["Close"]

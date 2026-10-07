@@ -19,6 +19,44 @@ def _history_df(days=300, start=50.0, end=80.0):
                          "Volume": np.full(days, 2_000_000.0)})
 
 
+# --- A user can link one paper account per portfolio; the agent itself still
+# manages only one per user -- deterministically the oldest/primary one. ---
+
+def test_load_paper_account_picks_the_oldest_deterministically():
+    class _FakeConnWithRow:
+        def __init__(self):
+            self.sql = None
+            self.args = None
+
+        async def fetchrow(self, sql, *args):
+            self.sql = sql
+            self.args = args
+            return {"id": 1, "api_key_id": "k", "api_secret_key_encrypted": b"s"}
+
+    class _Ctx:
+        def __init__(self, conn):
+            self._conn = conn
+
+        async def __aenter__(self):
+            return self._conn
+
+        async def __aexit__(self, *a):
+            return False
+
+    fake_conn = _FakeConnWithRow()
+    import services.agent.runner as runner_module
+    orig = runner_module.service_conn
+    runner_module.service_conn = lambda: _Ctx(fake_conn)
+    try:
+        result = asyncio.run(runner._load_paper_account("user-1"))
+    finally:
+        runner_module.service_conn = orig
+
+    assert result == {"id": 1, "api_key_id": "k", "api_secret_key_encrypted": b"s"}
+    assert "ORDER BY created_at ASC LIMIT 1" in fake_conn.sql
+    assert fake_conn.args == ("user-1",)
+
+
 # --- AGT-8: earnings blackout measured in trading days, not calendar days ---
 
 @pytest.mark.parametrize("weekday_start,expected_calendar_days", [

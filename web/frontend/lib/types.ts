@@ -1294,6 +1294,8 @@ export interface PlaidExchangeResponse {
 export interface PaperAccount {
   id: number;
   portfolio_id: number;
+  // Only present from GET /paper-trading/accounts (the multi-account list).
+  portfolio_name?: string | null;
   api_key_id: string;
   alpaca_account_id: string | null;
   account_number: string | null;

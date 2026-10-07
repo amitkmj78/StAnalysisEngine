@@ -13,6 +13,12 @@ type TimeInForce = "day" | "gtc";
 
 export default function PaperTradingTicketPage() {
   const searchParams = useSearchParams();
+  // Which linked paper account to trade through -- a user can have one per
+  // portfolio now, so the paper-trading page links here with ?portfolio_id=.
+  // Omitted (e.g. a bookmarked link from before) falls back to the
+  // backend's own default: the user's oldest active portfolio.
+  const portfolioIdParam = searchParams.get("portfolio_id");
+  const portfolioId = portfolioIdParam ? Number(portfolioIdParam) : undefined;
 
   const [ticker, setTicker] = useState(searchParams.get("ticker")?.toUpperCase() ?? "");
   const [side, setSide] = useState<"buy" | "sell">(searchParams.get("side") === "sell" ? "sell" : "buy");
@@ -42,7 +48,7 @@ export default function PaperTradingTicketPage() {
   async function handleReview() {
     setError(null);
     try {
-      const c = await getPaperClock();
+      const c = await getPaperClock(portfolioId);
       setClock(c);
       setReviewing(true);
     } catch (err) {
@@ -61,6 +67,7 @@ export default function PaperTradingTicketPage() {
         time_in_force: timeInForce,
         qty: qtyNum,
         limit_price: limitPriceNum ?? undefined,
+        portfolio_id: portfolioId,
       });
       setResult(res.note ?? `Order submitted: ${res.order.status}.`);
     } catch (err) {
