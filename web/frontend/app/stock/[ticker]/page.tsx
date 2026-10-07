@@ -7,6 +7,7 @@ import { Fraunces, IBM_Plex_Mono } from "next/font/google";
 
 import {
   ApiError,
+  getCurrentUser,
   getEarningsReleaseSummary,
   getFilingSummaries,
   getPortfolioPositions,
@@ -21,6 +22,7 @@ import {
   getTwoScore,
   getTwoScoreHistory,
   getTwoScoreWeeklyChange,
+  setDefaultTicker,
 } from "@/lib/api";
 import type {
   EarningsReleaseSummaryResponse,
@@ -258,6 +260,10 @@ export default function StockScorePage() {
   const [detail, setDetail] = useState<StockDetailResponse | null>(null);
   const [ownedPositions, setOwnedPositions] = useState<(StockPositionResponse & { portfolioName: string })[]>([]);
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  // Which ticker Stock Detail (the home screen) opens on for this user --
+  // null until known, "" once known-but-unset (falls back to SPY at /).
+  const [homeTicker, setHomeTicker] = useState<string | null>(null);
+  const [settingHome, setSettingHome] = useState(false);
   const [signalHistory, setSignalHistory] = useState<StockSignalHistoryResponse | null>(null);
   const [peers, setPeers] = useState<StockPeersResponse | null>(null);
 
@@ -319,6 +325,27 @@ export default function StockScorePage() {
       cancelled = true;
     };
   }, [portfolios]);
+
+  // Only known once we know the user is signed in -- a logged-out visitor
+  // has no "home" to set.
+  useEffect(() => {
+    if (!loggedIn) return;
+    getCurrentUser()
+      .then((u) => setHomeTicker(u.default_ticker ?? ""))
+      .catch(() => setHomeTicker(""));
+  }, [loggedIn]);
+
+  async function handleSetHome() {
+    setSettingHome(true);
+    try {
+      await setDefaultTicker(ticker);
+      setHomeTicker(ticker);
+    } catch {
+      // Leave homeTicker as it was -- the button just stays actionable to retry.
+    } finally {
+      setSettingHome(false);
+    }
+  }
 
   useEffect(() => {
     if (!ticker) return;
@@ -467,6 +494,21 @@ export default function StockScorePage() {
           <Link href={`/predict?ticker=${encodeURIComponent(ticker)}`} className="btn-primary">
             Forecast
           </Link>
+          {loggedIn && homeTicker !== null && (
+            <button
+              type="button"
+              onClick={handleSetHome}
+              disabled={settingHome || homeTicker === ticker}
+              title={
+                homeTicker === ticker
+                  ? `${ticker} opens by default when you sign in`
+                  : "Open this ticker by default when you sign in"
+              }
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            >
+              {homeTicker === ticker ? "★ Home" : settingHome ? "Setting…" : "☆ Set as home"}
+            </button>
+          )}
           {holdings.length > 0 && (
             <select
               value=""

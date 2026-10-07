@@ -3,7 +3,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { SESSION_COOKIE_NAME } from "@/lib/session";
+import { getHomeTicker, SESSION_COOKIE_NAME } from "@/lib/session";
 
 // Server actions run in Node, not the browser — they have no page origin to
 // resolve a relative path against, so they need an absolute URL to the
@@ -52,5 +52,5 @@ export async function login(formData: FormData) {
     path: "/",
   });
 
-  redirect("/stock/SPY");
+  redirect(`/stock/${await getHomeTicker(token)}`);
 }

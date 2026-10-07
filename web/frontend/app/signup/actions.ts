@@ -3,7 +3,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { SESSION_COOKIE_NAME } from "@/lib/session";
+import { getHomeTicker, SESSION_COOKIE_NAME } from "@/lib/session";
 
 // See app/login/actions.ts for why this differs from NEXT_PUBLIC_API_BASE_URL.
 const BACKEND_URL = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8010";
@@ -58,5 +58,5 @@ export async function signup(formData: FormData) {
     path: "/",
   });
 
-  redirect("/stock/SPY");
+  redirect(`/stock/${await getHomeTicker(data.token)}`);
 }

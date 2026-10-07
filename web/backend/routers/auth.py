@@ -237,4 +237,26 @@ async def logout(response: Response):
 @router.get("/me")
 async def me(request: Request):
     user = await verify_bearer_token(request)
-    return user
+    async with service_conn() as conn:
+        row = await conn.fetchrow("SELECT default_ticker FROM users WHERE id = $1::uuid", user["id"])
+    return {**user, "default_ticker": row["default_ticker"] if row else None}
+
+
+class DefaultTickerUpdate(BaseModel):
+    # None/"" clears the override and goes back to the app-wide SPY default.
+    ticker: str | None = None
+
+
+@router.put("/me/default-ticker")
+async def set_default_ticker(request: Request, body: DefaultTickerUpdate):
+    """Which ticker Stock Detail opens on for this user -- set from a
+    "Set as home" action on the Stock Detail page itself, not a separate
+    settings form, since the ticker a user wants as their default is
+    exactly the one they're already looking at."""
+    user = await verify_bearer_token(request)
+    ticker = (body.ticker or "").strip().upper() or None
+    if ticker is not None and (len(ticker) > 10 or not ticker.replace(".", "").replace("-", "").isalnum()):
+        raise HTTPException(400, "That doesn't look like a valid ticker.")
+    async with service_conn() as conn:
+        await conn.execute("UPDATE users SET default_ticker = $2 WHERE id = $1::uuid", user["id"], ticker)
+    return {"default_ticker": ticker}

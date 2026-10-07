@@ -220,7 +220,14 @@ async function apiFetch<T>(path: string, params?: Record<string, string>): Promi
 }
 
 export function getCurrentUser() {
-  return apiFetch<{ id: string; email: string }>("/api/v1/auth/me");
+  return apiFetch<{ id: string; email: string; default_ticker: string | null }>("/api/v1/auth/me");
+}
+
+// Which ticker Stock Detail (the home screen) opens on for this user --
+// set from a "Set as home" action on the Stock Detail page itself. null
+// clears it, back to the app-wide SPY default.
+export function setDefaultTicker(ticker: string | null) {
+  return apiSend<{ default_ticker: string | null }>("/api/v1/auth/me/default-ticker", "PUT", { ticker });
 }
 
 export function getPredictionSummary(ticker: string, period: string, daysAhead = 10) {

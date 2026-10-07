@@ -33,3 +33,26 @@ export async function getSession(): Promise<SessionUser | null> {
   if (!token) return null;
   return verifySessionToken(token);
 }
+
+// Same reasoning as app/login/actions.ts's BACKEND_URL: this runs server-to-
+// server (Node/Edge, no page origin), so it needs an absolute backend URL.
+const BACKEND_URL = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8010";
+
+// Stock Detail is the home screen; this is which ticker it opens on for a
+// given signed-in user. A user sets this via "Set as home" on the Stock
+// Detail page itself (PUT /api/v1/auth/me/default-ticker) -- falls back to
+// SPY if they've never set one, or if the lookup fails for any reason (an
+// unreachable backend should never block login/signup/home from redirecting).
+export async function getHomeTicker(token: string): Promise<string> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/v1/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return "SPY";
+    const data = await res.json();
+    return (data.default_ticker as string | null) || "SPY";
+  } catch {
+    return "SPY";
+  }
+}
