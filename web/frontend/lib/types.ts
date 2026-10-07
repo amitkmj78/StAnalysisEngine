@@ -530,6 +530,8 @@ export interface MonteCarloResult {
 export interface StrategiesSummaryResponse {
   plan: GoalPlan;
   picks: StrategyPickRow[] | null;
+  // Set when today's rankings were unavailable and these are the last picks saved for this choice.
+  picks_as_of?: string | null;
 }
 
 export interface StrategyPlanProgress {

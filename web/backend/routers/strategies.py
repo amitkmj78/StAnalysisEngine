@@ -1,3 +1,6 @@
+import json
+import logging
+from typing import Optional
 from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -19,7 +22,7 @@ from services.stock_finder_service import STOCK_UNIVERSES
 from services.strategy_plan_service import compute_plan_progress, elapsed_months
 
 from web.backend.auth import verify_bearer_token
-from web.backend.db import user_conn
+from web.backend.db import service_conn, user_conn
 from web.backend.rate_limit import enforce_daily_quota, limiter
 
 router = APIRouter(
@@ -111,11 +114,51 @@ async def summary(
     )
 
     picks_out = None
+    picks_as_of = None
     if plan.feasibility_level != "blocked":
+        key = f"{fund_category}|{stock_universe}|{top_n}"
         picks = await run_in_threadpool(get_diverse_strategy_picks, fund_category, stock_universe, top_n)
         picks_out = [asdict(pick) for pick in picks]
+        if picks_out:
+            await _save_picks(key, picks_out)
+        else:
+            # The live rankings came back empty (for example, the data source refused the request). Show the last good
+            # picks for this choice, with the date they were saved, rather than an empty list.
+            picks_out, picks_as_of = await _saved_picks(key)
 
-    return {"plan": asdict(plan), "picks": picks_out}
+    return {"plan": asdict(plan), "picks": picks_out, "picks_as_of": picks_as_of}
+
+
+_log = logging.getLogger(__name__)
+
+
+async def _save_picks(key: str, picks: list[dict]) -> None:
+    """Best effort: a failed save must never break the plan."""
+    try:
+        async with service_conn() as conn:
+            await conn.execute(
+                """
+                INSERT INTO pick_snapshots (key, picks, saved_at) VALUES ($1, $2::jsonb, now())
+                ON CONFLICT (key) DO UPDATE SET picks = EXCLUDED.picks, saved_at = EXCLUDED.saved_at
+                """,
+                key, json.dumps(picks),
+            )
+    except Exception as e:
+        _log.warning("Could not save strategy picks for %s: %s", key, e)
+
+
+async def _saved_picks(key: str) -> tuple[Optional[list], Optional[str]]:
+    """The last saved picks for this choice and the date they were saved, or (None, None)."""
+    try:
+        async with service_conn() as conn:
+            row = await conn.fetchrow("SELECT picks, saved_at FROM pick_snapshots WHERE key = $1", key)
+    except Exception as e:
+        _log.warning("Could not read saved strategy picks for %s: %s", key, e)
+        return None, None
+    if row is None:
+        return None, None
+    picks = json.loads(row["picks"]) if isinstance(row["picks"], str) else row["picks"]
+    return picks, row["saved_at"].date().isoformat()
 
 
 class SavePlanRequest(BaseModel):
