@@ -70,7 +70,7 @@ def get_alpaca_latest_price(ticker: str) -> float | None:
         return None
 
 
-ALPACA_PERIOD_DAYS = {"1d": 1, "5d": 5, "7d": 7, "60d": 60, "1mo": 31, "6mo": 182, "1y": 365, "730d": 730, "5y": 1826, "10y": 3652}
+ALPACA_PERIOD_DAYS = {"1d": 1, "5d": 5, "7d": 7, "60d": 60, "1mo": 31, "3mo": 92, "6mo": 182, "1y": 365, "2y": 730, "3y": 1095, "730d": 730, "5y": 1826, "10y": 3652, "max": 7300}  # "max" is capped at 20 years, the reader's limit
 ALPACA_TIMEFRAMES = {None: "1Day", "1d": "1Day", "1m": "1Min", "5m": "5Min", "15m": "15Min", "1h": "1Hour"}
 ALPACA_BARS_PAGE_LIMIT = 10000
 
