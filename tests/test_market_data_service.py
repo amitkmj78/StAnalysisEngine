@@ -22,6 +22,35 @@ def test_fetch_close_series_always_uses_yahoo_regardless_of_the_admin_price_swit
     assert result is not None
 
 
+def test_fetch_close_series_uses_the_switchable_path_for_ordinary_tickers(monkeypatch):
+    """Regression: forcing EVERY internals ticker through the Yahoo-only
+    path (not just the handful of true index tickers like ^VIX) sends the
+    ~500-ticker S&P 500 breadth fetch through yfinance directly instead of
+    Alpaca, and gets the whole batch rate-limited on production -- a worse
+    outage than the one the ^VIX-only fix above was fixing. An ordinary
+    ticker must go through get_cached_history (which still respects the
+    admin's price-source switch), never the yahoo-only one."""
+    switchable_calls = []
+    yahoo_only_calls = []
+
+    def fake_switchable(ticker, period, auto_adjust=None, interval=None):
+        switchable_calls.append(ticker)
+        idx = pd.bdate_range("2026-01-01", periods=3)
+        return pd.DataFrame({"Close": [1.0, 2.0, 3.0]}, index=idx)
+
+    def fake_yahoo_only(ticker, period, auto_adjust=None, interval=None):
+        yahoo_only_calls.append(ticker)
+        idx = pd.bdate_range("2026-01-01", periods=3)
+        return pd.DataFrame({"Close": [1.0, 2.0, 3.0]}, index=idx)
+
+    monkeypatch.setattr(market_data_service, "get_cached_history", fake_switchable)
+    monkeypatch.setattr(market_data_service, "get_cached_history_yahoo_only", fake_yahoo_only)
+    result = market_data_service._fetch_close_series("AAPL", "3y")
+    assert switchable_calls == ["AAPL"]
+    assert yahoo_only_calls == []
+    assert result is not None
+
+
 def _fake_breadth():
     idx = pd.bdate_range("2026-01-01", periods=5)
     return pd.DataFrame({"breadth_50dma": [50.0] * 5, "breadth_200dma": [55.0] * 5}, index=idx)
