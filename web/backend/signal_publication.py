@@ -1,6 +1,7 @@
 import logging
 from datetime import date, datetime, timedelta, timezone
 
+import pandas as pd
 from starlette.concurrency import run_in_threadpool
 
 from services.signal_publication_service import (
@@ -10,8 +11,10 @@ from services.signal_publication_service import (
     DEFAULT_UNIVERSE,
     build_daily_signal_set_hybrid,
     evaluate_signal_outcomes_for_date,
+    evaluate_stock_page_signal_outcomes,
     get_model_version_hash,
 )
+from services.stock_detail_service import DET3_SHORT_HORIZON_DAYS
 from web.backend.db import service_conn
 from web.backend.pit_signals import fetch_pit_prices_as_of
 
@@ -173,3 +176,93 @@ async def evaluate_due_signal_outcomes(
     if total_inserted:
         logger.info("Evaluated %d signal outcomes across %d due dates", total_inserted, len(due_dates))
     return total_inserted
+
+
+async def evaluate_due_stock_page_signal_outcomes(horizon_days: int = DET3_SHORT_HORIZON_DAYS) -> int:
+    """
+    FND-3: the real-signal counterpart to evaluate_due_signal_outcomes
+    above. That one evaluates the top-N momentum rank in
+    published_signals; this one evaluates every ticker's own stock-page
+    SCR-1 short-term Buy/Trim signal (stock_scores.short_signal) against
+    its own realized move, writing to stock_signal_outcomes. Independent
+    of PUBLISH_SIGNALS_ENABLED_KEY -- stock_scores is captured by the
+    core nightly scoring job, not the momentum-publication pipeline, so
+    this has nothing to do with that flag.
+
+    Price history comes from the PIT price store (pit_prices), not a
+    live per-ticker yfinance fetch -- it already holds a continuous daily
+    close series per ticker since capture began (the same store momentum
+    backtesting already reads), so this is one batched query for every
+    due ticker instead of ~500 individual API calls. Idempotent via
+    stock_signal_outcomes' unique constraint.
+    """
+    cutoff = date.today() - timedelta(days=int(horizon_days * 1.6) + 5)
+
+    async with service_conn() as conn:
+        due = await conn.fetch(
+            """
+            SELECT ticker, as_of_date, short_signal, short_confidence_score,
+                   short_confidence_label, weights_version
+            FROM stock_scores s
+            WHERE universe_id = 'All' AND short_signal IN ('Buy', 'Trim') AND as_of_date <= $1
+              AND NOT EXISTS (
+                SELECT 1 FROM stock_signal_outcomes so
+                WHERE so.ticker = s.ticker AND so.as_of_date = s.as_of_date AND so.horizon_days = $2
+              )
+            ORDER BY ticker, as_of_date
+            """,
+            cutoff, horizon_days,
+        )
+        if not due:
+            return 0
+
+        due_rows = [dict(r) for r in due]
+        due_tickers = sorted({r["ticker"] for r in due_rows})
+        earliest_as_of = min(r["as_of_date"] for r in due_rows)
+
+        price_rows = await conn.fetch(
+            """
+            SELECT ticker, price_date, close FROM pit_prices
+            WHERE ticker = ANY($1::text[]) AND price_date >= $2
+            ORDER BY ticker, price_date
+            """,
+            due_tickers, earliest_as_of,
+        )
+        spy_rows = await conn.fetch(
+            "SELECT price_date, close FROM pit_prices WHERE ticker = 'SPY' AND price_date >= $1 ORDER BY price_date",
+            earliest_as_of,
+        )
+
+    rows_by_ticker: dict[str, list] = {}
+    for r in price_rows:
+        rows_by_ticker.setdefault(r["ticker"], []).append((r["price_date"], float(r["close"])))
+    closes_by_ticker = {
+        t: pd.Series([c for _, c in rows], index=pd.DatetimeIndex([d for d, _ in rows]))
+        for t, rows in rows_by_ticker.items()
+    }
+    spy_close_by_date = {r["price_date"].isoformat(): float(r["close"]) for r in spy_rows}
+
+    outcomes = await run_in_threadpool(
+        evaluate_stock_page_signal_outcomes, due_rows, closes_by_ticker, spy_close_by_date, horizon_days
+    )
+    if not outcomes:
+        return 0
+
+    async with service_conn() as conn:
+        for o in outcomes:
+            await conn.execute(
+                """
+                INSERT INTO stock_signal_outcomes (
+                    ticker, as_of_date, horizon_days, signal, confidence_score, confidence_label,
+                    weights_version, entry_price, exit_price, realized_return_pct,
+                    benchmark_return_pct, beat_benchmark
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                ON CONFLICT (ticker, as_of_date, horizon_days) DO NOTHING
+                """,
+                o["ticker"], o["as_of_date"], horizon_days, o["signal"], o["confidence_score"],
+                o["confidence_label"], o["weights_version"], o["entry_price"], o["exit_price"],
+                o["realized_return_pct"], o["benchmark_return_pct"], o["beat_benchmark"],
+            )
+
+    logger.info("Evaluated %d stock-page signal outcomes (horizon=%dd)", len(outcomes), horizon_days)
+    return len(outcomes)

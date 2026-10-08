@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
@@ -21,10 +21,10 @@ from services.signal_publication_service import (
     compute_outcome_metrics_by_signal,
     compute_predict_algo_comparison,
     compute_spy_returns_for_dates,
-    confidence_for_outcome,
     fetch_spy_close_series,
     worst_misses,
 )
+from services.confidence_calibration_service import validate_calibration_out_of_sample
 from services.quant_signal_narrative_service import build_quant_signal_narrative
 from services.quant_signal_outcome_service import summarize_quant_signal_outcomes
 from services.subscription_access_service import compute_free_tier_target_date, is_active_paid_subscriber
@@ -43,7 +43,12 @@ from web.backend.llm_cache import cached_init_llms, ordered_llms
 from web.backend.pit_prices import QUANT_SIGNAL_HORIZON_DAYS, UNSTABLE_FLIP_THRESHOLD, evaluate_due_quant_signal_outcomes
 from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.scheduler import check_publication_alert
-from web.backend.signal_publication import evaluate_due_signal_outcomes, publish_daily_signals
+from services.stock_detail_service import DET3_SHORT_HORIZON_DAYS
+from web.backend.signal_publication import (
+    evaluate_due_signal_outcomes,
+    evaluate_due_stock_page_signal_outcomes,
+    publish_daily_signals,
+)
 
 router = APIRouter(prefix="/api/v1/signals", tags=["signals"])
 
@@ -468,42 +473,58 @@ async def get_track_record(
     ),
 ):
     """
-    TRK-2/3/5/6 (docs/stock-analysis-requirements.html): the enhanced
-    public track record — average return, excess-vs-SPY, a model-version,
-    signal, and regime breakdown, calibration, worst misses, and a model-
-    portfolio-vs-SPY growth chart — all built from the existing
-    signal_outcomes/published_signals record, same public/unauthenticated
-    posture as /outcomes and /published. Calibration's confidence is a
-    stability PROXY derived from this ranking's own publication history
-    (was a ticker in the top-N that day, not a literal stated probability
-    — this is a pure rank, not a probabilistic forecast — see
-    confidence_for_outcome's docstring), and worst_misses/
-    metrics_by_signal are Buy-side/single-group only (this pipeline has
-    no Trim/Sell concept in its schema at all, not just in today's data)
-    — all called out explicitly in the response rather than silently
-    presented as complete. REG-2: `regime` (from market_regime_daily,
-    joined on target_date) is attached to every row and, when the
-    `regime` query param is set, filters the whole response — see
-    services/market_regime_service.py for why this ships despite a
-    failed validation gate.
+    FND-3: the public track record now scores every ticker's own
+    stock-page SCR-1 short-term Buy/Trim signal (stock_scores.
+    short_signal, via the nightly evaluate_due_stock_page_signal_outcomes
+    job -> stock_signal_outcomes) against its OWN realized move, not a
+    top-N trailing-return momentum rank — that was the literal gap this
+    endpoint used to have (confirmed: signal_outcomes/published_signals
+    is a pure momentum ranking, the same rule shown on /top-performers,
+    with no Buy/Hold/Trim concept in its schema at all). The old
+    pipeline's tables and nightly job are left running, not deleted —
+    just no longer what this endpoint reads — in case a future "momentum
+    picks" comparison view wants them; see the tracker note for FND-3.
+
+    `universe_id`/`lookback_days` are accepted for backward API
+    compatibility but don't change anything here: the nightly evaluation
+    job only ever scores stock_scores' "All" universe (every ticker gets
+    a real signal, there's no separate per-universe momentum rank to
+    select), and there's no "lookback window" concept for a signal that
+    isn't a ranking in the first place. `horizon_days` still matters —
+    10 is the short-term (SCR-1) horizon and the only one evaluated so
+    far; the long-term (SCR-2, ~1-year) horizon is explicitly not
+    evaluated yet (needs far more elapsed history to mature at all).
+
+    TRK-2/3/5/6 (docs/stock-analysis-requirements.html): average return,
+    excess-vs-SPY, a weights-version, signal, and regime breakdown,
+    calibration, worst misses, and a model-portfolio-vs-SPY growth
+    chart — same public/unauthenticated posture as /outcomes and
+    /published. Confidence is now the REAL stated confidence captured
+    at signal time (stock_scores.short_confidence_score/label via
+    services.portfolio_compare_service.derive_confidence), not a rank-
+    stability proxy — see FND-4 for the calibration fit built on top of
+    this. worst_misses/metrics_by_signal now genuinely include both Buy
+    and Trim (the old pipeline's one real limitation). REG-2: `regime`
+    (from market_regime_daily, joined on as_of_date) is attached to
+    every row and, when the `regime` query param is set, filters the
+    whole response — see services/market_regime_service.py for why this
+    ships despite a failed validation gate.
     """
     async with service_conn() as conn:
         rows = await conn.fetch(
             """
-            SELECT so.target_date, so.ticker, so.rank, so.entry_price, so.exit_price,
+            SELECT so.as_of_date AS target_date, so.ticker, so.signal, so.entry_price, so.exit_price,
                    so.realized_return_pct, so.benchmark_return_pct, so.beat_benchmark,
-                   ps.model_version_hash, mr.regime_confirmed AS regime
-            FROM signal_outcomes so
-            LEFT JOIN published_signals ps
-              ON ps.target_date = so.target_date AND ps.universe_id = so.universe_id
-             AND ps.lookback_days = so.lookback_days AND ps.ticker = so.ticker AND ps.reason_code IS NULL
-            LEFT JOIN market_regime_daily mr ON mr.as_of_date = so.target_date
-            WHERE so.universe_id = $1 AND so.lookback_days = $2 AND so.horizon_days = $3
-            ORDER BY so.target_date ASC, so.rank ASC
+                   so.confidence_score, so.confidence_label, so.weights_version AS model_version_hash,
+                   mr.regime_confirmed AS regime
+            FROM stock_signal_outcomes so
+            LEFT JOIN market_regime_daily mr ON mr.as_of_date = so.as_of_date
+            WHERE so.horizon_days = $1
+            ORDER BY so.as_of_date ASC, so.ticker ASC
             """,
-            universe_id, lookback_days, horizon_days,
+            horizon_days,
         )
-    outcome_rows = [_record_to_dict(r) for r in rows]
+    outcome_rows = [{**_record_to_dict(r), "rank": None} for r in rows]
     # Computed from the FULL (unfiltered) set, before `regime` narrows
     # outcome_rows below -- this breakdown should always show every
     # regime's stats so a caller can see them all before picking one to
@@ -523,11 +544,12 @@ async def get_track_record(
         "metrics_by_regime": metrics_by_regime,
         "avg_excess_vs_spy_pct": None,
         "calibration": compute_calibration([]),
+        "confidence_calibration": validate_calibration_out_of_sample([]),
         "worst_misses": [],
         "model_portfolio_series": [],
         "spy_portfolio_series": [],
-        "trim_note": "No Trim signals are currently published against this record — worst misses shown are Buy-side only.",
-        "signal_note": "This record has no signal-type breakdown to show — published_signals has no Buy/Hold/Trim concept in its schema at all, only a momentum rank. Every published pick is implicitly a Buy.",
+        "trim_note": "Trim signals are included alongside Buy -- worst misses rank a Trim's biggest unrealized gain the same way a Buy's biggest loss ranks, per TRK-5.",
+        "signal_note": None,
         "model_portfolio_cost_bps_one_way": MODEL_PORTFOLIO_COST_BPS_ONE_WAY,
     }
     if not outcome_rows:
@@ -539,46 +561,32 @@ async def get_track_record(
     spy_return_by_date = compute_spy_returns_for_dates(spy_close, target_dates, horizon_days)
     with_excess = attach_excess_vs_spy(outcome_rows, spy_return_by_date)
 
-    # TRK-3: confidence is now derived from this ranking's own
-    # publication history (was this ticker in the published top-N each
-    # day) rather than a borrowed, unrelated signal -- see
-    # confidence_for_outcome's docstring. One query for every ticker's
-    # ranked dates plus the full "a publication happened this day"
-    # calendar, both scoped to the same universe/lookback_days this
-    # endpoint's own picks are ranked under, and the same
-    # reason_code IS NULL correction-filter the main query above uses.
-    async with service_conn() as conn:
-        ranked_rows = await conn.fetch(
-            """
-            SELECT DISTINCT target_date, ticker FROM published_signals
-            WHERE universe_id = $1 AND lookback_days = $2 AND reason_code IS NULL
-              AND target_date BETWEEN $3 AND $4
-            """,
-            universe_id, lookback_days, target_dates[0] - timedelta(days=35), target_dates[-1],
-        )
-    all_publication_dates = sorted({r["target_date"] for r in ranked_rows})
-    ranked_dates_by_ticker: dict[str, set] = {}
-    for r in ranked_rows:
-        ranked_dates_by_ticker.setdefault(r["ticker"], set()).add(r["target_date"])
-
-    with_confidence = []
-    for row in with_excess:
-        confidence = confidence_for_outcome(
-            ranked_dates_by_ticker.get(row["ticker"], set()), all_publication_dates, row["target_date"],
-        )
-        with_confidence.append({**row, "confidence_score": confidence["score"], "confidence_label": confidence["label"]})
-
+    # FND-4: confidence_score/confidence_label are already the real,
+    # stated-at-signal-time values from stock_signal_outcomes (the SQL
+    # above selects them straight off the row) -- no separate proxy
+    # computation needed, unlike the old rank-stability-proxy this
+    # endpoint used before (confidence_for_outcome, still used elsewhere
+    # for the momentum-rank pipeline's own views).
     return {
         **empty_response,
         "metrics": compute_outcome_metrics(outcome_rows),
         "metrics_by_model_version": compute_outcome_metrics_by_model_version(outcome_rows),
         "metrics_by_signal": compute_outcome_metrics_by_signal(outcome_rows),
         "avg_excess_vs_spy_pct": compute_avg_excess_vs_spy(with_excess),
-        "calibration": compute_calibration(with_confidence),
+        "calibration": compute_calibration(with_excess),
+        # FND-4: a real fit/holdout calibration check of the stated
+        # confidence captured at signal time, bucketed by its exact
+        # discrete value (0/25/50/75/100) rather than CONFIDENCE_BUCKETS'
+        # continuous ranges above (built for the old rank-stability
+        # proxy) -- see confidence_calibration_service's module
+        # docstring for what this does and doesn't change.
+        "confidence_calibration": validate_calibration_out_of_sample(outcome_rows),
         "worst_misses": [
             {**m, "target_date": str(m["target_date"])} for m in worst_misses(outcome_rows, top_n=10)
         ],
-        "model_portfolio_series": build_model_portfolio_series(outcome_rows, horizon_days),
+        "model_portfolio_series": build_model_portfolio_series(
+            [r for r in outcome_rows if r.get("signal", "Buy") != "Trim"], horizon_days
+        ),
         "spy_portfolio_series": build_spy_comparison_series(outcome_rows, spy_return_by_date, horizon_days),
     }
 
@@ -596,6 +604,15 @@ async def evaluate_now(
     evaluated = await evaluate_due_signal_outcomes(
         universe_id=universe_id, lookback_days=lookback_days, horizon_days=horizon_days
     )
+    return {"evaluated": evaluated}
+
+
+@router.post("/evaluate-stock-page-now", dependencies=[Depends(require_admin)])
+async def evaluate_stock_page_now(horizon_days: int = Query(DET3_SHORT_HORIZON_DAYS)):
+    """FND-3: the same manual trigger as /evaluate-now above, for the
+    real-signal (stock_signal_outcomes) pipeline /track-record now reads
+    from. No enable-gate, same reasoning as /evaluate-now."""
+    evaluated = await evaluate_due_stock_page_signal_outcomes(horizon_days=horizon_days)
     return {"evaluated": evaluated}
 
 

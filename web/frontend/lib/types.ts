@@ -2109,13 +2109,42 @@ export interface TrackRecordCalibrationBucket {
 export interface TrackRecordWorstMiss {
   target_date: string;
   ticker: string;
-  rank: number;
+  // FND-3: the real-signal (stock_signal_outcomes) source has no rank
+  // concept (every ticker's Buy/Trim call is independent, not a ranked
+  // list) -- null there; the old momentum-rank pipeline's rows (no
+  // longer what this endpoint reads, but the type stays permissive)
+  // always had a real one.
+  rank: number | null;
+  signal?: "Buy" | "Trim" | null;
+  confidence_score?: number | null;
+  confidence_label?: string | null;
   entry_price: number;
   exit_price: number;
   realized_return_pct: number;
   benchmark_return_pct: number;
   beat_benchmark: boolean;
   model_version_hash: string | null;
+}
+
+// FND-4: a real fit/holdout calibration check of the stated confidence
+// captured at signal time, bucketed by its exact discrete value (0, 25,
+// 50, 75 or 100 -- services/portfolio_compare_service.py's
+// derive_confidence formula) rather than TrackRecordCalibrationBucket's
+// continuous ranges above (built for the old rank-stability proxy).
+export interface TrackRecordConfidenceCalibrationBucket {
+  fit_hit_rate_pct: number | null;
+  fit_n: number;
+  holdout_hit_rate_pct: number | null;
+  holdout_n: number;
+  agrees_within_5_points: boolean | null;
+}
+
+export interface TrackRecordConfidenceCalibration {
+  fit_set_size: number;
+  holdout_set_size: number;
+  min_samples_per_bucket: number;
+  agreement_threshold_points: number;
+  buckets: Record<string, TrackRecordConfidenceCalibrationBucket>;
 }
 
 export interface TrackRecordResponse {
@@ -2129,11 +2158,12 @@ export interface TrackRecordResponse {
   metrics_by_regime: Record<string, TrackRecordMetrics>;
   avg_excess_vs_spy_pct: number | null;
   calibration: TrackRecordCalibrationBucket[];
+  confidence_calibration: TrackRecordConfidenceCalibration;
   worst_misses: TrackRecordWorstMiss[];
   model_portfolio_series: [string, number][];
   spy_portfolio_series: [string, number][];
   trim_note: string;
-  signal_note: string;
+  signal_note: string | null;
   model_portfolio_cost_bps_one_way: number;
 }
 

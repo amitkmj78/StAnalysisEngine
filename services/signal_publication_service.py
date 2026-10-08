@@ -329,6 +329,83 @@ def evaluate_signal_outcomes_for_date(
     return outcomes if outcomes else None
 
 
+def _spy_return_for_window(spy_close_by_date: dict[str, float], entry_date: str, exit_date: str) -> Optional[float]:
+    start, end = spy_close_by_date.get(entry_date), spy_close_by_date.get(exit_date)
+    if start is None or end is None or start <= 0:
+        return None
+    return round((end / start - 1.0) * 100, 4)
+
+
+def evaluate_stock_page_signal_outcomes(
+    due_rows: list[dict],
+    closes_by_ticker: dict[str, pd.Series],
+    spy_close_by_date: dict[str, float],
+    horizon_days: int,
+) -> list[dict]:
+    """
+    FND-3: the real-signal counterpart to evaluate_signal_outcomes_for_date
+    above. That function scores a top-N TRAILING-RETURN MOMENTUM RANK
+    against the realized forward return of the whole ranked cohort; this
+    one scores every ticker's own stock-page SCR-1 short-term Buy/Trim
+    signal (stock_scores.short_signal) against that SAME ticker's own
+    realized move -- the literal gap FND-3 names ("the public track
+    record scores the stock-page Buy/Hold/Trim signals, not a separate
+    momentum ranking"). Reuses
+    services.stock_detail_service.evaluate_signal_outcome UNMODIFIED (the
+    same function DET-3's per-stock signal history and
+    services.track_record.py's per-stock public track record already use)
+    -- just run here across the full universe instead of one ticker.
+
+    `due_rows`: [{"ticker", "as_of_date" (date), "short_signal",
+    "short_confidence_score", "short_confidence_label", "weights_version"}]
+    -- Hold rows are expected to already be filtered out by the caller's
+    SQL (no hit/miss verdict exists for Hold, same rule track_record.py
+    uses). `closes_by_ticker`: that ticker's own close series (date-
+    indexed, ascending), sourced from the PIT price store, not a live
+    per-ticker fetch -- it already holds a continuous daily close series
+    per ticker since capture began. `spy_close_by_date`: SPY's own close
+    keyed by ISO date string, for the benchmark return over the identical
+    entry/exit window evaluate_signal_outcome resolves.
+
+    A row is silently skipped (not an error) when: the ticker has no PIT
+    price history yet, the horizon hasn't elapsed (evaluate_signal_outcome
+    returns None -- an honest "not matured yet"), or SPY's close is
+    missing for either endpoint date.
+    """
+    from services.stock_detail_service import evaluate_signal_outcome
+
+    outcomes = []
+    for row in due_rows:
+        closes = closes_by_ticker.get(row["ticker"])
+        if closes is None or closes.empty:
+            continue
+        outcome = evaluate_signal_outcome(row["as_of_date"], row["short_signal"], closes, horizon_days)
+        if outcome is None:
+            continue
+        benchmark_return_pct = _spy_return_for_window(spy_close_by_date, outcome["entry_date"], outcome["exit_date"])
+        if benchmark_return_pct is None:
+            continue
+        outcomes.append(
+            {
+                "ticker": row["ticker"],
+                "as_of_date": row["as_of_date"],
+                "signal": row["short_signal"],
+                "confidence_score": row["short_confidence_score"],
+                "confidence_label": row["short_confidence_label"],
+                "weights_version": row["weights_version"],
+                "entry_price": outcome["entry_price"],
+                "exit_price": outcome["exit_price"],
+                "realized_return_pct": outcome["realized_return_pct"],
+                "benchmark_return_pct": benchmark_return_pct,
+                # compute_calibration's existing "did stated confidence
+                # predict a win" semantics are correct for both Buy and
+                # Trim with this definition -- no change needed there.
+                "beat_benchmark": outcome["outcome"] == "hit",
+            }
+        )
+    return outcomes
+
+
 def compute_outcome_metrics(outcome_rows: list[dict]) -> dict:
     """
     TR-4's standard metrics, computed from already-evaluated signal_outcomes
@@ -379,12 +456,23 @@ def compute_outcome_metrics(outcome_rows: list[dict]) -> dict:
             if rank_corr is not None and not pd.isna(rank_corr):
                 ics.append(-float(rank_corr))
 
-            sorted_group = group.sort_values("rank")
-            quintile_size = max(1, len(sorted_group) // 5)
-            best = sorted_group.head(quintile_size)["realized_return_pct"].mean()
-            worst = sorted_group.tail(quintile_size)["realized_return_pct"].mean()
-            if pd.notna(best) and pd.notna(worst):
-                spreads.append(float(best) - float(worst))
+            # FND-3: rows from the real-signal track record (stock_signal_
+            # outcomes) have no rank concept at all (every ticker's Buy/Trim
+            # call is independent, not a ranked list) and pass rank=None --
+            # sort_values/head/tail on an all-null column would silently
+            # split the group by arbitrary row order and report a spread
+            # number that doesn't mean "best vs worst momentum." Skipping
+            # the whole group when rank is entirely absent keeps this
+            # metric honestly None for that source instead of a meaningless
+            # value, with zero behavior change for the existing rank-based
+            # rows (which always have a real rank).
+            if group["rank"].notna().any():
+                sorted_group = group.sort_values("rank")
+                quintile_size = max(1, len(sorted_group) // 5)
+                best = sorted_group.head(quintile_size)["realized_return_pct"].mean()
+                worst = sorted_group.tail(quintile_size)["realized_return_pct"].mean()
+                if pd.notna(best) and pd.notna(worst):
+                    spreads.append(float(best) - float(worst))
 
     return {
         "num_evaluated_dates": int(df["target_date"].nunique()),
@@ -410,18 +498,22 @@ def compute_outcome_metrics_by_model_version(outcome_rows: list[dict]) -> dict[s
 
 
 def compute_outcome_metrics_by_signal(outcome_rows: list[dict]) -> dict[str, dict]:
-    """TRK-2: compute_outcome_metrics, "by signal" -- published_signals
-    has no signal-type column at all (confirmed: it's a pure momentum
-    ranking, storing only `rank`, no Buy/Hold/Trim concept anywhere in
-    the schema), so every row here is implicitly a Buy-ranked pick, the
-    same "no Trim/Sell side" fact worst_misses' docstring already states.
-    Rather than silently omitting the "by signal" breakdown the
-    acceptance criteria asks for, this returns the one real group this
-    record actually has -- {"Buy": compute_outcome_metrics(outcome_rows)}
-    -- an honest single-group label, not a fabricated split."""
+    """TRK-2: compute_outcome_metrics, "by signal". FND-3: rows from the
+    real-signal track record (stock_signal_outcomes) carry a genuine
+    `signal` field (Buy or Trim -- Hold has no hit/miss verdict and is
+    never persisted there), so this now groups by it for real. Rows from
+    the old momentum-rank pipeline (signal_outcomes/published_signals,
+    no longer what /track-record reads, but this function stays generic
+    over whatever outcome_rows it's given) have no `signal` field at
+    all -- every one of those is implicitly a Buy-ranked pick, so a
+    missing key still falls back to "Buy" rather than an unlabeled
+    group."""
     if not outcome_rows:
         return {}
-    return {"Buy": compute_outcome_metrics(outcome_rows)}
+    by_signal: dict[str, list[dict]] = {}
+    for row in outcome_rows:
+        by_signal.setdefault(row.get("signal") or "Buy", []).append(row)
+    return {signal: compute_outcome_metrics(rows) for signal, rows in by_signal.items()}
 
 
 def compute_outcome_metrics_by_regime(outcome_rows: list[dict]) -> dict[str, dict]:
@@ -441,14 +533,18 @@ def compute_outcome_metrics_by_regime(outcome_rows: list[dict]) -> dict[str, dic
 
 
 def worst_misses(outcome_rows: list[dict], top_n: int = 10) -> list[dict]:
-    """TRK-5: the largest losses among published picks, sorted ascending
-    by realized_return_pct. published_signals has no Trim/Sell side
-    (confirmed: no such concept exists anywhere in this publication
-    pipeline) -- this can only ever show the Buy-side half of TRK-5's
-    acceptance criterion ("largest losses on Buy signals and largest
-    gains on Trim signals"); callers must say so explicitly rather than
-    silently presenting this as the complete picture."""
-    return sorted(outcome_rows, key=lambda r: r["realized_return_pct"])[:top_n]
+    """TRK-5: the worst misses among the evaluated picks -- sorted so the
+    biggest loss on a Buy signal and the biggest gain on a Trim signal
+    (TRK-5's own acceptance criterion, "largest losses on Buy signals and
+    largest gains on Trim signals") both rank as "worst", same per-signal
+    convention services.track_record.py's per-stock worst-miss already
+    uses, generalized here across tickers. A row with no `signal` field
+    at all (the old momentum-rank pipeline's rows, which have no Buy/
+    Trim concept) is treated as Buy -- its one real implicit group."""
+    def _worst_key(r: dict) -> float:
+        return r["realized_return_pct"] if r.get("signal", "Buy") != "Trim" else -r["realized_return_pct"]
+
+    return sorted(outcome_rows, key=_worst_key)[:top_n]
 
 
 def fetch_spy_close_series(period: str = "2y") -> pd.Series:

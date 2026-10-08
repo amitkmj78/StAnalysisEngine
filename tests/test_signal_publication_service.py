@@ -15,6 +15,7 @@ from services.signal_publication_service import (
     compute_outcome_metrics_by_signal,
     compute_spy_returns_for_dates,
     confidence_for_outcome,
+    evaluate_stock_page_signal_outcomes,
     fetch_spy_close_series,
     worst_misses,
 )
@@ -113,6 +114,138 @@ def test_worst_misses_sorted_ascending_and_capped():
     rows = [_row(ticker=t, realized=r, benchmark=0.0) for t, r in [("A", 5.0), ("B", -20.0), ("C", -1.0), ("D", -30.0)]]
     misses = worst_misses(rows, top_n=2)
     assert [m["ticker"] for m in misses] == ["D", "B"]
+
+
+# --- FND-3: real-signal (stock_signal_outcomes) rows carry a genuine
+# `signal` field (Buy or Trim) -- these cover the Trim-aware generalizations
+# worst_misses/compute_outcome_metrics_by_signal/compute_outcome_metrics
+# needed once that became a real possibility, not just the old pipeline's
+# implicit "every row is a Buy."
+
+def _signal_row(ticker="AAPL", signal="Buy", realized=2.0, rank=None, target_date=date(2026, 1, 5)):
+    return {
+        "ticker": ticker, "target_date": target_date, "rank": rank, "signal": signal,
+        "realized_return_pct": realized, "benchmark_return_pct": 0.0,
+        "beat_benchmark": (realized > 0) if signal == "Buy" else (realized <= 0),
+    }
+
+
+def test_worst_misses_a_trims_biggest_gain_ranks_as_worst_not_a_buys_biggest_loss():
+    rows = [
+        _signal_row(ticker="BUY_LOSS", signal="Buy", realized=-30.0),  # a real worst Buy miss
+        _signal_row(ticker="TRIM_GAIN", signal="Trim", realized=40.0),  # a worse Trim miss (told to trim, it rallied)
+        _signal_row(ticker="TRIM_LOSS", signal="Trim", realized=-5.0),  # a Trim hit, not a miss at all
+    ]
+    misses = worst_misses(rows, top_n=2)
+    assert [m["ticker"] for m in misses] == ["TRIM_GAIN", "BUY_LOSS"]
+
+
+def test_compute_outcome_metrics_by_signal_groups_buy_and_trim_separately():
+    rows = [
+        _signal_row(ticker="AAPL", signal="Buy", realized=10.0),
+        _signal_row(ticker="MSFT", signal="Trim", realized=-5.0),
+    ]
+    by_signal = compute_outcome_metrics_by_signal(rows)
+    assert set(by_signal) == {"Buy", "Trim"}
+    assert by_signal["Buy"]["num_evaluated_picks"] == 1
+    assert by_signal["Trim"]["num_evaluated_picks"] == 1
+
+
+def test_compute_outcome_metrics_quintile_spread_is_none_not_meaningless_when_rank_is_absent():
+    # stock_signal_outcomes rows have no rank concept at all (every
+    # ticker's call is independent, not a cross-sectional ranking) --
+    # quintile_spread_pct must stay honestly None, not an arbitrary split
+    # of whatever row order happened to come back from the DB.
+    rows = [_signal_row(ticker=t, realized=r) for t, r in [("A", 10.0), ("B", 5.0), ("C", -5.0), ("D", -10.0), ("E", 0.0)]]
+    metrics = compute_outcome_metrics(rows)
+    assert metrics["quintile_spread_pct"] is None
+    assert metrics["information_coefficient"] is None
+
+
+def test_compute_outcome_metrics_quintile_spread_still_computed_when_rank_present():
+    # Regression guard: the rank=None handling above must not have
+    # disabled this for the OLD pipeline's rows, which always have a
+    # real rank.
+    rows = [_row(ticker=t, rank=i + 1, realized=r, benchmark=0.0) for i, (t, r) in enumerate(
+        [("A", 10.0), ("B", 8.0), ("C", 6.0), ("D", 4.0), ("E", 2.0), ("F", 0.0), ("G", -2.0), ("H", -4.0), ("I", -6.0), ("J", -8.0)]
+    )]
+    metrics = compute_outcome_metrics(rows)
+    assert metrics["quintile_spread_pct"] is not None
+    assert metrics["quintile_spread_pct"] > 0  # best-ranked quintile beat the worst-ranked quintile
+
+
+# --- evaluate_stock_page_signal_outcomes: the real-signal counterpart to
+# evaluate_signal_outcomes_for_date, reusing stock_detail_service's
+# evaluate_signal_outcome unmodified across many (ticker, as_of_date) rows.
+
+def _closes(prices, start="2026-01-01"):
+    return pd.Series(prices, index=pd.bdate_range(start, periods=len(prices)))
+
+
+def _spy_close_by_date(prices, start="2026-01-01"):
+    idx = pd.bdate_range(start, periods=len(prices))
+    return {d.date().isoformat(): p for d, p in zip(idx, prices)}
+
+
+def test_evaluate_stock_page_signal_outcomes_buy_hit():
+    due_rows = [{
+        "ticker": "AAPL", "as_of_date": date(2026, 1, 1), "short_signal": "Buy",
+        "short_confidence_score": 75.0, "short_confidence_label": "medium", "weights_version": "wv1",
+    }]
+    closes_by_ticker = {"AAPL": _closes([100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110])}
+    # Same 11 business days as closes_by_ticker's index, so entry/exit dates
+    # evaluate_signal_outcome resolves always have a matching SPY close --
+    # a +1% SPY move across the same window regardless of the exact dates.
+    spy_close_by_date = _spy_close_by_date([500.0] * 10 + [505.0])
+    outcomes = evaluate_stock_page_signal_outcomes(due_rows, closes_by_ticker, spy_close_by_date, horizon_days=10)
+    assert len(outcomes) == 1
+    o = outcomes[0]
+    assert o["ticker"] == "AAPL"
+    assert o["signal"] == "Buy"
+    assert o["beat_benchmark"] is True  # +10% realized vs +1% benchmark
+    assert o["confidence_score"] == 75.0
+    assert o["weights_version"] == "wv1"
+
+
+def test_evaluate_stock_page_signal_outcomes_skips_tickers_with_no_price_history():
+    due_rows = [{
+        "ticker": "ZZZZ", "as_of_date": date(2026, 1, 1), "short_signal": "Buy",
+        "short_confidence_score": 50.0, "short_confidence_label": "medium", "weights_version": "wv1",
+    }]
+    outcomes = evaluate_stock_page_signal_outcomes(due_rows, {}, {}, horizon_days=10)
+    assert outcomes == []
+
+
+def test_evaluate_stock_page_signal_outcomes_skips_rows_not_yet_matured():
+    due_rows = [{
+        "ticker": "AAPL", "as_of_date": date(2026, 1, 1), "short_signal": "Buy",
+        "short_confidence_score": 50.0, "short_confidence_label": "medium", "weights_version": "wv1",
+    }]
+    closes_by_ticker = {"AAPL": _closes([100, 101, 102])}  # fewer than horizon_days+1 bars
+    outcomes = evaluate_stock_page_signal_outcomes(due_rows, closes_by_ticker, {}, horizon_days=10)
+    assert outcomes == []
+
+
+def test_evaluate_stock_page_signal_outcomes_skips_when_spy_close_missing():
+    due_rows = [{
+        "ticker": "AAPL", "as_of_date": date(2026, 1, 1), "short_signal": "Buy",
+        "short_confidence_score": 50.0, "short_confidence_label": "medium", "weights_version": "wv1",
+    }]
+    closes_by_ticker = {"AAPL": _closes([100] * 11)}
+    outcomes = evaluate_stock_page_signal_outcomes(due_rows, closes_by_ticker, {}, horizon_days=10)
+    assert outcomes == []
+
+
+def test_evaluate_stock_page_signal_outcomes_trim_hit_when_price_falls():
+    due_rows = [{
+        "ticker": "AAPL", "as_of_date": date(2026, 1, 1), "short_signal": "Trim",
+        "short_confidence_score": 90.0, "short_confidence_label": "high", "weights_version": "wv1",
+    }]
+    closes_by_ticker = {"AAPL": _closes([100, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90])}
+    spy_close_by_date = _spy_close_by_date([500.0] * 10 + [505.0])
+    outcomes = evaluate_stock_page_signal_outcomes(due_rows, closes_by_ticker, spy_close_by_date, horizon_days=10)
+    assert len(outcomes) == 1
+    assert outcomes[0]["beat_benchmark"] is True  # Trim + price fell = hit
 
 
 def _spy_series(prices: list[float], start=date(2026, 1, 1)) -> pd.Series:

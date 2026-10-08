@@ -294,6 +294,12 @@ def evaluate_signal_outcome(as_of_date: date, signal: str, closes: pd.Series, ho
     return {
         "entry_date": index[entry_idx].date().isoformat(),
         "exit_date": index[exit_idx].date().isoformat(),
+        # FND-3: the public (all-tickers) track record persists these
+        # alongside realized_return_pct, same display parity the old
+        # rank-based signal_outcomes schema had -- additive fields, no
+        # existing caller inspects dict equality (checked: only key lookups).
+        "entry_price": round(entry_price, 4),
+        "exit_price": round(exit_price, 4),
         "realized_return_pct": round(realized_return_pct, 2),
         "outcome": outcome,
     }

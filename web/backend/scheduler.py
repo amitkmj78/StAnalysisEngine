@@ -70,6 +70,7 @@ from web.backend.pit_prices import (
 from web.backend.portfolio_alerts import scan_portfolios_for_drops
 from web.backend.signal_publication import (
     evaluate_due_signal_outcomes,
+    evaluate_due_stock_page_signal_outcomes,
     is_publication_recorded,
     publish_daily_signals,
 )
@@ -142,6 +143,12 @@ PUBLISH_MINUTE_ET = 10
 # more often since "due" is measured in trading days, not minutes.
 EVALUATE_HOUR_ET = 17
 EVALUATE_MINUTE_ET = 0
+# FND-3: after both pit_prices (16:05) and stock_scores (16:15) capture for
+# the day, same "once daily, after its inputs are ready" reasoning as
+# EVALUATE_HOUR_ET above -- independent pipeline, just placed in the same
+# post-close window.
+STOCK_PAGE_EVALUATE_HOUR_ET = 17
+STOCK_PAGE_EVALUATE_MINUTE_ET = 5
 # NFR-01: alert if publication hasn't completed within 60 min of the
 # 4:00pm ET close (i.e. by 5:00pm ET).
 NFR01_CHECK_HOUR_ET = 17
@@ -953,6 +960,17 @@ async def _evaluate_signal_outcomes_job() -> None:
         logger.info("Scheduler: recorded %d signal outcomes across %d horizons", total, len(TRACK_RECORD_HORIZONS))
 
 
+async def _evaluate_stock_page_signal_outcomes_job() -> None:
+    """FND-3: the real-signal counterpart to _evaluate_signal_outcomes_job
+    above. Not gated by PUBLISH_SIGNALS_ENABLED_KEY -- stock_scores is
+    captured by the core nightly scoring job regardless of whether the
+    separate momentum-publication pipeline is on, so there's always
+    something to evaluate here as soon as signals have matured."""
+    evaluated = await evaluate_due_stock_page_signal_outcomes()
+    if evaluated:
+        logger.info("Scheduler: recorded %d stock-page signal outcomes", evaluated)
+
+
 async def _send_rankings_email_job() -> None:
     """Horizon 1 (RS-3): emails today's current rankings to every active
     paid subscriber. Double-gated — off unless BOTH publish_signals and
@@ -1365,6 +1383,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="evaluate_signal_outcomes",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _evaluate_stock_page_signal_outcomes_job,
+        CronTrigger(
+            hour=STOCK_PAGE_EVALUATE_HOUR_ET, minute=STOCK_PAGE_EVALUATE_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="evaluate_stock_page_signal_outcomes",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

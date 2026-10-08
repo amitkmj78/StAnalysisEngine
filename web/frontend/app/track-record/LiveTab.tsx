@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, getSignalOutcomes, getSignalsCsvExportUrl, getTrackRecord } from "@/lib/api";
-import type { PublishedSignalsResponse, SignalOutcomesResponse, TrackRecordResponse } from "@/lib/types";
+import { ApiError, getSignalsCsvExportUrl, getTrackRecord } from "@/lib/api";
+import type { PublishedSignalsResponse, TrackRecordResponse } from "@/lib/types";
 import PlotlyChart from "@/components/PlotlyChart";
 import { RecordTile } from "./page";
 
@@ -18,29 +18,18 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
   const [horizon, setHorizon] = useState(30);
   // REG-2: empty string means "all regimes" (no filter sent to the API).
   const [regime, setRegime] = useState("");
-  const [outcomes, setOutcomes] = useState<SignalOutcomesResponse | null>(null);
-  const [outcomesError, setOutcomesError] = useState<string | null>(null);
   const [trackRecord, setTrackRecord] = useState<TrackRecordResponse | null>(null);
   const [trackRecordError, setTrackRecordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    setOutcomesError(null);
     setTrackRecordError(null);
-    Promise.all([
-      getSignalOutcomes(horizon).catch((err) => {
-        setOutcomesError(err instanceof ApiError ? err.message : "Failed to load evaluated outcomes.");
-        return null;
-      }),
-      getTrackRecord(horizon, regime || undefined).catch((err) => {
+    getTrackRecord(horizon, regime || undefined)
+      .then(setTrackRecord)
+      .catch((err) => {
         setTrackRecordError(err instanceof ApiError ? err.message : "Failed to load the enhanced track record.");
-        return null;
-      }),
-    ])
-      .then(([o, tr]) => {
-        setOutcomes(o);
-        setTrackRecord(tr);
+        setTrackRecord(null);
       })
       .finally(() => setLoading(false));
   }, [horizon, regime]);
@@ -179,55 +168,46 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
           </div>
         </div>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          Real, out-of-sample results only — never a simulation, never blended with any backtest. Each published
-          pick is scored once its full holding window has actually elapsed: entry priced at publication, exit
-          priced {horizon} trading days later, compared against equally owning the whole universe over that
-          identical stretch.
+          Real, out-of-sample results only — never a simulation, never blended with any backtest.{" "}
+          <strong>This scores the actual Buy/Trim signal shown on each stock&apos;s own page</strong> (not the
+          trailing-return picks list above, which is a separate momentum rule — see the methodology note at the
+          bottom), for every stock in the universe, not just a top-N subset. Each signal is scored once its full
+          holding window has actually elapsed: entry priced the day it was issued, exit priced {horizon} trading
+          days later, compared against SPY over that identical stretch.
         </p>
 
-        {outcomesError && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{outcomesError}</p>}
         {trackRecordError && (
           <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{trackRecordError}</p>
         )}
         {loading && <p className="mt-3 text-sm text-slate-500">Loading…</p>}
 
-        {outcomes && trackRecord && !loading && (
+        {trackRecord && !loading && (
           <>
-            {outcomes.num_evaluated_dates === 0 ? (
+            {trackRecord.metrics.num_evaluated_dates === 0 ? (
               <p className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm text-slate-500">
-                No published picks have completed their {horizon}-trading-day holding window yet — nothing is
-                evaluated or estimated before it&apos;s actually knowable. Check back once the earliest
-                publication is that far out.
+                No Buy/Trim signal has completed its {horizon}-trading-day holding window yet — nothing is
+                evaluated or estimated before it&apos;s actually knowable. Check back once the earliest captured
+                signal is that far out.
               </p>
             ) : (
               <>
                 <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <RecordTile label="Dates Evaluated" value={String(outcomes.num_evaluated_dates)} />
-                  <RecordTile label="Picks Evaluated" value={String(outcomes.num_evaluated_picks)} />
-                  <RecordTile label="Hit Rate" value={outcomes.hit_rate_pct !== null ? `${outcomes.hit_rate_pct.toFixed(1)}%` : "—"} />
-                  <RecordTile label="Avg Return" value={fmtPct(outcomes.avg_return_pct)} />
+                  <RecordTile label="Dates Evaluated" value={String(trackRecord.metrics.num_evaluated_dates)} />
+                  <RecordTile label="Signals Evaluated" value={String(trackRecord.metrics.num_evaluated_picks)} />
+                  <RecordTile
+                    label="Hit Rate"
+                    value={trackRecord.metrics.hit_rate_pct !== null ? `${trackRecord.metrics.hit_rate_pct.toFixed(1)}%` : "—"}
+                  />
+                  <RecordTile label="Avg Return" value={fmtPct(trackRecord.metrics.avg_return_pct)} />
                   <RecordTile label="Avg Excess vs SPY" value={fmtPct(trackRecord.avg_excess_vs_spy_pct)} />
-                  <RecordTile
-                    label="Information Coeff."
-                    value={outcomes.information_coefficient !== null ? outcomes.information_coefficient.toFixed(3) : "—"}
-                  />
-                  <RecordTile
-                    label="Quintile Spread"
-                    value={
-                      outcomes.quintile_spread_pct !== null
-                        ? `${outcomes.quintile_spread_pct >= 0 ? "+" : ""}${outcomes.quintile_spread_pct.toFixed(2)}%`
-                        : "—"
-                    }
-                  />
                 </div>
                 <p className="mt-3 text-xs text-slate-500">
-                  <strong>Hit Rate</strong> is the share of individual picks that beat the equal-weight universe.{" "}
-                  <strong>Avg Excess vs SPY</strong> compares each pick&apos;s return to SPY&apos;s own return
-                  over the identical window (a separate comparison from the equal-weight-universe benchmark used
-                  elsewhere here). <strong>Information Coefficient</strong> is the average correlation between a
-                  pick&apos;s rank and its realized return — positive means better-ranked picks really did do
-                  better. <strong>Quintile Spread</strong> is the best-ranked fifth&apos;s average return minus
-                  the worst-ranked fifth&apos;s, averaged across evaluated dates.
+                  <strong>Hit Rate</strong> is the share of signals that beat SPY&apos;s own return over the
+                  identical window (a Buy beats it by rising more, a Trim by falling more/rising less).{" "}
+                  <strong>Avg Excess vs SPY</strong> is the average of that same gap in percentage points. There
+                  is no Information Coefficient or Quintile Spread here — those measure a RANKING&apos;s quality
+                  (did rank 1 really beat rank 500), and every signal here is independent, not ranked against the
+                  others.
                 </p>
 
                 {modelVersions.length > 1 && (
@@ -301,9 +281,15 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                   <div className="mt-4">
                     <h3 className="text-sm font-semibold text-slate-800">By Regime</h3>
                     <p className="mt-1 text-xs text-slate-500">
-                      REG-2: hit rate by market regime at the time each pick was published. &quot;unknown&quot;
+                      REG-2: hit rate by market regime on the day each signal was issued. &quot;unknown&quot;
                       covers dates before a regime reading existed for that day.{" "}
-                      {regime ? `Filtered to ${regime} above.` : "Use the Regime selector above to filter."}
+                      {regime ? `Filtered to ${regime} above.` : "Use the Regime selector above to filter."}{" "}
+                      The regime label itself is shown for information only — it has not passed its own
+                      validation gate; see the{" "}
+                      <a href="/methodology" className="underline hover:text-slate-700">
+                        methodology page
+                      </a>
+                      .
                     </p>
                     <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
                       <table className="min-w-full text-xs">
@@ -336,11 +322,10 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                 <div className="mt-4">
                   <h3 className="text-sm font-semibold text-slate-800">Calibration</h3>
                   <p className="mt-1 text-xs text-slate-500">
-                    Stated confidence vs. actual hit rate, per bucket. Confidence here is a stability proxy
-                    derived from this ranking&apos;s own publication history — how consistently a ticker has
-                    stayed in (or out of) the published top-N over the trailing 30 days — not a stated
-                    probability the ranking rule outputs directly (it&apos;s a pure rank, not a probabilistic
-                    forecast).
+                    Stated confidence vs. actual hit rate, grouped into coarse ranges. Confidence here is the
+                    real value captured when each signal was issued (services.portfolio_compare_service.
+                    derive_confidence — a stability-based score, not yet itself calibrated; see the Confidence
+                    Calibration check below, which tests exactly that).
                   </p>
                   <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
                     <table className="min-w-full text-xs">
@@ -365,6 +350,56 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                 </div>
 
                 <div className="mt-4">
+                  <h3 className="text-sm font-semibold text-slate-800">Confidence Calibration (fit vs. holdout)</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    FND-4: is the stated confidence score actually a calibrated probability of a hit? The
+                    earlier {trackRecord.confidence_calibration.fit_set_size} signals (by date) fit an empirical
+                    hit rate per exact score; the later {trackRecord.confidence_calibration.holdout_set_size}
+                    {" "}validate it independently — &quot;Agrees&quot; means the two are within{" "}
+                    {trackRecord.confidence_calibration.agreement_threshold_points} points of each other, shown
+                    only once both halves have at least {trackRecord.confidence_calibration.min_samples_per_bucket}
+                    {" "}signals for that score. This does not change the confidence number shown elsewhere on the
+                    site today — it is a check of that number, not yet a replacement for it.
+                  </p>
+                  {Object.keys(trackRecord.confidence_calibration.buckets).length === 0 ? (
+                    <p className="mt-2 text-xs text-slate-400">Not enough history yet to check any score.</p>
+                  ) : (
+                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+                      <table className="min-w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                            <th className="px-2 py-1.5">Stated Score</th>
+                            <th className="px-2 py-1.5 text-right">Fit Hit Rate (n)</th>
+                            <th className="px-2 py-1.5 text-right">Holdout Hit Rate (n)</th>
+                            <th className="px-2 py-1.5 text-center">Agrees?</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(trackRecord.confidence_calibration.buckets)
+                            .sort((a, b) => Number(b[0]) - Number(a[0]))
+                            .map(([score, b]) => (
+                              <tr key={score} className="border-b border-slate-100 last:border-0">
+                                <td className="px-2 py-1.5">{score}</td>
+                                <td className="px-2 py-1.5 text-right">
+                                  {b.fit_hit_rate_pct !== null ? `${b.fit_hit_rate_pct.toFixed(1)}% (n=${b.fit_n})` : "insufficient data"}
+                                </td>
+                                <td className="px-2 py-1.5 text-right">
+                                  {b.holdout_hit_rate_pct !== null
+                                    ? `${b.holdout_hit_rate_pct.toFixed(1)}% (n=${b.holdout_n})`
+                                    : `insufficient data (n=${b.holdout_n})`}
+                                </td>
+                                <td className="px-2 py-1.5 text-center">
+                                  {b.agrees_within_5_points === null ? "—" : b.agrees_within_5_points ? "✓" : "✗"}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4">
                   <h3 className="text-sm font-semibold text-slate-800">Worst Misses</h3>
                   <p className="mt-1 text-xs text-slate-500">{trackRecord.trim_note}</p>
                   {trackRecord.worst_misses.length === 0 ? (
@@ -376,6 +411,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                           <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
                             <th className="px-2 py-1.5">Date</th>
                             <th className="px-2 py-1.5">Ticker</th>
+                            <th className="px-2 py-1.5">Signal</th>
                             <th className="px-2 py-1.5 text-right">Realized</th>
                           </tr>
                         </thead>
@@ -384,6 +420,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                             <tr key={`${m.target_date}-${m.ticker}`} className="border-b border-slate-100 last:border-0">
                               <td className="px-2 py-1.5 text-slate-600">{m.target_date}</td>
                               <td className="px-2 py-1.5 font-medium text-slate-800">{m.ticker}</td>
+                              <td className="px-2 py-1.5 text-slate-600">{m.signal ?? "Buy"}</td>
                               <td className="px-2 py-1.5 text-right text-red-600">{fmtPct(m.realized_return_pct)}</td>
                             </tr>
                           ))}
@@ -443,43 +480,6 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                   </div>
                 )}
 
-                <details className="mt-4 text-xs text-slate-600">
-                  <summary className="cursor-pointer font-medium text-slate-700">
-                    Show all {outcomes.outcomes.length} evaluated picks
-                  </summary>
-                  <div className="mt-2 max-h-80 overflow-y-auto overflow-x-auto rounded-md border border-slate-200 bg-white">
-                    <table className="min-w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
-                          <th className="px-2 py-1.5">Date</th>
-                          <th className="px-2 py-1.5">Ticker</th>
-                          <th className="px-2 py-1.5 text-right">Rank</th>
-                          <th className="px-2 py-1.5 text-right">Realized</th>
-                          <th className="px-2 py-1.5 text-right">Benchmark</th>
-                          <th className="px-2 py-1.5 text-center">Beat?</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {outcomes.outcomes.map((o) => (
-                          <tr key={`${o.target_date}-${o.ticker}`} className="border-b border-slate-100 last:border-0">
-                            <td className="px-2 py-1.5 text-slate-600">{o.target_date}</td>
-                            <td className="px-2 py-1.5 font-medium text-slate-800">{o.ticker}</td>
-                            <td className="px-2 py-1.5 text-right text-slate-500">{o.rank}</td>
-                            <td className={`px-2 py-1.5 text-right ${o.realized_return_pct >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                              {o.realized_return_pct >= 0 ? "+" : ""}
-                              {o.realized_return_pct.toFixed(2)}%
-                            </td>
-                            <td className="px-2 py-1.5 text-right text-slate-600">
-                              {o.benchmark_return_pct >= 0 ? "+" : ""}
-                              {o.benchmark_return_pct.toFixed(2)}%
-                            </td>
-                            <td className="px-2 py-1.5 text-center">{o.beat_benchmark ? "✓" : ""}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
               </>
             )}
           </>
@@ -489,15 +489,26 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
       <div className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="font-semibold text-slate-900">Methodology</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          Once a day, after market close, the rule ranks a fixed universe of large, liquid US stocks by trailing
-          price return over the stated lookback window, and publishes the top {data.signals.length || 25}. It
-          uses only price data available at the time of publication — no future information, no fundamentals,
-          no subjective judgment. The same rule, applied consistently, so any past publication can be checked
-          against what actually happened next.
+          <strong>Today&apos;s Picks (table above):</strong> once a day, after market close, a fixed rule ranks a
+          fixed universe of large, liquid US stocks by trailing price return over the stated lookback window, and
+          publishes the top {data.signals.length || 25}. It uses only price data available at the time of
+          publication — no future information, no fundamentals, no subjective judgment. The same rule, applied
+          consistently, so any past publication can be checked against what actually happened next.
         </p>
         <p className="mt-3 text-sm leading-relaxed text-slate-600">
-          This is not personalized to any reader, does not consider anyone&apos;s holdings or goals, and is not
-          investment advice. Past performance does not indicate future results.
+          <strong>Live Performance to Date (section above):</strong> a separate, different measurement — every
+          stock&apos;s own real short-term Buy/Hold/Trim signal from its stock page (the same two-score system
+          described on the{" "}
+          <a href="/methodology" className="underline hover:text-slate-700">
+            methodology page
+          </a>
+          ), scored against its own realized move once the holding window elapses. This is the app&apos;s actual
+          published signal, not the trailing-return picks list above — the two are intentionally different
+          systems shown on the same page.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-slate-600">
+          Neither is personalized to any reader, considers anyone&apos;s holdings or goals, or is investment
+          advice. Past performance does not indicate future results.
         </p>
       </div>
     </>
