@@ -50,6 +50,7 @@ const NAV: NavEntry[] = [
     items: [
       { href: "/alerts", label: "Inbox" },
       { href: "/watchlist", label: "Watchlist" },
+      { href: "/alerts/conditions", label: "Condition Alerts" },
       { href: "/alerts/settings", label: "Settings" },
     ],
   },
