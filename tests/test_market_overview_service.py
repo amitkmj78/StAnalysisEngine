@@ -29,11 +29,11 @@ def test_get_market_overview_handles_a_failed_fetch_gracefully():
     assert all(r["price"] is None and r["change_pct"] is None for r in result)
 
 
-def test_get_market_overview_returns_all_three_labeled_indices():
+def test_get_market_overview_returns_every_configured_label():
     mod.get_market_overview.cache.clear()
 
     with patch.object(mod.yf, "Ticker", side_effect=Exception("skip")):
         result = mod.get_market_overview()
 
     labels = {r["label"] for r in result}
-    assert labels == {"S&P 500", "Nasdaq", "Dow"}
+    assert labels == {entry["label"] for entry in mod.MARKET_OVERVIEW_TICKERS}

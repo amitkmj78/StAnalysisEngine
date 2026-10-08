@@ -36,9 +36,9 @@ function MarketOverviewTicker() {
   if (!indices) return null;
 
   return (
-    <div className="hidden items-center gap-4 border-t border-slate-100 bg-slate-50 px-4 py-1 text-xs sm:flex">
+    <div className="hidden items-center gap-4 overflow-x-auto border-t border-slate-100 bg-slate-50 px-4 py-1 text-xs sm:flex">
       {indices.map((idx) => (
-        <span key={idx.ticker} className="flex items-center gap-1">
+        <span key={idx.ticker} className="flex flex-none items-center gap-1">
           <span className="font-medium text-slate-700">{idx.label}</span>
           {idx.price !== null ? (
             <>
