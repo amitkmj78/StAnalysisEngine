@@ -813,6 +813,21 @@ create policy saved_screens_isolation on saved_screens for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- ALX-6: a user's default Stock Finder column set, persisted server-side
+-- so it follows them across devices -- saved_screens.visible_columns above
+-- already covers the per-saved-screen case, this is only for the ad-hoc,
+-- no-screen-loaded case (previously localStorage-only).
+create table if not exists user_ui_preferences (
+  user_id uuid primary key references users(id) on delete cascade,
+  default_stock_finder_columns jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table user_ui_preferences enable row level security;
+drop policy if exists user_ui_preferences_isolation on user_ui_preferences;
+create policy user_ui_preferences_isolation on user_ui_preferences for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
 -- STR-2: custom stress-test scenarios the user builds and reruns. Mirrors
 -- saved_screens' shape/RLS exactly -- rerun is entirely client-side (load
 -- shock_config into the builder form, call the same compute endpoint a
@@ -950,6 +965,29 @@ create index if not exists watchlist_alerts_user_idx on watchlist_alerts(user_id
 alter table watchlist_alerts enable row level security;
 drop policy if exists watchlist_alerts_isolation on watchlist_alerts;
 create policy watchlist_alerts_isolation on watchlist_alerts for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- ALX-1: user-defined multi-condition alerts (price, indicator, score,
+-- signal, regime, earnings), combined with a single AND/OR across the
+-- whole set -- see services/condition_alert_service.py. Mirrors
+-- watchlist_alerts' shape/RLS.
+create table if not exists condition_alerts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  ticker text not null,
+  conditions jsonb not null,
+  combinator text not null,
+  active boolean not null default true,
+  triggered_at timestamptz,
+  triggered_detail text,
+  seen_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists condition_alerts_user_idx on condition_alerts(user_id, created_at desc);
+alter table condition_alerts enable row level security;
+drop policy if exists condition_alerts_isolation on condition_alerts;
+create policy condition_alerts_isolation on condition_alerts for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
@@ -1726,7 +1764,7 @@ $$;
 
 grant connect on database stanalysisengine to app_user, app_service;
 grant usage on schema public to app_user, app_service;
-grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens, saved_portfolio_goals, portfolio_insights_snapshots, saved_monthly_plans, saved_stress_scenarios to app_user;
+grant select, insert, update, delete on users, trades, portfolio_positions, portfolio_strategies, saved_predictions, watchlist_alerts, strategy_plans, portfolios, saved_narratives, saved_baseline_snapshots, saved_screens, saved_portfolio_goals, portfolio_insights_snapshots, saved_monthly_plans, saved_stress_scenarios, user_ui_preferences, condition_alerts, push_subscriptions to app_user;
 grant select, update on portfolio_drop_alerts to app_user;
 grant select, update on basket_rebalance_alerts to app_user;
 grant usage, select on all sequences in schema public to app_user;
@@ -1770,6 +1808,8 @@ grant select, insert on paper_order_audit_log to app_service;
 grant select, update, delete on portfolios to app_service;
 grant select, update on saved_predictions to app_service;
 grant select, update on watchlist_alerts to app_service;
+grant select, update on condition_alerts to app_service;
+grant select, delete on push_subscriptions to app_service;
 grant select, insert, update on app_settings to app_service;
 grant select on published_signals to app_user;
 grant select, insert on published_signals to app_service;
@@ -2062,6 +2102,37 @@ drop policy if exists user_notification_settings_isolation on user_notification_
 create policy user_notification_settings_isolation on user_notification_settings for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- ALX-4: a per-user secret token embedded in the webhook URL TradingView
+-- posts its alerts to (POST /api/v1/webhooks/tradingview/{token}) --
+-- TradingView alerts have no custom-header signing capability, so the
+-- token in the path IS the authentication, same role webhook_secret
+-- plays for the outbound ALR-3 webhook, just inbound here.
+alter table user_notification_settings add column if not exists tradingview_webhook_token text unique;
+
+-- ALX-3: web push (standard browser Push API + VAPID) as a third alert
+-- delivery channel alongside email and the outbound ALR-3 webhook. A
+-- user can have more than one subscription (one per browser/device
+-- they've granted permission on), so this is its own table, not a
+-- column on user_notification_settings.
+create table if not exists push_subscriptions (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh_key text not null,
+  auth_key text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists push_subscriptions_user_idx on push_subscriptions(user_id);
+alter table push_subscriptions enable row level security;
+drop policy if exists push_subscriptions_isolation on push_subscriptions;
+create policy push_subscriptions_isolation on push_subscriptions for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- Per-user opt-in, same ALR-2 default-on posture channel_email/
+-- channel_inapp already have.
+alter table user_notification_settings add column if not exists push_enabled boolean not null default true;
 
 -- ALR-2: the "quiet hours" / "digest mode" delivery queue --
 -- notification_dispatcher.py writes here instead of sending immediately

@@ -24,7 +24,7 @@ router = APIRouter(
 )
 
 # Matches services/notification_dispatcher.py's alert_type strings.
-ALERT_TYPES = {"signal_change", "earnings", "cost_drop"}
+ALERT_TYPES = {"signal_change", "earnings", "cost_drop", "condition_alert", "tradingview_alert"}
 
 
 def _record_to_dict(record) -> dict:
@@ -133,7 +133,7 @@ def _settings_response(record) -> dict:
 _SETTINGS_DEFAULT = {
     "quiet_hours_start": None, "quiet_hours_end": None, "digest_enabled": False,
     "digest_time": "08:00", "webhook_enabled": False, "webhook_url": None,
-    "has_webhook_secret": False,
+    "has_webhook_secret": False, "tradingview_webhook_token": None,
 }
 
 
@@ -186,3 +186,27 @@ async def upsert_settings(request: Request, body: SettingsUpsertRequest):
         # expose has_webhook_secret, never the secret itself again.
         result["webhook_secret"] = newly_generated_secret
     return result
+
+
+@router.post("/settings/tradingview-token/regenerate")
+async def regenerate_tradingview_token(request: Request):
+    """ALX-4: (re)generates the secret token embedded in this user's
+    TradingView webhook URL (POST /api/v1/webhooks/tradingview/{token}).
+    Unlike webhook_secret, this IS shown back every time (GET /settings
+    includes it plainly) -- the user needs to see and paste the full
+    URL into TradingView's own alert config repeatedly, not verify a
+    signature with it programmatically once. Regenerating invalidates
+    any TradingView alert still configured with the old URL -- the
+    user must update those alerts after calling this."""
+    user_id = request.state.user["id"]
+    new_token = generate_webhook_secret()
+    async with user_conn(user_id) as conn:
+        await conn.execute(
+            """
+            INSERT INTO user_notification_settings (user_id, tradingview_webhook_token)
+            VALUES ($1::uuid, $2)
+            ON CONFLICT (user_id) DO UPDATE SET tradingview_webhook_token = $2, updated_at = now()
+            """,
+            user_id, new_token,
+        )
+    return {"tradingview_webhook_token": new_token}

@@ -24,7 +24,7 @@ from web.backend.db import user_conn
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts-inbox"], dependencies=[Depends(verify_bearer_token)])
 
-_SOURCE_TABLES = {"watchlist", "portfolio_drop", "signal_change", "earnings", "cost_drop", "agent"}
+_SOURCE_TABLES = {"watchlist", "condition", "portfolio_drop", "signal_change", "earnings", "cost_drop", "agent"}
 
 _INBOX_QUERY = """
 SELECT 'watchlist' AS source, id, ticker, condition_type AS alert_type,
@@ -32,6 +32,13 @@ SELECT 'watchlist' AS source, id, ticker, condition_type AS alert_type,
             THEN ' (now ' || triggered_price::text || ')' ELSE '' END)) AS summary,
        created_at, triggered_at AS event_at, seen_at
 FROM watchlist_alerts WHERE triggered_at IS NOT NULL
+
+UNION ALL
+
+SELECT 'condition' AS source, id, ticker, 'condition_alert' AS alert_type,
+       COALESCE(triggered_detail, '') AS summary,
+       created_at, triggered_at AS event_at, seen_at
+FROM condition_alerts WHERE triggered_at IS NOT NULL
 
 UNION ALL
 
@@ -100,6 +107,7 @@ async def dismiss_inbox_item(request: Request, source: str, alert_id: int):
         raise HTTPException(422, f"source must be one of {sorted(_SOURCE_TABLES)}")
     table = {
         "watchlist": "watchlist_alerts",
+        "condition": "condition_alerts",
         "portfolio_drop": "portfolio_drop_alerts",
         "signal_change": "signal_change_alerts",
         "earnings": "earnings_alert_log",

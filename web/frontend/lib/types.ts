@@ -1733,7 +1733,7 @@ export type AlertConditionType = "price_above" | "price_below" | "score_above" |
 // ALR-2: one normalized row per triggered alert across every source
 // table -- see web/backend/routers/alerts_inbox.py.
 export interface AlertInboxItem {
-  source: "watchlist" | "portfolio_drop" | "signal_change" | "earnings" | "cost_drop" | "agent";
+  source: "watchlist" | "condition" | "portfolio_drop" | "signal_change" | "earnings" | "cost_drop" | "agent";
   id: number;
   // null for a trading-agent event with no single ticker (e.g. a failed run).
   ticker: string | null;
@@ -1746,7 +1746,7 @@ export interface AlertInboxItem {
 }
 
 // ALR-1: matches services/notification_dispatcher.py's alert_type strings.
-export type AlertPreferenceType = "signal_change" | "earnings" | "cost_drop";
+export type AlertPreferenceType = "signal_change" | "earnings" | "cost_drop" | "condition_alert" | "tradingview_alert";
 
 export interface AlertPreferenceOverride {
   id: number;
@@ -1776,6 +1776,10 @@ export interface AlertNotificationSettings {
   // Present only in the one PUT response where it was just generated --
   // never returned again afterward (GET never includes it).
   webhook_secret?: string;
+  // ALX-4: unlike webhook_secret, this IS shown back plainly every time
+  // -- the user needs to see and paste the full URL into TradingView's
+  // own alert config repeatedly, not verify a signature with it.
+  tradingview_webhook_token: string | null;
 }
 
 export interface WatchlistAlert {
@@ -1789,6 +1793,39 @@ export interface WatchlistAlert {
   triggered_price: number | null;
   seen_at: string | null;
   source: string | null;
+}
+
+// ALX-1: a user-defined multi-condition alert -- combines price,
+// indicator, score, signal, regime and earnings conditions with a
+// single AND/OR across the whole set. See
+// services/condition_alert_service.py for the field/op vocabulary.
+export type ConditionCombinator = "AND" | "OR";
+
+export interface Condition {
+  field: string;
+  op: string;
+  value: string | number;
+}
+
+export interface ConditionAlert {
+  id: number;
+  ticker: string;
+  conditions: Condition[];
+  combinator: ConditionCombinator;
+  active: boolean;
+  triggered_at: string | null;
+  triggered_detail: string | null;
+  seen_at: string | null;
+  created_at: string;
+}
+
+export interface ConditionAlertFields {
+  numeric_fields: Record<string, string>;
+  numeric_ops: string[];
+  category_fields: Record<string, string[]>;
+  category_ops: string[];
+  combinators: ConditionCombinator[];
+  max_conditions: number;
 }
 
 export interface AdminSettings {

@@ -32,6 +32,7 @@ from web.backend.routers import (
     challenges,
     chart_layouts,
     chat,
+    condition_alerts,
     db_backup,
     earnings,
     earnings_releases,
@@ -50,6 +51,7 @@ from web.backend.routers import (
     chart_drawings,
     news,
     prediction_record,
+    push_notifications,
     search,
     signals,
     stock_detail,
@@ -62,6 +64,7 @@ from web.backend.routers import (
     trade_impact,
     trade_journal,
     trading_agent,
+    tradingview_webhook,
     watchlist,
     web_search,
 )
@@ -107,6 +110,7 @@ app.include_router(entry_strategy.router)
 app.include_router(monthly_plan.router)
 app.include_router(strategies.router)
 app.include_router(trade_journal.router)
+app.include_router(tradingview_webhook.router)
 app.include_router(portfolio.router)
 app.include_router(stress_test.router)
 app.include_router(plaid_integration.router)
@@ -120,11 +124,13 @@ app.include_router(strategy_builder.router)
 app.include_router(strategy_builder.shared_router)
 app.include_router(chart_layouts.router)
 app.include_router(prediction_record.router)
+app.include_router(push_notifications.router)
 app.include_router(news.router)
 app.include_router(chart_drawings.router)
 app.include_router(aws_deploy.router)
 app.include_router(search.router)
 app.include_router(watchlist.router)
+app.include_router(condition_alerts.router)
 app.include_router(momentum.router)
 app.include_router(admin_users.router)
 app.include_router(admin_activity.router)

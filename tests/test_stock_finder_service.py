@@ -191,6 +191,74 @@ def test_build_stock_row_dividend_yield_none_when_missing(monkeypatch):
     assert _build_stock_row("AAA")["Dividend Yield %"] is None
 
 
+# --- ALX-5: technical columns (SMA distance/crossover, 52-week high/low) ---
+
+
+def _trending_hist(prices, volumes=None, start="2020-01-01"):
+    close = _prices(prices, start=start)
+    volume = pd.Series(volumes or [1_000_000.0] * len(prices), index=close.index, dtype=float)
+    return pd.DataFrame({"Close": close, "Volume": volume})
+
+
+def test_build_stock_row_close_vs_sma_distance_on_a_steady_uptrend(monkeypatch):
+    # 300 days rising $1/day -- close is always above its own trailing
+    # SMAs on a steady uptrend, so both distances must be positive.
+    prices = [100.0 + i for i in range(300)]
+    monkeypatch.setattr(sfs, "get_cached_history", lambda ticker, period, auto_adjust=True: _trending_hist(prices))
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info())
+
+    row = _build_stock_row("AAA")
+    assert row["Close vs SMA50 %"] > 0
+    assert row["Close vs SMA200 %"] > 0
+
+
+def test_build_stock_row_new_52w_high_true_at_the_series_peak(monkeypatch):
+    prices = [100.0 + i for i in range(260)]  # strictly rising -- today's close is the max
+    monkeypatch.setattr(sfs, "get_cached_history", lambda ticker, period, auto_adjust=True: _trending_hist(prices))
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info())
+
+    row = _build_stock_row("AAA")
+    assert row["New 52W High"] is True
+    assert row["New 52W Low"] is False
+    assert row["Dist. 52W High %"] == pytest.approx(0.0, abs=0.01)
+
+
+def test_build_stock_row_new_52w_low_true_at_the_series_trough(monkeypatch):
+    prices = [100.0 - i for i in range(260)]  # strictly falling -- today's close is the min
+    monkeypatch.setattr(sfs, "get_cached_history", lambda ticker, period, auto_adjust=True: _trending_hist(prices))
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info())
+
+    row = _build_stock_row("AAA")
+    assert row["New 52W Low"] is True
+    assert row["New 52W High"] is False
+
+
+def test_build_stock_row_crossover_flags_false_on_a_flat_series(monkeypatch):
+    prices = [100.0] * 260  # perfectly flat -- SMA20 and SMA50 are equal, never cross
+    monkeypatch.setattr(sfs, "get_cached_history", lambda ticker, period, auto_adjust=True: _trending_hist(prices))
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info())
+
+    row = _build_stock_row("AAA")
+    assert row["SMA20 Crossed Above SMA50"] is False
+    assert row["SMA20 Crossed Below SMA50"] is False
+
+
+def test_build_stock_row_sma20_crossed_above_sma50_on_a_real_reversal(monkeypatch):
+    # 200 days flat/declining keeps SMA20 below SMA50, then a sharp rally
+    # pulls the faster-reacting SMA20 up through SMA50 -- the series ends
+    # exactly on the day that crossover happens (verified by hand against
+    # sma()'s own output), not several days after it.
+    decline = [200.0 - i * 0.2 for i in range(200)]
+    rally = [decline[-1] + i * 5 for i in range(1, 7)]
+    prices = decline + rally
+    monkeypatch.setattr(sfs, "get_cached_history", lambda ticker, period, auto_adjust=True: _trending_hist(prices))
+    monkeypatch.setattr(sfs, "get_cached_info", lambda ticker: _synthetic_info())
+
+    row = _build_stock_row("AAA")
+    assert row["SMA20 Crossed Above SMA50"] is True
+    assert row["SMA20 Crossed Below SMA50"] is False
+
+
 # ---------------------------------------------------------------------------
 # apply_filters -- SCN-3's server-side re-implementation of the Stock
 # Finder page's own client-side filteredResults predicate. Must match that
@@ -205,16 +273,28 @@ def _filter_test_df():
             "Ticker": "AAA", "Sector": "Technology", "Market Cap ($B)": 500.0, "Forward PE": 18.0,
             "Volume Strength %": 5.0, "Dividend Yield %": 2.5, "6M Volatility %": 15.0,
             "3M Return %": 8.0, "Earnings Growth %": 12.0,
+            "Close vs SMA50 %": 6.0, "Close vs SMA200 %": 10.0,
+            "Dist. 52W High %": -1.0, "Dist. 52W Low %": 25.0,
+            "New 52W High": True, "New 52W Low": False,
+            "SMA20 Crossed Above SMA50": True, "SMA20 Crossed Below SMA50": False,
         },
         {
             "Ticker": "BBB", "Sector": "Energy", "Market Cap ($B)": 50.0, "Forward PE": 35.0,
             "Volume Strength %": -2.0, "Dividend Yield %": 0.5, "6M Volatility %": 40.0,
             "3M Return %": -10.0, "Earnings Growth %": -3.0,
+            "Close vs SMA50 %": -8.0, "Close vs SMA200 %": -15.0,
+            "Dist. 52W High %": -30.0, "Dist. 52W Low %": 0.5,
+            "New 52W High": False, "New 52W Low": True,
+            "SMA20 Crossed Above SMA50": False, "SMA20 Crossed Below SMA50": True,
         },
         {
             "Ticker": "CCC", "Sector": "Technology", "Market Cap ($B)": 5.0, "Forward PE": None,
             "Volume Strength %": None, "Dividend Yield %": None, "6M Volatility %": None,
             "3M Return %": None, "Earnings Growth %": None,
+            "Close vs SMA50 %": None, "Close vs SMA200 %": None,
+            "Dist. 52W High %": None, "Dist. 52W Low %": None,
+            "New 52W High": False, "New 52W Low": False,
+            "SMA20 Crossed Above SMA50": False, "SMA20 Crossed Below SMA50": False,
         },
     ])
 
@@ -287,6 +367,39 @@ def test_apply_filters_watchlisted_only():
         _filter_test_df(), _filter_test_scores(), {"watchlisted": "only"}, watchlisted_tickers={"AAA", "CCC"},
     )
     assert matched == ["AAA", "CCC"]
+
+
+# --- ALX-5: technical filters ---
+
+
+def test_apply_filters_close_vs_sma50_range():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"closeVsSma50Min": "0"})
+    assert matched == ["AAA"]
+
+
+def test_apply_filters_dist_52w_high_range_excludes_missing():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"dist52wHighMin": "-5"})
+    assert matched == ["AAA"]
+
+
+def test_apply_filters_new_52w_high_only():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"new52wHighOnly": True})
+    assert matched == ["AAA"]
+
+
+def test_apply_filters_new_52w_low_only():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"new52wLowOnly": True})
+    assert matched == ["BBB"]
+
+
+def test_apply_filters_crossed_above_50_only():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"crossedAbove50Only": True})
+    assert matched == ["AAA"]
+
+
+def test_apply_filters_crossed_below_50_only():
+    matched = apply_filters(_filter_test_df(), _filter_test_scores(), {"crossedBelow50Only": True})
+    assert matched == ["BBB"]
 
 
 def test_apply_filters_combines_multiple_dimensions():

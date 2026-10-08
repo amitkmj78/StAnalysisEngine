@@ -5,9 +5,14 @@ import { useEffect, useState } from "react";
 
 import {
   ApiError,
+  createPushSubscription,
   deleteAlertPreference,
+  deletePushSubscription,
   getAlertPreferences,
   getAlertSettings,
+  getPushVapidPublicKey,
+  getTradingViewWebhookUrl,
+  regenerateTradingViewToken,
   upsertAlertPreference,
   upsertAlertSettings,
 } from "@/lib/api";
@@ -17,6 +22,8 @@ const ALERT_TYPES: { value: AlertPreferenceType; label: string }[] = [
   { value: "signal_change", label: "Signal change" },
   { value: "earnings", label: "Earnings in 2 days" },
   { value: "cost_drop", label: "Holding down from cost" },
+  { value: "condition_alert", label: "Condition alert" },
+  { value: "tradingview_alert", label: "TradingView alert" },
 ];
 
 export default function AlertSettingsPage() {
@@ -36,6 +43,10 @@ export default function AlertSettingsPage() {
   const [overrideTicker, setOverrideTicker] = useState("");
   const [overrideType, setOverrideType] = useState<AlertPreferenceType>("signal_change");
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
+  const [regeneratingToken, setRegeneratingToken] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState<boolean | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushUnsupported, setPushUnsupported] = useState(false);
 
   async function load() {
     setError(null);
@@ -56,7 +67,76 @@ export default function AlertSettingsPage() {
 
   useEffect(() => {
     load();
+
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushUnsupported(true);
+      return;
+    }
+    navigator.serviceWorker
+      .getRegistration("/sw.js")
+      .then((reg) => reg?.pushManager.getSubscription())
+      .then((sub) => setPushSubscribed(!!sub))
+      .catch(() => setPushSubscribed(false));
   }, []);
+
+  function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
+    const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+    const base64Safe = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64Safe);
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  async function handleSubscribePush() {
+    setPushBusy(true);
+    setError(null);
+    try {
+      const { public_key, configured } = await getPushVapidPublicKey();
+      if (!configured || !public_key) {
+        setError("Push notifications are not configured on the server yet.");
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setError("Notification permission was not granted.");
+        return;
+      }
+      const registration = await navigator.serviceWorker.register("/sw.js");
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(public_key),
+      });
+      const json = subscription.toJSON();
+      await createPushSubscription({
+        endpoint: json.endpoint!,
+        keys: { p256dh: json.keys!.p256dh, auth: json.keys!.auth },
+      });
+      setPushSubscribed(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not enable push notifications.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function handleUnsubscribePush() {
+    setPushBusy(true);
+    setError(null);
+    try {
+      const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) {
+        await deletePushSubscription(subscription.endpoint).catch(() => undefined);
+        await subscription.unsubscribe();
+      }
+      setPushSubscribed(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not disable push notifications.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   function globalPrefFor(alertType: AlertPreferenceType): AlertPreferenceOverride | undefined {
     return prefs?.overrides.find((o) => o.ticker === null && o.alert_type === alertType);
@@ -114,6 +194,19 @@ export default function AlertSettingsPage() {
       setError(err instanceof ApiError ? err.message : "Failed to save settings.");
     } finally {
       setSavingKey(null);
+    }
+  }
+
+  async function handleRegenerateTradingViewToken() {
+    setRegeneratingToken(true);
+    setError(null);
+    try {
+      const res = await regenerateTradingViewToken();
+      setSettings((prev) => (prev ? { ...prev, tradingview_webhook_token: res.tradingview_webhook_token } : prev));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to generate a webhook token.");
+    } finally {
+      setRegeneratingToken(false);
     }
   }
 
@@ -351,6 +444,50 @@ export default function AlertSettingsPage() {
               {savingKey === "settings" ? "Saving…" : "Save"}
             </button>
           </form>
+
+          <div className="mt-8 rounded-lg border border-slate-200 p-4">
+            <h2 className="text-sm font-semibold text-slate-800">Push notifications</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Browser push, on this device — a third delivery channel alongside email and the webhook above.
+              Native mobile app push isn&apos;t available (there&apos;s no mobile app), but standard web push
+              still reaches a phone if you&apos;ve added this site to your home screen.
+            </p>
+            {pushUnsupported ? (
+              <p className="mt-2 text-xs text-slate-400">Your browser doesn&apos;t support push notifications.</p>
+            ) : (
+              <button
+                type="button"
+                onClick={pushSubscribed ? handleUnsubscribePush : handleSubscribePush}
+                disabled={pushBusy || pushSubscribed === null}
+                className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {pushBusy ? "Working…" : pushSubscribed ? "Disable on this device" : "Enable on this device"}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-8 rounded-lg border border-slate-200 p-4">
+            <h2 className="text-sm font-semibold text-slate-800">TradingView alerts</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Paste this URL as the &quot;Webhook URL&quot; on any TradingView alert — it routes straight into your
+              trade journal. Regenerating invalidates any alert still configured with the old URL.
+            </p>
+            {settings.tradingview_webhook_token ? (
+              <code className="mt-2 block break-all rounded bg-slate-50 px-2 py-1.5 text-xs">
+                {getTradingViewWebhookUrl(settings.tradingview_webhook_token)}
+              </code>
+            ) : (
+              <p className="mt-2 text-xs text-slate-400">No webhook URL generated yet.</p>
+            )}
+            <button
+              type="button"
+              onClick={handleRegenerateTradingViewToken}
+              disabled={regeneratingToken}
+              className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {regeneratingToken ? "Generating…" : settings.tradingview_webhook_token ? "Regenerate" : "Generate webhook URL"}
+            </button>
+          </div>
         </>
       )}
     </div>

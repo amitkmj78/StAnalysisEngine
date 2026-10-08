@@ -8,6 +8,7 @@ import type { AlertInboxItem } from "@/lib/types";
 
 const SOURCE_LABEL: Record<string, string> = {
   watchlist: "Watchlist",
+  condition: "Condition alert",
   portfolio_drop: "Price drop",
   signal_change: "Signal change",
   earnings: "Earnings",
@@ -89,13 +90,18 @@ export default function AlertsInboxPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-slate-900">Alerts</h1>
-        <Link href="/alerts/settings" className="text-sm font-medium text-slate-600 hover:underline">
-          Settings
-        </Link>
+        <div className="flex gap-4">
+          <Link href="/alerts/conditions" className="text-sm font-medium text-slate-600 hover:underline">
+            Condition Alerts
+          </Link>
+          <Link href="/alerts/settings" className="text-sm font-medium text-slate-600 hover:underline">
+            Settings
+          </Link>
+        </div>
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        Every triggered alert in one place — watchlist price/score targets, portfolio drops, signal changes,
-        earnings, cost-basis drops, and trading agent fills/stop triggers/failed runs.
+        Every triggered alert in one place — watchlist price/score targets, multi-condition alerts, portfolio
+        drops, signal changes, earnings, cost-basis drops, and trading agent fills/stop triggers/failed runs.
       </p>
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

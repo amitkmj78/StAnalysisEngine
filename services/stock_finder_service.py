@@ -13,6 +13,7 @@ import ta
 
 from services.backtest_engine import max_drawdown_pct
 from services.cache_utils import ttl_cache
+from services.chart_indicators import sma
 from services.screener_service import INDEX_MAP
 from services.yfinance_cache import get_cached_history, get_cached_info
 
@@ -321,6 +322,52 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
         except Exception:
             volume_strength = None
 
+        # ALX-5: technical filters alongside the existing score filters --
+        # SMA distance/crossover state and 52-week high/low distance.
+        # Reuses services.chart_indicators.sma (the same function the
+        # price chart's own indicator overlay uses) instead of a
+        # lookalike reimplementation.
+        try:
+            sma_20_series = sma(close, 20)
+            sma_50_series = sma(close, 50)
+            sma_200_series = sma(close, 200)
+            sma_20_latest, sma_50_latest, sma_200_latest = (
+                float(sma_20_series.iloc[-1]) if pd.notna(sma_20_series.iloc[-1]) else None,
+                float(sma_50_series.iloc[-1]) if pd.notna(sma_50_series.iloc[-1]) else None,
+                float(sma_200_series.iloc[-1]) if pd.notna(sma_200_series.iloc[-1]) else None,
+            )
+            close_vs_sma_50_pct = (latest_price / sma_50_latest - 1) * 100 if sma_50_latest else None
+            close_vs_sma_200_pct = (latest_price / sma_200_latest - 1) * 100 if sma_200_latest else None
+            # Crossover: today's SMA20 vs SMA50 relationship differs from
+            # yesterday's -- the same prev.shift(1) idea
+            # services.strategy_engine.rule_mask already uses for
+            # crosses_above/crosses_below, applied to the two most recent
+            # bars only (this is a snapshot row, not a full history frame).
+            sma_20_crossed_above_50 = sma_20_crossed_below_50 = False
+            if len(sma_20_series) >= 2 and len(sma_50_series) >= 2:
+                s20_prev, s50_prev = sma_20_series.iloc[-2], sma_50_series.iloc[-2]
+                if pd.notna(s20_prev) and pd.notna(s50_prev) and sma_20_latest is not None and sma_50_latest is not None:
+                    # bool(...): pandas/numpy comparisons return numpy.bool_,
+                    # not Python's native bool -- JSON serialization (this
+                    # row ends up in an API response) and `is True/False`
+                    # comparisons both need the native type.
+                    sma_20_crossed_above_50 = bool(s20_prev <= s50_prev and sma_20_latest > sma_50_latest)
+                    sma_20_crossed_below_50 = bool(s20_prev >= s50_prev and sma_20_latest < sma_50_latest)
+        except Exception:
+            close_vs_sma_50_pct = close_vs_sma_200_pct = None
+            sma_20_crossed_above_50 = sma_20_crossed_below_50 = False
+
+        try:
+            high_52w = float(close.tail(252).max())
+            low_52w = float(close.tail(252).min())
+            dist_52w_high_pct = (latest_price / high_52w - 1) * 100 if high_52w else None
+            dist_52w_low_pct = (latest_price / low_52w - 1) * 100 if low_52w else None
+            new_52w_high = latest_price >= high_52w
+            new_52w_low = latest_price <= low_52w
+        except Exception:
+            dist_52w_high_pct = dist_52w_low_pct = None
+            new_52w_high = new_52w_low = False
+
         return {
             "Ticker": ticker_symbol,
             "Name": info.get("shortName") or info.get("longName") or ticker_symbol,
@@ -364,6 +411,14 @@ def _build_stock_row(ticker_symbol: str) -> dict | None:
             "1Y Max Drawdown %": max_drawdown_1y,
             "3Y Max Drawdown %": max_drawdown_3y,
             "3Y Sharpe": sharpe_3y,
+            "Close vs SMA50 %": close_vs_sma_50_pct,
+            "Close vs SMA200 %": close_vs_sma_200_pct,
+            "Dist. 52W High %": dist_52w_high_pct,
+            "Dist. 52W Low %": dist_52w_low_pct,
+            "New 52W High": new_52w_high,
+            "New 52W Low": new_52w_low,
+            "SMA20 Crossed Above SMA50": sma_20_crossed_above_50,
+            "SMA20 Crossed Below SMA50": sma_20_crossed_below_50,
             # Last 90 closes for the table's sparkline column -- `close` is
             # already fetched above for the return/RSI/MACD math, so this is
             # zero new yfinance calls, not a new data source.
@@ -575,6 +630,17 @@ def apply_filters(
     earnings_growth_min, earnings_growth_max = _num("earningsGrowthMin"), _num("earningsGrowthMax")
     short_score_min, short_score_max = _num("shortScoreMin"), _num("shortScoreMax")
     long_score_min, long_score_max = _num("longScoreMin"), _num("longScoreMax")
+    # ALX-5: technical filters (indicator values, crossovers, new highs/
+    # lows) alongside the score filters above -- same new bulk columns
+    # _build_stock_row now computes.
+    close_vs_sma50_min, close_vs_sma50_max = _num("closeVsSma50Min"), _num("closeVsSma50Max")
+    close_vs_sma200_min, close_vs_sma200_max = _num("closeVsSma200Min"), _num("closeVsSma200Max")
+    dist_52w_high_min, dist_52w_high_max = _num("dist52wHighMin"), _num("dist52wHighMax")
+    dist_52w_low_min, dist_52w_low_max = _num("dist52wLowMin"), _num("dist52wLowMax")
+    new_52w_high_only = bool(filters.get("new52wHighOnly"))
+    new_52w_low_only = bool(filters.get("new52wLowOnly"))
+    crossed_above_50_only = bool(filters.get("crossedAbove50Only"))
+    crossed_below_50_only = bool(filters.get("crossedBelow50Only"))
     sectors = set(filters.get("sectors") or [])
     short_signal = set(filters.get("shortSignal") or [])
     long_signal = set(filters.get("longSignal") or [])
@@ -610,6 +676,22 @@ def apply_filters(
         if not _in_range(row.get("3M Return %"), momentum_min, momentum_max):
             continue
         if not _in_range(row.get("Earnings Growth %"), earnings_growth_min, earnings_growth_max):
+            continue
+        if not _in_range(row.get("Close vs SMA50 %"), close_vs_sma50_min, close_vs_sma50_max):
+            continue
+        if not _in_range(row.get("Close vs SMA200 %"), close_vs_sma200_min, close_vs_sma200_max):
+            continue
+        if not _in_range(row.get("Dist. 52W High %"), dist_52w_high_min, dist_52w_high_max):
+            continue
+        if not _in_range(row.get("Dist. 52W Low %"), dist_52w_low_min, dist_52w_low_max):
+            continue
+        if new_52w_high_only and not row.get("New 52W High"):
+            continue
+        if new_52w_low_only and not row.get("New 52W Low"):
+            continue
+        if crossed_above_50_only and not row.get("SMA20 Crossed Above SMA50"):
+            continue
+        if crossed_below_50_only and not row.get("SMA20 Crossed Below SMA50"):
             continue
 
         s = scores.get(ticker, {})

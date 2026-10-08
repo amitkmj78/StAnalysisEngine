@@ -20,6 +20,14 @@ ALR-3: also fires an outbound webhook (services/webhook_service.py) when
 the user has one configured, independent of email preferences/quiet-
 hours/digest -- a power user's own automation is a separate delivery
 channel from the ones those settings govern.
+
+ALX-3: web push (services/push_notification_service.py) is wired in the
+same way and the same place as the webhook above -- independent of
+quiet hours/digest/email preference, gated only by its own
+push_enabled toggle plus having at least one subscription on record.
+A subscription the push service reports as permanently gone (410/404 --
+the user revoked permission or cleared site data) is deleted here
+rather than retried on every future alert.
 """
 
 from __future__ import annotations
@@ -32,6 +40,7 @@ from zoneinfo import ZoneInfo
 from starlette.concurrency import run_in_threadpool
 
 from services.email_service import APP_URL, send_alert_email
+from services.push_notification_service import send_push
 from services.webhook_service import send_webhook
 from web.backend.db import service_conn
 
@@ -104,7 +113,7 @@ async def dispatch_alert(
         settings_row = await conn.fetchrow(
             """
             SELECT quiet_hours_start, quiet_hours_end, digest_enabled,
-                   webhook_enabled, webhook_url, webhook_secret
+                   webhook_enabled, webhook_url, webhook_secret, push_enabled
             FROM user_notification_settings WHERE user_id = $1::uuid
             """,
             user_id,
@@ -128,17 +137,52 @@ async def dispatch_alert(
         if not sent:
             logger.warning("dispatch_alert: webhook delivery failed for user %s (%s)", user_id, alert_type)
 
+    now_et = datetime.now(EASTERN)
+    in_quiet_hours_now = bool(settings_row) and is_within_quiet_hours(
+        now_et, settings_row["quiet_hours_start"], settings_row["quiet_hours_end"]
+    )
+
+    # ALX-3: unlike the webhook above, push DOES respect quiet hours
+    # (the acceptance criteria's own quiet-hours language names "push/
+    # email/in-app" as the channels it governs, the webhook as the one
+    # power-user exception) -- skipped outright during quiet hours, not
+    # queued for later, since there's no sensible "catch-up push" the
+    # way there's a catch-up email digest. Digest mode does NOT suppress
+    # push, though: consolidating a user's push notifications into one
+    # batched push has no equivalent "send one combined message" shape
+    # the way email digesting does, so a digest-mode user who still
+    # wants real-time push keeps getting it.
+    # No settings_row at all means the user has never opened the
+    # settings page -- push_enabled defaults to True (the column's own
+    # DEFAULT), same as email working before anyone visits that page.
+    push_enabled = settings_row["push_enabled"] if settings_row else True
+    if push_enabled and not in_quiet_hours_now:
+        async with service_conn() as conn:
+            subs = await conn.fetch(
+                "SELECT id, endpoint, p256dh_key, auth_key FROM push_subscriptions WHERE user_id = $1::uuid",
+                user_id,
+            )
+        for sub in subs:
+            sent, should_remove = await run_in_threadpool(
+                send_push,
+                {"endpoint": sub["endpoint"], "keys": {"p256dh": sub["p256dh_key"], "auth": sub["auth_key"]}},
+                subject,
+                text_body,
+                f"{APP_URL}/stock/{ticker}" if ticker else APP_URL,
+            )
+            if should_remove:
+                async with service_conn() as conn:
+                    await conn.execute("DELETE FROM push_subscriptions WHERE id = $1", sub["id"])
+            elif not sent:
+                logger.warning("dispatch_alert: push delivery failed for user %s (%s)", user_id, alert_type)
+
     preference = await _resolve_preference(user_id, ticker, alert_type)
     if not preference["enabled"] or not preference["channel_email"]:
         return
 
-    now_et = datetime.now(EASTERN)
     in_digest_mode = bool(settings_row and settings_row["digest_enabled"])
-    in_quiet_hours = bool(settings_row) and is_within_quiet_hours(
-        now_et, settings_row["quiet_hours_start"], settings_row["quiet_hours_end"]
-    )
 
-    if in_digest_mode or in_quiet_hours:
+    if in_digest_mode or in_quiet_hours_now:
         async with service_conn() as conn:
             await conn.execute(
                 """

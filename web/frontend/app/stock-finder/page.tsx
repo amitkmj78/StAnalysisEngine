@@ -12,6 +12,7 @@ import {
   createWatchlistAlert,
   deleteScreen,
   getAnalystRating,
+  getDefaultColumns,
   getPredictionSummary,
   getPresetScreens,
   getSavedScreenAlerts,
@@ -20,6 +21,7 @@ import {
   getStockScore,
   getStockUniverses,
   saveScreen,
+  setDefaultColumns,
 } from "@/lib/api";
 import type {
   AlertConditionType,
@@ -118,6 +120,14 @@ const ALL_COLUMNS = [
   "Volume Strength %",
   "6M Volatility %",
   "1Y Max Drawdown %",
+  "Close vs SMA50 %",
+  "Close vs SMA200 %",
+  "Dist. 52W High %",
+  "Dist. 52W Low %",
+  "New 52W High",
+  "New 52W Low",
+  "SMA20 Crossed Above SMA50",
+  "SMA20 Crossed Below SMA50",
   "Spark 90D",
   "Short-Term Score",
   "Short-Term Signal",
@@ -170,6 +180,19 @@ interface FilterState {
   longSignal: string[];
   owned: TriState;
   watchlisted: TriState;
+  // ALX-5: technical filters alongside the score filters above.
+  closeVsSma50Min: string;
+  closeVsSma50Max: string;
+  closeVsSma200Min: string;
+  closeVsSma200Max: string;
+  dist52wHighMin: string;
+  dist52wHighMax: string;
+  dist52wLowMin: string;
+  dist52wLowMax: string;
+  new52wHighOnly: boolean;
+  new52wLowOnly: boolean;
+  crossedAbove50Only: boolean;
+  crossedBelow50Only: boolean;
 }
 
 const EMPTY_FILTERS: FilterState = {
@@ -193,6 +216,18 @@ const EMPTY_FILTERS: FilterState = {
   longSignal: [],
   owned: "any",
   watchlisted: "any",
+  closeVsSma50Min: "",
+  closeVsSma50Max: "",
+  closeVsSma200Min: "",
+  closeVsSma200Max: "",
+  dist52wHighMin: "",
+  dist52wHighMax: "",
+  dist52wLowMin: "",
+  dist52wLowMax: "",
+  new52wHighOnly: false,
+  new52wLowOnly: false,
+  crossedAbove50Only: false,
+  crossedBelow50Only: false,
 };
 
 function filtersActive(f: FilterState): boolean {
@@ -216,7 +251,19 @@ function filtersActive(f: FilterState): boolean {
     f.shortSignal.length > 0 ||
     f.longSignal.length > 0 ||
     f.owned !== "any" ||
-    f.watchlisted !== "any"
+    f.watchlisted !== "any" ||
+    f.closeVsSma50Min !== "" ||
+    f.closeVsSma50Max !== "" ||
+    f.closeVsSma200Min !== "" ||
+    f.closeVsSma200Max !== "" ||
+    f.dist52wHighMin !== "" ||
+    f.dist52wHighMax !== "" ||
+    f.dist52wLowMin !== "" ||
+    f.dist52wLowMax !== "" ||
+    f.new52wHighOnly ||
+    f.new52wLowOnly ||
+    f.crossedAbove50Only ||
+    f.crossedBelow50Only
   );
 }
 
@@ -286,6 +333,21 @@ export default function StockFinderPage() {
         // Malformed value — keep the default.
       }
     }
+    // ALX-6: the server-side default (if the user has one saved) wins
+    // over the localStorage value above once it arrives -- this is what
+    // makes the column choice follow the user across devices instead of
+    // being per-browser only. Signed-out visitors get a 401 here, which
+    // is expected and non-fatal: they just keep whatever localStorage/
+    // DEFAULT_COLUMNS already set.
+    getDefaultColumns()
+      .then((res) => {
+        if (res.columns && res.columns.length > 0) {
+          setVisibleColumns(res.columns.includes(REQUIRED_COLUMN) ? res.columns : [REQUIRED_COLUMN, ...res.columns]);
+        }
+      })
+      .catch(() => {
+        // Non-fatal -- signed out, or no server default saved yet.
+      });
 
     loadScreens();
     getPresetScreens()
@@ -351,6 +413,10 @@ export default function StockFinderPage() {
     setVisibleColumns((prev) => {
       const next = prev.includes(col) ? prev.filter((c) => c !== col) : [...prev, col];
       localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(next));
+      // ALX-6: best-effort server-side save too, so this choice follows
+      // the user to another device -- a signed-out visitor's 401 here is
+      // expected and silently ignored, same as the initial load above.
+      setDefaultColumns(next).catch(() => undefined);
       return next;
     });
   }
@@ -458,6 +524,27 @@ export default function StockFinderPage() {
       const watchlisted = row.Watchlisted as boolean | undefined;
       if (filters.watchlisted === "only" && !watchlisted) return false;
       if (filters.watchlisted === "exclude" && watchlisted) return false;
+
+      // ALX-5: technical filters -- must mirror services/stock_finder_
+      // service.py::apply_filters exactly, same maintenance note that
+      // function's docstring gives, or a saved-screen alert would
+      // silently diverge from what this page shows.
+      const closeVsSma50 = row["Close vs SMA50 %"] as number | null;
+      if (filters.closeVsSma50Min !== "" && (closeVsSma50 == null || closeVsSma50 < Number(filters.closeVsSma50Min))) return false;
+      if (filters.closeVsSma50Max !== "" && (closeVsSma50 == null || closeVsSma50 > Number(filters.closeVsSma50Max))) return false;
+      const closeVsSma200 = row["Close vs SMA200 %"] as number | null;
+      if (filters.closeVsSma200Min !== "" && (closeVsSma200 == null || closeVsSma200 < Number(filters.closeVsSma200Min))) return false;
+      if (filters.closeVsSma200Max !== "" && (closeVsSma200 == null || closeVsSma200 > Number(filters.closeVsSma200Max))) return false;
+      const dist52wHigh = row["Dist. 52W High %"] as number | null;
+      if (filters.dist52wHighMin !== "" && (dist52wHigh == null || dist52wHigh < Number(filters.dist52wHighMin))) return false;
+      if (filters.dist52wHighMax !== "" && (dist52wHigh == null || dist52wHigh > Number(filters.dist52wHighMax))) return false;
+      const dist52wLow = row["Dist. 52W Low %"] as number | null;
+      if (filters.dist52wLowMin !== "" && (dist52wLow == null || dist52wLow < Number(filters.dist52wLowMin))) return false;
+      if (filters.dist52wLowMax !== "" && (dist52wLow == null || dist52wLow > Number(filters.dist52wLowMax))) return false;
+      if (filters.new52wHighOnly && !row["New 52W High"]) return false;
+      if (filters.new52wLowOnly && !row["New 52W Low"]) return false;
+      if (filters.crossedAbove50Only && !row["SMA20 Crossed Above SMA50"]) return false;
+      if (filters.crossedBelow50Only && !row["SMA20 Crossed Below SMA50"]) return false;
 
       return true;
     });
@@ -583,6 +670,18 @@ export default function StockFinderPage() {
       longSignal: Array.isArray(f.longSignal) ? (f.longSignal as string[]) : [],
       owned: f.owned === "only" || f.owned === "exclude" ? f.owned : "any",
       watchlisted: f.watchlisted === "only" || f.watchlisted === "exclude" ? f.watchlisted : "any",
+      closeVsSma50Min: typeof f.closeVsSma50Min === "string" ? f.closeVsSma50Min : "",
+      closeVsSma50Max: typeof f.closeVsSma50Max === "string" ? f.closeVsSma50Max : "",
+      closeVsSma200Min: typeof f.closeVsSma200Min === "string" ? f.closeVsSma200Min : "",
+      closeVsSma200Max: typeof f.closeVsSma200Max === "string" ? f.closeVsSma200Max : "",
+      dist52wHighMin: typeof f.dist52wHighMin === "string" ? f.dist52wHighMin : "",
+      dist52wHighMax: typeof f.dist52wHighMax === "string" ? f.dist52wHighMax : "",
+      dist52wLowMin: typeof f.dist52wLowMin === "string" ? f.dist52wLowMin : "",
+      dist52wLowMax: typeof f.dist52wLowMax === "string" ? f.dist52wLowMax : "",
+      new52wHighOnly: f.new52wHighOnly === true,
+      new52wLowOnly: f.new52wLowOnly === true,
+      crossedAbove50Only: f.crossedAbove50Only === true,
+      crossedBelow50Only: f.crossedBelow50Only === true,
     };
   }
 
@@ -1140,6 +1239,61 @@ export default function StockFinderPage() {
                         }`}
                       >
                         {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-3">
+                  {/* A group heading, not a label for one control -- a <span>, not <label>, unlike
+                      this file's older group headings (Sector, Short-Term Signal) which reuse
+                      <label> for the same purpose; not fixed here, see NFR-7's tracker note. */}
+                  <span className={`text-xs font-medium ${PF.muted}`}>Technical (ALX-5)</span>
+                  <div className="mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <RangeFilter
+                      label="Close vs 50-day SMA %"
+                      min={filters.closeVsSma50Min}
+                      max={filters.closeVsSma50Max}
+                      onMinChange={(v) => setFilters((prev) => ({ ...prev, closeVsSma50Min: v }))}
+                      onMaxChange={(v) => setFilters((prev) => ({ ...prev, closeVsSma50Max: v }))}
+                    />
+                    <RangeFilter
+                      label="Close vs 200-day SMA %"
+                      min={filters.closeVsSma200Min}
+                      max={filters.closeVsSma200Max}
+                      onMinChange={(v) => setFilters((prev) => ({ ...prev, closeVsSma200Min: v }))}
+                      onMaxChange={(v) => setFilters((prev) => ({ ...prev, closeVsSma200Max: v }))}
+                    />
+                    <RangeFilter
+                      label="Distance from 52-week high %"
+                      min={filters.dist52wHighMin}
+                      max={filters.dist52wHighMax}
+                      onMinChange={(v) => setFilters((prev) => ({ ...prev, dist52wHighMin: v }))}
+                      onMaxChange={(v) => setFilters((prev) => ({ ...prev, dist52wHighMax: v }))}
+                    />
+                    <RangeFilter
+                      label="Distance from 52-week low %"
+                      min={filters.dist52wLowMin}
+                      max={filters.dist52wLowMax}
+                      onMinChange={(v) => setFilters((prev) => ({ ...prev, dist52wLowMin: v }))}
+                      onMaxChange={(v) => setFilters((prev) => ({ ...prev, dist52wLowMax: v }))}
+                    />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {([
+                      ["new52wHighOnly", "New 52W high"],
+                      ["new52wLowOnly", "New 52W low"],
+                      ["crossedAbove50Only", "SMA20 crossed above SMA50"],
+                      ["crossedBelow50Only", "SMA20 crossed below SMA50"],
+                    ] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setFilters((prev) => ({ ...prev, [key]: !prev[key] }))}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                          filters[key] ? "border-indigo-700 bg-indigo-700 text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
+                        }`}
+                      >
+                        {label}
                       </button>
                     ))}
                   </div>

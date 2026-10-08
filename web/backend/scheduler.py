@@ -27,6 +27,7 @@ from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_U
 from services.stock_finder_service import SP500_UNIVERSE_NAME, get_stock_finder_table
 from services.stock_score_capture_service import compute_and_persist_daily_scores
 from web.backend.admin import ADMIN_EMAIL
+from web.backend.condition_alerts_eval import evaluate_due_condition_alerts, evaluate_due_intraday_condition_alerts
 from web.backend.app_settings import (
     BASKET_REBALANCE_ENABLED_KEY,
     COST_DROP_ALERTS_ENABLED_KEY,
@@ -275,6 +276,29 @@ async def _evaluate_watchlist_alerts() -> None:
             triggered += 1
 
     logger.info("Scheduler: checked %d watchlist alerts, triggered %d", checked, triggered)
+
+
+async def _evaluate_condition_alerts_job() -> None:
+    """ALX-1: checks every active, not-yet-triggered multi-condition
+    alert. Same interval as _evaluate_watchlist_alerts above for now --
+    ALX-2 adds a separate, much tighter interval specifically for alerts
+    whose conditions are price/indicator-only (no score/signal/regime/
+    earnings term), since those are the only ones a faster poll can
+    actually move the needle on."""
+    triggered = await evaluate_due_condition_alerts()
+    if triggered:
+        logger.info("Scheduler: triggered %d condition alerts", triggered)
+
+
+async def _evaluate_intraday_condition_alerts_job() -> None:
+    """ALX-2: the much tighter interval, restricted (inside
+    evaluate_due_intraday_condition_alerts itself) to alerts whose
+    conditions are entirely price/indicator fields -- see that
+    function's own docstring for why score/signal/regime/earnings
+    conditions are excluded here."""
+    triggered = await evaluate_due_intraday_condition_alerts()
+    if triggered:
+        logger.info("Scheduler: triggered %d intraday condition alerts", triggered)
 
 
 async def _scan_portfolio_drops_job() -> None:
@@ -1141,6 +1165,30 @@ def start_scheduler() -> AsyncIOScheduler:
         next_run_time=datetime.now(),
         coalesce=True,
         max_instances=1,
+    )
+    _scheduler.add_job(
+        _evaluate_condition_alerts_job,
+        "interval",
+        minutes=ALERT_INTERVAL_MINUTES,
+        id="evaluate_condition_alerts",
+        next_run_time=datetime.now(),
+        coalesce=True,
+        max_instances=1,
+    )
+    _scheduler.add_job(
+        _evaluate_intraday_condition_alerts_job,
+        CronTrigger(
+            # A safe superset of 9:30am-4:00pm ET market hours, every
+            # minute -- precise open/close timing isn't worth the extra
+            # complexity here (a fetch a few minutes outside the real
+            # session just re-reads the latest already-available bar,
+            # harmlessly).
+            hour="9-16", minute="*", day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="evaluate_intraday_condition_alerts",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=55,
     )
     _scheduler.add_job(
         _scan_portfolio_drops_job,

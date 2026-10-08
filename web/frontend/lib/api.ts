@@ -26,6 +26,10 @@ import type {
   ChallengeEquityCurves,
   ChallengeInvite,
   ChallengeLeaderboardResponse,
+  Condition,
+  ConditionAlert,
+  ConditionAlertFields,
+  ConditionCombinator,
   DiscoverableUser,
   AgentRunSummary,
   Agt30ValidationReport,
@@ -405,6 +409,16 @@ export function getScreens() {
 
 export function deleteScreen(screenId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/stock-finder/screens/${screenId}`, "DELETE");
+}
+
+// ALX-6: a user's default Stock Finder column set when no saved screen
+// is loaded, persisted server-side (follows them across devices).
+export function getDefaultColumns() {
+  return apiFetch<{ columns: string[] | null }>("/api/v1/stock-finder/default-columns");
+}
+
+export function setDefaultColumns(columns: string[]) {
+  return apiSend<{ columns: string[] }>("/api/v1/stock-finder/default-columns", "PUT", { columns });
 }
 
 export function getPresetScreens() {
@@ -1395,6 +1409,27 @@ export function dismissWatchlistAlert(alertId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/watchlist/${alertId}/dismiss`, "POST");
 }
 
+// ALX-1: multi-condition alerts.
+export function getConditionAlertFields() {
+  return apiFetch<ConditionAlertFields>("/api/v1/condition-alerts/fields");
+}
+
+export function getConditionAlerts() {
+  return apiFetch<ConditionAlert[]>("/api/v1/condition-alerts");
+}
+
+export function createConditionAlert(ticker: string, conditions: Condition[], combinator: ConditionCombinator) {
+  return apiSend<ConditionAlert>("/api/v1/condition-alerts", "POST", { ticker, conditions, combinator });
+}
+
+export function deleteConditionAlert(alertId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/condition-alerts/${alertId}`, "DELETE");
+}
+
+export function dismissConditionAlert(alertId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/condition-alerts/${alertId}/dismiss`, "POST");
+}
+
 export function getAlertInbox() {
   return apiFetch<AlertInboxItem[]>("/api/v1/alerts");
 }
@@ -1434,6 +1469,31 @@ export function upsertAlertSettings(body: {
   webhook_url?: string | null;
 }) {
   return apiSend<AlertNotificationSettings>("/api/v1/alerts/settings", "PUT", body);
+}
+
+// ALX-4: (re)generates the secret token embedded in the user's
+// TradingView webhook URL.
+export function regenerateTradingViewToken() {
+  return apiSend<{ tradingview_webhook_token: string }>("/api/v1/alerts/settings/tradingview-token/regenerate", "POST");
+}
+
+// The full URL to paste into a TradingView alert's "Webhook URL" field.
+export function getTradingViewWebhookUrl(token: string): string {
+  return `${API_BASE}/api/v1/webhooks/tradingview/${token}`;
+}
+
+// ALX-3: web push subscribe/unsubscribe.
+export function getPushVapidPublicKey() {
+  return apiFetch<{ public_key: string | null; configured: boolean }>("/api/v1/push/vapid-public-key");
+}
+
+export function createPushSubscription(subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) {
+  return apiSend<{ ok: boolean }>("/api/v1/push/subscription", "POST", subscription);
+}
+
+export function deletePushSubscription(endpoint: string) {
+  const url = `/api/v1/push/subscription?${new URLSearchParams({ endpoint }).toString()}`;
+  return apiSend<{ ok: boolean }>(url, "DELETE");
 }
 
 export function getAdminSettings() {

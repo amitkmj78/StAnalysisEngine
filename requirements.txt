@@ -31,4 +31,5 @@ lxml
 stripe
 beautifulsoup4
 ddgs
+pywebpush
 

@@ -322,6 +322,46 @@ async def delete_screen(request: Request, screen_id: int):
     return {"ok": True}
 
 
+class DefaultColumnsRequest(BaseModel):
+    columns: list[str]
+
+
+@router.get("/default-columns")
+async def get_default_columns(request: Request):
+    """ALX-6: a user's default Stock Finder column set when no saved
+    screen is loaded -- persisted server-side so it follows them across
+    devices (saved_screens.visible_columns already covers the per-saved-
+    screen case; this is only the ad-hoc default, previously
+    localStorage-only). null means "no server default set yet", distinct
+    from an empty list (which would mean "show nothing")."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "SELECT default_stock_finder_columns FROM user_ui_preferences WHERE user_id = $1::uuid", user_id
+        )
+    columns = row["default_stock_finder_columns"] if row else None
+    if isinstance(columns, str):
+        columns = json.loads(columns)
+    return {"columns": columns}
+
+
+@router.put("/default-columns")
+@limiter.limit("20/minute")
+async def set_default_columns(request: Request, body: DefaultColumnsRequest):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        await conn.execute(
+            """
+            INSERT INTO user_ui_preferences (user_id, default_stock_finder_columns)
+            VALUES ($1::uuid, $2::jsonb)
+            ON CONFLICT (user_id) DO UPDATE SET
+                default_stock_finder_columns = $2::jsonb, updated_at = now()
+            """,
+            user_id, json.dumps(body.columns),
+        )
+    return {"columns": body.columns}
+
+
 def _screen_alert_to_dict(record) -> dict:
     row = {k: record[k] for k in record.keys()}
     for col in ("entered", "left_tickers", "membership"):
