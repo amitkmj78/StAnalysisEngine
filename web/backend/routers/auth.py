@@ -238,8 +238,12 @@ async def logout(response: Response):
 async def me(request: Request):
     user = await verify_bearer_token(request)
     async with service_conn() as conn:
-        row = await conn.fetchrow("SELECT default_ticker FROM users WHERE id = $1::uuid", user["id"])
-    return {**user, "default_ticker": row["default_ticker"] if row else None}
+        row = await conn.fetchrow("SELECT default_ticker, display_name FROM users WHERE id = $1::uuid", user["id"])
+    return {
+        **user,
+        "default_ticker": row["default_ticker"] if row else None,
+        "display_name": row["display_name"] if row else None,
+    }
 
 
 class DefaultTickerUpdate(BaseModel):
@@ -260,3 +264,26 @@ async def set_default_ticker(request: Request, body: DefaultTickerUpdate):
     async with service_conn() as conn:
         await conn.execute("UPDATE users SET default_ticker = $2 WHERE id = $1::uuid", user["id"], ticker)
     return {"default_ticker": ticker}
+
+
+class DisplayNameUpdate(BaseModel):
+    display_name: str
+
+
+@router.put("/me/display-name")
+async def set_display_name(request: Request, body: DisplayNameUpdate):
+    """COM-1/3: a user-settable, unique public name -- there was no
+    "show this user to others" concept in this app before (only
+    services/challenge_service.py::mask_email, deliberately low-
+    fidelity and wrong for a persistent public author identity).
+    Publishing a community idea requires this already set."""
+    user = await verify_bearer_token(request)
+    name = body.display_name.strip()
+    if not (2 <= len(name) <= 30):
+        raise HTTPException(422, "Display name must be 2-30 characters.")
+    async with service_conn() as conn:
+        try:
+            await conn.execute("UPDATE users SET display_name = $2 WHERE id = $1::uuid", user["id"], name)
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(409, "That display name is already taken.")
+    return {"display_name": name}

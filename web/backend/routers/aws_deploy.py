@@ -991,6 +991,113 @@ create policy condition_alerts_isolation on condition_alerts for all
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
 
+-- COM-1: a published, timestamped, LOCKED idea (no edit path exists or
+-- ever will -- only COM-6's moderation can hide one later). author_user_id
+-- is nullable + is_model distinguishes the app's own model "author"
+-- (COM-7) from a real user -- mirrors services/quant_model_service.py's
+-- MODEL_MEMBER_LABEL pattern for the challenges leaderboard (a synthetic
+-- entry with user_id=None, is_model=True, no real users row at all)
+-- rather than inventing a fake sentinel user row.
+create table if not exists community_ideas (
+  id bigint generated always as identity primary key,
+  author_user_id uuid references users(id) on delete cascade,
+  is_model boolean not null default false,
+  ticker text not null,
+  direction text not null,
+  horizon_days int not null,
+  target real,
+  stop real,
+  entry_price real not null,
+  -- COM-6: required at publish, never optional -- the real, honest
+  -- moderation mechanism this round builds (see the migration's own
+  -- disclosure in the tracker note: no automated pump-and-dump/paid-
+  -- promotion detection exists or can realistically exist in code).
+  has_position boolean not null,
+  disclosure_note text,
+  attested_no_promotion boolean not null,
+  hidden boolean not null default false,
+  -- COM-2: null until the horizon elapses and the nightly job scores
+  -- it once -- never rescored, never guessed at early.
+  realized_return_pct real,
+  excess_vs_spy_pct real,
+  outcome text,
+  scored_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint community_ideas_direction_check check (direction in ('LONG', 'SHORT')),
+  constraint community_ideas_author_check check (
+    (is_model and author_user_id is null) or (not is_model and author_user_id is not null)
+  )
+);
+create index if not exists community_ideas_author_idx on community_ideas(author_user_id, created_at desc);
+create index if not exists community_ideas_unscored_idx on community_ideas(scored_at) where scored_at is null;
+-- No RLS: ideas are public data (feed/profile/leaderboard readable by
+-- everyone), the same posture signal_outcomes/published_signals
+-- already have -- author checks happen in the router, not a policy.
+grant select, insert, update on community_ideas to app_user;
+grant select, insert, update on community_ideas to app_service;
+
+-- COM-5: follow an author, get alerted on their new ideas. No existing
+-- follow/social-graph table anywhere in this app -- genuinely new. No
+-- RLS: a follow relationship isn't sensitive the way a private alert/
+-- portfolio row is, and the leaderboard/profile pages need to show
+-- follower counts across users.
+create table if not exists author_follows (
+  id bigint generated always as identity primary key,
+  follower_user_id uuid not null references users(id) on delete cascade,
+  followed_user_id uuid not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint author_follows_unique unique (follower_user_id, followed_user_id),
+  constraint author_follows_no_self_follow check (follower_user_id <> followed_user_id)
+);
+create index if not exists author_follows_follower_idx on author_follows(follower_user_id);
+create index if not exists author_follows_followed_idx on author_follows(followed_user_id);
+grant select, insert, delete on author_follows to app_user;
+grant select, insert, delete on author_follows to app_service;
+
+-- COM-5's in-app alert: "an author you follow published a new idea" --
+-- an 8th branch in web/backend/routers/alerts_inbox.py's UNION, the
+-- exact ALX-1 condition_alerts pattern. user_id here is the FOLLOWER
+-- (the alert's recipient), same convention watchlist_alerts/
+-- condition_alerts already use for "whose inbox this shows up in".
+create table if not exists followed_author_alerts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  author_user_id uuid not null references users(id) on delete cascade,
+  idea_id bigint not null references community_ideas(id) on delete cascade,
+  ticker text not null,
+  created_at timestamptz not null default now(),
+  seen_at timestamptz
+);
+create index if not exists followed_author_alerts_user_idx on followed_author_alerts(user_id, created_at desc);
+-- UNLIKE community_ideas/author_follows above, this one DOES need RLS
+-- -- alerts_inbox.py's UNION runs through user_conn (RLS-scoped), and
+-- without a policy here every follower's alert would leak to every
+-- user who ever opens their inbox.
+alter table followed_author_alerts enable row level security;
+drop policy if exists followed_author_alerts_isolation on followed_author_alerts;
+create policy followed_author_alerts_isolation on followed_author_alerts for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+grant select, update on followed_author_alerts to app_user;
+grant select, insert, update on followed_author_alerts to app_service;
+
+-- COM-6: the report button. One report per (idea, reporter) -- a repeat
+-- click from the same user never inflates the hide-threshold count. No
+-- RLS: an admin needs to see every report across every user for the
+-- review queue; the router only ever lets a user insert their OWN
+-- report, never read others'.
+create table if not exists idea_reports (
+  id bigint generated always as identity primary key,
+  idea_id bigint not null references community_ideas(id) on delete cascade,
+  reporter_user_id uuid not null references users(id) on delete cascade,
+  reason text not null,
+  created_at timestamptz not null default now(),
+  constraint idea_reports_unique unique (idea_id, reporter_user_id)
+);
+create index if not exists idea_reports_idea_idx on idea_reports(idea_id);
+grant select, insert on idea_reports to app_user;
+grant select, insert on idea_reports to app_service;
+
 -- Multi-portfolio migration: add portfolio_id to portfolio_positions,
 -- portfolio_strategies, and watchlist_alerts (whose portfolio_auto rows
 -- are recreated per-save and would otherwise get wiped across
@@ -1642,6 +1749,14 @@ create policy paper_account_equity_snapshots_isolation on paper_account_equity_s
 -- column default -- see auth.py's /signup, which passes the checkbox
 -- value explicitly rather than relying on this default applying.
 alter table users add column if not exists discoverable_for_challenges boolean not null default true;
+
+-- COM-1/2/3: a user-settable, unique public display name -- there was
+-- no "show this user to others" concept in this app beyond
+-- services/challenge_service.py::mask_email (deliberately low-fidelity,
+-- wrong for a persistent public author identity). Nullable: existing
+-- users have none until they set one, and publishing an idea requires
+-- one already set (enforced in the router, not here).
+alter table users add column if not exists display_name text unique;
 
 -- A request, not an auto-join: invited_user_id must explicitly accept
 -- before challenge_members gets a row, same consent principle as the

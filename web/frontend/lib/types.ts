@@ -1746,7 +1746,7 @@ export interface AlertInboxItem {
 }
 
 // ALR-1: matches services/notification_dispatcher.py's alert_type strings.
-export type AlertPreferenceType = "signal_change" | "earnings" | "cost_drop" | "condition_alert" | "tradingview_alert";
+export type AlertPreferenceType = "signal_change" | "earnings" | "cost_drop" | "condition_alert" | "tradingview_alert" | "followed_author_idea";
 
 export interface AlertPreferenceOverride {
   id: number;
@@ -1826,6 +1826,67 @@ export interface ConditionAlertFields {
   category_ops: string[];
   combinators: ConditionCombinator[];
   max_conditions: number;
+}
+
+// COM-1/2/6: a published, LOCKED trade idea -- no edit path exists or
+// ever will. Null outcome/score fields until COM-2's nightly job
+// scores it at its horizon.
+export interface CommunityIdea {
+  id: number;
+  author_user_id: string | null;
+  is_model: boolean;
+  display_name: string;
+  ticker: string;
+  direction: "LONG" | "SHORT";
+  horizon_days: number;
+  target: number | null;
+  stop: number | null;
+  entry_price: number;
+  has_position: boolean;
+  disclosure_note: string | null;
+  attested_no_promotion: boolean;
+  hidden: boolean;
+  realized_return_pct: number | null;
+  excess_vs_spy_pct: number | null;
+  outcome: "hit" | "miss" | null;
+  scored_at: string | null;
+  created_at: string;
+}
+
+// COM-4: null `score` means "not enough scored ideas yet" -- sorts
+// last, never shown as a misleading 0.
+export interface CommunityLeaderboardEntry {
+  author_user_id: string | null;
+  is_model: boolean;
+  display_name: string;
+  num_ideas: number;
+  avg_excess_vs_spy_pct: number;
+  volatility_pct: number;
+  hit_rate_pct: number;
+  score: number | null;
+  worst_idea: CommunityIdea | null;
+}
+
+// COM-3
+export interface CommunityAuthorProfile {
+  author_id: string;
+  display_name: string;
+  num_ideas_total: number;
+  num_ideas_scored: number;
+  avg_excess_vs_spy_pct: number | null;
+  hit_rate_pct: number | null;
+  score: number | null;
+  worst_idea: CommunityIdea | null;
+  ideas: CommunityIdea[];
+}
+
+// Header market ticker (S&P 500/Nasdaq/Dow) -- always Yahoo-sourced,
+// server-cached 15 minutes (services/market_overview_service.py).
+export interface MarketIndexQuote {
+  ticker: string;
+  label: string;
+  price: number | null;
+  change_pct: number | null;
 }
 
 export interface AdminSettings {

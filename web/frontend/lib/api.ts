@@ -26,7 +26,11 @@ import type {
   ChallengeEquityCurves,
   ChallengeInvite,
   ChallengeLeaderboardResponse,
+  CommunityAuthorProfile,
+  CommunityIdea,
+  CommunityLeaderboardEntry,
   Condition,
+  MarketIndexQuote,
   ConditionAlert,
   ConditionAlertFields,
   ConditionCombinator,
@@ -1428,6 +1432,67 @@ export function deleteConditionAlert(alertId: number) {
 
 export function dismissConditionAlert(alertId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/condition-alerts/${alertId}/dismiss`, "POST");
+}
+
+// COM-1..7: community ideas.
+export function createCommunityIdea(body: {
+  ticker: string;
+  direction: "LONG" | "SHORT";
+  horizon_days: number;
+  target?: number | null;
+  stop?: number | null;
+  has_position: boolean;
+  disclosure_note?: string | null;
+  attested_no_promotion: boolean;
+}) {
+  return apiSend<CommunityIdea>("/api/v1/community/ideas", "POST", body);
+}
+
+export function getCommunityIdeas(limit = 50) {
+  return apiFetch<{ ideas: CommunityIdea[] }>("/api/v1/community/ideas", { limit: String(limit) });
+}
+
+export function getCommunityLeaderboard() {
+  return apiFetch<{ leaderboard: CommunityLeaderboardEntry[] }>("/api/v1/community/leaderboard");
+}
+
+export function getCommunityAuthorProfile(authorId: string) {
+  return apiFetch<CommunityAuthorProfile>(`/api/v1/community/authors/${authorId}`);
+}
+
+export function followAuthor(authorId: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/community/authors/${authorId}/follow`, "POST");
+}
+
+export function unfollowAuthor(authorId: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/community/authors/${authorId}/follow`, "DELETE");
+}
+
+export function reportCommunityIdea(ideaId: number, reason: string) {
+  return apiSend<{ ok: boolean; report_count: number; hidden: boolean }>(
+    `/api/v1/community/ideas/${ideaId}/report`, "POST", { reason },
+  );
+}
+
+export function setDisplayName(displayName: string) {
+  return apiSend<{ display_name: string }>("/api/v1/auth/me/display-name", "PUT", { display_name: displayName });
+}
+
+export function getReportedCommunityIdeas() {
+  return apiFetch<{ ideas: CommunityIdea[] }>("/api/v1/community/admin/reports");
+}
+
+export function restoreCommunityIdea(ideaId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/community/admin/ideas/${ideaId}/restore`, "POST");
+}
+
+export function deleteCommunityIdea(ideaId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/community/admin/ideas/${ideaId}`, "DELETE");
+}
+
+// Header market ticker (S&P 500/Nasdaq/Dow), server-cached 15 minutes.
+export function getMarketOverview() {
+  return apiFetch<{ indices: MarketIndexQuote[] }>("/api/v1/market/overview");
 }
 
 export function getAlertInbox() {

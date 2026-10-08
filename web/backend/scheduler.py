@@ -27,6 +27,8 @@ from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_U
 from services.stock_finder_service import SP500_UNIVERSE_NAME, get_stock_finder_table
 from services.stock_score_capture_service import compute_and_persist_daily_scores
 from web.backend.admin import ADMIN_EMAIL
+from web.backend.community_ideas_eval import evaluate_due_community_ideas
+from web.backend.community_model_author import publish_model_ideas_for_today
 from web.backend.condition_alerts_eval import evaluate_due_condition_alerts, evaluate_due_intraday_condition_alerts
 from web.backend.app_settings import (
     BASKET_REBALANCE_ENABLED_KEY,
@@ -150,6 +152,15 @@ EVALUATE_MINUTE_ET = 0
 # post-close window.
 STOCK_PAGE_EVALUATE_HOUR_ET = 17
 STOCK_PAGE_EVALUATE_MINUTE_ET = 5
+# COM-7: right after stock_scores capture (16:15) so a fresh signal
+# change has something to read.
+COMMUNITY_MODEL_AUTHOR_HOUR_ET = 16
+COMMUNITY_MODEL_AUTHOR_MINUTE_ET = 25
+# COM-2: once daily, after its own ideas' entry-day price data is
+# settled -- same "once daily, due is measured in trading days, not
+# minutes" reasoning as the other evaluate-at-horizon jobs.
+COMMUNITY_IDEAS_EVALUATE_HOUR_ET = 17
+COMMUNITY_IDEAS_EVALUATE_MINUTE_ET = 10
 # NFR-01: alert if publication hasn't completed within 60 min of the
 # 4:00pm ET close (i.e. by 5:00pm ET).
 NFR01_CHECK_HOUR_ET = 17
@@ -299,6 +310,23 @@ async def _evaluate_intraday_condition_alerts_job() -> None:
     triggered = await evaluate_due_intraday_condition_alerts()
     if triggered:
         logger.info("Scheduler: triggered %d intraday condition alerts", triggered)
+
+
+async def _publish_community_model_ideas_job() -> None:
+    """COM-7: the app's own model appears as its own leaderboard author
+    -- reuses signal_change_alert_service.py's existing fresh-signal-
+    change detection, scoped to the whole universe."""
+    published = await publish_model_ideas_for_today()
+    if published:
+        logger.info("Scheduler: published %d model-authored community ideas", published)
+
+
+async def _evaluate_community_ideas_job() -> None:
+    """COM-2: scores every unscored community idea whose horizon has
+    elapsed, against SPY -- see web/backend/community_ideas_eval.py."""
+    scored = await evaluate_due_community_ideas()
+    if scored:
+        logger.info("Scheduler: scored %d community ideas", scored)
 
 
 async def _scan_portfolio_drops_job() -> None:
@@ -1442,6 +1470,28 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="evaluate_stock_page_signal_outcomes",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _publish_community_model_ideas_job,
+        CronTrigger(
+            hour=COMMUNITY_MODEL_AUTHOR_HOUR_ET, minute=COMMUNITY_MODEL_AUTHOR_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="publish_community_model_ideas",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _evaluate_community_ideas_job,
+        CronTrigger(
+            hour=COMMUNITY_IDEAS_EVALUATE_HOUR_ET, minute=COMMUNITY_IDEAS_EVALUATE_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="evaluate_community_ideas",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

@@ -24,7 +24,7 @@ router = APIRouter(
 )
 
 # Matches services/notification_dispatcher.py's alert_type strings.
-ALERT_TYPES = {"signal_change", "earnings", "cost_drop", "condition_alert", "tradingview_alert"}
+ALERT_TYPES = {"signal_change", "earnings", "cost_drop", "condition_alert", "tradingview_alert", "followed_author_idea"}
 
 
 def _record_to_dict(record) -> dict:

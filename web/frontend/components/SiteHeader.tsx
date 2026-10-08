@@ -5,6 +5,59 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { logout } from "@/app/actions";
+import { getMarketOverview } from "@/lib/api";
+import type { MarketIndexQuote } from "@/lib/types";
+
+// Fetched every 15 minutes (also server-cached on that same cadence --
+// see services/market_overview_service.py), not shorter: this is a
+// background header ticker, not a live quote badge.
+const MARKET_OVERVIEW_POLL_MS = 15 * 60 * 1000;
+
+function MarketOverviewTicker() {
+  const [indices, setIndices] = useState<MarketIndexQuote[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    function load() {
+      getMarketOverview()
+        .then((res) => {
+          if (!cancelled) setIndices(res.indices);
+        })
+        .catch(() => undefined); // non-fatal -- the header ticker is supplementary
+    }
+    load();
+    const interval = setInterval(load, MARKET_OVERVIEW_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  if (!indices) return null;
+
+  return (
+    <div className="hidden items-center gap-4 border-t border-slate-100 bg-slate-50 px-4 py-1 text-xs sm:flex">
+      {indices.map((idx) => (
+        <span key={idx.ticker} className="flex items-center gap-1">
+          <span className="font-medium text-slate-700">{idx.label}</span>
+          {idx.price !== null ? (
+            <>
+              <span className="text-slate-600">{idx.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+              {idx.change_pct !== null && (
+                <span className={idx.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}>
+                  {idx.change_pct >= 0 ? "▲" : "▼"}
+                  {Math.abs(idx.change_pct).toFixed(2)}%
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 type NavItem = { href: string; label: string };
 type NavEntry = { label: string; href: string } | { label: string; items: NavItem[] };
@@ -46,6 +99,13 @@ const NAV: NavEntry[] = [
     ],
   },
   {
+    label: "Community",
+    items: [
+      { href: "/community", label: "Idea Feed" },
+      { href: "/community/leaderboard", label: "Leaderboard" },
+    ],
+  },
+  {
     label: "Alerts",
     items: [
       { href: "/alerts", label: "Inbox" },
@@ -67,6 +127,7 @@ const ADMIN_ENTRY: NavEntry = {
     { href: "/admin/signal-stability", label: "Signal Stability" },
     { href: "/admin/sql", label: "SQL" },
     { href: "/admin/integrations", label: "Integrations" },
+    { href: "/admin/community-reports", label: "Community Reports" },
     { href: "/admin/deploy", label: "Deploy" },
   ],
 };
@@ -199,6 +260,8 @@ export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin:
           </form>
         </div>
       </div>
+
+      <MarketOverviewTicker />
 
       {mobileOpen && (
         <nav className="flex flex-col gap-4 border-t border-slate-200 px-4 py-3 text-sm font-medium sm:hidden">

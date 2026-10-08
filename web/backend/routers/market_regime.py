@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, Query
+from starlette.concurrency import run_in_threadpool
 
+from services.market_overview_service import get_market_overview
 from services.market_regime_service import (
     REGIME_GATE_DISCLOSURE,
     compute_and_persist_daily_regime,
@@ -11,6 +13,15 @@ from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn
 
 router = APIRouter(prefix="/api/v1/market", tags=["market-regime"])
+
+
+@router.get("/overview")
+async def market_overview():
+    """A small header ticker (S&P 500/Nasdaq/Dow) -- public, same
+    posture as /stock/{ticker}/detail, server-cached 15 minutes (see
+    services/market_overview_service.py) so this is cheap regardless
+    of how many open tabs/users poll it."""
+    return {"indices": await run_in_threadpool(get_market_overview)}
 
 
 @router.get("/regime", dependencies=[Depends(verify_bearer_token)])

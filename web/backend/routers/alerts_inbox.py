@@ -24,7 +24,7 @@ from web.backend.db import user_conn
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts-inbox"], dependencies=[Depends(verify_bearer_token)])
 
-_SOURCE_TABLES = {"watchlist", "condition", "portfolio_drop", "signal_change", "earnings", "cost_drop", "agent"}
+_SOURCE_TABLES = {"watchlist", "condition", "portfolio_drop", "signal_change", "earnings", "cost_drop", "agent", "followed_author"}
 
 _INBOX_QUERY = """
 SELECT 'watchlist' AS source, id, ticker, condition_type AS alert_type,
@@ -78,6 +78,13 @@ SELECT 'agent' AS source, id, ticker, COALESCE(trigger, event_type) AS alert_typ
 FROM agent_order_events
 WHERE event_type IN ('filled', 'run_failed')
 
+UNION ALL
+
+SELECT 'followed_author' AS source, id, ticker, 'followed_author_idea' AS alert_type,
+       ('a new idea on ' || ticker) AS summary,
+       created_at, created_at AS event_at, seen_at
+FROM followed_author_alerts
+
 ORDER BY event_at DESC
 LIMIT 200
 """
@@ -113,6 +120,7 @@ async def dismiss_inbox_item(request: Request, source: str, alert_id: int):
         "earnings": "earnings_alert_log",
         "cost_drop": "cost_drop_alerts",
         "agent": "agent_order_events",
+        "followed_author": "followed_author_alerts",
     }[source]
 
     user_id = request.state.user["id"]

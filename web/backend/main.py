@@ -32,6 +32,7 @@ from web.backend.routers import (
     challenges,
     chart_layouts,
     chat,
+    community,
     condition_alerts,
     db_backup,
     earnings,
@@ -131,6 +132,7 @@ app.include_router(aws_deploy.router)
 app.include_router(search.router)
 app.include_router(watchlist.router)
 app.include_router(condition_alerts.router)
+app.include_router(community.router)
 app.include_router(momentum.router)
 app.include_router(admin_users.router)
 app.include_router(admin_activity.router)
