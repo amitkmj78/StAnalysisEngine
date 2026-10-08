@@ -27,3 +27,4 @@ beautifulsoup4
 ddgs
 plaid-python
 cryptography
+pywebpush
