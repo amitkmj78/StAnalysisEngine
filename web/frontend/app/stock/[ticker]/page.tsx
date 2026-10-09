@@ -54,6 +54,7 @@ import TradeImpactCard from "@/components/portfolio/TradeImpactCard";
 import SimilarSetupsCard from "@/components/stock-detail/SimilarSetupsCard";
 import RecentNewsPanel from "@/components/stock-detail/RecentNewsPanel";
 import TrackRecordPanel from "@/components/stock-detail/TrackRecordPanel";
+import CommunityDiscussionPanel from "@/components/stock-detail/CommunityDiscussionPanel";
 import TickerSearchInput from "@/components/TickerSearchInput";
 
 const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
@@ -587,6 +588,10 @@ export default function StockScorePage() {
           />
         </div>
       )}
+
+      <div className="mt-6">
+        <CommunityDiscussionPanel ticker={ticker} />
+      </div>
 
       {loading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
       {error && <p className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

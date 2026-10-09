@@ -24,6 +24,11 @@ const ALERT_TYPES: { value: AlertPreferenceType; label: string }[] = [
   { value: "cost_drop", label: "Holding down from cost" },
   { value: "condition_alert", label: "Condition alert" },
   { value: "tradingview_alert", label: "TradingView alert" },
+  // SOC-9: follows, replies, mentions and groups.
+  { value: "new_follower", label: "New follower" },
+  { value: "post_reply", label: "Reply to your post" },
+  { value: "mention", label: "Mention" },
+  { value: "group_activity", label: "New post in your group" },
 ];
 
 export default function AlertSettingsPage() {

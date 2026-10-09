@@ -106,6 +106,15 @@ const NAV: NavEntry[] = [
     ],
   },
   {
+    label: "Social",
+    items: [
+      { href: "/social/feed", label: "Feed" },
+      { href: "/social/groups", label: "Groups" },
+      { href: "/social/chat/general", label: "Chat" },
+      { href: "/social/messages", label: "Messages" },
+    ],
+  },
+  {
     label: "Alerts",
     items: [
       { href: "/alerts", label: "Inbox" },

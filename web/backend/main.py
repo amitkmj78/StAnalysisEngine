@@ -55,6 +55,7 @@ from web.backend.routers import (
     push_notifications,
     search,
     signals,
+    social,
     stock_detail,
     stock_finder,
     stock_scores,
@@ -133,6 +134,7 @@ app.include_router(search.router)
 app.include_router(watchlist.router)
 app.include_router(condition_alerts.router)
 app.include_router(community.router)
+app.include_router(social.router)
 app.include_router(momentum.router)
 app.include_router(admin_users.router)
 app.include_router(admin_activity.router)

@@ -26,11 +26,21 @@ import type {
   ChallengeEquityCurves,
   ChallengeInvite,
   ChallengeLeaderboardResponse,
+  ChatMessage,
   CommunityAuthorProfile,
   CommunityIdea,
   CommunityLeaderboardEntry,
   Condition,
+  DirectMessage,
+  DmConversation,
+  FeedItem,
   MarketIndexQuote,
+  Post,
+  PostComment,
+  Reputation,
+  SocialGroup,
+  SocialGroupDetail,
+  SocialProfile,
   ConditionAlert,
   ConditionAlertFields,
   ConditionCombinator,
@@ -1493,6 +1503,132 @@ export function deleteCommunityIdea(ideaId: number) {
 // Header market ticker (S&P 500/Nasdaq/Dow), server-cached 15 minutes.
 export function getMarketOverview() {
   return apiFetch<{ indices: MarketIndexQuote[] }>("/api/v1/market/overview");
+}
+
+// SOC-1: profiles + reputation.
+export function getSocialProfile(userId: string) {
+  return apiFetch<SocialProfile>(`/api/v1/social/profile/${userId}`);
+}
+
+export function updateSocialProfile(body: { experience_level?: string | null; interests?: string[] | null }) {
+  return apiSend<SocialProfile>("/api/v1/social/profile", "PUT", body);
+}
+
+export function getReputation(userId: string) {
+  return apiFetch<Reputation>(`/api/v1/social/reputation/${userId}`);
+}
+
+// SOC-2: follow a ticker or topic for the feed.
+export function followTicker(ticker: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/tickers/${ticker}/follow`, "POST");
+}
+
+export function unfollowTicker(ticker: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/tickers/${ticker}/follow`, "DELETE");
+}
+
+export function followTopic(topic: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/topics/${encodeURIComponent(topic)}/follow`, "POST");
+}
+
+export function unfollowTopic(topic: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/topics/${encodeURIComponent(topic)}/follow`, "DELETE");
+}
+
+export function getSocialFeed(limit = 50) {
+  return apiFetch<{ feed: FeedItem[] }>("/api/v1/social/feed", { limit: String(limit) });
+}
+
+// SOC-2/3/4/5: posts (SOC-3's ticker discussion panel is this same
+// list endpoint filtered by `ticker` -- no separate discussion table).
+export function createPost(body: {
+  body: string;
+  post_type?: "note" | "performance_claim";
+  ticker?: string | null;
+  topic?: string | null;
+  group_id?: number | null;
+  attach_chart?: boolean;
+  claim_reference_id?: number | null;
+}) {
+  return apiSend<Post>("/api/v1/social/posts", "POST", body);
+}
+
+export function getPosts(filter: { ticker?: string; topic?: string; group_id?: number; author_id?: string } = {}) {
+  const params: Record<string, string> = {};
+  if (filter.ticker) params.ticker = filter.ticker;
+  if (filter.topic) params.topic = filter.topic;
+  if (filter.group_id !== undefined) params.group_id = String(filter.group_id);
+  if (filter.author_id) params.author_id = filter.author_id;
+  return apiFetch<{ posts: Post[] }>("/api/v1/social/posts", params);
+}
+
+export function getPostComments(postId: number) {
+  return apiFetch<{ comments: PostComment[] }>(`/api/v1/social/posts/${postId}/comments`);
+}
+
+export function createPostComment(postId: number, body: string) {
+  return apiSend<PostComment>(`/api/v1/social/posts/${postId}/comments`, "POST", { body });
+}
+
+// SOC-6: groups.
+export function createSocialGroup(body: { name: string; description?: string; topic?: string; ticker?: string; is_private?: boolean }) {
+  return apiSend<SocialGroup>("/api/v1/social/groups", "POST", body);
+}
+
+export function getSocialGroups() {
+  return apiFetch<{ groups: SocialGroup[] }>("/api/v1/social/groups");
+}
+
+export function getSocialGroup(groupId: number) {
+  return apiFetch<SocialGroupDetail>(`/api/v1/social/groups/${groupId}`);
+}
+
+export function joinSocialGroup(groupId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/groups/${groupId}/join`, "POST");
+}
+
+export function leaveSocialGroup(groupId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/groups/${groupId}/leave`, "POST");
+}
+
+export function removeGroupMember(groupId: number, memberId: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/groups/${groupId}/members/${memberId}/remove`, "POST");
+}
+
+export function removeGroupPost(groupId: number, postId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/groups/${groupId}/posts/${postId}`, "DELETE");
+}
+
+// SOC-7: polling-based chat rooms (poll getChatMessages on an interval
+// -- no WebSocket layer exists in this app) + permissioned DMs.
+export function getChatMessages(room: string, sinceId = 0) {
+  return apiFetch<{ room: string; messages: ChatMessage[]; market_open: boolean }>(
+    `/api/v1/social/chat/${room}/messages`, { since_id: String(sinceId) },
+  );
+}
+
+export function postChatMessage(room: string, body: string) {
+  return apiSend<ChatMessage>(`/api/v1/social/chat/${room}/messages`, "POST", { body });
+}
+
+export function getDmConversations() {
+  return apiFetch<{ conversations: DmConversation[] }>("/api/v1/social/messages");
+}
+
+export function getDmThread(otherUserId: string) {
+  return apiFetch<{ messages: DirectMessage[] }>(`/api/v1/social/messages/${otherUserId}`);
+}
+
+export function sendDm(otherUserId: string, body: string) {
+  return apiSend<DirectMessage>(`/api/v1/social/messages/${otherUserId}`, "POST", { body });
+}
+
+export function allowDmSender(senderId: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/dm-allowed/${senderId}`, "POST");
+}
+
+export function revokeDmSender(senderId: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/dm-allowed/${senderId}`, "DELETE");
 }
 
 export function getAlertInbox() {

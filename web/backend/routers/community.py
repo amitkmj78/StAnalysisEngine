@@ -209,14 +209,30 @@ async def follow_author(request: Request, author_id: str):
     if follower_id == author_id:
         raise HTTPException(422, "You can't follow yourself.")
     async with service_conn() as conn:
-        await conn.execute(
+        inserted = await conn.fetchrow(
             """
             INSERT INTO author_follows (follower_user_id, followed_user_id)
             VALUES ($1::uuid, $2::uuid)
             ON CONFLICT (follower_user_id, followed_user_id) DO NOTHING
+            RETURNING id
             """,
             follower_id, author_id,
         )
+        # SOC-9: a new_follower notification -- only on a genuinely new
+        # follow (ON CONFLICT DO NOTHING above returns no row on a
+        # repeat follow), so re-following never double-notifies.
+        if inserted is not None:
+            follower_name = await conn.fetchval("SELECT display_name FROM users WHERE id = $1::uuid", follower_id)
+            summary = f"{follower_name or 'Someone'} started following you"
+            await conn.execute(
+                """
+                INSERT INTO social_notifications (user_id, notification_type, actor_user_id, summary)
+                VALUES ($1::uuid, 'new_follower', $2::uuid, $3)
+                """,
+                author_id, follower_id, summary,
+            )
+    if inserted is not None:
+        await dispatch_alert(author_id, None, "new_follower", summary, f"{follower_name or 'Someone'} started following you.")
     return {"ok": True}
 
 

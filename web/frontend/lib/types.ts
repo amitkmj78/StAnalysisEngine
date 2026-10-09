@@ -1733,7 +1733,7 @@ export type AlertConditionType = "price_above" | "price_below" | "score_above" |
 // ALR-2: one normalized row per triggered alert across every source
 // table -- see web/backend/routers/alerts_inbox.py.
 export interface AlertInboxItem {
-  source: "watchlist" | "condition" | "portfolio_drop" | "signal_change" | "earnings" | "cost_drop" | "agent";
+  source: "watchlist" | "condition" | "portfolio_drop" | "signal_change" | "earnings" | "cost_drop" | "agent" | "followed_author" | "social";
   id: number;
   // null for a trading-agent event with no single ticker (e.g. a failed run).
   ticker: string | null;
@@ -1746,7 +1746,10 @@ export interface AlertInboxItem {
 }
 
 // ALR-1: matches services/notification_dispatcher.py's alert_type strings.
-export type AlertPreferenceType = "signal_change" | "earnings" | "cost_drop" | "condition_alert" | "tradingview_alert" | "followed_author_idea";
+export type AlertPreferenceType =
+  | "signal_change" | "earnings" | "cost_drop" | "condition_alert" | "tradingview_alert" | "followed_author_idea"
+  // SOC-9: follows, replies, mentions and groups.
+  | "new_follower" | "post_reply" | "mention" | "group_activity";
 
 export interface AlertPreferenceOverride {
   id: number;
@@ -1887,6 +1890,103 @@ export interface MarketIndexQuote {
   label: string;
   price: number | null;
   change_pct: number | null;
+}
+
+// SOC-1: experience level/interests are self-settable; verified_badge
+// is system-set only (web/backend/social_badges.py), never user-settable.
+export type ExperienceLevel = "beginner" | "intermediate" | "experienced";
+
+export interface Reputation {
+  track_record_component: number | null;
+  qa_component: number; // SOC-8: always 0 -- accepted answers (BEG-4) not built yet
+  reputation: number | null;
+  num_ideas_scored: number;
+}
+
+export interface SocialProfile {
+  id: string;
+  display_name: string | null;
+  experience_level: ExperienceLevel | null;
+  interests: string[] | null;
+  verified_badge: boolean;
+  reputation: Reputation;
+}
+
+// SOC-2/3/4/5
+export interface Post {
+  id: number;
+  author_user_id: string;
+  display_name: string;
+  post_type: "note" | "performance_claim";
+  body: string;
+  ticker: string | null;
+  topic: string | null;
+  group_id: number | null;
+  chart_snapshot_id: number | null;
+  claim_reference_id: number | null;
+  verified: boolean;
+  hidden: boolean;
+  created_at: string;
+}
+
+export interface PostComment {
+  id: number;
+  post_id: number;
+  author_user_id: string;
+  display_name: string | null;
+  body: string;
+  created_at: string;
+}
+
+export type FeedItem = ({ kind: "post" } & Post) | ({ kind: "idea" } & CommunityIdea);
+
+// SOC-6
+export interface SocialGroup {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  topic: string | null;
+  ticker: string | null;
+  is_private: boolean;
+  created_by_user_id: string;
+  created_at: string;
+  member_count: number;
+  is_member: boolean;
+}
+
+export interface GroupMember {
+  user_id: string;
+  role: "member" | "moderator" | "owner";
+  display_name: string | null;
+}
+
+export type SocialGroupDetail = SocialGroup & { members: GroupMember[] };
+
+// SOC-7: polling-based chat (no WebSocket layer in this app) + permissioned DMs.
+export interface ChatMessage {
+  id: number;
+  room: string;
+  user_id: string;
+  display_name: string | null;
+  body: string;
+  created_at: string;
+}
+
+export interface DmConversation {
+  other_user_id: string;
+  display_name: string | null;
+  last_message: string;
+  last_at: string;
+}
+
+export interface DirectMessage {
+  id: number;
+  sender_user_id: string;
+  recipient_user_id: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
 }
 
 export interface AdminSettings {

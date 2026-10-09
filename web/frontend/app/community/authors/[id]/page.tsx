@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { ApiError, followAuthor, getCommunityAuthorProfile, unfollowAuthor } from "@/lib/api";
-import type { CommunityAuthorProfile } from "@/lib/types";
+import { ApiError, followAuthor, getCommunityAuthorProfile, getCurrentUser, getSocialProfile, unfollowAuthor, updateSocialProfile } from "@/lib/api";
+import type { CommunityAuthorProfile, ExperienceLevel, SocialProfile } from "@/lib/types";
+
+const EXPERIENCE_LEVELS: ExperienceLevel[] = ["beginner", "intermediate", "experienced"];
 
 function fmtPct(v: number | null): string {
   if (v === null) return "—";
@@ -17,15 +19,36 @@ export default function CommunityAuthorProfilePage() {
   const authorId = params.id;
 
   const [profile, setProfile] = useState<CommunityAuthorProfile | null>(null);
+  const [socialProfile, setSocialProfile] = useState<SocialProfile | null>(null);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [following, setFollowing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editingExperience, setEditingExperience] = useState<ExperienceLevel | "">("");
+  const [editingInterests, setEditingInterests] = useState("");
 
   useEffect(() => {
     getCommunityAuthorProfile(authorId)
       .then(setProfile)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load this profile."));
+    if (authorId !== "model") {
+      getSocialProfile(authorId).then((sp) => {
+        setSocialProfile(sp);
+        setEditingExperience(sp.experience_level ?? "");
+        setEditingInterests((sp.interests ?? []).join(", "));
+      }).catch(() => undefined); // SOC-1 fields are supplementary -- never block the COM-3 profile on this
+      getCurrentUser().then((me) => setMyUserId(me.id)).catch(() => undefined);
+    }
   }, [authorId]);
+
+  async function handleSaveSocialProfile() {
+    const interests = editingInterests.split(",").map((s) => s.trim()).filter(Boolean);
+    const updated = await updateSocialProfile({
+      experience_level: editingExperience || null,
+      interests,
+    });
+    setSocialProfile(updated);
+  }
 
   async function handleFollowToggle() {
     setBusy(true);
@@ -71,6 +94,49 @@ export default function CommunityAuthorProfilePage() {
           </Link>
         </div>
       </div>
+
+      {socialProfile && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          {socialProfile.verified_badge && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+              Verified track record
+            </span>
+          )}
+          {socialProfile.experience_level && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 capitalize">
+              {socialProfile.experience_level}
+            </span>
+          )}
+          {(socialProfile.interests ?? []).map((i) => (
+            <span key={i} className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+              {i}
+            </span>
+          ))}
+          <span className="text-xs text-slate-400">
+            Reputation: {socialProfile.reputation.reputation !== null ? socialProfile.reputation.reputation.toFixed(2) : "not enough data yet"}
+          </span>
+        </div>
+      )}
+
+      {myUserId === authorId && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+          <select value={editingExperience} onChange={(e) => setEditingExperience(e.target.value as ExperienceLevel)} className="rounded-md border border-slate-300 px-2 py-1 text-xs">
+            <option value="">Experience level...</option>
+            {EXPERIENCE_LEVELS.map((lvl) => (
+              <option key={lvl} value={lvl}>{lvl}</option>
+            ))}
+          </select>
+          <input
+            value={editingInterests}
+            onChange={(e) => setEditingInterests(e.target.value)}
+            placeholder="Interests, comma-separated"
+            className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs"
+          />
+          <button onClick={handleSaveSocialProfile} className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-white">
+            Save
+          </button>
+        </div>
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-md border border-slate-200 bg-white p-3">
