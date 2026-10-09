@@ -282,6 +282,9 @@ export default function ChallengeDetailPage() {
                         {e.diversification_ok ? "✓" : "✗"} {e.largest_position_pct.toFixed(1)}%
                       </span>
                     )}
+                    <span className="ml-1.5 text-xs text-slate-400">
+                      ({e.holdings_count ?? 0} holding{e.holdings_count === 1 ? "" : "s"})
+                    </span>
                   </td>
                 )}
                 {e.return_pct === null ? (

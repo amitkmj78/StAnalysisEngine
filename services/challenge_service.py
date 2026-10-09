@@ -157,8 +157,11 @@ async def compute_member_diversification(account: dict) -> dict:
     store total equity, not positions, so this is a fresh Alpaca call,
     same decrypt -> API call -> fail-open shape as capture_equity_for_
     account above. {"largest_position_pct": None, "diversification_ok":
-    True} on any failure or an empty/cash-only account -- "can't tell"
-    defaults to not penalizing, never to a guessed concentration."""
+    True, "holdings_count": 0} on any failure or an empty/cash-only
+    account -- "can't tell" defaults to not penalizing, never to a
+    guessed concentration. holdings_count is the acceptance criterion's
+    own "number of holdings" leaderboard column, not just an internal
+    detail of the concentration check."""
     try:
         secret_key = decrypt_token(account["api_secret_key_encrypted"])
         positions = await run_in_threadpool(
@@ -166,12 +169,17 @@ async def compute_member_diversification(account: dict) -> dict:
         )
     except (ValueError, AlpacaTradingError) as e:
         logger.warning("Alpaca list_positions failed for diversification check, account %s: %s", account["id"], e)
-        return {"largest_position_pct": None, "diversification_ok": True}
+        return {"largest_position_pct": None, "diversification_ok": True, "holdings_count": 0}
 
     holdings = [{"ticker": p["symbol"], "market_value": float(p["market_value"])} for p in positions]
-    largest_position_pct = concentration(holdings)["largest_position_pct"]
+    measures = concentration(holdings)
+    largest_position_pct = measures["largest_position_pct"]
     diversification_ok = largest_position_pct is None or largest_position_pct <= DIVERSIFICATION_CONCENTRATION_LIMIT_PCT
-    return {"largest_position_pct": largest_position_pct, "diversification_ok": diversification_ok}
+    return {
+        "largest_position_pct": largest_position_pct,
+        "diversification_ok": diversification_ok,
+        "holdings_count": measures["holdings"],
+    }
 
 
 async def capture_equity_for_account(account: dict) -> bool:

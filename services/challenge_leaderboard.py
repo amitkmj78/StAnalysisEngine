@@ -142,6 +142,7 @@ async def build_leaderboard(challenge_id: int) -> Optional[dict]:
             if account is None:
                 e["largest_position_pct"] = None
                 e["diversification_ok"] = None
+                e["holdings_count"] = None
                 continue
             e.update(await compute_member_diversification(account))
 

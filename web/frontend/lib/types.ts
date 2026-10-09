@@ -2691,6 +2691,7 @@ export interface ChallengeLeaderboardEntry {
   // BEG-6: only present when scoring === "diversified".
   largest_position_pct?: number | null;
   diversification_ok?: boolean | null;
+  holdings_count?: number | null;
 }
 
 export interface ChallengeLeaderboardResponse {

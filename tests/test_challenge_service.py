@@ -144,6 +144,7 @@ def test_compute_member_diversification_flags_concentrated_account():
         result = asyncio.run(compute_member_diversification(_ACCOUNT))
     assert result["largest_position_pct"] == 80.0
     assert result["diversification_ok"] is False
+    assert result["holdings_count"] == 2
 
 
 def test_compute_member_diversification_ok_within_the_limit():
@@ -156,6 +157,7 @@ def test_compute_member_diversification_ok_within_the_limit():
     assert result["largest_position_pct"] == 20.0
     assert result["diversification_ok"] is True
     assert result["largest_position_pct"] < DIVERSIFICATION_CONCENTRATION_LIMIT_PCT
+    assert result["holdings_count"] == 5
 
 
 def test_compute_member_diversification_exactly_at_the_limit_is_ok():
@@ -167,6 +169,7 @@ def test_compute_member_diversification_exactly_at_the_limit_is_ok():
         result = asyncio.run(compute_member_diversification(_ACCOUNT))
     assert result["largest_position_pct"] == DIVERSIFICATION_CONCENTRATION_LIMIT_PCT
     assert result["diversification_ok"] is True
+    assert result["holdings_count"] == 4
 
 
 def test_compute_member_diversification_defaults_to_ok_on_alpaca_failure():
@@ -178,7 +181,7 @@ def test_compute_member_diversification_defaults_to_ok_on_alpaca_failure():
         side_effect=AlpacaTradingError(500, "boom"),
     ):
         result = asyncio.run(compute_member_diversification(_ACCOUNT))
-    assert result == {"largest_position_pct": None, "diversification_ok": True}
+    assert result == {"largest_position_pct": None, "diversification_ok": True, "holdings_count": 0}
 
 
 def test_compute_member_diversification_empty_account_is_ok():
@@ -186,7 +189,7 @@ def test_compute_member_diversification_empty_account_is_ok():
         "services.challenge_service.alpaca_trading_client.list_positions", return_value=[]
     ):
         result = asyncio.run(compute_member_diversification(_ACCOUNT))
-    assert result == {"largest_position_pct": None, "diversification_ok": True}
+    assert result == {"largest_position_pct": None, "diversification_ok": True, "holdings_count": 0}
 
 
 def test_rebase_handles_empty_and_zero_base():
