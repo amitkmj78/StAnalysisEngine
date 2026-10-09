@@ -61,27 +61,27 @@ export default function RegimeBanner() {
     : [];
 
   return (
-    <div className={`border-b px-4 py-2 text-xs ${regimeClass(data.regime)}`}>
+    <div className={`border-b px-4 py-2 text-strip ${regimeClass(data.regime)}`}>
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-1">
         <span className="font-semibold">
           Market regime: {data.regime ?? "Unknown"}
         </span>
-        <span className="text-[11px] opacity-80">as of {data.as_of_date}</span>
-        <span className="text-[11px] opacity-80">
+        <span className="text-strip-meta opacity-80">as of {data.as_of_date}</span>
+        <span className="text-strip-meta opacity-80">
           Breadth {pct(breadth?.pct_above_50dma)} above 50-DMA
         </span>
-        <span className="text-[11px] opacity-80">
+        <span className="text-strip-meta opacity-80">
           Volatility VIX {volatility?.vix ?? "—"}
           {volatility?.inverted ? " (term inverted)" : ""}
         </span>
-        <span className="text-[11px] opacity-80">
+        <span className="text-strip-meta opacity-80">
           Trend {trend?.above_50dma === null || trend?.above_50dma === undefined
             ? "—"
             : trend.above_50dma
               ? "SPY above its 50-DMA"
               : "SPY below its 50-DMA"}
         </span>
-        <span className="text-[11px] opacity-80">
+        <span className="text-strip-meta opacity-80">
           Risk appetite {pct(risk_appetite?.momentum_pct)}
         </span>
         <button
@@ -93,7 +93,7 @@ export default function RegimeBanner() {
         </button>
       </div>
       {expanded && (
-        <div className="mx-auto mt-1 max-w-6xl text-[11px] leading-relaxed opacity-90">
+        <div className="mx-auto mt-1 max-w-6xl text-strip-meta leading-relaxed opacity-90">
           <p>
             {data.disclosure}{" "}
             <Link href="/regime/methodology" className="underline decoration-dotted underline-offset-2">
@@ -128,7 +128,7 @@ export default function RegimeBanner() {
         // REG-3: a site-wide echo of the same per-signal caution note on
         // stock/[ticker]/page.tsx's ScoreCard -- a condition, not an
         // instruction (no "sell"/"buy" language).
-        <p className="mx-auto mt-1 max-w-6xl text-[11px] font-medium leading-relaxed">
+        <p className="mx-auto mt-1 max-w-6xl text-strip-meta font-medium leading-relaxed">
           Signal confidence may read differently than usual across this app while the market is in a Risk-Off
           regime.
         </p>

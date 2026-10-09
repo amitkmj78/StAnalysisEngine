@@ -211,13 +211,13 @@ export default function PortfolioComparePage() {
       {/* Window picker */}
       <div className="mt-4">
         <p className="text-xs font-medium text-slate-500">Window</p>
-        <div className="mt-2 grid grid-cols-5 gap-2 sm:flex">
+        <div className="mt-2 flex gap-2 overflow-x-auto">
           {WINDOWS.map((w) => (
             <button
               key={w.code}
               type="button"
               onClick={() => setUrlState({ window: w.code })}
-              className={`min-h-[44px] rounded-lg border px-4 py-2 text-sm font-medium ${
+              className={`min-h-[44px] flex-none rounded-lg border px-4 py-2 text-sm font-medium ${
                 windowCode === w.code ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"
               }`}
             >

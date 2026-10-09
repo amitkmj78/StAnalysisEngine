@@ -68,7 +68,7 @@ export default function UnifiedMarketTicker() {
 
   return (
     <div className="relative overflow-hidden border-b border-slate-200 bg-white">
-      <div className="market-ticker-track flex flex-shrink-0 items-center gap-6 whitespace-nowrap py-1.5 pl-4 text-xs">
+      <div className="market-ticker-track text-strip flex flex-shrink-0 items-center gap-6 whitespace-nowrap py-1.5 pl-4">
         {loopEntries.map((entry, i) => (
           <span key={`${entry.key}-${i}`} className="flex flex-none items-center gap-1.5">
             {entry.kind === "price" ? (
@@ -95,7 +95,7 @@ export default function UnifiedMarketTicker() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-slate-700 hover:text-slate-900 hover:underline"
               >
-                <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                <span className="text-strip-meta rounded bg-indigo-600 px-1.5 py-0.5 font-bold uppercase tracking-wide text-white">
                   News
                 </span>
                 <span>{entry.item.title}</span>

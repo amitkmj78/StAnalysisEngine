@@ -11,6 +11,10 @@ import {
   setDisplayName,
 } from "@/lib/api";
 import type { CommunityIdea } from "@/lib/types";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Container from "@/components/ui/Container";
 
 function fmtPct(v: number | null): string {
   if (v === null) return "—";
@@ -105,7 +109,7 @@ export default function CommunityFeedPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
+    <Container>
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-slate-900">Community Ideas</h1>
         <Link href="/community/leaderboard" className="text-sm font-medium text-slate-600 hover:underline">
@@ -136,18 +140,15 @@ export default function CommunityFeedPage() {
               onChange={(e) => setDisplayNameDraft(e.target.value)}
               className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             />
-            <button
-              type="submit"
-              disabled={savingDisplayName}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            >
+            <Button type="submit" disabled={savingDisplayName}>
               Save
-            </button>
+            </Button>
           </div>
         </form>
       )}
 
-      <form onSubmit={handlePublish} className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+      <Card className="mt-6">
+      <form onSubmit={handlePublish}>
         <h2 className="font-semibold text-slate-900">Publish an idea</h2>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
@@ -248,26 +249,21 @@ export default function CommunityFeedPage() {
           </label>
         </div>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="mt-4 rounded-md bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-800 disabled:opacity-50"
-        >
+        <Button type="submit" disabled={saving} className="mt-4">
           {saving ? "Publishing…" : "Publish (locked, no edits)"}
-        </button>
+        </Button>
       </form>
+      </Card>
 
       <div className="mt-8 flex flex-col gap-3">
         {(ideas ?? []).map((idea) => (
-          <div key={idea.id} className="rounded-md border border-slate-200 bg-white p-4 text-sm">
+          <Card key={idea.id} padding="p-4" className="text-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <Link href={`/community/authors/${idea.author_user_id ?? "model"}`} className="font-semibold text-slate-900 hover:underline">
                   {idea.display_name}
                 </Link>{" "}
-                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${idea.direction === "LONG" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
-                  {idea.direction}
-                </span>{" "}
+                <Badge variant={idea.direction === "LONG" ? "positive" : "negative"}>{idea.direction}</Badge>{" "}
                 <Link href={`/stock/${idea.ticker}`} className="font-medium text-slate-800 hover:underline">
                   {idea.ticker}
                 </Link>
@@ -290,10 +286,10 @@ export default function CommunityFeedPage() {
                 <span className="text-slate-400">Not yet scored — matures {idea.horizon_days} trading days after {new Date(idea.created_at).toLocaleDateString()}</span>
               )}
             </div>
-          </div>
+          </Card>
         ))}
         {ideas !== null && ideas.length === 0 && <p className="text-sm text-slate-500">No ideas published yet.</p>}
       </div>
-    </div>
+    </Container>
   );
 }

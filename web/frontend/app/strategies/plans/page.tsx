@@ -783,6 +783,7 @@ function ReturnAssumptionTable({ rows, tone }: { rows: ReturnAssumptionRow[]; to
   const headColor = tone === "amber" ? "text-amber-700" : "text-red-700";
   return (
     <div className={`mt-3 overflow-hidden rounded-md border ${borderColor} bg-white`}>
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className={`border-b ${borderColor} text-left text-xs font-semibold uppercase tracking-wide ${headColor}`}>
@@ -801,6 +802,7 @@ function ReturnAssumptionTable({ rows, tone }: { rows: ReturnAssumptionRow[]; to
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

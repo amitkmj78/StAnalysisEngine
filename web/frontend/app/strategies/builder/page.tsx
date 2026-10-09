@@ -588,7 +588,7 @@ export default function StrategyBuilderPage() {
             </div>
             <div className="mt-3 rounded-md border border-dashed border-slate-300 p-3">
               <p className="flex items-center gap-1 text-xs font-semibold text-slate-700">Protective exit <span className="font-normal text-slate-400">· limits losers</span><MetricLabel info={STRATEGY_INFO["protective exit"]} /></p>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-600">
+              <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-3">
                 <label className="flex flex-col gap-1">
                   Trailing stop %
                   <input value={trailing} onChange={(e) => setTrailing(e.target.value)} className="input py-1 text-xs" />

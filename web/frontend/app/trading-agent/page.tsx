@@ -261,23 +261,25 @@ export default function TradingAgentPage() {
             ) : status.broker.positions.length === 0 ? (
               <p className="mt-2 text-sm text-slate-600">No open positions.</p>
             ) : (
-              <table className="mt-2 w-full text-sm">
-                <thead className="text-left text-xs uppercase text-slate-500">
-                  <tr><th className="py-1">Ticker</th><th className="text-right">Shares</th><th className="text-right">Value</th><th className="text-right">Stop</th></tr>
-                </thead>
-                <tbody>
-                  {status.broker.positions.map((p) => (
-                    <tr key={p.ticker} className="border-t border-slate-100">
-                      <td className="py-1.5 font-medium">{p.ticker}</td>
-                      <td className="text-right">{p.qty}</td>
-                      <td className="text-right">{fmtMoney(p.market_value)}</td>
-                      <td className={`text-right ${p.stop ? "" : "font-medium text-red-700"}`}>
-                        {p.stop ? `trailing ${p.stop.trail_percent}%` : "NO STOP"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                <table className="mt-2 w-full text-sm">
+                  <thead className="text-left text-xs uppercase text-slate-500">
+                    <tr><th className="py-1">Ticker</th><th className="text-right">Shares</th><th className="text-right">Value</th><th className="text-right">Stop</th></tr>
+                  </thead>
+                  <tbody>
+                    {status.broker.positions.map((p) => (
+                      <tr key={p.ticker} className="border-t border-slate-100">
+                        <td className="py-1.5 font-medium">{p.ticker}</td>
+                        <td className="text-right">{p.qty}</td>
+                        <td className="text-right">{fmtMoney(p.market_value)}</td>
+                        <td className={`text-right ${p.stop ? "" : "font-medium text-red-700"}`}>
+                          {p.stop ? `trailing ${p.stop.trail_percent}%` : "NO STOP"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
 
@@ -422,7 +424,7 @@ export default function TradingAgentPage() {
                   available price (the worse of that day&apos;s open or the theoretical stop level), not an
                   idealized fill exactly at the stop.
                 </p>
-                <dl className="mt-2 grid grid-cols-3 gap-2">
+                <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <div>
                     <dt className="text-slate-500">With stop</dt>
                     <dd className="font-medium text-slate-800">{fmtPct(agt30Result.full_period.with_stop_max_drawdown_pct)}</dd>

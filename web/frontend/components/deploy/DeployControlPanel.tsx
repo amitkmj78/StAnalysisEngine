@@ -51,7 +51,7 @@ function JobConsole({ job, onClose, onCancel }: { job: JobState; onClose: () => 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4">
       <div className="flex max-h-[80vh] w-[min(92vw,800px)] flex-col rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3">
           <div className="flex items-center gap-3">

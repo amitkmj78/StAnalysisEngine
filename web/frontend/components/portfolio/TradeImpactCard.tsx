@@ -124,8 +124,9 @@ export default function TradeImpactCard({
             {result.side === "buy" ? "Buy" : "Sell"} {result.shares} {result.ticker} at ${fmt(result.trade_price, 2)} (
             ${fmt(result.trade_price * result.shares, 0)}).
           </p>
-          <table className="mt-2 w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-slate-400">
+          <div className="overflow-x-auto">
+            <table className="mt-2 w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="py-1 font-medium">Measure</th>
                 <th className="py-1 font-medium">Before</th>
@@ -166,6 +167,7 @@ export default function TradeImpactCard({
               </tr>
             </tbody>
           </table>
+          </div>
 
           {movedSectors.length > 0 && (
             <div className="mt-4">
