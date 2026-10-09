@@ -39,7 +39,6 @@ import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import BenchmarkComparisonCard from "@/components/portfolio/BenchmarkComparisonCard";
 import GainVsPaidChart from "@/components/portfolio/GainVsPaidChart";
 import RebalanceAlertsPanel from "@/components/portfolio/RebalanceAlertsPanel";
-import MarketNewsTicker from "@/components/MarketNewsTicker";
 import PortfolioReviewCard from "@/components/portfolio/PortfolioReviewCard";
 import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import MetricLabel from "@/components/MetricLabel";
@@ -589,8 +588,6 @@ export default function PortfolioPage() {
   return (
     <div className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} ${PF.page} ${PF.ink}`} style={{ fontFamily: "var(--font-pf-sans)" }}>
       <div className="mx-auto max-w-7xl px-4 py-8">
-        <MarketNewsTicker />
-
         {/* ---------- Toolbar: portfolio switcher + entry points ---------- */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
           <PortfolioSwitcher

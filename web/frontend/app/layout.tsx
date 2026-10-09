@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
+import MarketNewsTicker from "@/components/MarketNewsTicker";
 import RegimeBanner from "@/components/RegimeBanner";
 import SiteHeader from "@/components/SiteHeader";
 
@@ -38,6 +39,11 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900" suppressHydrationWarning>
         {user && <SiteHeader email={user.email} isAdmin={isAdmin(user.email)} />}
         {user && <RegimeBanner />}
+        {user && (
+          <div className="px-4 pt-4">
+            <MarketNewsTicker />
+          </div>
+        )}
         <main className="flex-1">{children}</main>
       </body>
     </html>

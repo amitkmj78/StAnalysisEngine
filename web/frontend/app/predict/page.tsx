@@ -8,7 +8,6 @@ import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import type { ColumnInfo } from "@/components/InfoModal";
 import MetricLabel from "@/components/MetricLabel";
-import MarketNewsTicker from "@/components/MarketNewsTicker";
 import PortfolioMoversWidget from "@/components/PortfolioMoversWidget";
 import SafeBaselineBand from "@/components/SafeBaselineBand";
 import TickerSearchInput from "@/components/TickerSearchInput";
@@ -384,7 +383,6 @@ export default function PredictPage() {
   return (
     <div className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} bg-slate-50 text-slate-900`} style={{ fontFamily: "var(--font-pf-sans)" }}>
       <div className="mx-auto max-w-4xl px-4 py-8">
-        <MarketNewsTicker />
         <PortfolioMoversWidget />
         {searchParams.get("from") === "portfolio" && (
           <Link href="/portfolio" className="mb-2 inline-block text-sm font-medium text-slate-500 hover:underline">
