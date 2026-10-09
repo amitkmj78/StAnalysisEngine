@@ -5,66 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { logout } from "@/app/actions";
-import { getMarketOverview } from "@/lib/api";
-import type { MarketIndexQuote } from "@/lib/types";
-
-// Fetched every 15 minutes (also server-cached on that same cadence --
-// see services/market_overview_service.py), not shorter: this is a
-// background header ticker, not a live quote badge.
-const MARKET_OVERVIEW_POLL_MS = 15 * 60 * 1000;
-
-function MarketOverviewTicker() {
-  const [indices, setIndices] = useState<MarketIndexQuote[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    function load() {
-      getMarketOverview()
-        .then((res) => {
-          if (!cancelled) setIndices(res.indices);
-        })
-        .catch(() => undefined); // non-fatal -- the header ticker is supplementary
-    }
-    load();
-    const interval = setInterval(load, MARKET_OVERVIEW_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
-
-  if (!indices) return null;
-
-  // Duplicated once so the CSS animation can scroll a full loop and land
-  // back at an identical starting point with no visible seam/jump --
-  // same idiom as MarketNewsTicker.tsx's news-ticker-track.
-  const loopIndices = [...indices, ...indices];
-
-  return (
-    <div className="hidden overflow-hidden border-t border-slate-100 bg-slate-50 py-1 text-xs sm:block">
-      <div className="market-ticker-track flex flex-shrink-0 items-center gap-6 whitespace-nowrap px-4">
-        {loopIndices.map((idx, i) => (
-          <span key={`${idx.ticker}-${i}`} className="flex flex-none items-center gap-1">
-            <span className="font-medium text-slate-700">{idx.label}</span>
-            {idx.price !== null ? (
-              <>
-                <span className="text-slate-600">{idx.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                {idx.change_pct !== null && (
-                  <span className={idx.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}>
-                    {idx.change_pct >= 0 ? "▲" : "▼"}
-                    {Math.abs(idx.change_pct).toFixed(2)}%
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="text-slate-400">—</span>
-            )}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 type NavItem = { href: string; label: string };
 type NavEntry = { label: string; href: string } | { label: string; items: NavItem[] };
@@ -276,8 +216,6 @@ export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin:
           </form>
         </div>
       </div>
-
-      <MarketOverviewTicker />
 
       {mobileOpen && (
         <nav className="flex flex-col gap-4 border-t border-slate-200 px-4 py-3 text-sm font-medium sm:hidden">

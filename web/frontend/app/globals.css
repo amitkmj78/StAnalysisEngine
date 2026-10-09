@@ -47,19 +47,12 @@ body {
   }
 }
 
-.news-ticker-track {
-  animation: ticker-scroll 90s linear infinite;
-}
-
-.news-ticker-track:hover {
-  animation-play-state: paused;
-}
-
-/* Header market-overview strip -- same loop idea as .news-ticker-track
-   above, shorter duration since each item is a short price/change pair
-   rather than a headline. */
+/* The combined price + headline strip (UnifiedMarketTicker.tsx) --
+   50s balances short price/change pairs against longer headlines in
+   the same loop, between the old price-only (35s) and news-only (90s)
+   speeds this replaced. */
 .market-ticker-track {
-  animation: ticker-scroll 35s linear infinite;
+  animation: ticker-scroll 50s linear infinite;
 }
 
 .market-ticker-track:hover {
@@ -67,7 +60,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .news-ticker-track,
   .market-ticker-track {
     animation: none;
     overflow-x: auto;
