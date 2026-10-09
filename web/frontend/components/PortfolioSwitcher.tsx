@@ -173,7 +173,9 @@ export default function PortfolioSwitcher({
         >
           {portfolios.map((p) => (
             <option key={p.id} value={p.id}>
+              {p.has_paper_account ? "🧪 " : ""}
               {p.name} ({p.position_count})
+              {p.has_paper_account ? " — Paper" : ""}
             </option>
           ))}
         </select>

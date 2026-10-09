@@ -711,6 +711,11 @@ export default function PortfolioPage() {
             <div>
               <p className="font-mono text-[11px] uppercase tracking-wider text-slate-500" style={MONO_FONT}>
                 Total value · {currentPortfolio?.name ?? "Portfolio"}
+                {currentPortfolio?.has_paper_account && (
+                  <span className="ml-1.5 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                    Paper
+                  </span>
+                )}
               </p>
               <p className="mt-1 text-5xl font-semibold leading-none" style={DISPLAY_FONT}>
                 {totalValue !== null ? `$${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}

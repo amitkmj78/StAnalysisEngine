@@ -652,6 +652,10 @@ export interface Portfolio {
   cash_balance: number;
   account_type: AccountType;
   position_count: number;
+  // Whether this portfolio has a linked Alpaca paper-trading account --
+  // shown as a badge wherever portfolios are listed/selected, so a paper-
+  // linked portfolio never gets silently confused with a real one.
+  has_paper_account: boolean;
 }
 
 export interface PortfolioListResponse {

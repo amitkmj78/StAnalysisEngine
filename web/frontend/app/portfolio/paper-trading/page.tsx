@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   ApiError,
   acceptPaperTradingDisclosure,
+  createPortfolio,
   getPaperAccounts,
   getPaperOrders,
   getPortfolios,
@@ -36,6 +37,16 @@ export default function PaperTradingPage() {
   const [linkingPortfolioId, setLinkingPortfolioId] = useState<number | null>(null);
   const [acceptingPortfolioId, setAcceptingPortfolioId] = useState<number | null>(null);
   const [unlinkingPortfolioId, setUnlinkingPortfolioId] = useState<number | null>(null);
+
+  // Offered when the user has no portfolio yet -- named explicitly here
+  // (not left to silently auto-create a generic "My Portfolio" the first
+  // time some other endpoint needs one), so a portfolio created for paper
+  // trading is never indistinguishable from a real one by name alone.
+  const [newPortfolioName, setNewPortfolioName] = useState(
+    () => `Paper Trading (${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})`
+  );
+  const [creatingPortfolio, setCreatingPortfolio] = useState(false);
+  const [createPortfolioError, setCreatePortfolioError] = useState<string | null>(null);
 
   function load() {
     getPortfolios()
@@ -76,6 +87,25 @@ export default function PaperTradingPage() {
       setError(err instanceof ApiError ? err.message : "Could not link this key pair.");
     } finally {
       setLinkingPortfolioId(null);
+    }
+  }
+
+  async function handleCreatePortfolio(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newPortfolioName.trim();
+    if (!name) {
+      setCreatePortfolioError("Enter a name for this portfolio.");
+      return;
+    }
+    setCreatingPortfolio(true);
+    setCreatePortfolioError(null);
+    try {
+      await createPortfolio(name);
+      load();
+    } catch (err) {
+      setCreatePortfolioError(err instanceof ApiError ? err.message : "Could not create that portfolio.");
+    } finally {
+      setCreatingPortfolio(false);
     }
   }
 
@@ -138,7 +168,29 @@ export default function PaperTradingPage() {
       {loading ? (
         <p className="mt-6 text-sm text-slate-500">Loading…</p>
       ) : portfolios.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-500">You don&apos;t have a portfolio yet.</p>
+        <form onSubmit={handleCreatePortfolio} className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-slate-900">Create a portfolio for paper trading</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            You need a portfolio before linking a paper account. Name it something you&apos;ll recognize as
+            practice money -- you can always rename or create another real one later from the main Portfolio page.
+          </p>
+          <label className="mt-3 block text-xs font-medium text-slate-600">
+            Portfolio name
+            <input
+              value={newPortfolioName}
+              onChange={(e) => setNewPortfolioName(e.target.value)}
+              className="mt-1 w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={creatingPortfolio}
+            className="mt-3 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {creatingPortfolio ? "Creating…" : "Create portfolio"}
+          </button>
+          {createPortfolioError && <p className="mt-2 text-xs text-red-600">{createPortfolioError}</p>}
+        </form>
       ) : (
         <div className="mt-6 flex flex-col gap-4">
           {portfolios.map((p) => {

@@ -138,9 +138,15 @@ async def _resolve_portfolio_id(conn, user_id: str, portfolio_id: Optional[int])
     if row is not None:
         return row["id"]
 
+    # Date-stamped, not a bare "My Portfolio" -- a user who creates a
+    # second portfolio later (e.g. explicitly for paper trading) and picks
+    # an equally generic name would otherwise have two indistinguishable
+    # "My Portfolio" rows with no way to tell them apart in any portfolio
+    # picker (confirmed real confusion between a real and a paper-linked
+    # portfolio sharing a name).
     created = await conn.fetchrow(
-        "INSERT INTO portfolios (user_id, name) VALUES ($1::uuid, 'My Portfolio') RETURNING id",
-        user_id,
+        "INSERT INTO portfolios (user_id, name) VALUES ($1::uuid, $2) RETURNING id",
+        user_id, f"My Portfolio ({date.today().isoformat()})",
     )
     return created["id"]
 
@@ -290,7 +296,8 @@ async def list_portfolios(request: Request):
     async with user_conn(user_id) as conn:
         records = await conn.fetch(
             """
-            SELECT p.id, p.name, p.created_at, p.margin_balance, p.cash_balance, p.account_type, count(pp.id) AS position_count
+            SELECT p.id, p.name, p.created_at, p.margin_balance, p.cash_balance, p.account_type, count(pp.id) AS position_count,
+                   EXISTS(SELECT 1 FROM alpaca_paper_accounts a WHERE a.portfolio_id = p.id) AS has_paper_account
             FROM portfolios p
             LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = p.user_id
             WHERE p.user_id = $1::uuid AND p.is_active
@@ -321,7 +328,7 @@ async def create_portfolio(request: Request, body: CreatePortfolioRequest):
             "RETURNING id, name, created_at, margin_balance, cash_balance, account_type",
             user_id, name, body.account_type,
         )
-    return {**_record_to_dict(record), "position_count": 0}
+    return {**_record_to_dict(record), "position_count": 0, "has_paper_account": False}
 
 
 @router.delete("/{portfolio_id}")
