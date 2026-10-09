@@ -3,11 +3,11 @@ import type { BacktestOut } from "@/lib/types";
 
 // "Ledger" palette -- see ForecastChart.tsx's own copy of this comment.
 const ACTUAL_LINE = "#3b6ea5"; // distinct blue, kept apart from good/bad/accent
-const GOOD = "#047857";
+const GOOD = "#0E5C57";
 const NAIVE_LINE = "#94a3b8"; // muted, "the boring baseline" -- deliberately low-contrast
-const INK = "#0f172a";
-const MUTED = "#64748b";
-const GRID_LINE = "#e2e8f0";
+const INK = "#18201D";
+const MUTED = "#555F5A";
+const GRID_LINE = "#ECEEEA";
 const SURFACE = "#ffffff";
 
 export default function BacktestChart({ ticker, backtest }: { ticker: string; backtest: BacktestOut }) {

@@ -1,31 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import Link from "next/link";
 
 import { ApiError, getEarningsCalendar } from "@/lib/api";
 import type { EarningsCalendarResponse } from "@/lib/types";
 
-// Same "Ledger" direction already shipped on /portfolio, /predict and
-// /stock-finder (warm paper, Fraunces for headings/numbers, IBM Plex for
-// body/UI text) -- a numbers-dense calendar table fits that family better
-// than the plain slate theme most other pages (including /watchlist, the
-// closest data-analog) still use. The rest of the site keeps its default
-// Geist font/palette untouched.
-const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
-const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-pf-sans" });
-const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
-
+// "Ledger" direction (warm paper, Fraunces for headings/numbers, IBM Plex
+// for body/UI text) is now the whole app's shared look -- see app/
+// layout.tsx + app/globals.css's --pf-* tokens, loaded globally there.
 const PF = {
-  page: "bg-slate-50",
-  ink: "text-slate-900",
+  page: "bg-[var(--pf-bg)]",
+  ink: "text-[var(--pf-text)]",
   muted: "text-slate-500",
-  line: "border-slate-200",
-  card: "rounded-xl border border-slate-200 bg-white",
+  line: "border-[var(--pf-border)]",
+  card: "rounded-xl border border-[var(--pf-border)] bg-white",
   surface2: "bg-slate-100",
-  chip: "inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium",
-  btn: "rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-indigo-700 hover:text-indigo-700",
+  chip: "inline-flex items-center gap-1 rounded-full border border-[var(--pf-border)] bg-white px-2.5 py-1 text-xs font-medium",
+  btn: "rounded-md border border-[var(--pf-border)] bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]",
 };
 
 export default function EarningsCalendarPage() {
@@ -50,7 +42,7 @@ export default function EarningsCalendarPage() {
   }
 
   return (
-    <div className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} ${PF.page} ${PF.ink} min-h-screen`} style={{ fontFamily: "var(--font-pf-sans)" }}>
+    <div className={`${PF.page} ${PF.ink} min-h-screen`}>
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="font-display text-3xl font-semibold" style={{ fontFamily: "var(--font-pf-display)" }}>
@@ -66,7 +58,7 @@ export default function EarningsCalendarPage() {
         </p>
 
         {loading && <p className={`mt-6 text-sm ${PF.muted}`}>Loading…</p>}
-        {error && <p className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-6 rounded-md bg-[var(--pf-down-soft)] px-3 py-2 text-sm text-[var(--pf-down)]">{error}</p>}
 
         {data && !loading && (
           <div className={`mt-6 ${PF.card} p-5`}>

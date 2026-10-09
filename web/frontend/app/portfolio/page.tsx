@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 
 import {
   ApiError,
@@ -44,14 +43,11 @@ import InfoModal, { type ColumnInfo } from "@/components/InfoModal";
 import MetricLabel from "@/components/MetricLabel";
 import { nextSort, sortRows, type SortDirection } from "@/lib/sortRows";
 
-// Scoped to this page only -- the rest of the site keeps its existing
-// Geist font (see app/layout.tsx) and slate palette. "Ledger" direction
-// from the published redesign concepts: warm paper, Fraunces for
-// numbers/headings, IBM Plex for body/UI text and tabular data.
-const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
-const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-pf-sans" });
-const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
-
+// "Ledger" direction (warm paper, Fraunces for numbers/headings, IBM
+// Plex for body/UI text and tabular data) is now the whole app's shared
+// look (see app/layout.tsx + app/globals.css's --pf-* tokens) -- these
+// fonts are loaded globally there, this page just references the same
+// CSS variables.
 const DISPLAY_FONT = { fontFamily: "var(--font-pf-display)" };
 const MONO_FONT = { fontFamily: "var(--font-pf-mono)" };
 
@@ -61,15 +57,15 @@ const MONO_FONT = { fontFamily: "var(--font-pf-mono)" };
 // green accent, and good/bad kept close to (but distinct from) that
 // accent hue.
 const PF = {
-  page: "bg-slate-50",
-  ink: "text-slate-900",
+  page: "bg-[var(--pf-bg)]",
+  ink: "text-[var(--pf-text)]",
   muted: "text-slate-500",
-  line: "border-slate-200",
-  card: "rounded-xl border border-slate-200 bg-white",
-  good: "text-emerald-700",
-  bad: "text-red-700",
-  btn: "rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-indigo-700 hover:text-indigo-700",
-  btnPrimary: "rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold text-slate-50 hover:bg-emerald-800",
+  line: "border-[var(--pf-border)]",
+  card: "rounded-xl border border-[var(--pf-border)] bg-white",
+  good: "text-[var(--pf-up)]",
+  bad: "text-[var(--pf-down)]",
+  btn: "rounded-md border border-[var(--pf-border)] bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]",
+  btnPrimary: "rounded-md bg-[var(--pf-accent)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90",
 };
 
 function goodBad(v: number | null | undefined): string {
@@ -586,7 +582,7 @@ export default function PortfolioPage() {
   const totalValue = performance?.total_value_now ?? summary?.total_value ?? null;
 
   return (
-    <div className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} ${PF.page} ${PF.ink}`} style={{ fontFamily: "var(--font-pf-sans)" }}>
+    <div className={`${PF.page} ${PF.ink}`}>
       <div className="mx-auto max-w-7xl px-4 py-8">
         {/* ---------- Toolbar: portfolio switcher + entry points ---------- */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
@@ -699,9 +695,9 @@ export default function PortfolioPage() {
           </div>
         )}
 
-        {error && <p className={`mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm ${PF.bad}`}>{error}</p>}
+        {error && <p className={`mt-4 rounded-md border border-[var(--pf-down)]/30 bg-[var(--pf-down-soft)] px-3 py-2 text-sm ${PF.bad}`}>{error}</p>}
         {watchlistNote && (
-          <p className={`mt-4 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm ${PF.good}`}>
+          <p className={`mt-4 rounded-md border border-[var(--pf-up)]/30 bg-[var(--pf-accent-soft)] px-3 py-2 text-sm ${PF.good}`}>
             {watchlistNote}{" "}
             <a href="/watchlist" className="underline">
               View watchlist
@@ -777,7 +773,7 @@ export default function PortfolioPage() {
           <div className="mt-2">
             {performanceLoading && !performance && <p className="mt-4 text-sm text-slate-500">Loading…</p>}
             {performanceError && (
-              <p className={`mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm ${PF.bad}`}>{performanceError}</p>
+              <p className={`mt-4 rounded-md border border-[var(--pf-down)]/30 bg-[var(--pf-down-soft)] px-3 py-2 text-sm ${PF.bad}`}>{performanceError}</p>
             )}
 
             {performance && performance.rows.length > 0 && (
@@ -979,7 +975,7 @@ export default function PortfolioPage() {
                               {s.alpaca_paper_account_id != null && (
                                 <span
                                   title="Synced from your linked Alpaca paper-trading account — simulated, not real money."
-                                  className="rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600"
+                                  className="rounded-full bg-[var(--pf-accent-soft)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--pf-accent)]"
                                 >
                                   Paper
                                 </span>
@@ -987,7 +983,7 @@ export default function PortfolioPage() {
                               {insight?.concentrated && (
                                 <span
                                   title="A single position this large drives most of your portfolio's swings."
-                                  className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
+                                  className="rounded-full bg-[var(--pf-warn-soft)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--pf-warn)]"
                                 >
                                   {insight.weight_pct?.toFixed(0)}%
                                 </span>
@@ -1004,9 +1000,9 @@ export default function PortfolioPage() {
                               <span
                                 className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                                   insight.signal === "BUY"
-                                    ? "bg-emerald-50 text-emerald-700"
+                                    ? "bg-[var(--pf-accent-soft)] text-[var(--pf-up)]"
                                     : insight.signal === "SELL"
-                                    ? "bg-red-50 text-red-700"
+                                    ? "bg-[var(--pf-down-soft)] text-[var(--pf-down)]"
                                     : "bg-slate-100 text-slate-600"
                                 }`}
                               >
@@ -1103,28 +1099,28 @@ export default function PortfolioPage() {
                                     <div className="flex flex-col gap-0.5">
                                       <Link
                                         href={`/stock/${s.ticker}`}
-                                        className="text-indigo-700 hover:underline"
+                                        className="text-[var(--pf-accent)] hover:underline"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         Price chart
                                       </Link>
                                       <Link
                                         href={`/predict?ticker=${s.ticker}&from=portfolio`}
-                                        className="text-indigo-700 hover:underline"
+                                        className="text-[var(--pf-accent)] hover:underline"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         Forecast
                                       </Link>
                                       <Link
                                         href={`/signal-comparison?ticker=${s.ticker}&from=portfolio`}
-                                        className="text-indigo-700 hover:underline"
+                                        className="text-[var(--pf-accent)] hover:underline"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         Quant vs Analyst
                                       </Link>
                                       <Link
                                         href="/guides/signals"
-                                        className="text-indigo-700 hover:underline"
+                                        className="text-[var(--pf-accent)] hover:underline"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         What do signals mean?
@@ -1139,7 +1135,7 @@ export default function PortfolioPage() {
                                   {insight.concentrated && insight.weight_pct !== null && (
                                     <span
                                       title="A single position this large drives most of your portfolio's swings — consider whether that's intentional."
-                                      className="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700"
+                                      className="rounded-full bg-[var(--pf-warn-soft)] px-2 py-0.5 font-semibold text-[var(--pf-warn)]"
                                     >
                                       {insight.weight_pct.toFixed(0)}% of portfolio — concentrated
                                     </span>
@@ -1256,10 +1252,10 @@ export default function PortfolioPage() {
         )}
 
         {insightsError && (
-          <p className={`mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm ${PF.bad}`}>{insightsError}</p>
+          <p className={`mt-3 rounded-md border border-[var(--pf-down)]/30 bg-[var(--pf-down-soft)] px-3 py-2 text-sm ${PF.bad}`}>{insightsError}</p>
         )}
         {positionActionError && movingTicker === null && (
-          <p className={`mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm ${PF.bad}`}>{positionActionError}</p>
+          <p className={`mt-3 rounded-md border border-[var(--pf-down)]/30 bg-[var(--pf-down-soft)] px-3 py-2 text-sm ${PF.bad}`}>{positionActionError}</p>
         )}
 
 

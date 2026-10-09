@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Fraunces, IBM_Plex_Mono } from "next/font/google";
 
 import {
   ApiError,
@@ -57,8 +56,8 @@ import TrackRecordPanel from "@/components/stock-detail/TrackRecordPanel";
 import CommunityDiscussionPanel from "@/components/stock-detail/CommunityDiscussionPanel";
 import TickerSearchInput from "@/components/TickerSearchInput";
 
-const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
-const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
+// Fraunces/IBM Plex Mono are loaded globally now (app/layout.tsx) -- this
+// page just references the same CSS variables, no local instantiation.
 const DISPLAY_FONT = { fontFamily: "var(--font-pf-display)" };
 const MONO_FONT = { fontFamily: "var(--font-pf-mono)" };
 
@@ -476,7 +475,7 @@ export default function StockScorePage() {
   }, [signalHistory]);
 
   return (
-    <div className={`mx-auto max-w-5xl px-4 py-8 ${fraunces.variable} ${plexMono.variable}`}>
+    <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Stock Detail</p>
@@ -923,7 +922,7 @@ export default function StockScorePage() {
                     href={f.document_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs font-medium text-indigo-600 hover:underline"
+                    className="text-xs font-medium text-[var(--pf-accent)] hover:underline"
                   >
                     View full filing on SEC.gov
                   </a>
@@ -949,7 +948,7 @@ export default function StockScorePage() {
               href={earningsRelease.release.document_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-medium text-indigo-600 hover:underline"
+              className="text-xs font-medium text-[var(--pf-accent)] hover:underline"
             >
               View full press release on SEC.gov
             </a>

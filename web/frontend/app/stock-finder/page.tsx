@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import Link from "next/link";
 
 import MetricLabel from "@/components/MetricLabel";
@@ -34,29 +33,24 @@ import type {
   StockRankRow,
 } from "@/lib/types";
 
-// Scoped to this page only -- same "Ledger" direction already shipped on
-// /portfolio and /predict (warm paper, Fraunces for headings/numbers, IBM
-// Plex for body/UI/tabular data). The rest of the site keeps its Geist
-// font (app/layout.tsx) and slate palette untouched.
-const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
-const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-pf-sans" });
-const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
-
+// "Ledger" direction (warm paper, Fraunces for headings/numbers, IBM Plex
+// for body/UI/tabular data) is now the whole app's shared look -- see
+// app/layout.tsx + app/globals.css's --pf-* tokens, loaded globally there.
 const PF = {
-  page: "bg-slate-50",
-  ink: "text-slate-900",
+  page: "bg-[var(--pf-bg)]",
+  ink: "text-[var(--pf-text)]",
   muted: "text-slate-500",
-  line: "border-slate-200",
-  card: "rounded-xl border border-slate-200 bg-white",
+  line: "border-[var(--pf-border)]",
+  card: "rounded-xl border border-[var(--pf-border)] bg-white",
   surface2: "bg-slate-100",
-  good: "text-emerald-700",
-  bad: "text-red-700",
-  warnBg: "bg-amber-50",
-  warnText: "text-amber-700",
-  btn: "rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-indigo-700 hover:text-indigo-700",
-  btnPrimary: "rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold text-slate-50 hover:bg-emerald-800",
-  input: "rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900",
-  chip: "inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-900",
+  good: "text-[var(--pf-up)]",
+  bad: "text-[var(--pf-down)]",
+  warnBg: "bg-[var(--pf-warn-soft)]",
+  warnText: "text-[var(--pf-warn)]",
+  btn: "rounded-md border border-[var(--pf-border)] bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]",
+  btnPrimary: "rounded-md bg-[var(--pf-accent)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90",
+  input: "rounded-md border border-[var(--pf-border)] bg-white px-3 py-2 text-sm text-slate-900",
+  chip: "inline-flex items-center gap-1 rounded-full border border-[var(--pf-border)] bg-white px-2.5 py-1 text-xs text-slate-900",
 };
 
 function goodBad(v: number | null | undefined): string {
@@ -787,7 +781,7 @@ export default function StockFinderPage() {
   );
 
   return (
-    <div className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} ${PF.page} ${PF.ink}`} style={{ fontFamily: "var(--font-pf-sans)" }}>
+    <div className={`${PF.page} ${PF.ink}`}>
       <div className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="font-display text-3xl font-semibold" style={{ fontFamily: "var(--font-pf-display)" }}>
           Stock Screener
@@ -795,7 +789,7 @@ export default function StockFinderPage() {
         <p className={`mt-1 max-w-2xl text-sm ${PF.muted}`}>
           Rank a stock universe by goal, or score one ticker directly. Filter, customize columns, and save screens
           to reuse later.{" "}
-          <Link href="/guides/signals" className="text-indigo-600 hover:underline">
+          <Link href="/guides/signals" className="text-[var(--pf-accent)] hover:underline">
             Learn more about reading signals →
           </Link>
         </p>
@@ -881,7 +875,7 @@ export default function StockFinderPage() {
           </p>
         )}
 
-        {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-4 rounded-md bg-[var(--pf-down-soft)] px-3 py-2 text-sm text-[var(--pf-down)]">{error}</p>}
 
         {!loading && hasSearched && results.length === 0 && !error && (
           <p className={`mt-4 text-sm ${PF.muted}`}>No results for that selection.</p>
@@ -1023,7 +1017,7 @@ export default function StockFinderPage() {
                 <button
                   type="button"
                   onClick={() => setShowFilters((v) => !v)}
-                  className={`${PF.btn} ${showFilters ? "border-indigo-700 text-indigo-700" : ""}`}
+                  className={`${PF.btn} ${showFilters ? "border-[var(--pf-accent)] text-[var(--pf-accent)]" : ""}`}
                 >
                   {showFilters ? "Hide Filters" : "Filters"}
                   {filtersActive(filters) ? ` (active)` : ""}
@@ -1031,7 +1025,7 @@ export default function StockFinderPage() {
                 <button
                   type="button"
                   onClick={() => setShowColumnPicker((v) => !v)}
-                  className={`${PF.btn} ${showColumnPicker ? "border-indigo-700 text-indigo-700" : ""}`}
+                  className={`${PF.btn} ${showColumnPicker ? "border-[var(--pf-accent)] text-[var(--pf-accent)]" : ""}`}
                 >
                   Columns
                 </button>
@@ -1159,7 +1153,7 @@ export default function StockFinderPage() {
                           onClick={() => toggleShortSignal(sig)}
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                             filters.shortSignal.includes(sig)
-                              ? "border-indigo-700 bg-indigo-700 text-white"
+                              ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white"
                               : `${PF.line} ${PF.muted} hover:bg-slate-100`
                           }`}
                         >
@@ -1178,7 +1172,7 @@ export default function StockFinderPage() {
                           onClick={() => toggleLongSignal(sig)}
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                             filters.longSignal.includes(sig)
-                              ? "border-indigo-700 bg-indigo-700 text-white"
+                              ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white"
                               : `${PF.line} ${PF.muted} hover:bg-slate-100`
                           }`}
                         >
@@ -1198,7 +1192,7 @@ export default function StockFinderPage() {
                           type="button"
                           onClick={() => setFilters((prev) => ({ ...prev, owned: v }))}
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${
-                            filters.owned === v ? "border-indigo-700 bg-indigo-700 text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
+                            filters.owned === v ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
                           }`}
                         >
                           {v === "only" ? "Owned only" : v === "exclude" ? "Not owned" : "Any"}
@@ -1215,7 +1209,7 @@ export default function StockFinderPage() {
                           type="button"
                           onClick={() => setFilters((prev) => ({ ...prev, watchlisted: v }))}
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${
-                            filters.watchlisted === v ? "border-indigo-700 bg-indigo-700 text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
+                            filters.watchlisted === v ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
                           }`}
                         >
                           {v === "only" ? "Watchlisted only" : v === "exclude" ? "Not watchlisted" : "Any"}
@@ -1234,7 +1228,7 @@ export default function StockFinderPage() {
                         onClick={() => toggleSector(s)}
                         className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                           filters.sectors.includes(s)
-                            ? "border-indigo-700 bg-indigo-700 text-white"
+                            ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white"
                             : `${PF.line} ${PF.muted} hover:bg-slate-100`
                         }`}
                       >
@@ -1290,7 +1284,7 @@ export default function StockFinderPage() {
                         type="button"
                         onClick={() => setFilters((prev) => ({ ...prev, [key]: !prev[key] }))}
                         className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                          filters[key] ? "border-indigo-700 bg-indigo-700 text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
+                          filters[key] ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
                         }`}
                       >
                         {label}
@@ -1407,9 +1401,9 @@ export default function StockFinderPage() {
                                         <span
                                           className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                                             quantSignal.signal.signal === "BUY"
-                                              ? "bg-emerald-50 text-emerald-700"
+                                              ? "bg-[var(--pf-accent-soft)] text-[var(--pf-up)]"
                                               : quantSignal.signal.signal === "SELL"
-                                              ? "bg-red-50 text-red-700"
+                                              ? "bg-[var(--pf-down-soft)] text-[var(--pf-down)]"
                                               : `${PF.surface2} ${PF.muted}`
                                           }`}
                                         >
@@ -1453,9 +1447,9 @@ export default function StockFinderPage() {
                                           <span
                                             className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                                               /buy/i.test(analystRating.rating.consensus)
-                                                ? "bg-emerald-50 text-emerald-700"
+                                                ? "bg-[var(--pf-accent-soft)] text-[var(--pf-up)]"
                                                 : /sell|underperform/i.test(analystRating.rating.consensus)
-                                                ? "bg-red-50 text-red-700"
+                                                ? "bg-[var(--pf-down-soft)] text-[var(--pf-down)]"
                                                 : `${PF.surface2} ${PF.muted}`
                                             }`}
                                           >

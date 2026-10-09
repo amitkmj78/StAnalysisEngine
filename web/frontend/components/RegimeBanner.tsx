@@ -12,11 +12,11 @@ import type { MarketRegimeResponse } from "@/lib/types";
 // and must stay visible or one click away, never collapsed by default
 // into something a reader could miss entirely.
 function regimeClass(regime: string | null | undefined): string {
-  if (regime === "Risk-On") return "border-emerald-200 bg-emerald-50 text-emerald-800";
-  if (regime === "Constructive") return "border-teal-200 bg-teal-50 text-teal-800";
-  if (regime === "Cautious") return "border-amber-200 bg-amber-50 text-amber-800";
-  if (regime === "Risk-Off") return "border-red-200 bg-red-50 text-red-800";
-  return "border-slate-200 bg-slate-50 text-slate-700"; // Neutral, or unknown
+  if (regime === "Risk-On") return "border-[var(--pf-up)]/30 bg-[var(--pf-accent-soft)] text-[var(--pf-up)]";
+  if (regime === "Constructive") return "border-[var(--pf-accent)]/30 bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]";
+  if (regime === "Cautious") return "border-[var(--pf-warn)]/30 bg-[var(--pf-warn-soft)] text-[var(--pf-warn)]";
+  if (regime === "Risk-Off") return "border-[var(--pf-down)]/30 bg-[var(--pf-down-soft)] text-[var(--pf-down)]";
+  return "border-[var(--pf-border)] bg-[var(--pf-bg)] text-[var(--pf-text-2)]"; // Neutral, or unknown
 }
 
 function pct(value: number | null | undefined, digits = 1): string {

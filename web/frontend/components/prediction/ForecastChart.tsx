@@ -4,12 +4,13 @@ import type { ForecastOut } from "@/lib/types";
 // "Ledger" palette (see web/frontend/app/predict/page.tsx's PF constant)
 // -- Plotly reads plain hex/rgba strings from its data/layout config, not
 // CSS, so these are literal values matching that palette rather than a
-// shared token.
-const GOOD = "#047857";
-const CI_FILL = "rgba(47, 107, 79, 0.15)";
-const INK = "#0f172a";
-const MUTED = "#64748b";
-const GRID_LINE = "#e2e8f0";
+// shared token. Forest-green accent + warm-paper neutrals, matching the
+// "Price outlook" mockup's tokens (--accent/--text/--text-3/--divider).
+const GOOD = "#0E5C57";
+const CI_FILL = "rgba(14, 92, 87, 0.16)";
+const INK = "#18201D";
+const MUTED = "#555F5A";
+const GRID_LINE = "#ECEEEA";
 const SURFACE = "#ffffff";
 
 export default function ForecastChart({ ticker, forecast }: { ticker: string; forecast: ForecastOut }) {

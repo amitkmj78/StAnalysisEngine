@@ -1,15 +1,16 @@
 import type { ReactNode } from "react";
 
-/** Reuses the emerald/red/slate colors already consistently used app-
- * wide for these meanings (gains/LONG/correct, losses/SHORT/wrong,
- * verified) -- see the UI-consistency audit's one genuine bright spot. */
+/** Uses the shared "Price outlook" up/down/warn tokens (globals.css)
+ * instead of plain Tailwind emerald/red/amber -- same meanings (gains/
+ * LONG/correct, losses/SHORT/wrong, verified) the UI-consistency audit
+ * already found converged well on their own, now on one shared palette. */
 type BadgeVariant = "positive" | "negative" | "verified" | "warning" | "neutral";
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
-  positive: "bg-emerald-50 text-emerald-700",
-  negative: "bg-red-50 text-red-700",
-  verified: "bg-emerald-50 text-emerald-700",
-  warning: "bg-amber-50 text-amber-700",
+  positive: "bg-[var(--pf-accent-soft)] text-[var(--pf-up)]",
+  negative: "bg-[var(--pf-down-soft)] text-[var(--pf-down)]",
+  verified: "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]",
+  warning: "bg-[var(--pf-warn-soft)] text-[var(--pf-warn)]",
   neutral: "bg-slate-100 text-slate-600",
 };
 

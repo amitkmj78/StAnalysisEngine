@@ -119,7 +119,7 @@ function NavDropdown({ entry, active }: { entry: { label: string; items: NavItem
         aria-haspopup="true"
         aria-expanded={open}
         className={`flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors ${
-          active ? "text-slate-900" : "text-slate-600 hover:text-slate-900"
+          active ? "text-[var(--pf-accent)]" : "text-slate-600 hover:text-slate-900"
         }`}
       >
         {entry.label}
@@ -198,7 +198,7 @@ export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin:
                 key={entry.href}
                 href={entry.href}
                 className={`rounded-md px-2 py-1.5 transition-colors ${
-                  isActive(entry) ? "text-slate-900" : "text-slate-600 hover:text-slate-900"
+                  isActive(entry) ? "text-[var(--pf-accent)]" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 {entry.label}
@@ -231,7 +231,7 @@ export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin:
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
                       className={`rounded-md px-2 py-2 ${
-                        pathname === item.href ? "bg-slate-100 text-slate-900" : "text-slate-700 hover:bg-slate-50"
+                        pathname === item.href ? "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "text-slate-700 hover:bg-slate-50"
                       }`}
                     >
                       {item.label}
@@ -243,7 +243,7 @@ export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin:
                   href={entry.href}
                   onClick={() => setMobileOpen(false)}
                   className={`rounded-md px-2 py-2 ${
-                    pathname === entry.href ? "bg-slate-100 text-slate-900" : "text-slate-700 hover:bg-slate-50"
+                    pathname === entry.href ? "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "text-slate-700 hover:bg-slate-50"
                   }`}
                 >
                   {entry.label}

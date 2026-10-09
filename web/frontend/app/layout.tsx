@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 
 import { isAdmin } from "@/lib/admin";
@@ -15,6 +15,11 @@ const geistSans = Geist({
 
 const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
+// Global app-wide body/UI face -- was previously loaded per-page by only
+// 5 "Ledger" pages (predict/portfolio/earnings/stock-finder/stock-detail);
+// now the shared default (see globals.css's `body` rule) so the whole
+// app shares one look, not just those 5 pages.
+const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-pf-sans" });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -34,9 +39,9 @@ export default async function RootLayout({
   const user = await getSession();
 
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} ${plexSans.variable} h-full antialiased`}>
       {/* Browser extensions such as Grammarly add attributes to body before React loads; ignore just those. */}
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {user && <SiteHeader email={user.email} isAdmin={isAdmin(user.email)} />}
         {user && <UnifiedMarketTicker />}
         {user && <RegimeBanner />}

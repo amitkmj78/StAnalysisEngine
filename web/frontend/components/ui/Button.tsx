@@ -2,13 +2,13 @@ import type { ButtonHTMLAttributes } from "react";
 
 /** The three button "families" found across the app, picked to match
  * the single most common look of each rather than inventing a new one
- * -- `primary` standardizes on `bg-slate-900` (the most common primary
- * color; a few pages used `indigo-700` instead for the same role, an
- * inconsistency this fixes where applied). */
+ * -- `primary` uses the shared "Price outlook" accent token (globals.css)
+ * instead of slate-900/indigo-700, the two different "primary" colors
+ * different pages had used for the same role. */
 type ButtonVariant = "primary" | "secondary" | "danger";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: "bg-slate-900 text-white hover:bg-slate-800",
+  primary: "bg-[var(--pf-accent)] text-white hover:opacity-90",
   secondary: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
   danger: "border border-red-300 bg-white text-red-700 hover:bg-red-50",
 };

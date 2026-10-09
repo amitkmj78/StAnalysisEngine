@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 
 import CurrentPriceBadge from "@/components/CurrentPriceBadge";
 import type { ColumnInfo } from "@/components/InfoModal";
@@ -36,28 +35,59 @@ import type {
   SavedPrediction,
 } from "@/lib/types";
 
-// Scoped to this page only -- same "Ledger" direction shipped on
-// /portfolio, same mechanism (next/font/google imports local to this
-// file, not app/layout.tsx). See web/frontend/app/portfolio/page.tsx's
-// own copy of this comment for why.
-const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pf-display" });
-const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-pf-sans" });
-const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-pf-mono" });
-
+// Fraunces/IBM Plex Sans/Mono are loaded globally now (app/layout.tsx) --
+// this page just references the same CSS variables, no local instantiation.
 const DISPLAY_FONT = { fontFamily: "var(--font-pf-display)" };
 const MONO_FONT = { fontFamily: "var(--font-pf-mono)" };
 
+// "Price outlook" palette: warm paper + forest-green accent, now the whole
+// app's shared look (app/globals.css's --pf-* tokens, loaded globally via
+// app/layout.tsx) -- the other "Ledger" pages (/portfolio, /earnings,
+// /stock-finder) reference the same tokens, not a separate copy.
 const PF = {
-  card: "rounded-xl border border-slate-200 bg-white",
-  btn: "rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-indigo-700 hover:text-indigo-700",
-  btnPrimary: "rounded-md bg-indigo-700 px-4 py-2 text-sm font-semibold text-slate-50 hover:bg-emerald-800",
-  btnDelete: "rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50",
-  errorBanner: "rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700",
+  page: "bg-[var(--pf-bg)]",
+  card: "rounded-xl border border-[var(--pf-border)] bg-white",
+  btn: "rounded-md border border-[var(--pf-border)] bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]",
+  btnPrimary: "rounded-md bg-[var(--pf-accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90",
+  btnDelete: "rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-[var(--pf-down)] hover:bg-red-50 disabled:opacity-50",
+  errorBanner: "rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-[var(--pf-down)]",
+  accent: "text-[var(--pf-accent)]",
+  goodBadge: "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]",
+  upBadge: "bg-[var(--pf-accent-soft)] text-[var(--pf-up)]",
+  downBadge: "bg-[var(--pf-down-soft)] text-[var(--pf-down)]",
+  warnBadge: "bg-[var(--pf-warn-soft)] text-[var(--pf-warn)]",
 };
 
 function goodBad(v: number | null | undefined): string {
   if (v === null || v === undefined) return "text-slate-500";
-  return v >= 0 ? "text-emerald-700" : "text-red-700";
+  return v >= 0 ? "text-[var(--pf-up)]" : "text-[var(--pf-down)]";
+}
+
+// SOURCE OF THE "EDGE" LABEL: the same model-vs-naive MAE improvement the
+// Backtest Accuracy card already computes (data.metrics.mae/naive_mae) --
+// a compact summary of real numbers already on the page, not a new metric.
+const EDGE_SMALL = 0.05;
+const EDGE_CLEAR = 0.15;
+
+function edgeOf(mae: number, naiveMae: number): { label: string; cls: string; text: string } {
+  const imp = (naiveMae - mae) / naiveMae;
+  if (imp >= EDGE_CLEAR) {
+    return { label: "Clear edge", cls: PF.goodBadge, text: "In past tests its errors were clearly smaller than just assuming the price won't change." };
+  }
+  if (imp >= EDGE_SMALL) {
+    return { label: "Small edge", cls: PF.goodBadge, text: "In past tests it was somewhat more accurate than assuming the price won't change." };
+  }
+  return { label: "No real edge", cls: PF.warnBadge, text: "In past tests its errors were about the same as just assuming the price won't change." };
+}
+
+// "No clear move expected" below this threshold -- same reasoning as the
+// mockup's flatMovePct: a tiny expected move isn't worth a directional
+// headline even though the signal badge itself still shows BUY/HOLD/SELL.
+const FLAT_MOVE_PCT = 0.5;
+
+function headlineOf(expectedReturnPct: number): string {
+  if (Math.abs(expectedReturnPct) < FLAT_MOVE_PCT) return "No clear move expected";
+  return expectedReturnPct > 0 ? `Leaning up, about +${expectedReturnPct.toFixed(2)}%` : `Leaning down, about ${expectedReturnPct.toFixed(2)}%`;
 }
 
 // Genuinely dynamic (the title/body text itself changes with the selected
@@ -86,6 +116,7 @@ const PERIODS = [
 ];
 
 const FORECAST_HORIZONS = [5, 10, 20, 30, 60];
+const HISTORY_PREVIEW_ROWS = 3;
 
 export default function PredictPage() {
   const searchParams = useSearchParams();
@@ -116,6 +147,7 @@ export default function PredictPage() {
 
   const [history, setHistory] = useState<SavedPrediction[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -174,6 +206,7 @@ export default function PredictPage() {
     setCompareData({});
     setCompareInput("");
     setPrimaryBand(null);
+    setShowAllHistory(false);
     try {
       const summary = await getPredictionSummary(forTicker.trim().toUpperCase(), forPeriod, forDaysAhead);
       setData(summary);
@@ -226,6 +259,29 @@ export default function PredictPage() {
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function downloadHistoryCsv() {
+    const header = [
+      "saved_at", "last_close", "predicted_next_close", "actual_next_close", "next_close_error_pct",
+      "target_date", "predicted_target", "actual_target_open", "actual_target_price", "target_error_pct",
+      "signal", "correct",
+    ].join(",");
+    const rows = history.map((p) =>
+      [
+        p.predicted_at, p.last_close ?? "", p.next_price ?? "", p.actual_next_price ?? "",
+        p.next_price_error_pct ?? "", p.target_date ?? "", p.target_price ?? "",
+        p.actual_target_open ?? "", p.actual_target_price ?? "", p.target_price_error_pct ?? "",
+        p.signal ?? "", p.signal_correct === null ? "" : p.signal_correct,
+      ].join(",")
+    );
+    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
+    const a = Object.assign(document.createElement("a"), {
+      href: URL.createObjectURL(blob),
+      download: `${data?.ticker ?? "forecast"}-saved-predictions.csv`,
+    });
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   async function autoSavePrediction(forTicker: string, forPeriod: string, forDaysAhead: number) {
@@ -381,7 +437,7 @@ export default function PredictPage() {
   }
 
   return (
-    <div className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} bg-slate-50 text-slate-900`} style={{ fontFamily: "var(--font-pf-sans)" }}>
+    <div className={`${PF.page} text-slate-900`}>
       <div className="mx-auto max-w-4xl px-4 py-8">
         <PortfolioMoversWidget />
         {searchParams.get("from") === "portfolio" && (
@@ -406,7 +462,7 @@ export default function PredictPage() {
               id="ticker"
               value={ticker}
               onChange={setTicker}
-              className="w-40 rounded-md border border-slate-200 px-3 py-2 text-sm"
+              className="w-40 rounded-md border border-[var(--pf-border)] px-3 py-2 text-sm"
             />
           </div>
           <CurrentPriceBadge ticker={ticker} refreshKey={priceRefreshKey} />
@@ -418,7 +474,7 @@ export default function PredictPage() {
               id="period"
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
-              className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+              className="rounded-md border border-[var(--pf-border)] bg-white px-3 py-2 text-sm"
             >
               {PERIODS.map((p) => (
                 <option key={p.value} value={p.value}>
@@ -428,21 +484,28 @@ export default function PredictPage() {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor="days-ahead" className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
+            <span id="days-ahead-label" className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
               Forecast horizon
-            </label>
-            <select
-              id="days-ahead"
-              value={daysAhead}
-              onChange={(e) => setDaysAhead(Number(e.target.value))}
-              className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+            </span>
+            <div
+              role="group"
+              aria-labelledby="days-ahead-label"
+              className="grid auto-cols-fr grid-flow-col gap-1 rounded-md bg-[#EEF0EC] p-[3px]"
             >
               {FORECAST_HORIZONS.map((d) => (
-                <option key={d} value={d}>
-                  {d} days
-                </option>
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={daysAhead === d}
+                  onClick={() => setDaysAhead(d)}
+                  className={`min-h-[38px] rounded px-2.5 text-sm ${
+                    daysAhead === d ? "bg-white font-semibold text-slate-900 shadow-sm" : "text-slate-500"
+                  }`}
+                >
+                  {d}d
+                </button>
               ))}
-            </select>
+            </div>
           </div>
           <button type="submit" disabled={loading || !ticker.trim()} className={`${PF.btnPrimary} disabled:opacity-50`}>
             {loading ? "Analyzing…" : "Analyze"}
@@ -457,7 +520,16 @@ export default function PredictPage() {
 
         {error && <p className={`mt-4 ${PF.errorBanner}`}>{error}</p>}
 
-        {data && !loading && (
+        {data && !loading && (() => {
+          // Mockup's targetDate/ciLow/ciHigh aren't separate backend
+          // fields -- they're the LAST element of forecast.dates/
+          // lower_ci/upper_ci (the end of the forecast horizon).
+          const lastIdx = data.forecast ? data.forecast.dates.length - 1 : -1;
+          const targetDateStr = lastIdx >= 0 ? data.forecast!.dates[lastIdx] : null;
+          const ciLow = lastIdx >= 0 ? data.forecast!.lower_ci[lastIdx] : null;
+          const ciHigh = lastIdx >= 0 ? data.forecast!.upper_ci[lastIdx] : null;
+          const edge = data.metrics?.naive_mae ? edgeOf(data.metrics.mae, data.metrics.naive_mae) : null;
+          return (
           <div className="mt-8 flex flex-col gap-9">
             {/* ---------- Hero ---------- */}
             <div>
@@ -490,20 +562,20 @@ export default function PredictPage() {
                       <MetricLabel info={getSignalInfo(shownDaysAhead)} />
                     </span>
                     {data.signal.signal_flip_count !== null && (
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          data.signal.signal_unstable ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-500"
-                        }`}
-                      >
-                        Flipped {data.signal.signal_flip_count} time{data.signal.signal_flip_count === 1 ? "" : "s"} over
-                        its trailing {data.signal.signal_days_captured}-day history
-                        {data.signal.signal_unstable ? " — treat this call with less confidence." : "."}
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${data.signal.signal_unstable ? PF.warnBadge : "bg-slate-100 text-slate-500"}`}>
+                        {data.signal.signal_flip_count === 0
+                          ? `No signal flips in the last ${data.signal.signal_days_captured} days.`
+                          : `Flipped ${data.signal.signal_flip_count} time${data.signal.signal_flip_count === 1 ? "" : "s"} over its trailing ${data.signal.signal_days_captured}-day history${data.signal.signal_unstable ? " — treat this call with less confidence." : "."}`}
                       </span>
                     )}
                   </div>
 
+                  <p className="mt-3 text-2xl font-semibold leading-tight" style={DISPLAY_FONT}>
+                    {headlineOf(data.signal.expected_return_pct)}
+                  </p>
+
                   <div className="mt-4 flex flex-wrap gap-3">
-                    <div className="min-w-[150px] rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="min-w-[150px] rounded-xl border border-[var(--pf-border)] bg-white px-4 py-3">
                       <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
                         Expected Return ({shownDaysAhead}d)
                       </p>
@@ -511,15 +583,35 @@ export default function PredictPage() {
                         {data.signal.expected_return_pct.toFixed(2)}%
                       </p>
                     </div>
-                    <div className="min-w-[150px] rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="min-w-[150px] rounded-xl border border-[var(--pf-border)] bg-white px-4 py-3">
                       <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
-                        Target Price
+                        Target Price{targetDateStr ? ` (${new Date(targetDateStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })})` : ""}
                       </p>
                       <p className="mt-0.5 text-lg font-semibold" style={MONO_FONT}>
                         ${data.signal.target_price.toFixed(2)}
                       </p>
                     </div>
+                    {ciLow !== null && ciHigh !== null && (
+                      <div className="min-w-[150px] rounded-xl border border-[var(--pf-border)] bg-white px-4 py-3">
+                        <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
+                          Likely Range (95%)
+                        </p>
+                        <p className="mt-0.5 text-lg font-semibold" style={MONO_FONT}>
+                          ${ciLow.toFixed(2)} – ${ciHigh.toFixed(2)}
+                        </p>
+                      </div>
+                    )}
                   </div>
+
+                  {edge && (
+                    <div className="mt-4 border-t border-[var(--pf-divider)] pt-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold">Better than a simple guess?</h3>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${edge.cls}`}>{edge.label}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">{edge.text}</p>
+                    </div>
+                  )}
 
                   <p className="mt-3 max-w-xl text-xs text-slate-500">
                     This is one data-driven signal, not a guarantee — see Backtest Accuracy below for how it has
@@ -527,7 +619,7 @@ export default function PredictPage() {
                   </p>
 
                   <div className="mt-3 flex items-center gap-3">
-                    <button onClick={handleSave} disabled={saving} className={`${PF.btn} disabled:opacity-50`}>
+                    <button onClick={handleSave} disabled={saving} className={saving ? `${PF.btn} disabled:opacity-50` : PF.btnPrimary}>
                       {saving ? "Saving…" : "Save this prediction"}
                     </button>
                     {saveMessage && <span className="text-xs text-slate-500">{saveMessage}</span>}
@@ -592,10 +684,8 @@ export default function PredictPage() {
                           delta={data.metrics.mape - data.metrics.naive_mape!}
                         />
                         <div
-                          className={`flex items-center justify-center rounded-lg border p-3 text-sm font-semibold ${
-                            data.metrics.beats_naive
-                              ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                              : "border-red-200 bg-red-50 text-red-700"
+                          className={`flex items-center justify-center rounded-lg p-3 text-sm font-semibold ${
+                            data.metrics.beats_naive ? PF.upBadge : PF.downBadge
                           }`}
                         >
                           {data.metrics.beats_naive ? "Beats naive baseline" : "Does not beat naive"}
@@ -621,7 +711,7 @@ export default function PredictPage() {
                 <span className="text-xs text-slate-500">Click to open</span>
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <AccordionItem
                   id="history"
                   title={`Prediction History for ${data.ticker}`}
@@ -629,9 +719,16 @@ export default function PredictPage() {
                   open={openSections.has("history")}
                   onToggle={() => toggleSection("history")}
                 >
-                  <p className="text-sm text-slate-500">
-                    Different from the backtest above, which is a historical simulation, not a live record.
-                  </p>
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="text-sm text-slate-500">
+                      Different from the backtest above, which is a historical simulation, not a live record.
+                    </p>
+                    {history.length > 0 && (
+                      <button type="button" onClick={downloadHistoryCsv} className="text-xs font-medium text-[var(--pf-accent)] hover:underline">
+                        Download CSV
+                      </button>
+                    )}
+                  </div>
                   {historyLoading ? (
                     <p className="mt-3 text-sm text-slate-500">Loading history…</p>
                   ) : history.length === 0 ? (
@@ -657,7 +754,7 @@ export default function PredictPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {history.map((p) => (
+                          {(showAllHistory ? history : history.slice(0, HISTORY_PREVIEW_ROWS)).map((p) => (
                             <tr key={p.id} className="border-b border-slate-200 last:border-0">
                               <td className="px-2 py-2 text-slate-700">{new Date(p.predicted_at).toLocaleDateString()}</td>
                               <td className="px-2 py-2 text-slate-700">
@@ -692,9 +789,9 @@ export default function PredictPage() {
                                 {p.signal_correct === null ? (
                                   <span className="text-slate-400">pending</span>
                                 ) : p.signal_correct ? (
-                                  <span className="text-emerald-700">✓ correct</span>
+                                  <span className="text-[var(--pf-up)]">✓ correct</span>
                                 ) : (
-                                  <span className="text-red-700">✗ wrong</span>
+                                  <span className="text-[var(--pf-down)]">✗ wrong</span>
                                 )}
                               </td>
                               <td className="px-2 py-2 text-right">
@@ -711,6 +808,15 @@ export default function PredictPage() {
                         </tbody>
                       </table>
                     </div>
+                  )}
+                  {history.length > HISTORY_PREVIEW_ROWS && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllHistory((v) => !v)}
+                      className="mt-2 text-xs font-medium text-[var(--pf-accent)] hover:underline"
+                    >
+                      {showAllHistory ? "Show fewer" : `Show all ${history.length}`}
+                    </button>
                   )}
                 </AccordionItem>
 
@@ -765,7 +871,7 @@ export default function PredictPage() {
                           <ul className="mt-2 flex flex-col gap-1">
                             {narrative.sentiment_sources.map((s) => (
                               <li key={s.url}>
-                                <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                                <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[var(--pf-accent)] hover:underline">
                                   {s.title}
                                 </a>
                               </li>
@@ -1069,7 +1175,8 @@ export default function PredictPage() {
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
       </div>
     </div>
@@ -1097,7 +1204,7 @@ function DeltaTile({ label, value, delta }: { label: string; value: string; delt
       <p className="mt-1 text-xl font-semibold text-slate-900" style={MONO_FONT}>
         {value}
       </p>
-      <p className={`mt-0.5 text-xs font-medium ${worse ? "text-red-700" : "text-emerald-700"}`} style={MONO_FONT}>
+      <p className={`mt-0.5 text-xs font-medium ${worse ? "text-[var(--pf-down)]" : "text-[var(--pf-up)]"}`} style={MONO_FONT}>
         {worse ? "↑" : "↓"} {Math.abs(delta).toFixed(2)}
       </p>
     </div>
@@ -1137,13 +1244,13 @@ function AccordionItem({
           fill="none"
           stroke="currentColor"
           strokeWidth={2.5}
-          className={`h-3.5 w-3.5 flex-none text-slate-500 transition-transform ${open ? "rotate-90" : ""}`}
+          className={`h-3.5 w-3.5 flex-none text-[var(--pf-accent)] transition-transform ${open ? "rotate-90" : ""}`}
         >
           <path d="M9 5l7 7-7 7" />
         </svg>
       </button>
       {open && (
-        <div id={`accordion-${id}`} className="border-t border-slate-200 px-4 py-4">
+        <div id={`accordion-${id}`} className="border-t border-[var(--pf-divider)] px-4 py-4">
           {children}
         </div>
       )}

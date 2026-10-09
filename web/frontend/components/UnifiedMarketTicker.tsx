@@ -95,7 +95,7 @@ export default function UnifiedMarketTicker() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-slate-700 hover:text-slate-900 hover:underline"
               >
-                <span className="text-strip-meta rounded bg-indigo-600 px-1.5 py-0.5 font-bold uppercase tracking-wide text-white">
+                <span className="text-strip-meta rounded bg-[var(--pf-accent)] px-1.5 py-0.5 font-bold uppercase tracking-wide text-white">
                   News
                 </span>
                 <span>{entry.item.title}</span>
