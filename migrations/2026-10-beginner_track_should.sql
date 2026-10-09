@@ -35,4 +35,7 @@ create index if not exists group_sessions_group_idx on group_sessions(group_id, 
 -- BEG-6: a challenge can opt into being beginner-only, which forces the
 -- 'diversified' scoring method (services/challenge_service.py) rather than
 -- leaving diversification optional.
+alter table challenges drop constraint if exists challenges_scoring_check;
+alter table challenges add constraint challenges_scoring_check
+  check (scoring in ('return','sharpe','sortino','calmar','excess_spy','diversified'));
 alter table challenges add column if not exists beginner_only boolean not null default false;
