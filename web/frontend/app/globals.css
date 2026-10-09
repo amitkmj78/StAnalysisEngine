@@ -55,8 +55,20 @@ body {
   animation-play-state: paused;
 }
 
+/* Header market-overview strip -- same loop idea as .news-ticker-track
+   above, shorter duration since each item is a short price/change pair
+   rather than a headline. */
+.market-ticker-track {
+  animation: ticker-scroll 35s linear infinite;
+}
+
+.market-ticker-track:hover {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .news-ticker-track {
+  .news-ticker-track,
+  .market-ticker-track {
     animation: none;
     overflow-x: auto;
   }

@@ -35,26 +35,33 @@ function MarketOverviewTicker() {
 
   if (!indices) return null;
 
+  // Duplicated once so the CSS animation can scroll a full loop and land
+  // back at an identical starting point with no visible seam/jump --
+  // same idiom as MarketNewsTicker.tsx's news-ticker-track.
+  const loopIndices = [...indices, ...indices];
+
   return (
-    <div className="hidden items-center gap-4 overflow-x-auto border-t border-slate-100 bg-slate-50 px-4 py-1 text-xs sm:flex">
-      {indices.map((idx) => (
-        <span key={idx.ticker} className="flex flex-none items-center gap-1">
-          <span className="font-medium text-slate-700">{idx.label}</span>
-          {idx.price !== null ? (
-            <>
-              <span className="text-slate-600">{idx.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-              {idx.change_pct !== null && (
-                <span className={idx.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}>
-                  {idx.change_pct >= 0 ? "▲" : "▼"}
-                  {Math.abs(idx.change_pct).toFixed(2)}%
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="text-slate-400">—</span>
-          )}
-        </span>
-      ))}
+    <div className="hidden overflow-hidden border-t border-slate-100 bg-slate-50 py-1 text-xs sm:block">
+      <div className="market-ticker-track flex flex-shrink-0 items-center gap-6 whitespace-nowrap px-4">
+        {loopIndices.map((idx, i) => (
+          <span key={`${idx.ticker}-${i}`} className="flex flex-none items-center gap-1">
+            <span className="font-medium text-slate-700">{idx.label}</span>
+            {idx.price !== null ? (
+              <>
+                <span className="text-slate-600">{idx.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                {idx.change_pct !== null && (
+                  <span className={idx.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}>
+                    {idx.change_pct >= 0 ? "▲" : "▼"}
+                    {Math.abs(idx.change_pct).toFixed(2)}%
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-slate-400">—</span>
+            )}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
