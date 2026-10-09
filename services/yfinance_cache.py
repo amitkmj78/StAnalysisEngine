@@ -112,15 +112,26 @@ RANGE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 180  # ~6 months
 
 @ttl_cache(maxsize=256, ttl_seconds=RANGE_CACHE_TTL_SECONDS)
 def get_cached_history_range(ticker: str, start: str, end: str, auto_adjust: bool = True) -> pd.DataFrame:
-    """Shared yf.Ticker(ticker).history(start=start, end=end, ...) -- new
-    plumbing for STR-1's historical-replay stress tests. Nothing else in
-    this module supports a date-range fetch (get_cached_history above
-    only accepts a trailing period string); the only prior start=/end=
-    usage anywhere in this repo is services/trade_storage.py's uncached
-    legacy sqlite path. start/end are ISO date strings ("2008-09-01").
-    Does NOT fail open (same as get_cached_history above) -- callers wrap
-    this in their own per-ticker try/except in a bounded fan-out, same
-    convention as portfolio_health_service.py::_fetch_close_for_period."""
+    """Plumbing for STR-1's historical-replay stress tests -- a FIXED
+    date range, not a trailing period (get_cached_history above only
+    accepts the latter). start/end are ISO date strings ("2008-09-01").
+
+    Follows the admin price-source switch like get_cached_history does,
+    with one real caveat: Alpaca's IEX feed only goes back to ~2016, so
+    older scenarios (the 2008 GFC, the dot-com bust) return empty from
+    Alpaca regardless -- those stay effectively Yahoo-only no matter
+    which provider is selected, a genuine data-coverage gap, not a bug
+    here. Does NOT fail open on the Yahoo path (same as before) --
+    callers wrap this in their own per-ticker try/except in a bounded
+    fan-out, same convention as portfolio_health_service.py::
+    _fetch_close_for_period. The Alpaca path does fail open (an empty
+    frame), matching every other Alpaca helper's convention."""
+    from .price_provider import get_price_provider
+
+    if get_price_provider() == "alpaca":
+        from .alpaca_client import get_alpaca_history_range
+
+        return get_alpaca_history_range(ticker, start, end, auto_adjust)
 
     def _fetch():
         return yf.Ticker(ticker).history(start=start, end=end, auto_adjust=auto_adjust)

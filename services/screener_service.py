@@ -3,10 +3,10 @@
 from typing import Dict, List
 import numpy as np
 import pandas as pd
-import yfinance as yf
 import ta
 
 from services.analysis_service import get_analyst_rating_summary
+from services.yfinance_cache import get_cached_history
 
 # ============================
 #  INDEX UNIVERSES (ABC)
@@ -224,8 +224,10 @@ def get_top_bullish_stocks(
 
     for tk in tickers:
         try:
-            # Pull up to 1 year of data (enough for all windows)
-            hist = yf.Ticker(tk).history(period="1y", auto_adjust=True)
+            # Pull up to 1 year of data (enough for all windows) -- through
+            # the shared, Alpaca-aware cache (services/yfinance_cache.py)
+            # instead of a raw, uncached yfinance call.
+            hist = get_cached_history(tk, "1y", auto_adjust=True)
             if hist.empty:
                 continue
 

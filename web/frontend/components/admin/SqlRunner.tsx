@@ -15,6 +15,7 @@ export default function SqlRunner() {
   const [tables, setTables] = useState<AdminSqlTable[] | null>(null);
   const [tablesError, setTablesError] = useState<string | null>(null);
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
+  const [tableFilter, setTableFilter] = useState("");
 
   const [sql, setSql] = useState<string>(DATABASES[0].defaultSql);
   const [result, setResult] = useState<AdminSqlQueryResponse | null>(null);
@@ -33,8 +34,11 @@ export default function SqlRunner() {
     setDatabase(id);
     setResult(null);
     setError(null);
+    setTableFilter("");
     setSql(DATABASES.find((d) => d.id === id)?.defaultSql ?? "");
   }
+
+  const filteredTables = tables?.filter((t) => t.table_name.toLowerCase().includes(tableFilter.trim().toLowerCase()));
 
   async function runQuery() {
     setRunning(true);
@@ -75,10 +79,21 @@ export default function SqlRunner() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
         <div className="rounded-xl border border-slate-200 bg-white p-3">
           <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Tables</h2>
+        {tables && tables.length > 0 && (
+          <input
+            value={tableFilter}
+            onChange={(e) => setTableFilter(e.target.value)}
+            placeholder="Search tables…"
+            className="mt-2 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+          />
+        )}
         {tablesError && <p className="mt-2 px-1 text-xs text-red-600">{tablesError}</p>}
         {!tables && !tablesError && <p className="mt-2 px-1 text-xs text-slate-400">Loading…</p>}
-        <div className="mt-2 flex flex-col">
-          {tables?.map((t) => (
+        {tables && filteredTables?.length === 0 && (
+          <p className="mt-2 px-1 text-xs text-slate-400">No tables match &quot;{tableFilter}&quot;.</p>
+        )}
+        <div className="mt-2 flex max-h-[28rem] flex-col overflow-y-auto">
+          {filteredTables?.map((t) => (
             <div key={t.table_name}>
               <button
                 onClick={() => {

@@ -6,7 +6,7 @@ from typing import Dict
 import yfinance as yf
 import pandas as pd
 
-from .alpaca_client import AlpacaSymbolNotFound, get_alpaca_latest_price
+from .alpaca_client import AlpacaSymbolNotFound, get_alpaca_latest_price, get_alpaca_previous_close
 from .cache_utils import ttl_cache
 from .price_provider import get_price_provider
 from .rate_limit_utils import fetch_with_backoff
@@ -217,23 +217,24 @@ def get_previous_close(ticker: str):
     standard day-P&L figure. Static for the whole trading day, so cached
     far longer than the live-price lookups above.
 
-    Always yfinance's fast_info, regardless of the admin-switchable price
-    provider (services/price_provider.py): this is where the stock closed
-    yesterday, not a live quote, and Alpaca has no equivalent lookup —
-    same precedent as services/portfolio_alert_service.get_price_and_prev_close.
+    Tries yfinance's fast_info first regardless of the admin-switchable
+    price provider (services/price_provider.py) -- that switch is about
+    which source to PREFER for live quotes, not this resilience fallback.
+    Falls back to Alpaca's daily bars (services/alpaca_client.py) only
+    when Yahoo fails, a real mitigation for a real, observed incident: a
+    Yahoo-side rate-limit storm failing most of a portfolio's
+    previousClose calls at once. Alpaca won't have every ticker Yahoo
+    does (e.g. mutual funds, which never trade on an exchange) -- if both
+    fail, this still returns None rather than a guess.
 
     Hand-rolled cache instead of the shared @ttl_cache decorator, on
     purpose: this must NEVER cache a failed/None lookup for the same 1hr
-    TTL as a real one. A transient Yahoo rate-limit hit here (observed in
-    production: most of a 14-position portfolio's previousClose calls
-    failing at once under load) would otherwise get remembered as "no
-    previous close for this ticker" for a full hour, silently blanking
-    Today's Gain/Loss for that long even after Yahoo recovers seconds
-    later. A real result is still cached for the full hour (it's static
-    for the day); only a miss goes uncached, so the next poll just
-    retries. Real retries (not get_latest_price's quick 1s one) are worth
-    it here since this runs at most once an hour per ticker, not every
-    few seconds.
+    TTL as a real one. A transient Yahoo rate-limit hit here would
+    otherwise get remembered as "no previous close for this ticker" for a
+    full hour, silently blanking Today's Gain/Loss for that long even
+    after Yahoo recovers seconds later. A real result (from either
+    source) is still cached for the full hour (it's static for the day);
+    only a miss goes uncached, so the next poll just retries.
     """
     if not ticker:
         return None
@@ -241,13 +242,25 @@ def get_previous_close(ticker: str):
         cached_at = _previous_close_cache_ts.get(ticker)
         if cached_at is not None and (time.monotonic() - cached_at) < _PREVIOUS_CLOSE_TTL_SECONDS:
             return _previous_close_cache[ticker]
+
+    result = None
     try:
         prev_close = fetch_with_backoff(lambda: yf.Ticker(ticker).fast_info.get("previousClose"))
-        if prev_close is None:
-            return None
-        result = round(float(prev_close), 2)
+        if prev_close is not None:
+            result = round(float(prev_close), 2)
     except Exception as e:
         logger.warning("Error fetching previous close for %s: %s", ticker, e)
+
+    if result is None:
+        try:
+            alpaca_result = get_alpaca_previous_close(ticker)
+            if alpaca_result is not None:
+                result = alpaca_result
+                logger.info("Previous close for %s served from the Alpaca fallback (Yahoo unavailable)", ticker)
+        except Exception as e:
+            logger.warning("Alpaca previous-close fallback failed for %s: %s", ticker, e)
+
+    if result is None:
         return None
     with _previous_close_lock:
         _previous_close_cache[ticker] = result
