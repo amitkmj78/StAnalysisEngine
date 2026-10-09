@@ -11,6 +11,7 @@ from web.backend.auth import verify_bearer_token
 from web.backend.crypto_utils import decrypt_token, encrypt_token
 from web.backend.db import user_conn
 from web.backend.rate_limit import enforce_daily_quota, limiter
+from web.backend.routers.paper_trading import get_readiness_for_user
 from web.backend.routers.portfolio import _resolve_portfolio_id
 
 router = APIRouter(prefix="/api/v1/plaid", tags=["plaid"], dependencies=[Depends(verify_bearer_token)])
@@ -30,11 +31,32 @@ def _plaid_unavailable() -> HTTPException:
     return HTTPException(503, "Plaid isn't configured on this server yet.")
 
 
+async def _enforce_beginner_gate(user_id: str) -> None:
+    """BEG-3: a self-identified beginner (users.experience_level ==
+    'beginner') must clear the paper-trading-first bar before connecting a
+    real brokerage account. Not gated for null/unset or any other level --
+    this reflects an explicit choice, not a default assumption. Checked
+    here (before Plaid Link even opens) and again in exchange_public_token
+    below (the authoritative, can't-bypass check)."""
+    async with user_conn(user_id) as conn:
+        level = await conn.fetchval("SELECT experience_level FROM users WHERE id = $1::uuid", user_id)
+        if level != "beginner":
+            return
+        readiness = await get_readiness_for_user(conn, user_id)
+    if not readiness["ready"]:
+        raise HTTPException(
+            403,
+            "Beginner mode requires finishing some paper trading and the risk quiz before connecting a real "
+            f"brokerage account. Still needed: {', '.join(readiness['missing'])}.",
+        )
+
+
 @router.post("/link-token")
 @limiter.limit("10/minute")
 async def create_link_token(request: Request):
     await enforce_daily_quota(request, "plaid/link-token")
     user_id = request.state.user["id"]
+    await _enforce_beginner_gate(user_id)
     try:
         link_token = plaid_client.create_link_token(user_id)
     except PlaidNotConfiguredError:
@@ -58,6 +80,7 @@ class ExchangeRequest(BaseModel):
 async def exchange_public_token(request: Request, body: ExchangeRequest):
     await enforce_daily_quota(request, "plaid/exchange")
     user_id = request.state.user["id"]
+    await _enforce_beginner_gate(user_id)
 
     try:
         access_token, plaid_item_id = plaid_client.exchange_public_token(body.public_token)

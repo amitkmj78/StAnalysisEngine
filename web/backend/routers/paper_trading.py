@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from services import alpaca_trading_client, paper_trading_checks
+from services import alpaca_trading_client, paper_trading_checks, paper_trading_readiness
 from services.alpaca_client import get_alpaca_latest_price
 from services.alpaca_trading_client import AlpacaTradingError
 from web.backend.app_settings import (
@@ -172,6 +172,40 @@ async def list_accounts(request: Request):
     for a in accounts:
         a.pop("api_secret_key_encrypted", None)
     return {"accounts": accounts}
+
+
+async def get_readiness_for_user(conn, user_id: str) -> dict:
+    """BEG-3: shared by this module's /readiness endpoint and
+    plaid_integration.py's gate on connecting a real brokerage account --
+    one definition of "ready" for both, via services.paper_trading_readiness.
+    `conn` is a user-scoped connection already open in the caller."""
+    earliest_created_at = await conn.fetchval(
+        "SELECT min(created_at) FROM alpaca_paper_accounts WHERE user_id = $1::uuid", user_id
+    )
+    trades_done = await conn.fetchval(
+        """
+        SELECT count(*) FROM paper_orders po
+        JOIN alpaca_paper_accounts a ON a.id = po.alpaca_paper_account_id
+        WHERE a.user_id = $1::uuid AND po.filled_qty > 0
+        """,
+        user_id,
+    )
+    risk_quiz_done = await conn.fetchval(
+        "SELECT EXISTS(SELECT 1 FROM lesson_progress WHERE user_id = $1::uuid AND lesson_id = $2)",
+        user_id, paper_trading_readiness.RISK_QUIZ_LESSON_ID,
+    )
+    return paper_trading_readiness.compute_readiness(earliest_created_at, trades_done or 0, bool(risk_quiz_done))
+
+
+@router.get("/readiness")
+async def get_readiness(request: Request):
+    """BEG-3: progress toward the paper-trading-first bar a self-identified
+    beginner must clear before connecting a real brokerage account -- shown
+    proactively on /portfolio/add and /portfolio/linked-accounts, not only
+    surfaced as a failure after clicking Connect Brokerage."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        return await get_readiness_for_user(conn, user_id)
 
 
 @router.get("/account")

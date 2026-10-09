@@ -768,4 +768,54 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
       "A strongly negative number here means this stock's profitability (ROE/margin) trails the universe; a strongly positive number means it leads most peers on this measure.",
     ],
   },
+
+  // --- BEG-1: a few commonly-shown metrics that had no entry yet, plus
+  // the 4 BEG-7 guardrail concepts. Incremental, not an audit of every
+  // metric in the app -- see the Requirements Tracker's "Partial" status
+  // for LRN-1.
+  "PnL %": {
+    title: "PnL %",
+    body: [
+      "Unrealized profit or loss on this position: (current price − your average cost) ÷ average cost, as a percentage.",
+      "It's unrealized — nothing is locked in until you sell. It also doesn't account for taxes or trading costs.",
+    ],
+  },
+  Beta: {
+    title: "Beta",
+    body: [
+      "How much a position (or the whole portfolio) tends to move relative to the S&P 500 (SPY). 1.0 means it has historically moved about in line with SPY; above 1.0 means bigger swings in both directions; below 1.0 means smaller swings.",
+      "Calculated from trailing price history — it describes the past, not a guarantee about the future.",
+    ],
+  },
+  "Sharpe Ratio": {
+    title: "Sharpe Ratio",
+    body: [
+      "Return earned per unit of risk taken: average return divided by the volatility (standard deviation) of those returns, over the same period. Higher generally means a smoother ride to the same return; it says nothing about how large the return itself was.",
+    ],
+  },
+  "Position concentration": {
+    title: "Position concentration",
+    body: [
+      "How much of your total portfolio value sits in a single position. A very concentrated position means the portfolio's outcome depends heavily on that one stock — not necessarily wrong, but worth doing on purpose rather than by accident.",
+    ],
+  },
+  "Against the signal": {
+    title: "Against the signal",
+    body: [
+      "Buying a stock while the app's own model currently reads SELL for it (or selling one it reads BUY on) — not necessarily wrong, since the model can be wrong and you may have a different, informed view, but worth knowing you're taking the other side of it.",
+    ],
+  },
+  "Risk-Off regime": {
+    title: "Risk-Off regime",
+    body: [
+      "The app's broad market-regime read (see the strip at the top of the page) is currently defensive — breadth, volatility and trend readings lean cautious across the market generally, not about this specific stock.",
+      "This is an unvalidated, disclosed signal (see \"How it was tested\") — treat it as one input, not a verdict.",
+    ],
+  },
+  "Very volatile": {
+    title: "Very volatile",
+    body: [
+      "This stock's own annualized price volatility over the past year is well above a typical stock's — its price has been swinging more sharply than most, in both directions.",
+    ],
+  },
 };

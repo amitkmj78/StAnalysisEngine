@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import {
   ApiError,
   getCurrentPrice,
+  getPaperTradingReadiness,
   importPortfolioCsv,
   submitManualPositions,
 } from "@/lib/api";
-import type { ManualPositionInput } from "@/lib/types";
+import type { ManualPositionInput, PaperTradingReadiness } from "@/lib/types";
 import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import TickerSearchInput from "@/components/TickerSearchInput";
+import { useBeginnerMode } from "@/lib/useBeginnerMode";
 import { usePlaidConnect } from "@/lib/usePlaidConnect";
 
 const RISK_PROFILES = ["Conservative", "Balanced", "Aggressive"];
@@ -137,6 +139,18 @@ export default function AddPositionsPage() {
     setPlaidPositionsImported(result.positionsImported);
     setSaved(result.syncOk);
   });
+
+  // BEG-3: a self-identified beginner must clear the paper-trading-first
+  // bar before connecting a real brokerage account -- the backend is the
+  // authoritative check (web/backend/routers/plaid_integration.py); this
+  // just shows progress proactively instead of only on a failed click.
+  const { isBeginner } = useBeginnerMode();
+  const [readiness, setReadiness] = useState<PaperTradingReadiness | null>(null);
+  useEffect(() => {
+    if (!isBeginner) return;
+    getPaperTradingReadiness().then(setReadiness).catch(() => setReadiness(null));
+  }, [isBeginner]);
+  const gatedForBeginner = isBeginner && readiness !== null && !readiness.ready;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -271,11 +285,23 @@ export default function AddPositionsPage() {
             connection gets its own new portfolio (named after the institution), so it never mixes with positions
             you added manually or by CSV.
           </p>
+          {gatedForBeginner && readiness && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Beginner mode requires some paper trading and the risk quiz first: {readiness.days_open}/
+              {readiness.days_required} days · {readiness.trades_done}/{readiness.trades_required} trades · risk quiz{" "}
+              {readiness.risk_quiz_done ? "done" : "not yet"}.{" "}
+              {!readiness.risk_quiz_done && (
+                <Link href="/learn/risk-and-drawdown" className="underline">
+                  Take the risk quiz
+                </Link>
+              )}
+            </p>
+          )}
           <button
             type="button"
             onClick={startPlaidConnect}
-            disabled={plaidConnecting || submitting}
-            className="btn-primary"
+            disabled={plaidConnecting || submitting || gatedForBeginner}
+            className="btn-primary disabled:opacity-50"
           >
             {plaidConnecting ? "Opening…" : "Connect Brokerage"}
           </button>

@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import { ApiError, disconnectPlaidItem, getPlaidItems, syncPlaidItem } from "@/lib/api";
-import type { PlaidItem } from "@/lib/types";
+import { ApiError, disconnectPlaidItem, getPaperTradingReadiness, getPlaidItems, syncPlaidItem } from "@/lib/api";
+import type { PaperTradingReadiness, PlaidItem } from "@/lib/types";
+import { useBeginnerMode } from "@/lib/useBeginnerMode";
 
 function statusBadgeClass(status: PlaidItem["status"]): string {
   if (status === "active") return "bg-emerald-50 text-emerald-700";
@@ -36,6 +37,16 @@ export default function LinkedAccountsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // BEG-3: informational only here -- the actual Connect Brokerage button
+  // (and its enforcement) lives on /portfolio/add; this just lets a
+  // beginner see their progress without navigating there first.
+  const { isBeginner } = useBeginnerMode();
+  const [readiness, setReadiness] = useState<PaperTradingReadiness | null>(null);
+  useEffect(() => {
+    if (!isBeginner) return;
+    getPaperTradingReadiness().then(setReadiness).catch(() => setReadiness(null));
+  }, [isBeginner]);
 
   async function handleSync(item: PlaidItem) {
     setSyncingId(item.id);
@@ -95,6 +106,13 @@ export default function LinkedAccountsPage() {
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {note && <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{note}</p>}
+      {isBeginner && readiness && !readiness.ready && (
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Beginner mode requires some paper trading and the risk quiz before connecting a new real brokerage
+          account: {readiness.days_open}/{readiness.days_required} days · {readiness.trades_done}/
+          {readiness.trades_required} trades · risk quiz {readiness.risk_quiz_done ? "done" : "not yet"}.
+        </p>
+      )}
 
       {items === null ? (
         <p className="mt-6 text-sm text-slate-500">Loading…</p>

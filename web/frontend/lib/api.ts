@@ -64,6 +64,7 @@ import type {
   DualBenchmarkComparison,
   EarningsCalendarResponse,
   EarningsReleaseSummaryResponse,
+  ExperienceLevel,
   MarketRegimeResponse,
   EntryHistory,
   EntryPlan,
@@ -122,6 +123,9 @@ import type {
   PaperAccount,
   PaperClock,
   PaperOrder,
+  PaperTradingReadiness,
+  LearningProgressResponse,
+  LessonProgressEntry,
   PortfolioSubmitResponse,
   PortfolioSummary,
   PredictAlgoComparisonResponse,
@@ -239,7 +243,12 @@ async function apiFetch<T>(path: string, params?: Record<string, string>): Promi
 }
 
 export function getCurrentUser() {
-  return apiFetch<{ id: string; email: string; default_ticker: string | null }>("/api/v1/auth/me");
+  return apiFetch<{
+    id: string;
+    email: string;
+    default_ticker: string | null;
+    experience_level: ExperienceLevel | null;
+  }>("/api/v1/auth/me");
 }
 
 // Which ticker Stock Detail (the home screen) opens on for this user --
@@ -843,6 +852,12 @@ export function getPaperClock(portfolioId?: number) {
     "/api/v1/paper-trading/clock",
     portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined
   );
+}
+
+// BEG-3: progress toward the paper-trading-first bar (only enforced for a
+// self-identified beginner -- see services/paper_trading_readiness.py).
+export function getPaperTradingReadiness() {
+  return apiFetch<PaperTradingReadiness>("/api/v1/paper-trading/readiness");
 }
 
 export function unlinkPaperAccount(portfolioId?: number) {
@@ -2344,4 +2359,17 @@ export function deleteChartLayout(id: number) {
 // DIF-2: this stock's short-term signal record against SPY.
 export function getStockTrackRecord(ticker: string) {
   return apiFetch<StockTrackRecord>(`/api/v1/stock/${encodeURIComponent(ticker)}/track-record`);
+}
+
+// BEG-2: Learning Paths progress (lesson content is static, see lib/lessons.ts).
+export function getLearningProgress() {
+  return apiFetch<LearningProgressResponse>("/api/v1/learning/progress");
+}
+
+export function recordLearningProgress(lessonId: string, score: number, total: number) {
+  return apiSend<LessonProgressEntry>("/api/v1/learning/progress", "POST", {
+    lesson_id: lessonId,
+    score,
+    total,
+  });
 }

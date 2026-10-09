@@ -238,11 +238,14 @@ async def logout(response: Response):
 async def me(request: Request):
     user = await verify_bearer_token(request)
     async with service_conn() as conn:
-        row = await conn.fetchrow("SELECT default_ticker, display_name FROM users WHERE id = $1::uuid", user["id"])
+        row = await conn.fetchrow(
+            "SELECT default_ticker, display_name, experience_level FROM users WHERE id = $1::uuid", user["id"]
+        )
     return {
         **user,
         "default_ticker": row["default_ticker"] if row else None,
         "display_name": row["display_name"] if row else None,
+        "experience_level": row["experience_level"] if row else None,
     }
 
 

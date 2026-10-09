@@ -124,6 +124,19 @@ export default function TradeImpactCard({
             {result.side === "buy" ? "Buy" : "Sell"} {result.shares} {result.ticker} at ${fmt(result.trade_price, 2)} (
             ${fmt(result.trade_price * result.shares, 0)}).
           </p>
+
+          {result.guardrails.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-1.5">
+              {result.guardrails.map((g) => (
+                <li
+                  key={g.code}
+                  className="rounded-md border border-[var(--pf-warn)]/30 bg-[var(--pf-warn-soft)] px-3 py-2 text-xs text-[var(--pf-warn)]"
+                >
+                  {g.message}
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="overflow-x-auto">
             <table className="mt-2 w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-slate-400">

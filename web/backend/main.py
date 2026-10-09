@@ -40,6 +40,7 @@ from web.backend.routers import (
     entry_strategy,
     filings,
     index_fund,
+    learning,
     market_news,
     market_regime,
     momentum,
@@ -151,6 +152,7 @@ app.include_router(pit_prices.router)
 app.include_router(db_backup.router)
 app.include_router(subscriptions.router)
 app.include_router(web_search.router)
+app.include_router(learning.router)
 
 
 @app.get("/health")

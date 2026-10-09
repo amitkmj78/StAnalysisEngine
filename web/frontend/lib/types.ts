@@ -2832,6 +2832,8 @@ export interface TradeImpactResponse {
     portfolio_score: number | null;
   };
   sectors: { sector: string; before_pct: number; after_pct: number; change_pct: number }[];
+  // BEG-7: inform-only warnings, never a block on placing the order.
+  guardrails: { code: string; message: string }[];
   note: string;
 }
 
@@ -3176,4 +3178,29 @@ export interface StockTrackRecord {
   avg_excess_vs_spy_pct: number | null;
   worst_miss: { as_of_date: string; signal: "Buy" | "Trim"; realized_return_pct: number; excess_vs_spy_pct: number } | null;
   message: string | null;
+}
+
+// BEG-2: Learning Paths progress (lesson content itself is static, see
+// web/frontend/lib/lessons.ts -- this is just completion/score tracking).
+export interface LessonProgressEntry {
+  lesson_id: string;
+  completed_at: string;
+  quiz_score: number;
+  quiz_total: number;
+}
+
+export interface LearningProgressResponse {
+  lessons: LessonProgressEntry[];
+}
+
+// BEG-3: progress toward the paper-trading-first bar a self-identified
+// beginner must clear before connecting a real brokerage account.
+export interface PaperTradingReadiness {
+  ready: boolean;
+  days_open: number;
+  days_required: number;
+  trades_done: number;
+  trades_required: number;
+  risk_quiz_done: boolean;
+  missing: string[];
 }

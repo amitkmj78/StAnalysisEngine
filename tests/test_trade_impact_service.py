@@ -1,6 +1,15 @@
 import pytest
 
-from services.trade_impact_service import apply_trade, compare, concentration, portfolio_score, sector_weights
+from services.trade_impact_service import (
+    CONCENTRATION_WARN_PCT,
+    VERY_VOLATILE_ANN_VOL_PCT,
+    apply_trade,
+    compare,
+    concentration,
+    guardrails,
+    portfolio_score,
+    sector_weights,
+)
 
 
 def _holdings():
@@ -57,3 +66,59 @@ def test_compare_reports_changes_and_sector_rows():
     energy = next(s for s in result["sectors"] if s["sector"] == "Energy")
     assert energy["before_pct"] == pytest.approx(30.0)
     assert energy["after_pct"] == pytest.approx(600 / 1300 * 100, abs=0.01)  # 600 of 1300 total
+
+
+# BEG-7: inform-only trade-preview guardrails.
+
+def test_guardrails_empty_for_a_sell_regardless_of_inputs():
+    """All 4 conditions are about adding exposure -- a sell never warns."""
+    assert guardrails("sell", 99.0, "Trim", "Risk-Off", 999.0) == []
+
+
+def test_guardrails_empty_for_a_safe_buy():
+    assert guardrails("buy", 5.0, "Buy", "Risk-On", 20.0) == []
+
+
+def test_guardrails_flags_concentration_above_threshold():
+    result = guardrails("buy", CONCENTRATION_WARN_PCT + 0.1, None, None, None)
+    assert [g["code"] for g in result] == ["concentration"]
+
+
+def test_guardrails_flags_trim_signal_on_a_buy():
+    result = guardrails("buy", None, "Trim", None, None)
+    assert [g["code"] for g in result] == ["against_signal"]
+
+
+def test_guardrails_does_not_flag_buy_or_hold_signal():
+    assert guardrails("buy", None, "Buy", None, None) == []
+    assert guardrails("buy", None, "Hold", None, None) == []
+
+
+def test_guardrails_flags_risk_off_regime():
+    result = guardrails("buy", None, None, "Risk-Off", None)
+    assert [g["code"] for g in result] == ["risk_off_regime"]
+
+
+def test_guardrails_does_not_flag_other_regimes():
+    for regime in ("Risk-On", "Constructive", "Cautious", "Neutral", None):
+        assert guardrails("buy", None, None, regime, None) == []
+
+
+def test_guardrails_flags_very_high_volatility():
+    result = guardrails("buy", None, None, None, VERY_VOLATILE_ANN_VOL_PCT)
+    assert [g["code"] for g in result] == ["very_volatile"]
+    assert guardrails("buy", None, None, None, VERY_VOLATILE_ANN_VOL_PCT - 0.1) == []
+
+
+def test_guardrails_can_return_more_than_one_warning_at_once():
+    result = guardrails(
+        "buy", CONCENTRATION_WARN_PCT + 5, "Trim", "Risk-Off", VERY_VOLATILE_ANN_VOL_PCT + 10
+    )
+    codes = {g["code"] for g in result}
+    assert codes == {"concentration", "against_signal", "risk_off_regime", "very_volatile"}
+
+
+def test_guardrails_skips_conditions_with_missing_data():
+    """None inputs mean genuinely unavailable data (e.g. a brand-new
+    ticker with no stored signal/history) -- skipped, never guessed at."""
+    assert guardrails("buy", None, None, None, None) == []

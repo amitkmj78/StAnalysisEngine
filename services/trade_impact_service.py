@@ -20,6 +20,13 @@ from typing import Optional
 
 TOP_N = 5
 
+# BEG-7: inform-only trade-preview guardrails.
+CONCENTRATION_WARN_PCT = 10.0
+# 1.8x services/portfolio_strategy.py's _BASELINE_ANN_VOL_PCT (28.0) -- the
+# same ceiling that module's own volatility multiplier already caps at,
+# reused here rather than inventing a second, unrelated threshold.
+VERY_VOLATILE_ANN_VOL_PCT = 50.0
+
 
 def _total(holdings: list[dict]) -> float:
     return sum(max(h.get("market_value") or 0.0, 0.0) for h in holdings)
@@ -106,6 +113,50 @@ def _measures(holdings: list[dict]) -> dict:
         "portfolio_score": portfolio_score(holdings),
         "total_value": round(_total(holdings), 2),
     }
+
+
+def guardrails(
+    side: str,
+    largest_position_pct_after: Optional[float],
+    short_signal: Optional[str],
+    regime: Optional[str],
+    ann_vol_pct: Optional[float],
+) -> list[dict]:
+    """BEG-7: inform-only warnings for a trade preview -- never blocks
+    anything, just names a condition worth knowing about before
+    confirming. Only evaluated for a buy; a sell never warns here, since
+    all 4 conditions are about adding exposure, not reducing it.
+
+    Each input is allowed to be None (data genuinely unavailable, e.g. a
+    brand-new ticker with no stored signal/history) -- that condition is
+    silently skipped rather than guessed at."""
+    if side != "buy":
+        return []
+    warnings: list[dict] = []
+    if largest_position_pct_after is not None and largest_position_pct_after > CONCENTRATION_WARN_PCT:
+        warnings.append({
+            "code": "concentration",
+            "message": (
+                f"This would make it {largest_position_pct_after:.1f}% of the portfolio — "
+                f"above the {CONCENTRATION_WARN_PCT:.0f}% concentration guideline."
+            ),
+        })
+    if short_signal == "Trim":
+        warnings.append({
+            "code": "against_signal",
+            "message": "This app's own model currently reads Trim on this ticker — you'd be buying against its own signal.",
+        })
+    if regime == "Risk-Off":
+        warnings.append({
+            "code": "risk_off_regime",
+            "message": "The broad market regime is currently Risk-Off.",
+        })
+    if ann_vol_pct is not None and ann_vol_pct >= VERY_VOLATILE_ANN_VOL_PCT:
+        warnings.append({
+            "code": "very_volatile",
+            "message": f"This ticker's own annualized volatility (~{ann_vol_pct:.0f}%) is well above a typical stock's.",
+        })
+    return warnings
 
 
 def compare(before: list[dict], after: list[dict], beta_before: Optional[float], beta_after: Optional[float]) -> dict:

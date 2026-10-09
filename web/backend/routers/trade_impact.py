@@ -8,9 +8,11 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from services.data_service import get_effective_price
+from services.market_regime_service import regime_as_of
 from services.portfolio_health_service import compute_portfolio_beta
 from services.portfolio_review_service import compute_sectors
-from services.trade_impact_service import apply_trade, compare
+from services.portfolio_strategy import _ticker_technicals
+from services.trade_impact_service import apply_trade, compare, guardrails
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn, user_conn
 from web.backend.rate_limit import enforce_daily_quota, limiter
@@ -59,13 +61,14 @@ async def trade_impact(request: Request, body: TradeImpactRequest):
     async with service_conn() as conn:
         score_rows = await conn.fetch(
             """
-            SELECT DISTINCT ON (ticker) ticker, short_score FROM stock_scores
+            SELECT DISTINCT ON (ticker) ticker, short_score, short_signal FROM stock_scores
             WHERE universe_id = $1 AND ticker = ANY($2::text[]) AND short_score IS NOT NULL
             ORDER BY ticker, as_of_date DESC
             """,
             SCORE_UNIVERSE, tickers,
         )
     scores = {r["ticker"]: float(r["short_score"]) for r in score_rows}
+    signals = {r["ticker"]: r["short_signal"] for r in score_rows}
 
     before = []
     price_by_ticker: dict[str, float] = {}
@@ -100,6 +103,19 @@ async def trade_impact(request: Request, body: TradeImpactRequest):
     beta_before = await run_in_threadpool(_beta, [{"ticker": h["ticker"], "market_value": h["market_value"]} for h in before])
     beta_after = await run_in_threadpool(_beta, [{"ticker": h["ticker"], "market_value": h["market_value"]} for h in after])
     result = compare(before, after, beta_before, beta_after)
+
+    # BEG-7: inform-only guardrails -- never blocks the preview or the
+    # order, just names a condition worth knowing about before confirming.
+    current_regime = await regime_as_of()
+    technicals = await run_in_threadpool(_ticker_technicals, ticker)
+    result["guardrails"] = guardrails(
+        body.side,
+        result["after"]["concentration"]["largest_position_pct"],
+        signals.get(ticker),
+        current_regime,
+        technicals.get("ann_vol_pct") if technicals else None,
+    )
+
     result["ticker"] = ticker
     result["side"] = body.side
     result["shares"] = body.shares

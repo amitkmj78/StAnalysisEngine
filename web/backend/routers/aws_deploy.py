@@ -533,6 +533,19 @@ alter table portfolios add column if not exists cash_balance real not null defau
 alter table portfolios add column if not exists risk_profile text not null default 'Balanced';
 alter table portfolios add column if not exists risk_factor smallint not null default 5;
 
+-- BEG-2/BEG-3: lesson completion + quiz score (Learning Paths). BEG-3's
+-- paper-trading-first gate reuses a row here for the "risk-and-drawdown"
+-- lesson as its risk-quiz check.
+create table if not exists lesson_progress (
+  user_id uuid not null references users(id) on delete cascade,
+  lesson_id text not null,
+  completed_at timestamptz not null default now(),
+  quiz_score smallint not null,
+  quiz_total smallint not null,
+  primary key (user_id, lesson_id)
+);
+create index if not exists lesson_progress_user_idx on lesson_progress(user_id);
+
 -- Diversified-basket generation metadata -- only populated for
 -- portfolios created via "Build a Diversified Basket"; NULL/default for
 -- every other portfolio, no behavior change for them.

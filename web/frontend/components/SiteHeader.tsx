@@ -5,8 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { logout } from "@/app/actions";
+import { useBeginnerMode } from "@/lib/useBeginnerMode";
 
-type NavItem = { href: string; label: string };
+// BEG-1: items marked `advanced` are tucked out of the nav for a
+// self-identified beginner (users.experience_level === "beginner", see
+// /settings) -- a declutter, not an access wall. The page itself stays
+// reachable by direct URL; this just keeps it out of the menu until the
+// user turns Beginner mode off.
+type NavItem = { href: string; label: string; advanced?: boolean };
 type NavEntry = { label: string; href: string } | { label: string; items: NavItem[] };
 
 const NAV: NavEntry[] = [
@@ -18,10 +24,10 @@ const NAV: NavEntry[] = [
       { href: "/stock-finder", label: "Stock Screener" },
       { href: "/charts", label: "Chart grid" },
       { href: "/stock/AAPL", label: "Stock Detail" },
-      { href: "/signal-comparison", label: "Quant vs Analyst" },
+      { href: "/signal-comparison", label: "Quant vs Analyst", advanced: true },
       { href: "/web-search", label: "Web Search" },
       { href: "/index-fund", label: "Fund Screener" },
-      { href: "/entry", label: "Entry Signals" },
+      { href: "/entry", label: "Entry Signals", advanced: true },
       { href: "/top-performers", label: "Top Performers" },
       { href: "/track-record", label: "Track Record" },
     ],
@@ -30,7 +36,7 @@ const NAV: NavEntry[] = [
     label: "Planning",
     items: [
       { href: "/monthly-plan", label: "Monthly Plan" },
-      { href: "/strategies", label: "Strategies" },
+      { href: "/strategies", label: "Strategies", advanced: true },
       { href: "/trade-journal", label: "Trade Journal" },
     ],
   },
@@ -40,9 +46,9 @@ const NAV: NavEntry[] = [
       { href: "/portfolio", label: "Holdings" },
       { href: "/earnings", label: "Earnings Calendar" },
       { href: "/portfolio/health", label: "Health Check" },
-      { href: "/portfolio/stress-test", label: "Stress Test" },
+      { href: "/portfolio/stress-test", label: "Stress Test", advanced: true },
       { href: "/challenges", label: "Challenges" },
-      { href: "/trading-agent", label: "Trading Agent" },
+      { href: "/trading-agent", label: "Trading Agent", advanced: true },
     ],
   },
   {
@@ -70,8 +76,10 @@ const NAV: NavEntry[] = [
       { href: "/alerts/settings", label: "Settings" },
     ],
   },
+  { label: "Learn", href: "/learn" },
   { label: "Guides", href: "/guides" },
   { label: "Assistant", href: "/chat" },
+  { label: "Settings", href: "/settings" },
 ];
 
 const ADMIN_ENTRY: NavEntry = {
@@ -154,7 +162,15 @@ function NavDropdown({ entry, active }: { entry: { label: string; items: NavItem
 export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const entries = isAdmin ? [...NAV, ADMIN_ENTRY] : NAV;
+  const { isBeginner } = useBeginnerMode();
+  const baseEntries = isAdmin ? [...NAV, ADMIN_ENTRY] : NAV;
+  // BEG-1: drop `advanced` items from each group for a self-identified
+  // beginner, and drop a group entirely if nothing is left in it.
+  const entries = isBeginner
+    ? baseEntries
+        .map((entry) => (isGroup(entry) ? { ...entry, items: entry.items.filter((i) => !i.advanced) } : entry))
+        .filter((entry) => !isGroup(entry) || entry.items.length > 0)
+    : baseEntries;
 
   // "Stock Detail" links to a fixed default ticker (/stock/AAPL), but the
   // route itself is dynamic (/stock/[ticker]) -- match on the /stock/
