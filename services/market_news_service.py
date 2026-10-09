@@ -14,11 +14,12 @@ own fallback, and the get_previous_close caching bug this session).
 """
 
 import logging
+import threading
+import time
 from typing import Optional, TypedDict
 
 import yfinance as yf
 
-from .cache_utils import ttl_cache
 from .rate_limit_utils import fetch_with_backoff
 from .web_search.backend import ddg_search
 
@@ -84,16 +85,41 @@ def _fetch_ddg_fallback() -> list[NewsItem]:
     ]
 
 
-@ttl_cache(maxsize=1, ttl_seconds=300)
+# Cached 5 minutes on a genuine result — this is one shared, market-
+# wide feed, not per-user, so every viewer across every page shares
+# one real fetch instead of each triggering their own. A plain
+# ttl_cache would cache an EMPTY result (Yahoo rate-limited AND the
+# DDG fallback having its own transient off-moment — both observed in
+# production) for the same 5 minutes as a real one, leaving the ticker
+# dark for the whole window even though a retry seconds later often
+# succeeds (confirmed live: DDG returned 0 hits, then 10, within the
+# same minute). So an empty/failed fetch is retried almost immediately
+# instead of being cached at the success TTL.
+SUCCESS_CACHE_TTL_SECONDS = 300
+EMPTY_RETRY_SECONDS = 20
+
+_cache_lock = threading.Lock()
+_cached_result: Optional[dict] = None
+_cached_at: float = 0.0
+
+
 def get_hot_market_news() -> dict:
-    """
-    Cached 5 minutes — this is one shared, market-wide feed, not
-    per-user, so every viewer of /portfolio shares one real fetch
-    instead of each triggering their own.
-    """
+    global _cached_result, _cached_at
+    now = time.monotonic()
+    with _cache_lock:
+        if _cached_result is not None:
+            ttl = SUCCESS_CACHE_TTL_SECONDS if _cached_result["items"] else EMPTY_RETRY_SECONDS
+            if now - _cached_at < ttl:
+                return _cached_result
+
     items = _fetch_yahoo_news()
     source = "yahoo"
     if not items:
         items = _fetch_ddg_fallback()
         source = "duckduckgo"
-    return {"items": items, "source": source}
+    result = {"items": items, "source": source}
+
+    with _cache_lock:
+        _cached_result = result
+        _cached_at = now
+    return result

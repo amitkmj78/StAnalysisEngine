@@ -2,17 +2,21 @@ from unittest.mock import patch
 
 import pytest
 
+from services import market_news_service as mod
 from services.market_news_service import get_hot_market_news
 
 
 @pytest.fixture(autouse=True)
 def _clear_news_cache():
-    # get_hot_market_news is a zero-arg @ttl_cache'd function -- without
-    # clearing it, every test after the first would just see the first
-    # test's cached result regardless of its own mocks.
-    get_hot_market_news.cache.clear()
+    # get_hot_market_news keeps its own last-known-good result in module
+    # state (not a plain @ttl_cache -- see its docstring for why) --
+    # without resetting it, every test after the first would just see
+    # the first test's cached result regardless of its own mocks.
+    mod._cached_result = None
+    mod._cached_at = 0.0
     yield
-    get_hot_market_news.cache.clear()
+    mod._cached_result = None
+    mod._cached_at = 0.0
 
 
 def _yahoo_entry(item_id, title, url, published_at="2026-09-04T12:00:00Z", provider="Reuters"):
@@ -69,3 +73,33 @@ def test_falls_back_to_duckduckgo_when_yahoo_errors():
         result = get_hot_market_news()
     assert result["source"] == "duckduckgo"
     assert len(result["items"]) == 1
+
+
+def test_a_real_result_is_reused_within_the_success_ttl():
+    entries = [_yahoo_entry("1", "Fed holds rates steady", "https://example.com/1")]
+    with patch("services.market_news_service.fetch_with_backoff", return_value=entries) as mock_fetch:
+        get_hot_market_news()
+        get_hot_market_news()
+    # Second call reused the cached result -- one fetch, not two.
+    assert mock_fetch.call_count == len(mod.MARKET_TICKERS)
+
+
+def test_an_empty_result_is_retried_almost_immediately_not_cached_for_the_full_ttl():
+    """Both sources failing must not poison the ticker for the full
+    5-minute success TTL -- a retry a few seconds later should hit the
+    network again, not replay the same empty result."""
+    with patch("services.market_news_service.fetch_with_backoff", return_value=[]), patch(
+        "services.market_news_service.ddg_search", return_value=[]
+    ):
+        first = get_hot_market_news()
+    assert first["items"] == []
+
+    # Simulate EMPTY_RETRY_SECONDS having elapsed (far short of the
+    # 5-minute success TTL) -- a retry now should hit the network again
+    # rather than replay the cached empty result.
+    mod._cached_at -= mod.EMPTY_RETRY_SECONDS + 1
+
+    entries = [_yahoo_entry("1", "Market rallies", "https://example.com/1")]
+    with patch("services.market_news_service.fetch_with_backoff", return_value=entries):
+        second = get_hot_market_news()
+    assert len(second["items"]) == 1

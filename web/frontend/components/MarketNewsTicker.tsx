@@ -44,7 +44,7 @@ export default function MarketNewsTicker() {
   const loopItems = [...items, ...items];
 
   return (
-    <div className="relative mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="relative mx-4 mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex items-center">
         <span className="z-10 flex-shrink-0 bg-red-600 px-3 py-2 text-xs font-bold uppercase tracking-wide text-white">
           Market News
