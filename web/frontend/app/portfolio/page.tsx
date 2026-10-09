@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
+  createPortfolio,
   deletePortfolioPosition,
   editPortfolioPosition,
   getCurrentUser,
@@ -48,6 +49,13 @@ import { nextSort, sortRows, type SortDirection } from "@/lib/sortRows";
 // look (see app/layout.tsx + app/globals.css's --pf-* tokens) -- these
 // fonts are loaded globally there, this page just references the same
 // CSS variables.
+// "Move to" offers creating a brand-new destination inline (e.g. a
+// position that got added to a paper-trading-linked portfolio by
+// mistake, moved straight into a fresh real one) instead of requiring
+// the user to leave this row, create a portfolio from the switcher,
+// then come back to move it -- one flow instead of three steps.
+const NEW_PORTFOLIO_OPTION = "__new__";
+
 const DISPLAY_FONT = { fontFamily: "var(--font-pf-display)" };
 const MONO_FONT = { fontFamily: "var(--font-pf-mono)" };
 
@@ -252,6 +260,7 @@ export default function PortfolioPage() {
   const [movingTicker, setMovingTicker] = useState<string | null>(null);
   const [moveTargetId, setMoveTargetId] = useState("");
   const [moveSaving, setMoveSaving] = useState(false);
+  const [newMovePortfolioName, setNewMovePortfolioName] = useState("");
   const [positionActionError, setPositionActionError] = useState<string | null>(null);
 
   async function refreshPerformance(showLoading: boolean) {
@@ -517,25 +526,47 @@ export default function PortfolioPage() {
   function startMove(ticker: string) {
     setMovingTicker(ticker);
     setMoveTargetId("");
+    setNewMovePortfolioName("");
     setPositionActionError(null);
   }
 
   function cancelMove() {
     setMovingTicker(null);
+    setNewMovePortfolioName("");
     setPositionActionError(null);
   }
 
   async function confirmMove(ticker: string) {
-    const toId = Number(moveTargetId);
-    if (!toId) {
-      setPositionActionError("Choose a destination portfolio.");
-      return;
+    let toId: number;
+    if (moveTargetId === NEW_PORTFOLIO_OPTION) {
+      const name = newMovePortfolioName.trim();
+      if (!name) {
+        setPositionActionError("Enter a name for the new portfolio.");
+        return;
+      }
+      setMoveSaving(true);
+      setPositionActionError(null);
+      try {
+        const created = await createPortfolio(name);
+        toId = created.id;
+      } catch (err) {
+        setPositionActionError(err instanceof ApiError ? err.message : "Could not create that portfolio.");
+        setMoveSaving(false);
+        return;
+      }
+    } else {
+      toId = Number(moveTargetId);
+      if (!toId) {
+        setPositionActionError("Choose a destination portfolio.");
+        return;
+      }
+      setMoveSaving(true);
+      setPositionActionError(null);
     }
-    setMoveSaving(true);
-    setPositionActionError(null);
     try {
       await movePortfolioPosition(ticker, toId, riskProfile, riskFactor, selectedPortfolioId ?? undefined);
       setMovingTicker(null);
+      setNewMovePortfolioName("");
       setPortfolioReloadSignal((n) => n + 1);
       await refresh();
     } catch (err) {
@@ -1208,11 +1239,24 @@ export default function PortfolioPage() {
                                           .filter((p) => p.id !== selectedPortfolioId)
                                           .map((p) => (
                                             <option key={p.id} value={p.id}>
+                                              {p.has_paper_account ? "🧪 " : ""}
                                               {p.name}
+                                              {p.has_paper_account ? " — Paper" : ""}
                                             </option>
                                           ))}
+                                        <option value={NEW_PORTFOLIO_OPTION}>+ Create new portfolio…</option>
                                       </select>
                                     </Field>
+                                    {moveTargetId === NEW_PORTFOLIO_OPTION && (
+                                      <Field label="New portfolio name">
+                                        <input
+                                          value={newMovePortfolioName}
+                                          onChange={(e) => setNewMovePortfolioName(e.target.value)}
+                                          placeholder="e.g. Real Holdings"
+                                          className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                                        />
+                                      </Field>
+                                    )}
                                     <button onClick={() => confirmMove(s.ticker)} disabled={moveSaving} className={`${PF.btnPrimary} disabled:opacity-50`}>
                                       {moveSaving ? "Moving…" : "Confirm Move"}
                                     </button>
