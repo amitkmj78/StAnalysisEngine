@@ -19,6 +19,7 @@ import {
   setPortfolioAccountType,
   setPortfolioCash,
   setPortfolioMargin,
+  setPortfolioRiskProfile,
 } from "@/lib/api";
 import { isAdmin } from "@/lib/admin";
 import type {
@@ -117,9 +118,6 @@ export default function PortfolioPage() {
   const [portfolioReloadSignal, setPortfolioReloadSignal] = useState(0);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [showGoalPlan, setShowGoalPlan] = useState(false);
-  const [riskProfile] = useState("Balanced");
-  const [riskFactor] = useState(5);
-
   const [marginInput, setMarginInput] = useState("");
   const [marginSaving, setMarginSaving] = useState(false);
   const [marginSaved, setMarginSaved] = useState(false);
@@ -132,7 +130,25 @@ export default function PortfolioPage() {
   const [accountTypeSaving, setAccountTypeSaving] = useState(false);
   const [accountTypeSaved, setAccountTypeSaved] = useState(false);
   const [accountTypeError, setAccountTypeError] = useState<string | null>(null);
+  // Used to be a hardcoded useState("Balanced")/useState(5) with no
+  // setter anywhere -- every portfolio, every position, always sent the
+  // same risk profile/factor to the backend, which (combined with the
+  // Short-/Long-Term Plan's target/stop % and Stance text being keyed
+  // only off these two inputs) is why almost every position's plan read
+  // identically. Now a real per-portfolio setting, same pattern as
+  // accountTypeInput above: a draft value edited here, saved explicitly.
+  const [riskProfileInput, setRiskProfileInput] = useState("Balanced");
+  const [riskFactorInput, setRiskFactorInput] = useState(5);
+  const [riskProfileSaving, setRiskProfileSaving] = useState(false);
+  const [riskProfileSaved, setRiskProfileSaved] = useState(false);
+  const [riskProfileError, setRiskProfileError] = useState<string | null>(null);
   const currentPortfolio = allPortfolios.find((p) => p.id === selectedPortfolioId) ?? null;
+  // The portfolio's actually-saved risk setting -- what background
+  // actions (refresh/add/edit/move) should regenerate plans with, as
+  // opposed to riskProfileInput/riskFactorInput above, which is just the
+  // settings form's unsaved draft.
+  const riskProfile = currentPortfolio?.risk_profile ?? "Balanced";
+  const riskFactor = currentPortfolio?.risk_factor ?? 5;
 
   useEffect(() => {
     setMarginInput(currentPortfolio ? String(currentPortfolio.margin_balance) : "");
@@ -144,8 +160,19 @@ export default function PortfolioPage() {
     setAccountTypeInput(currentPortfolio?.account_type ?? "Taxable");
     setAccountTypeSaved(false);
     setAccountTypeError(null);
+    setRiskProfileInput(currentPortfolio?.risk_profile ?? "Balanced");
+    setRiskFactorInput(currentPortfolio?.risk_factor ?? 5);
+    setRiskProfileSaved(false);
+    setRiskProfileError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPortfolio?.id, currentPortfolio?.margin_balance, currentPortfolio?.cash_balance, currentPortfolio?.account_type]);
+  }, [
+    currentPortfolio?.id,
+    currentPortfolio?.margin_balance,
+    currentPortfolio?.cash_balance,
+    currentPortfolio?.account_type,
+    currentPortfolio?.risk_profile,
+    currentPortfolio?.risk_factor,
+  ]);
 
   async function saveMargin() {
     if (selectedPortfolioId === null) return;
@@ -208,6 +235,36 @@ export default function PortfolioPage() {
       setAccountTypeError(err instanceof ApiError ? err.message : "Could not save account type.");
     } finally {
       setAccountTypeSaving(false);
+    }
+  }
+
+  async function saveRiskSettings() {
+    if (selectedPortfolioId === null) return;
+    const factor = Math.round(Number(riskFactorInput));
+    if (!Number.isFinite(factor) || factor < 1 || factor > 10) {
+      setRiskProfileError("Risk factor must be a whole number from 1 to 10.");
+      return;
+    }
+    setRiskProfileSaving(true);
+    setRiskProfileError(null);
+    setRiskProfileSaved(false);
+    try {
+      await setPortfolioRiskProfile(selectedPortfolioId, riskProfileInput, factor);
+      setAllPortfolios((prev) =>
+        prev.map((p) =>
+          p.id === selectedPortfolioId ? { ...p, risk_profile: riskProfileInput, risk_factor: factor } : p,
+        ),
+      );
+      // Regenerate the stored Short-/Long-Term Plan text against the new
+      // setting right away, rather than leaving every position showing
+      // the old risk profile's numbers until the next unrelated refresh.
+      await refreshPortfolio(riskProfileInput, factor, selectedPortfolioId);
+      await refresh();
+      setRiskProfileSaved(true);
+    } catch (err) {
+      setRiskProfileError(err instanceof ApiError ? err.message : "Could not save risk settings.");
+    } finally {
+      setRiskProfileSaving(false);
     }
   }
 
@@ -723,6 +780,40 @@ export default function PortfolioPage() {
             </button>
             {accountTypeSaved && <span className={`text-xs font-medium ${PF.good}`}>Saved</span>}
             {accountTypeError && <span className={`text-xs font-medium ${PF.bad}`}>{accountTypeError}</span>}
+
+            <Field label="Risk profile (sets the Plan's target/stop width)">
+              <select
+                value={riskProfileInput}
+                onChange={(e) => setRiskProfileInput(e.target.value)}
+                className="w-40 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900"
+              >
+                <option value="Conservative">Conservative</option>
+                <option value="Balanced">Balanced</option>
+                <option value="Aggressive">Aggressive</option>
+              </select>
+            </Field>
+            <Field label="Risk factor (1–10)">
+              <input
+                type="number"
+                min={1}
+                max={10}
+                step="1"
+                value={riskFactorInput}
+                onChange={(e) => setRiskFactorInput(Number(e.target.value))}
+                className="w-20 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900"
+                style={MONO_FONT}
+              />
+            </Field>
+            <button
+              type="button"
+              onClick={saveRiskSettings}
+              disabled={riskProfileSaving}
+              className={`${PF.btn} disabled:opacity-50`}
+            >
+              {riskProfileSaving ? "Saving…" : "Save"}
+            </button>
+            {riskProfileSaved && <span className={`text-xs font-medium ${PF.good}`}>Saved</span>}
+            {riskProfileError && <span className={`text-xs font-medium ${PF.bad}`}>{riskProfileError}</span>}
           </div>
         )}
 

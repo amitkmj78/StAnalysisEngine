@@ -523,6 +523,16 @@ alter table portfolios add column if not exists margin_balance real not null def
 -- else in this schema.
 alter table portfolios add column if not exists cash_balance real not null default 0;
 
+-- The risk settings used to generate this portfolio's Short-/Long-Term
+-- Plan text (services/portfolio_strategy.py). Previously hardcoded to
+-- "Balanced"/5 on the frontend for every user with no way to change it,
+-- which was also why every position's plan read almost identically --
+-- the target/stop % and Stance text are keyed off these two inputs.
+-- User-edited directly via the per-portfolio risk-profile PUT endpoint,
+-- same shape as margin_balance/cash_balance above.
+alter table portfolios add column if not exists risk_profile text not null default 'Balanced';
+alter table portfolios add column if not exists risk_factor smallint not null default 5;
+
 -- Diversified-basket generation metadata -- only populated for
 -- portfolios created via "Build a Diversified Basket"; NULL/default for
 -- every other portfolio, no behavior change for them.

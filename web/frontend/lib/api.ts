@@ -742,6 +742,14 @@ export function setPortfolioCash(portfolioId: number, cashBalance: number) {
   });
 }
 
+export function setPortfolioRiskProfile(portfolioId: number, riskProfile: string, riskFactor: number) {
+  return apiSend<{ id: number; risk_profile: string; risk_factor: number }>(
+    `/api/v1/portfolio/${portfolioId}/risk-profile`,
+    "PUT",
+    { risk_profile: riskProfile, risk_factor: riskFactor },
+  );
+}
+
 export function submitManualPositions(
   positions: ManualPositionInput[],
   riskProfile: string,

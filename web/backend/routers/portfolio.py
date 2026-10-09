@@ -54,7 +54,7 @@ from services.portfolio_health_service import (
     find_tax_loss_harvest_candidates,
 )
 from services.portfolio_performance_service import compute_portfolio_performance
-from services.portfolio_strategy import build_robinhood_strategies, summarize_portfolio
+from services.portfolio_strategy import RISK_PROFILES, build_robinhood_strategies, summarize_portfolio
 from services.positions_from_csv import positions_from_activity_csv
 from services.ranking_utils import compute_position_concentration
 from services.portfolio_review_service import (
@@ -296,12 +296,14 @@ async def list_portfolios(request: Request):
     async with user_conn(user_id) as conn:
         records = await conn.fetch(
             """
-            SELECT p.id, p.name, p.created_at, p.margin_balance, p.cash_balance, p.account_type, count(pp.id) AS position_count,
+            SELECT p.id, p.name, p.created_at, p.margin_balance, p.cash_balance, p.account_type,
+                   p.risk_profile, p.risk_factor, count(pp.id) AS position_count,
                    EXISTS(SELECT 1 FROM alpaca_paper_accounts a WHERE a.portfolio_id = p.id) AS has_paper_account
             FROM portfolios p
             LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = p.user_id
             WHERE p.user_id = $1::uuid AND p.is_active
-            GROUP BY p.id, p.name, p.created_at, p.margin_balance, p.cash_balance, p.account_type
+            GROUP BY p.id, p.name, p.created_at, p.margin_balance, p.cash_balance, p.account_type,
+                     p.risk_profile, p.risk_factor
             ORDER BY p.created_at ASC
             """,
             user_id,
@@ -432,6 +434,39 @@ async def set_portfolio_account_type(request: Request, portfolio_id: int, body: 
     if row is None:
         raise HTTPException(404, "Portfolio not found.")
     return {"id": row["id"], "account_type": row["account_type"]}
+
+
+class SetRiskProfileRequest(BaseModel):
+    risk_profile: str
+    risk_factor: int
+
+
+@router.put("/{portfolio_id}/risk-profile")
+@limiter.limit("20/minute")
+async def set_portfolio_risk_profile(request: Request, portfolio_id: int, body: SetRiskProfileRequest):
+    """The risk profile/factor used to generate this portfolio's Short-/
+    Long-Term Plan text (services/portfolio_strategy.py). Previously
+    hardcoded to Balanced/5 on the frontend for every portfolio with no
+    way to change it -- this is the one place it's set/edited. Does NOT
+    regenerate the stored plan text itself (the frontend calls refresh
+    with the new values right after a successful save); this just
+    persists the setting for next time."""
+    await enforce_daily_quota(request, "portfolio/risk-profile")
+    risk_profile = body.risk_profile.strip().capitalize()
+    if risk_profile not in RISK_PROFILES:
+        raise HTTPException(422, f"risk_profile must be one of {RISK_PROFILES}")
+    if not (1 <= body.risk_factor <= 10):
+        raise HTTPException(422, "risk_factor must be between 1 and 10.")
+
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "UPDATE portfolios SET risk_profile = $1, risk_factor = $2 WHERE id = $3 AND user_id = $4::uuid AND is_active RETURNING id, risk_profile, risk_factor",
+            risk_profile, body.risk_factor, portfolio_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Portfolio not found.")
+    return {"id": row["id"], "risk_profile": row["risk_profile"], "risk_factor": row["risk_factor"]}
 
 
 class SaveDiversifiedBasketRequest(BaseModel):

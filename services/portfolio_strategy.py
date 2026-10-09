@@ -9,6 +9,10 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
+from .yfinance_cache import get_cached_history
+
+RISK_PROFILES = ("Conservative", "Balanced", "Aggressive")
+
 
 # -------------------------------------------------------------
 # Data structure for an enriched position
@@ -52,14 +56,116 @@ def _get_live_price(ticker: str) -> float:
         return float("nan")
 
 
+_BASELINE_ANN_VOL_PCT = 28.0  # a broad single-stock-ish annualized vol to scale against
+
+
+def _ticker_technicals(ticker: str) -> dict | None:
+    """
+    Real, ticker-specific context pulled from one shared 1y price history
+    fetch (through the Alpaca-aware cache, so it benefits from the same
+    resilience/dedup every other feature gets) -- used so the plan below
+    varies by what THIS ticker's own price has actually been doing, not
+    just the position's PnL% and the portfolio-wide risk profile/factor,
+    which previously made almost every position's plan read identically.
+
+    Returns None when there isn't enough history to say anything real
+    (never fabricates a read) -- every caller below must keep working
+    exactly as before when that happens, just without the extra color.
+    """
+    try:
+        hist = get_cached_history(ticker, "1y", auto_adjust=True)
+        closes = hist["Close"].dropna()
+        if len(closes) < 20:
+            return None
+
+        daily_returns = closes.pct_change().dropna()
+        recent_returns = daily_returns.tail(60) if len(daily_returns) >= 60 else daily_returns
+        ann_vol_pct = (
+            float(recent_returns.std() * (252 ** 0.5) * 100.0) if len(recent_returns) >= 10 else None
+        )
+        if ann_vol_pct is not None and not np.isfinite(ann_vol_pct):
+            ann_vol_pct = None
+
+        month = closes.tail(20)
+        month_trend_pct = float((month.iloc[-1] / month.iloc[0] - 1.0) * 100.0) if len(month) >= 2 else None
+
+        lo, hi = float(closes.min()), float(closes.max())
+        range_position = (float(closes.iloc[-1]) - lo) / (hi - lo) if hi > lo else None
+
+        return {
+            "ann_vol_pct": ann_vol_pct,
+            "month_trend_pct": month_trend_pct,
+            "range_position": range_position,
+        }
+    except Exception:
+        return None
+
+
+def _volatility_multiplier(technicals: dict | None) -> float:
+    """Scales the target/stop band width by this ticker's own recent
+    realized volatility against a broad baseline, so a genuinely more
+    volatile name gets a wider band and a steadier one a narrower band --
+    instead of every position at a given risk profile getting the exact
+    same percentage band regardless of the ticker. 1.0 (no adjustment)
+    when volatility isn't available, which reproduces the prior
+    risk-profile-only behavior exactly."""
+    if not technicals or technicals.get("ann_vol_pct") is None:
+        return 1.0
+    vol = technicals["ann_vol_pct"]
+    if vol <= 0:
+        return 1.0
+    return _clamp(vol / _BASELINE_ANN_VOL_PCT, 0.6, 1.8)
+
+
+def _short_term_technical_clause(technicals: dict | None) -> str | None:
+    """A real, ticker-specific sentence appended to the Stance line so two
+    positions landing in the same PnL bucket (which otherwise get
+    word-for-word identical Stance text -- see the bucket if/elif chain
+    below) still read differently when their own recent price action
+    differs. Based on the stock's own trailing ~1-month return, not its
+    PnL vs. the user's cost basis. None when there isn't enough history
+    to say anything real."""
+    if not technicals or technicals.get("month_trend_pct") is None:
+        return None
+    trend = technicals["month_trend_pct"]
+    if trend >= 8:
+        return "Separately, the stock's own price action has been strongly positive over the past month."
+    elif trend >= 2:
+        return "Separately, the stock's own price action has drifted higher over the past month."
+    elif trend <= -8:
+        return "Separately, the stock's own price action has been sharply negative over the past month."
+    elif trend <= -2:
+        return "Separately, the stock's own price action has drifted lower over the past month."
+    return "Separately, the stock's own price action has been range-bound over the past month."
+
+
+def _long_term_technical_clause(technicals: dict | None) -> str | None:
+    """Long-term analog of _short_term_technical_clause above: where the
+    price sits in its own past-year range, a framing that reflects the
+    stock's own history rather than the user's cost basis. None when
+    there isn't enough history to say anything real."""
+    if not technicals or technicals.get("range_position") is None:
+        return None
+    pos_in_range = technicals["range_position"]
+    if pos_in_range >= 0.85:
+        return "For context, the stock itself is trading near its 52-week high."
+    elif pos_in_range <= 0.15:
+        return "For context, the stock itself is trading near its 52-week low."
+    return f"For context, the stock itself is trading around {pos_in_range * 100:.0f}% of the way up its 52-week range."
+
+
 # -------------------------------------------------------------
 # Strategy Logic
 # -------------------------------------------------------------
-def _compute_short_term_targets(pos: EnrichedPosition) -> tuple[float, float]:
+def _compute_short_term_targets(pos: EnrichedPosition, technicals: dict | None = None) -> tuple[float, float]:
     """
     Upside target / protective stop prices for the short-term (1-4 week) plan.
     Split out from _compute_short_term_plan so callers (e.g. auto-populating
     a watchlist) can get the numeric targets without parsing the plan text.
+
+    `technicals` (see _ticker_technicals) scales the band by this ticker's
+    own realized volatility -- omitting it (the default) reproduces the
+    prior risk-profile-only percentages exactly.
     """
     cp = pos.current_price
     rp = pos.risk_profile.lower()
@@ -72,13 +178,14 @@ def _compute_short_term_targets(pos: EnrichedPosition) -> tuple[float, float]:
     else:
         base_target, base_stop = 8.0, 4.5
 
-    target_pct = _clamp(base_target + (rf - 5) * 0.7, 3.0, 20.0)
-    stop_pct = _clamp(base_stop + (rf - 5) * 0.4, 2.0, 15.0)
+    vol_mult = _volatility_multiplier(technicals)
+    target_pct = _clamp(base_target * vol_mult + (rf - 5) * 0.7, 3.0, 25.0)
+    stop_pct = _clamp(base_stop * vol_mult + (rf - 5) * 0.4, 2.0, 18.0)
 
     return cp * (1 + target_pct / 100.0), cp * (1 - stop_pct / 100.0)
 
 
-def _compute_short_term_plan(pos: EnrichedPosition) -> str:
+def _compute_short_term_plan(pos: EnrichedPosition, technicals: dict | None = None) -> str:
     """
     Generate a short-term (1–4 weeks) strategy description
     based on current PnL and risk settings.
@@ -88,7 +195,7 @@ def _compute_short_term_plan(pos: EnrichedPosition) -> str:
     pnl = pos.pnl_pct
     rf = pos.risk_factor
 
-    target_price, stop_price = _compute_short_term_targets(pos)
+    target_price, stop_price = _compute_short_term_targets(pos, technicals)
     target_pct = (target_price / cp - 1) * 100.0
     stop_pct = (1 - stop_price / cp) * 100.0
 
@@ -124,6 +231,10 @@ def _compute_short_term_plan(pos: EnrichedPosition) -> str:
             "decide whether to cut risk, reduce size, or exit."
         )
 
+    technical_clause = _short_term_technical_clause(technicals)
+    if technical_clause:
+        stance = f"{stance} {technical_clause}"
+
     return (
         f"**Short-Term Plan ({pos.risk_profile}, Risk {rf}/10)**\n\n"
         f"- Current price: `${cp:.2f}` (vs avg cost `${ac:.2f}` | PnL: {pnl:+.2f}%)\n"
@@ -134,7 +245,7 @@ def _compute_short_term_plan(pos: EnrichedPosition) -> str:
     )
 
 
-def _compute_long_term_plan(pos: EnrichedPosition) -> str:
+def _compute_long_term_plan(pos: EnrichedPosition, technicals: dict | None = None) -> str:
     """
     Generate a long-term (6–24 months) strategy description.
     """
@@ -201,6 +312,10 @@ def _compute_long_term_plan(pos: EnrichedPosition) -> str:
             "blow-up doesn't wreck the overall portfolio."
         ),
     }.get(rp, "Balance growth names with a core of stable holdings to smooth overall volatility.")
+
+    technical_clause = _long_term_technical_clause(technicals)
+    if technical_clause:
+        guidance = f"{guidance} {technical_clause}"
 
     return (
         f"**Long-Term Plan ({pos.risk_profile}, Risk {rf}/10)**\n\n"
@@ -314,9 +429,13 @@ def build_robinhood_strategies(
             if pos.shares <= 0:
                 continue
 
-            short_plan = _compute_short_term_plan(pos)
-            long_plan = _compute_long_term_plan(pos)
-            target_price, stop_price = _compute_short_term_targets(pos)
+            # Fetched once per position and reused for both plans and the
+            # numeric targets below, so this ticker-specific context costs
+            # one shared, cached history fetch -- not three.
+            technicals = _ticker_technicals(pos.ticker)
+            short_plan = _compute_short_term_plan(pos, technicals)
+            long_plan = _compute_long_term_plan(pos, technicals)
+            target_price, stop_price = _compute_short_term_targets(pos, technicals)
 
             rows.append(
                 {

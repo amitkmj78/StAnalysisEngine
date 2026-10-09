@@ -651,6 +651,8 @@ export interface Portfolio {
   margin_balance: number;
   cash_balance: number;
   account_type: AccountType;
+  risk_profile: string;
+  risk_factor: number;
   position_count: number;
   // Whether this portfolio has a linked Alpaca paper-trading account --
   // shown as a badge wherever portfolios are listed/selected, so a paper-

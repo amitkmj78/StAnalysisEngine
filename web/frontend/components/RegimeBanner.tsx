@@ -23,6 +23,18 @@ function pct(value: number | null | undefined, digits = 1): string {
   return value === null || value === undefined ? "—" : `${value.toFixed(digits)}%`;
 }
 
+// Per-metric tone within the strip: green for a reading this component's
+// own regime logic treats as favorable, amber for one that signals
+// caution. `null` (reading unavailable, or deliberately not scored)
+// keeps the surrounding neutral tone rather than guessing. This is
+// color only -- it doesn't add or change any number, and the ⚠
+// Unvalidated-signal disclosure stays exactly as prominent as before.
+function toneClass(favorable: boolean | null): string {
+  if (favorable === true) return "text-[var(--pf-up)]";
+  if (favorable === false) return "text-[var(--pf-warn)]";
+  return "";
+}
+
 export default function RegimeBanner() {
   const [data, setData] = useState<MarketRegimeResponse | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -68,21 +80,56 @@ export default function RegimeBanner() {
         </span>
         <span className="text-strip-meta opacity-80">as of {data.as_of_date}</span>
         <span className="text-strip-meta opacity-80">
-          Breadth {pct(breadth?.pct_above_50dma)} above 50-DMA
+          Breadth{" "}
+          <span
+            className={toneClass(
+              breadth?.pct_above_50dma === null || breadth?.pct_above_50dma === undefined
+                ? null
+                : breadth.pct_above_50dma >= 50,
+            )}
+          >
+            {pct(breadth?.pct_above_50dma)}
+          </span>{" "}
+          above 50-DMA
         </span>
         <span className="text-strip-meta opacity-80">
-          Volatility VIX {volatility?.vix ?? "—"}
-          {volatility?.inverted ? " (term inverted)" : ""}
+          Volatility VIX{" "}
+          <span
+            className={toneClass(
+              volatility?.vix === null || volatility?.vix === undefined
+                ? null
+                : !volatility.inverted && volatility.vix < 20,
+            )}
+          >
+            {volatility?.vix ?? "—"}
+            {volatility?.inverted ? " (term inverted)" : ""}
+          </span>
         </span>
         <span className="text-strip-meta opacity-80">
-          Trend {trend?.above_50dma === null || trend?.above_50dma === undefined
-            ? "—"
-            : trend.above_50dma
-              ? "SPY above its 50-DMA"
-              : "SPY below its 50-DMA"}
+          Trend{" "}
+          <span
+            className={toneClass(
+              trend?.above_50dma === null || trend?.above_50dma === undefined ? null : trend.above_50dma,
+            )}
+          >
+            {trend?.above_50dma === null || trend?.above_50dma === undefined
+              ? "—"
+              : trend.above_50dma
+                ? "SPY above its 50-DMA"
+                : "SPY below its 50-DMA"}
+          </span>
         </span>
         <span className="text-strip-meta opacity-80">
-          Risk appetite {pct(risk_appetite?.momentum_pct)}
+          Risk appetite{" "}
+          <span
+            className={toneClass(
+              risk_appetite?.momentum_pct === null || risk_appetite?.momentum_pct === undefined
+                ? null
+                : risk_appetite.momentum_pct >= 0,
+            )}
+          >
+            {pct(risk_appetite?.momentum_pct)}
+          </span>
         </span>
         <button
           type="button"
