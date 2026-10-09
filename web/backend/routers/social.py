@@ -25,7 +25,7 @@ import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from services.notification_dispatcher import dispatch_alert
 from services.reputation_service import compute_reputation
@@ -36,6 +36,10 @@ from web.backend.db import service_conn, user_conn
 from web.backend.rate_limit import limiter
 
 router = APIRouter(prefix="/api/v1/social", tags=["social"], dependencies=[Depends(verify_bearer_token)])
+
+# BEG-4/5: how many of a user's answers have been accepted by the asker --
+# feeds reputation's qa_component and the mentor_badge nightly recompute.
+_ACCEPTED_ANSWER_COUNT_SQL = "SELECT count(*) FROM post_comments WHERE author_user_id = $1::uuid AND is_accepted"
 
 EXPERIENCE_LEVELS = {"beginner", "intermediate", "experienced"}
 MAX_INTERESTS = 10
@@ -90,7 +94,7 @@ class ProfileUpdateRequest(BaseModel):
 async def get_profile(user_id: str):
     async with service_conn() as conn:
         row = await conn.fetchrow(
-            "SELECT id, display_name, experience_level, interests, verified_badge FROM users WHERE id = $1::uuid",
+            "SELECT id, display_name, experience_level, interests, verified_badge, mentor_badge FROM users WHERE id = $1::uuid",
             user_id,
         )
         if row is None:
@@ -103,7 +107,8 @@ async def get_profile(user_id: str):
             """,
             user_id,
         )
-    reputation = compute_reputation([dict(r) for r in idea_rows])
+        accepted_answer_count = await conn.fetchval(_ACCEPTED_ANSWER_COUNT_SQL, user_id)
+    reputation = compute_reputation([dict(r) for r in idea_rows], accepted_answer_count)
     return {**_record_to_dict(row), "reputation": reputation}
 
 
@@ -124,7 +129,7 @@ async def update_profile(request: Request, body: ProfileUpdateRequest):
                 experience_level = COALESCE($2, experience_level),
                 interests = COALESCE($3::jsonb, interests)
             WHERE id = $1::uuid
-            RETURNING id, display_name, experience_level, interests, verified_badge
+            RETURNING id, display_name, experience_level, interests, verified_badge, mentor_badge
             """,
             user_id, body.experience_level, None if interests is None else json.dumps(interests),
         )
@@ -142,7 +147,8 @@ async def get_reputation(user_id: str):
             """,
             user_id,
         )
-    return compute_reputation([dict(r) for r in idea_rows])
+        accepted_answer_count = await conn.fetchval(_ACCEPTED_ANSWER_COUNT_SQL, user_id)
+    return compute_reputation([dict(r) for r in idea_rows], accepted_answer_count)
 
 
 # ---------------------------------------------------------------- SOC-2: ticker/topic follows
@@ -247,8 +253,8 @@ async def create_post(request: Request, body: PostCreateRequest):
     text = body.body.strip()
     if not text or len(text) > MAX_POST_BODY:
         raise HTTPException(422, f"body must be 1-{MAX_POST_BODY} characters")
-    if body.post_type not in ("note", "performance_claim"):
-        raise HTTPException(422, "post_type must be 'note' or 'performance_claim'")
+    if body.post_type not in ("note", "performance_claim", "question"):
+        raise HTTPException(422, "post_type must be 'note', 'performance_claim' or 'question'")
     ticker = _ticker(body.ticker) if body.ticker else None
     topic = body.topic.strip().lower() if body.topic else None
 
@@ -401,11 +407,57 @@ async def list_comments(post_id: int):
         rows = await conn.fetch(
             """
             SELECT c.*, u.display_name FROM post_comments c LEFT JOIN users u ON u.id = c.author_user_id
-            WHERE post_id = $1 ORDER BY created_at
+            WHERE post_id = $1 ORDER BY c.is_accepted DESC, c.created_at
             """,
             post_id,
         )
     return {"comments": [_record_to_dict(r) for r in rows]}
+
+
+# ---------------------------------------------------------------- BEG-4: Q&A (accepted answers)
+
+@router.post("/comments/{comment_id}/accept")
+@limiter.limit("30/minute")
+async def accept_comment(request: Request, comment_id: int):
+    """Only the asker (the post's author) can mark a comment as the
+    accepted answer, and only one comment per post can hold it at a time
+    -- enforced here (unset the old one, set the new one, in one
+    transaction) and backed by a partial unique index at the DB level
+    (post_comments_one_accepted_per_post) so a race can't leave two."""
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        comment = await conn.fetchrow("SELECT id, post_id FROM post_comments WHERE id = $1", comment_id)
+        if comment is None:
+            raise HTTPException(404, "Comment not found.")
+        post = await conn.fetchrow("SELECT author_user_id FROM posts WHERE id = $1", comment["post_id"])
+        if post is None or str(post["author_user_id"]) != user_id:
+            raise HTTPException(403, "Only the person who asked the question can accept an answer.")
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE post_comments SET is_accepted = false WHERE post_id = $1 AND is_accepted",
+                comment["post_id"],
+            )
+            record = await conn.fetchrow(
+                "UPDATE post_comments SET is_accepted = true WHERE id = $1 RETURNING *", comment_id
+            )
+    return _record_to_dict(record)
+
+
+@router.post("/comments/{comment_id}/unaccept")
+async def unaccept_comment(request: Request, comment_id: int):
+    """Lets the asker change their mind without picking a different answer first."""
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        comment = await conn.fetchrow("SELECT id, post_id FROM post_comments WHERE id = $1", comment_id)
+        if comment is None:
+            raise HTTPException(404, "Comment not found.")
+        post = await conn.fetchrow("SELECT author_user_id FROM posts WHERE id = $1", comment["post_id"])
+        if post is None or str(post["author_user_id"]) != user_id:
+            raise HTTPException(403, "Only the person who asked the question can do this.")
+        record = await conn.fetchrow(
+            "UPDATE post_comments SET is_accepted = false WHERE id = $1 RETURNING *", comment_id
+        )
+    return _record_to_dict(record)
 
 
 # ---------------------------------------------------------------- SOC-6: groups
@@ -556,6 +608,57 @@ async def remove_group_post(request: Request, group_id: int, post_id: int):
     if row is None:
         raise HTTPException(404, "Post not found in this group.")
     return {"ok": True}
+
+
+# ---------------------------------------------------------------- BEG-5: group sessions
+
+class SessionCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: Optional[str] = None
+    scheduled_at: str  # ISO datetime, parsed by asyncpg/timestamptz
+
+
+@router.post("/groups/{group_id}/sessions")
+@limiter.limit("10/minute")
+async def create_session(request: Request, group_id: int, body: SessionCreateRequest):
+    """Only a mentor (verified_badge + enough accepted answers, see
+    web/backend/social_badges.py::recompute_mentor_badges) who is also a
+    member of this group can host a session here."""
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        is_mentor = await conn.fetchval("SELECT mentor_badge FROM users WHERE id = $1::uuid", user_id)
+        if not is_mentor:
+            raise HTTPException(403, "Only mentors can host a group session.")
+        is_member = await conn.fetchval(
+            "SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2::uuid", group_id, user_id
+        )
+        if not is_member:
+            raise HTTPException(403, "You must be a member of this group to host a session in it.")
+        record = await conn.fetchrow(
+            """
+            INSERT INTO group_sessions (group_id, host_user_id, title, description, scheduled_at)
+            VALUES ($1, $2::uuid, $3, $4, $5::timestamptz)
+            RETURNING *
+            """,
+            group_id, user_id, body.title.strip(), body.description, body.scheduled_at,
+        )
+    return _record_to_dict(record)
+
+
+@router.get("/groups/{group_id}/sessions")
+async def list_sessions(request: Request, group_id: int):
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        await _require_group_access(conn, group_id, user_id)
+        rows = await conn.fetch(
+            """
+            SELECT s.*, u.display_name AS host_display_name FROM group_sessions s
+            LEFT JOIN users u ON u.id = s.host_user_id
+            WHERE s.group_id = $1 ORDER BY s.scheduled_at
+            """,
+            group_id,
+        )
+    return {"sessions": [_record_to_dict(r) for r in rows]}
 
 
 # ---------------------------------------------------------------- SOC-7: chat rooms

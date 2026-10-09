@@ -10,8 +10,10 @@ from typing import Optional
 from starlette.concurrency import run_in_threadpool
 
 from services.challenge_service import (
+    DIVERSIFICATION_CONCENTRATION_LIMIT_PCT,
     MIN_DAYS_FOR_RISK_SCORE,
     SCORING_METHODS,
+    compute_member_diversification,
     compute_member_performance,
     mask_email,
     score_for,
@@ -75,7 +77,8 @@ async def build_leaderboard(challenge_id: int) -> Optional[dict]:
             return None
         member_rows = await conn.fetch(
             """
-            SELECT m.user_id, u.email, a.id AS alpaca_paper_account_id
+            SELECT m.user_id, u.email, a.id AS alpaca_paper_account_id,
+                   a.api_key_id, a.api_secret_key_encrypted
             FROM challenge_members m
             JOIN users u ON u.id = m.user_id
             LEFT JOIN alpaca_paper_accounts a ON a.user_id = m.user_id
@@ -87,11 +90,17 @@ async def build_leaderboard(challenge_id: int) -> Optional[dict]:
         end_date = min(challenge["end_date"], date.today())
 
         entries: list[dict] = []
+        # Parallel to `entries` -- the account dict for Alpaca calls made
+        # AFTER this connection closes (diversification only, below),
+        # same "don't hold a DB connection open across a slow external
+        # call" shape as everywhere else in this module.
+        entry_accounts: list[Optional[dict]] = []
         for member in member_rows:
             base = {"user_id": str(member["user_id"]), "member": mask_email(member["email"]), "is_model": False}
             if member["alpaca_paper_account_id"] is None:
                 entries.append({**base, "has_paper_account": False, "return_pct": None, "max_drawdown_pct": None,
                                 "annualized_volatility_pct": None, "days_of_data": 0})
+                entry_accounts.append(None)
                 continue
             snapshot_rows = await conn.fetch(
                 """
@@ -105,11 +114,17 @@ async def build_leaderboard(challenge_id: int) -> Optional[dict]:
                 start_date, end_date,
             )
             entries.append({**base, "has_paper_account": True, **performance})
+            entry_accounts.append({
+                "id": member["alpaca_paper_account_id"],
+                "api_key_id": member["api_key_id"],
+                "api_secret_key_encrypted": member["api_secret_key_encrypted"],
+            })
 
     if challenge["include_quant_model"]:
         model_perf = compute_member_performance(await model_snapshots(start_date, end_date), start_date, end_date)
         entries.append({"user_id": None, "member": MODEL_MEMBER_LABEL, "is_model": True,
                         "has_paper_account": True, **model_perf})
+        entry_accounts.append(None)  # the model has no real Alpaca account to check
 
     spy_return = await _spy_return_pct(start_date, end_date)
     method = challenge["scoring"]
@@ -120,7 +135,25 @@ async def build_leaderboard(challenge_id: int) -> Optional[dict]:
         )
         e["score"] = score_for(method, e, spy_return)
 
-    entries.sort(key=lambda e: (e["score"] is None, -(e["score"] or 0)))
+    # BEG-6: diversification only costs an Alpaca call for challenges that
+    # actually use it -- every other scoring method is unaffected.
+    if method == "diversified":
+        for e, account in zip(entries, entry_accounts):
+            if account is None:
+                e["largest_position_pct"] = None
+                e["diversification_ok"] = None
+                continue
+            e.update(await compute_member_diversification(account))
+
+        entries.sort(
+            key=lambda e: (
+                e.get("diversification_ok") is not True,
+                e["score"] is None,
+                -(e["score"] or 0),
+            )
+        )
+    else:
+        entries.sort(key=lambda e: (e["score"] is None, -(e["score"] or 0)))
     badges = compute_badges(entries, ended=challenge["end_date"] < date.today())
     for i, e in enumerate(entries):
         e["badges"] = badges[i]
@@ -129,5 +162,6 @@ async def build_leaderboard(challenge_id: int) -> Optional[dict]:
         "start_date": str(start_date), "end_date": str(end_date),
         "scoring": method, "scoring_label": SCORING_METHODS[method],
         "spy_return_pct": spy_return, "ended": challenge["end_date"] < date.today(),
+        "diversification_limit_pct": DIVERSIFICATION_CONCENTRATION_LIMIT_PCT if method == "diversified" else None,
         "entries": entries,
     }

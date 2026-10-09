@@ -72,6 +72,9 @@ class CreateChallengeRequest(BaseModel):
     end_date: Optional[date] = None
     scoring: str = DEFAULT_SCORING
     include_quant_model: bool = False
+    # BEG-6: forces 'diversified' scoring -- "not raw gains" is enforced
+    # on create, not just suggested in the UI.
+    beginner_only: bool = False
 
 
 class JoinChallengeRequest(BaseModel):
@@ -116,6 +119,8 @@ async def create_challenge(request: Request, body: CreateChallengeRequest):
         raise HTTPException(400, "end_date must be after start_date.")
     if body.scoring not in SCORING_METHODS:
         raise HTTPException(400, f"scoring must be one of: {', '.join(SCORING_METHODS)}.")
+    if body.beginner_only and body.scoring != "diversified":
+        raise HTTPException(422, "A beginner-only challenge must use the 'diversified' scoring method.")
 
     async with service_conn() as conn:
         await _require_paper_account(conn, user_id)
@@ -130,10 +135,11 @@ async def create_challenge(request: Request, body: CreateChallengeRequest):
         async with conn.transaction():
             challenge_id = await conn.fetchval(
                 """
-                INSERT INTO challenges (name, created_by, join_code, start_date, end_date, scoring, include_quant_model)
-                VALUES ($1, $2::uuid, $3, $4, $5, $6, $7) RETURNING id
+                INSERT INTO challenges (name, created_by, join_code, start_date, end_date, scoring, include_quant_model, beginner_only)
+                VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8) RETURNING id
                 """,
                 body.name, user_id, join_code, start_date, end_date, body.scoring, body.include_quant_model,
+                body.beginner_only,
             )
             await conn.execute(
                 "INSERT INTO challenge_members (challenge_id, user_id) VALUES ($1, $2::uuid)",
@@ -142,7 +148,7 @@ async def create_challenge(request: Request, body: CreateChallengeRequest):
 
     return {
         "id": challenge_id, "name": body.name, "join_code": join_code,
-        "start_date": str(start_date), "end_date": str(end_date),
+        "start_date": str(start_date), "end_date": str(end_date), "beginner_only": body.beginner_only,
     }
 
 
@@ -156,12 +162,17 @@ async def join_challenge(request: Request, body: JoinChallengeRequest):
         await _require_paper_account(conn, user_id)
 
         challenge = await conn.fetchrow(
-            "SELECT id, name, start_date, end_date FROM challenges WHERE join_code = $1", body.join_code.upper()
+            "SELECT id, name, start_date, end_date, beginner_only FROM challenges WHERE join_code = $1",
+            body.join_code.upper(),
         )
         if challenge is None:
             raise HTTPException(404, "No challenge found for that code.")
         if challenge["end_date"] < date.today():
             raise HTTPException(400, "This challenge already ended.")
+        if challenge["beginner_only"]:
+            level = await conn.fetchval("SELECT experience_level FROM users WHERE id = $1::uuid", user_id)
+            if level != "beginner":
+                raise HTTPException(403, "This challenge is only open to members in Beginner mode (see Settings).")
 
         already = await conn.fetchval(
             "SELECT 1 FROM challenge_members WHERE challenge_id = $1 AND user_id = $2::uuid",
@@ -281,7 +292,7 @@ async def list_my_challenges(request: Request):
     async with service_conn() as conn:
         rows = await conn.fetch(
             """
-            SELECT c.id, c.name, c.start_date, c.end_date,
+            SELECT c.id, c.name, c.start_date, c.end_date, c.beginner_only,
                    (SELECT count(*) FROM challenge_members m2 WHERE m2.challenge_id = c.id) AS member_count
             FROM challenges c
             JOIN challenge_members m ON m.challenge_id = c.id
@@ -295,6 +306,7 @@ async def list_my_challenges(request: Request):
             {
                 "id": r["id"], "name": r["name"], "start_date": str(r["start_date"]),
                 "end_date": str(r["end_date"]), "member_count": r["member_count"],
+                "beginner_only": r["beginner_only"],
             }
             for r in rows
         ]

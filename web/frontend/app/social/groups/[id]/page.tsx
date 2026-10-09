@@ -5,10 +5,10 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import {
-  ApiError, createPost, getCurrentUser, getSocialGroup, joinSocialGroup, leaveSocialGroup,
-  getPosts, removeGroupMember, removeGroupPost,
+  ApiError, createGroupSession, createPost, getCurrentUser, getGroupSessions, getSocialGroup, getSocialProfile,
+  joinSocialGroup, leaveSocialGroup, getPosts, removeGroupMember, removeGroupPost,
 } from "@/lib/api";
-import type { Post, SocialGroupDetail } from "@/lib/types";
+import type { GroupSession, Post, SocialGroupDetail } from "@/lib/types";
 
 export default function SocialGroupDetailPage() {
   const params = useParams<{ id: string }>();
@@ -17,17 +17,53 @@ export default function SocialGroupDetailPage() {
   const [group, setGroup] = useState<SocialGroupDetail | null>(null);
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [isMentor, setIsMentor] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [body, setBody] = useState("");
 
+  // BEG-5: group sessions.
+  const [sessions, setSessions] = useState<GroupSession[] | null>(null);
+  const [sessionTitle, setSessionTitle] = useState("");
+  const [sessionDescription, setSessionDescription] = useState("");
+  const [sessionWhen, setSessionWhen] = useState("");
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [creatingSession, setCreatingSession] = useState(false);
+
   async function load() {
     try {
-      const [g, p, me] = await Promise.all([getSocialGroup(groupId), getPosts({ group_id: groupId }), getCurrentUser()]);
+      const [g, p, me, s] = await Promise.all([
+        getSocialGroup(groupId), getPosts({ group_id: groupId }), getCurrentUser(), getGroupSessions(groupId),
+      ]);
       setGroup(g);
       setPosts(p.posts);
       setMyUserId(me.id);
+      setSessions(s.sessions);
+      const myProfile = await getSocialProfile(me.id);
+      setIsMentor(myProfile.mentor_badge);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load this group.");
+    }
+  }
+
+  async function handleCreateSession() {
+    if (!sessionTitle.trim() || !sessionWhen) return;
+    setCreatingSession(true);
+    setSessionError(null);
+    try {
+      await createGroupSession(groupId, {
+        title: sessionTitle.trim(),
+        description: sessionDescription.trim() || undefined,
+        scheduled_at: new Date(sessionWhen).toISOString(),
+      });
+      setSessionTitle("");
+      setSessionDescription("");
+      setSessionWhen("");
+      const s = await getGroupSessions(groupId);
+      setSessions(s.sessions);
+    } catch (err) {
+      setSessionError(err instanceof ApiError ? err.message : "Could not create this session.");
+    } finally {
+      setCreatingSession(false);
     }
   }
 
@@ -107,6 +143,62 @@ export default function SocialGroupDetailPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="mt-4">
+        <h2 className="text-sm font-semibold text-slate-900">Sessions</h2>
+        {sessions === null && <p className="mt-1 text-sm text-slate-500">Loading…</p>}
+        {sessions && sessions.length === 0 && (
+          <p className="mt-1 text-sm text-slate-500">No sessions scheduled yet.</p>
+        )}
+        {sessions && sessions.length > 0 && (
+          <div className="mt-1 flex flex-col gap-2">
+            {sessions.map((s) => (
+              <div key={s.id} className="rounded-md border border-slate-100 p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <strong className="text-slate-800">{s.title}</strong>
+                  <span className="text-xs text-slate-400">{new Date(s.scheduled_at).toLocaleString()}</span>
+                </div>
+                {s.description && <p className="mt-1 text-slate-600">{s.description}</p>}
+                <p className="mt-1 text-xs text-slate-400">Hosted by {s.host_display_name ?? "a mentor"}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isMentor && isMember && (
+          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-medium text-slate-600">Host a session (mentors only)</p>
+            <div className="mt-2 flex flex-col gap-2">
+              <input
+                value={sessionTitle}
+                onChange={(e) => setSessionTitle(e.target.value)}
+                placeholder="Session title"
+                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+              />
+              <input
+                value={sessionDescription}
+                onChange={(e) => setSessionDescription(e.target.value)}
+                placeholder="Description (optional)"
+                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+              />
+              <input
+                type="datetime-local"
+                value={sessionWhen}
+                onChange={(e) => setSessionWhen(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+              />
+              <button
+                onClick={handleCreateSession}
+                disabled={creatingSession || !sessionTitle.trim() || !sessionWhen}
+                className="self-start rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {creatingSession ? "Scheduling…" : "Schedule session"}
+              </button>
+              {sessionError && <p className="text-xs text-red-700">{sessionError}</p>}
+            </div>
+          </div>
+        )}
       </div>
 
       {isMember && (

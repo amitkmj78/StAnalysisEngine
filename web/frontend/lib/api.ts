@@ -38,6 +38,7 @@ import type {
   Post,
   PostComment,
   Reputation,
+  GroupSession,
   SocialGroup,
   SocialGroupDetail,
   SocialProfile,
@@ -899,10 +900,11 @@ export function createChallenge(body: {
   end_date?: string;
   scoring?: string;
   include_quant_model?: boolean;
+  beginner_only?: boolean;
 }) {
-  return apiSend<{ id: number; name: string; join_code: string; start_date: string; end_date: string }>(
-    "/api/v1/challenges", "POST", body
-  );
+  return apiSend<{
+    id: number; name: string; join_code: string; start_date: string; end_date: string; beginner_only: boolean;
+  }>("/api/v1/challenges", "POST", body);
 }
 
 export function joinChallenge(joinCode: string) {
@@ -1566,7 +1568,7 @@ export function getSocialFeed(limit = 50) {
 // list endpoint filtered by `ticker` -- no separate discussion table).
 export function createPost(body: {
   body: string;
-  post_type?: "note" | "performance_claim";
+  post_type?: "note" | "performance_claim" | "question";
   ticker?: string | null;
   topic?: string | null;
   group_id?: number | null;
@@ -1574,6 +1576,15 @@ export function createPost(body: {
   claim_reference_id?: number | null;
 }) {
   return apiSend<Post>("/api/v1/social/posts", "POST", body);
+}
+
+// BEG-4: only the asker (the post's author) can accept/un-accept an answer.
+export function acceptComment(commentId: number) {
+  return apiSend<PostComment>(`/api/v1/social/comments/${commentId}/accept`, "POST");
+}
+
+export function unacceptComment(commentId: number) {
+  return apiSend<PostComment>(`/api/v1/social/comments/${commentId}/unaccept`, "POST");
 }
 
 export function getPosts(filter: { ticker?: string; topic?: string; group_id?: number; author_id?: string } = {}) {
@@ -1616,6 +1627,15 @@ export function leaveSocialGroup(groupId: number) {
 
 export function removeGroupMember(groupId: number, memberId: string) {
   return apiSend<{ ok: boolean }>(`/api/v1/social/groups/${groupId}/members/${memberId}/remove`, "POST");
+}
+
+// BEG-5: only a mentor (mentor_badge) who is also a member can host.
+export function getGroupSessions(groupId: number) {
+  return apiFetch<{ sessions: GroupSession[] }>(`/api/v1/social/groups/${groupId}/sessions`);
+}
+
+export function createGroupSession(groupId: number, body: { title: string; description?: string; scheduled_at: string }) {
+  return apiSend<GroupSession>(`/api/v1/social/groups/${groupId}/sessions`, "POST", body);
 }
 
 export function removeGroupPost(groupId: number, postId: number) {

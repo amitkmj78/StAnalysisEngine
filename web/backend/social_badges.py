@@ -15,6 +15,10 @@ from services.community_idea_service import MIN_IDEAS_FOR_LEADERBOARD
 from services.community_leaderboard_service import build_leaderboard
 from web.backend.db import service_conn
 
+# BEG-5: a disclosed, chosen threshold (not derived from data) -- same
+# style as MIN_IDEAS_FOR_LEADERBOARD above.
+MENTOR_MIN_ACCEPTED_ANSWERS = 3
+
 
 async def recompute_verified_badges() -> int:
     async with service_conn() as conn:
@@ -37,5 +41,32 @@ async def recompute_verified_badges() -> int:
             RETURNING id
             """,
             earners,
+        )
+    return len(changed)
+
+
+async def recompute_mentor_badges() -> int:
+    """BEG-5: mentor_badge = verified_badge (COM-3) AND at least
+    MENTOR_MIN_ACCEPTED_ANSWERS accepted answers (BEG-4). Same idempotent,
+    only-touch-what-changed shape as recompute_verified_badges above --
+    revoked as readily as it's granted if either condition stops holding."""
+    async with service_conn() as conn:
+        earners = await conn.fetch(
+            """
+            SELECT u.id FROM users u
+            WHERE u.verified_badge AND (
+                SELECT count(*) FROM post_comments c WHERE c.author_user_id = u.id AND c.is_accepted
+            ) >= $1
+            """,
+            MENTOR_MIN_ACCEPTED_ANSWERS,
+        )
+        earner_ids = [r["id"] for r in earners]
+        changed = await conn.fetch(
+            """
+            UPDATE users SET mentor_badge = (id = ANY($1::uuid[]))
+            WHERE mentor_badge IS DISTINCT FROM (id = ANY($1::uuid[]))
+            RETURNING id
+            """,
+            earner_ids,
         )
     return len(changed)

@@ -1904,7 +1904,7 @@ export type ExperienceLevel = "beginner" | "intermediate" | "experienced";
 
 export interface Reputation {
   track_record_component: number | null;
-  qa_component: number; // SOC-8: always 0 -- accepted answers (BEG-4) not built yet
+  qa_component: number; // SOC-8/BEG-4: a real count of this user's accepted Q&A answers
   reputation: number | null;
   num_ideas_scored: number;
 }
@@ -1915,15 +1915,16 @@ export interface SocialProfile {
   experience_level: ExperienceLevel | null;
   interests: string[] | null;
   verified_badge: boolean;
+  mentor_badge: boolean;
   reputation: Reputation;
 }
 
-// SOC-2/3/4/5
+// SOC-2/3/4/5, BEG-4
 export interface Post {
   id: number;
   author_user_id: string;
   display_name: string;
-  post_type: "note" | "performance_claim";
+  post_type: "note" | "performance_claim" | "question";
   body: string;
   ticker: string | null;
   topic: string | null;
@@ -1941,6 +1942,19 @@ export interface PostComment {
   author_user_id: string;
   display_name: string | null;
   body: string;
+  is_accepted: boolean;
+  created_at: string;
+}
+
+// BEG-5
+export interface GroupSession {
+  id: number;
+  group_id: number;
+  host_user_id: string;
+  host_display_name: string | null;
+  title: string;
+  description: string | null;
+  scheduled_at: string;
   created_at: string;
 }
 
@@ -2643,6 +2657,7 @@ export interface Challenge {
   start_date: string;
   end_date: string;
   member_count: number;
+  beginner_only: boolean;
 }
 
 export interface ChallengeDetail {
@@ -2673,6 +2688,9 @@ export interface ChallengeLeaderboardEntry {
   max_drawdown_pct: number | null;
   annualized_volatility_pct: number | null;
   days_of_data: number;
+  // BEG-6: only present when scoring === "diversified".
+  largest_position_pct?: number | null;
+  diversification_ok?: boolean | null;
 }
 
 export interface ChallengeLeaderboardResponse {
@@ -2682,6 +2700,7 @@ export interface ChallengeLeaderboardResponse {
   scoring_label: string;
   spy_return_pct: number | null;
   ended: boolean;
+  diversification_limit_pct: number | null;
   entries: ChallengeLeaderboardEntry[];
 }
 

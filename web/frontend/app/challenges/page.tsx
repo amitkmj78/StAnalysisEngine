@@ -31,6 +31,7 @@ export default function ChallengesPage() {
   const [endDate, setEndDate] = useState("");
   const [scoring, setScoring] = useState("return");
   const [includeModel, setIncludeModel] = useState(false);
+  const [beginnerOnly, setBeginnerOnly] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const [joinCode, setJoinCode] = useState("");
@@ -67,8 +68,9 @@ export default function ChallengesPage() {
         name: name.trim(),
         start_date: startDate || undefined,
         end_date: endDate || undefined,
-        scoring,
+        scoring: beginnerOnly ? "diversified" : scoring,
         include_quant_model: includeModel,
+        beginner_only: beginnerOnly,
       });
       setNote(`Created "${res.name}". Share join code ${res.join_code} with friends.`);
       setName("");
@@ -76,6 +78,7 @@ export default function ChallengesPage() {
       setEndDate("");
       setScoring("return");
       setIncludeModel(false);
+      setBeginnerOnly(false);
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not create this challenge.");
@@ -242,18 +245,33 @@ export default function ChallengesPage() {
                 className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
               />
             </div>
+            <label className="flex items-start gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={beginnerOnly}
+                onChange={(e) => setBeginnerOnly(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span>
+                Beginner-only: ranked by risk-adjusted return (Sortino) <strong>and</strong> diversification, not raw
+                gains -- a concentrated position (over 25% of the account) always ranks below a diversified one.
+                Only joinable by members in Beginner mode. Locks the ranking method below.
+              </span>
+            </label>
             <label className="flex flex-col gap-1 text-xs text-slate-500">
               Ranked by
               <select
-                value={scoring}
+                value={beginnerOnly ? "diversified" : scoring}
                 onChange={(e) => setScoring(e.target.value)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900"
+                disabled={beginnerOnly}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 disabled:opacity-50"
               >
                 <option value="return">Raw return</option>
                 <option value="excess_spy">Excess return vs S&amp;P 500</option>
                 <option value="sharpe">Sharpe ratio (return vs volatility)</option>
                 <option value="sortino">Sortino ratio (return vs downside)</option>
                 <option value="calmar">Calmar (return / max drawdown)</option>
+                <option value="diversified">Risk-adjusted return + diversification</option>
               </select>
             </label>
             <label className="flex items-start gap-2 text-xs text-slate-600">
@@ -315,7 +333,14 @@ export default function ChallengesPage() {
                 className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:bg-slate-50"
               >
                 <div>
-                  <p className="font-medium text-slate-900">{c.name}</p>
+                  <p className="font-medium text-slate-900">
+                    {c.name}
+                    {c.beginner_only && (
+                      <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                        BEGINNER
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-slate-500">
                     {c.start_date} – {c.end_date} · {c.member_count} member{c.member_count === 1 ? "" : "s"}
                   </p>

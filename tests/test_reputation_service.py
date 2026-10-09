@@ -19,14 +19,29 @@ def test_reputation_none_below_sample_gate():
     assert result["num_ideas_scored"] == 5
 
 
-def test_reputation_qa_component_is_always_zero_placeholder():
-    """SOC-8: accepted answers (BEG-4) are not built this round -- the
-    qa_component must never silently inflate the total."""
+def test_reputation_qa_component_defaults_to_zero_with_no_accepted_answers():
     result = compute_reputation([])
 
     assert result["qa_component"] == 0
     assert result["num_ideas_scored"] == 0
     assert result["reputation"] is None
+
+
+def test_reputation_qa_component_is_a_real_accepted_answer_count():
+    """BEG-4: qa_component is now wired to a real count, not a
+    placeholder -- a disclosed count, not a fabricated weighted score."""
+    result = compute_reputation([], accepted_answer_count=7)
+
+    assert result["qa_component"] == 7
+    # Reported separately -- not folded into track_record_component/reputation,
+    # since the two aren't on a comparable scale.
+    assert result["reputation"] is None
+
+
+def test_reputation_qa_component_never_goes_negative():
+    result = compute_reputation([], accepted_answer_count=-3)
+
+    assert result["qa_component"] == 0
 
 
 def test_reputation_real_score_above_sample_gate():

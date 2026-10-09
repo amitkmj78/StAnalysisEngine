@@ -46,6 +46,7 @@ export default function ChallengeDetailPage() {
   const [board, setBoard] = useState<ChallengeLeaderboardResponse | null>(null);
   const [curves, setCurves] = useState<ChallengeEquityCurves | null>(null);
   const entries: ChallengeLeaderboardEntry[] = board?.entries ?? [];
+  const diversified = board?.scoring === "diversified";
   const [discoverableUsers, setDiscoverableUsers] = useState<DiscoverableUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -241,6 +242,7 @@ export default function ChallengeDetailPage() {
               <th className="px-4 py-3">Rank</th>
               <th className="px-4 py-3">Member</th>
               <th className="px-4 py-3 text-right">Score</th>
+              {diversified && <th className="px-4 py-3 text-right">Diversification</th>}
               <th className="px-4 py-3 text-right">Return</th>
               <th className="px-4 py-3 text-right">vs S&amp;P 500</th>
               <th className="px-4 py-3 text-right">Max Drawdown</th>
@@ -268,8 +270,22 @@ export default function ChallengeDetailPage() {
                 <td className="px-4 py-3 text-right font-semibold text-slate-900">
                   {fmtScore(e.score, board?.scoring ?? "return")}
                 </td>
+                {diversified && (
+                  <td className="px-4 py-3 text-right">
+                    {e.largest_position_pct === null || e.largest_position_pct === undefined ? (
+                      <span className="text-slate-400">—</span>
+                    ) : (
+                      <span
+                        title={`Largest position: ${e.largest_position_pct}% of the account (limit: ${board?.diversification_limit_pct}%)`}
+                        className={e.diversification_ok ? "text-emerald-600" : "text-red-600"}
+                      >
+                        {e.diversification_ok ? "✓" : "✗"} {e.largest_position_pct.toFixed(1)}%
+                      </span>
+                    )}
+                  </td>
+                )}
                 {e.return_pct === null ? (
-                  <td colSpan={5} className="px-4 py-3 text-sm text-slate-600">
+                  <td colSpan={diversified ? 6 : 5} className="px-4 py-3 text-sm text-slate-600">
                     {e.is_model ? (
                       <span>No published picks cover this window yet.</span>
                     ) : !e.has_paper_account ? (

@@ -20,6 +20,7 @@ from starlette.concurrency import run_in_threadpool
 from services import alpaca_trading_client
 from services.alpaca_trading_client import AlpacaTradingError
 from services.backtest_engine import DAYS_PER_YEAR, cumulative_pct, max_drawdown_pct, sharpe, sortino
+from services.trade_impact_service import concentration
 from web.backend.crypto_utils import decrypt_token
 from web.backend.db import service_conn
 
@@ -41,8 +42,18 @@ SCORING_METHODS = {
     "sortino": "Sortino ratio",
     "calmar": "Calmar (return / max drawdown)",
     "excess_spy": "Excess return vs S&P 500",
+    # BEG-6: beginner challenges force this one. Displayed score is still
+    # Sortino (a real, legible number) -- see challenge_leaderboard.py's
+    # sort key for how diversification actually factors into rank without
+    # blending the two into one fabricated composite number.
+    "diversified": "Risk-adjusted return + diversification",
 }
 DEFAULT_SCORING = "return"
+# BEG-6: the single-position concentration guideline this app already
+# discloses everywhere else (Health Check, /guides/diversification, the
+# Learning Paths lesson) -- reused here rather than inventing a second
+# threshold for challenges specifically.
+DIVERSIFICATION_CONCENTRATION_LIMIT_PCT = 25.0
 
 
 def mask_email(email: str) -> str:
@@ -132,7 +143,35 @@ def score_for(method: str, performance: dict, spy_return_pct: Optional[float]) -
         return round(performance["return_pct"] - spy_return_pct, 2)
     if method in ("sharpe", "sortino", "calmar"):
         return performance.get(method)
+    if method == "diversified":
+        # The displayed/tie-breaking number is Sortino (downside-risk-
+        # adjusted return) -- a real, legible metric. Diversification
+        # affects RANK, not this number -- see challenge_leaderboard.py.
+        return performance.get("sortino")
     return performance.get("return_pct")
+
+
+async def compute_member_diversification(account: dict) -> dict:
+    """BEG-6: live concentration for one member's linked paper account,
+    for the 'diversified' scoring method only -- equity_snapshots only
+    store total equity, not positions, so this is a fresh Alpaca call,
+    same decrypt -> API call -> fail-open shape as capture_equity_for_
+    account above. {"largest_position_pct": None, "diversification_ok":
+    True} on any failure or an empty/cash-only account -- "can't tell"
+    defaults to not penalizing, never to a guessed concentration."""
+    try:
+        secret_key = decrypt_token(account["api_secret_key_encrypted"])
+        positions = await run_in_threadpool(
+            alpaca_trading_client.list_positions, account["api_key_id"], secret_key
+        )
+    except (ValueError, AlpacaTradingError) as e:
+        logger.warning("Alpaca list_positions failed for diversification check, account %s: %s", account["id"], e)
+        return {"largest_position_pct": None, "diversification_ok": True}
+
+    holdings = [{"ticker": p["symbol"], "market_value": float(p["market_value"])} for p in positions]
+    largest_position_pct = concentration(holdings)["largest_position_pct"]
+    diversification_ok = largest_position_pct is None or largest_position_pct <= DIVERSIFICATION_CONCENTRATION_LIMIT_PCT
+    return {"largest_position_pct": largest_position_pct, "diversification_ok": diversification_ok}
 
 
 async def capture_equity_for_account(account: dict) -> bool:

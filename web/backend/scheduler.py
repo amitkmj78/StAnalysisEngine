@@ -29,7 +29,7 @@ from services.stock_score_capture_service import compute_and_persist_daily_score
 from web.backend.admin import ADMIN_EMAIL
 from web.backend.community_ideas_eval import evaluate_due_community_ideas
 from web.backend.community_model_author import publish_model_ideas_for_today
-from web.backend.social_badges import recompute_verified_badges
+from web.backend.social_badges import recompute_mentor_badges, recompute_verified_badges
 from web.backend.condition_alerts_eval import evaluate_due_condition_alerts, evaluate_due_intraday_condition_alerts
 from web.backend.app_settings import (
     BASKET_REBALANCE_ENABLED_KEY,
@@ -167,6 +167,11 @@ COMMUNITY_IDEAS_EVALUATE_MINUTE_ET = 10
 # the leaderboard.
 SOCIAL_VERIFIED_BADGES_HOUR_ET = 17
 SOCIAL_VERIFIED_BADGES_MINUTE_ET = 20
+# 10 minutes after verified_badge's own job -- mentor_badge depends on it,
+# and APScheduler jobs on separate cron triggers run independently, not in
+# the order they were registered, so this needs a real, later time slot.
+SOCIAL_MENTOR_BADGES_HOUR_ET = 17
+SOCIAL_MENTOR_BADGES_MINUTE_ET = 30
 # NFR-01: alert if publication hasn't completed within 60 min of the
 # 4:00pm ET close (i.e. by 5:00pm ET).
 NFR01_CHECK_HOUR_ET = 17
@@ -342,6 +347,17 @@ async def _recompute_verified_badges_job() -> None:
     changed = await recompute_verified_badges()
     if changed:
         logger.info("Scheduler: verified_badge changed for %d user(s)", changed)
+
+
+async def _recompute_mentor_badges_job() -> None:
+    """BEG-5: recomputes every user's mentor_badge from verified_badge +
+    accepted Q&A answers (BEG-4) -- never user-settable. Scheduled
+    SOCIAL_MENTOR_BADGES_*_ET, a real 10-minute-later time slot than
+    verified_badge's own job (SOCIAL_VERIFIED_BADGES_*_ET), since
+    mentor_badge depends on verified_badge already being up to date."""
+    changed = await recompute_mentor_badges()
+    if changed:
+        logger.info("Scheduler: mentor_badge changed for %d user(s)", changed)
 
 
 async def _scan_portfolio_drops_job() -> None:
@@ -1518,6 +1534,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="recompute_verified_badges",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _recompute_mentor_badges_job,
+        CronTrigger(
+            hour=SOCIAL_MENTOR_BADGES_HOUR_ET, minute=SOCIAL_MENTOR_BADGES_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="recompute_mentor_badges",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

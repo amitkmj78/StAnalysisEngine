@@ -2,18 +2,25 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, createPost, createPostComment, getPostComments, getPosts } from "@/lib/api";
+import {
+  ApiError, acceptComment, createPost, createPostComment, getCurrentUser, getPostComments, getPosts, unacceptComment,
+} from "@/lib/api";
 import type { Post, PostComment } from "@/lib/types";
 
 /** SOC-3: every ticker page shows community discussion next to the
  * model's signal and evidence panel -- this IS the social feature's
  * posts list (web/backend/routers/social.py::list_posts), filtered by
- * ticker, not a separate discussion table. */
+ * ticker, not a separate discussion table.
+ *
+ * BEG-4: a "question" is just a post with post_type = "question"; an
+ * "answer" is just a comment on it. Only the asker can accept one. */
 export default function CommunityDiscussionPanel({ ticker }: { ticker: string }) {
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [isQuestion, setIsQuestion] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
   const [openComments, setOpenComments] = useState<Record<number, PostComment[] | undefined>>({});
   const [commentDraft, setCommentDraft] = useState<Record<number, string>>({});
 
@@ -28,6 +35,7 @@ export default function CommunityDiscussionPanel({ ticker }: { ticker: string })
 
   useEffect(() => {
     load();
+    getCurrentUser().then((u) => setMyUserId(u.id)).catch(() => setMyUserId(null));
   }, [ticker]);
 
   async function handlePost() {
@@ -35,8 +43,9 @@ export default function CommunityDiscussionPanel({ ticker }: { ticker: string })
     if (!text) return;
     setPosting(true);
     try {
-      await createPost({ body: text, ticker });
+      await createPost({ body: text, ticker, post_type: isQuestion ? "question" : "note" });
       setDraft("");
+      setIsQuestion(false);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not post.");
@@ -45,13 +54,27 @@ export default function CommunityDiscussionPanel({ ticker }: { ticker: string })
     }
   }
 
+  async function refreshComments(postId: number) {
+    const res = await getPostComments(postId);
+    setOpenComments((prev) => ({ ...prev, [postId]: res.comments }));
+  }
+
+  async function handleAccept(postId: number, commentId: number) {
+    await acceptComment(commentId);
+    await refreshComments(postId);
+  }
+
+  async function handleUnaccept(postId: number, commentId: number) {
+    await unacceptComment(commentId);
+    await refreshComments(postId);
+  }
+
   async function toggleComments(postId: number) {
     if (openComments[postId]) {
       setOpenComments((prev) => ({ ...prev, [postId]: undefined }));
       return;
     }
-    const res = await getPostComments(postId);
-    setOpenComments((prev) => ({ ...prev, [postId]: res.comments }));
+    await refreshComments(postId);
   }
 
   async function handleComment(postId: number) {
@@ -59,8 +82,7 @@ export default function CommunityDiscussionPanel({ ticker }: { ticker: string })
     if (!text) return;
     await createPostComment(postId, text);
     setCommentDraft((prev) => ({ ...prev, [postId]: "" }));
-    const res = await getPostComments(postId);
-    setOpenComments((prev) => ({ ...prev, [postId]: res.comments }));
+    await refreshComments(postId);
   }
 
   return (
@@ -83,6 +105,10 @@ export default function CommunityDiscussionPanel({ ticker }: { ticker: string })
           Post
         </button>
       </div>
+      <label className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+        <input type="checkbox" checked={isQuestion} onChange={(e) => setIsQuestion(e.target.checked)} />
+        This is a question -- you&apos;ll be able to mark the best reply as the accepted answer.
+      </label>
 
       {posts === null && !error && <p className="mt-4 text-sm text-slate-500">Loading…</p>}
       <div className="mt-4 flex flex-col gap-3">
@@ -97,6 +123,11 @@ export default function CommunityDiscussionPanel({ ticker }: { ticker: string })
                 {p.verified ? "verified claim" : "unverified"}
               </span>
             )}
+            {p.post_type === "question" && (
+              <span className="mt-1 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                question
+              </span>
+            )}
             <p className="mt-1 text-slate-700">{p.body}</p>
             <button onClick={() => toggleComments(p.id)} className="mt-2 text-xs font-medium text-slate-500 hover:underline">
               {openComments[p.id] ? "Hide replies" : "Replies"}
@@ -104,8 +135,23 @@ export default function CommunityDiscussionPanel({ ticker }: { ticker: string })
             {openComments[p.id] && (
               <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-2">
                 {openComments[p.id]!.map((c) => (
-                  <div key={c.id} className="text-xs text-slate-600">
-                    <strong>{c.display_name ?? "User"}</strong> {c.body}
+                  <div key={c.id} className="flex items-start justify-between gap-2 text-xs text-slate-600">
+                    <span>
+                      {c.is_accepted && (
+                        <span className="mr-1 rounded-full bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700">
+                          ✓ Best answer
+                        </span>
+                      )}
+                      <strong>{c.display_name ?? "User"}</strong> {c.body}
+                    </span>
+                    {p.post_type === "question" && p.author_user_id === myUserId && (
+                      <button
+                        onClick={() => (c.is_accepted ? handleUnaccept(p.id, c.id) : handleAccept(p.id, c.id))}
+                        className="flex-none whitespace-nowrap text-slate-400 hover:text-slate-700 hover:underline"
+                      >
+                        {c.is_accepted ? "Unaccept" : "Accept"}
+                      </button>
+                    )}
                   </div>
                 ))}
                 <div className="flex gap-2">

@@ -1128,6 +1128,10 @@ alter table users add column if not exists experience_level text
   check (experience_level in ('beginner', 'intermediate', 'experienced'));
 alter table users add column if not exists interests jsonb;
 alter table users add column if not exists verified_badge boolean not null default false;
+-- BEG-5: same never-user-settable shape as verified_badge above -- the
+-- nightly recompute_mentor_badges job sets it, backed by verified_badge
+-- plus a real count of accepted answers (BEG-4).
+alter table users add column if not exists mentor_badge boolean not null default false;
 
 -- SOC-2: follow a ticker or topic for the feed. No RLS, same "a follow
 -- relationship isn't sensitive" reasoning as author_follows (COM-5).
@@ -1184,6 +1188,22 @@ grant select, insert, update, delete on groups to app_service;
 grant select, insert, update, delete on group_members to app_user;
 grant select, insert, update, delete on group_members to app_service;
 
+-- BEG-5: a scheduled event hosted by a mentor within a group -- groups
+-- themselves are pure membership + a shared post feed with no scheduling
+-- concept, so this is new rather than a column on groups.
+create table if not exists group_sessions (
+  id bigint generated always as identity primary key,
+  group_id bigint not null references groups(id) on delete cascade,
+  host_user_id uuid not null references users(id) on delete cascade,
+  title text not null,
+  description text,
+  scheduled_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists group_sessions_group_idx on group_sessions(group_id, scheduled_at);
+grant select, insert, delete on group_sessions to app_user;
+grant select, insert, delete on group_sessions to app_service;
+
 -- SOC-4: a frozen, shareable copy of a user's chart_drawings (CHT-5).
 -- "Keep working on it" means fork-to-edit, not live co-editing -- a
 -- reader gets this loaded into THEIR OWN chart_drawings. No RLS:
@@ -1207,7 +1227,7 @@ grant select, insert on chart_snapshots to app_service;
 create table if not exists posts (
   id bigint generated always as identity primary key,
   author_user_id uuid not null references users(id) on delete cascade,
-  post_type text not null default 'note' check (post_type in ('note', 'performance_claim')),
+  post_type text not null default 'note' check (post_type in ('note', 'performance_claim', 'question')),
   body text not null,
   ticker text,
   topic text,
@@ -1230,11 +1250,17 @@ create table if not exists post_comments (
   post_id bigint not null references posts(id) on delete cascade,
   author_user_id uuid not null references users(id) on delete cascade,
   body text not null,
+  -- BEG-4: the asker (and only the asker) marks one comment on a
+  -- 'question' post as the accepted answer. The partial unique index
+  -- enforces "at most one" at the DB level, not just in application code.
+  is_accepted boolean not null default false,
   created_at timestamptz not null default now()
 );
 create index if not exists post_comments_post_idx on post_comments(post_id, created_at);
-grant select, insert on post_comments to app_user;
-grant select, insert on post_comments to app_service;
+create unique index if not exists post_comments_one_accepted_per_post
+  on post_comments (post_id) where is_accepted;
+grant select, insert, update on post_comments to app_user;
+grant select, insert, update on post_comments to app_service;
 
 -- SOC-7: permissioned DMs ("only from people the user follows or
 -- allows"). direct_messages IS genuinely private -- RLS required,
@@ -1921,7 +1947,11 @@ create table if not exists challenges (
 alter table challenges add column if not exists scoring text not null default 'return';
 alter table challenges add column if not exists include_quant_model boolean not null default false;
 alter table challenges drop constraint if exists challenges_scoring_check;
-alter table challenges add constraint challenges_scoring_check check (scoring in ('return','sharpe','sortino','calmar','excess_spy'));
+alter table challenges add constraint challenges_scoring_check check (scoring in ('return','sharpe','sortino','calmar','excess_spy','diversified'));
+-- BEG-6: a beginner-only challenge forces 'diversified' scoring (enforced
+-- in web/backend/routers/challenges.py, not just suggested) and only
+-- lets users with experience_level = 'beginner' join.
+alter table challenges add column if not exists beginner_only boolean not null default false;
 
 create table if not exists challenge_members (
   challenge_id bigint not null references challenges(id) on delete cascade,

@@ -1,13 +1,18 @@
+import asyncio
 from datetime import date
+from unittest.mock import patch
 
 from services.challenge_service import (
+    DIVERSIFICATION_CONCENTRATION_LIMIT_PCT,
     rebase_to_100,
     score_for,
     JOIN_CODE_ALPHABET,
     JOIN_CODE_LENGTH,
+    compute_member_diversification,
     compute_member_performance,
     generate_join_code,
 )
+from services.alpaca_trading_client import AlpacaTradingError
 
 
 def _snap(d: str, equity: float) -> dict:
@@ -116,6 +121,72 @@ def test_rebase_starts_at_100_and_tracks_moves():
     series = rebase_to_100([(date(2026, 10, 2), 110.0), (date(2026, 10, 1), 100.0), (date(2026, 10, 3), 95.0)])
     assert [p["value"] for p in series] == [100.0, 110.0, 95.0]
     assert series[0]["date"] == "2026-10-01"
+
+
+# BEG-6: beginner challenges' 'diversified' scoring method.
+
+def test_diversified_scoring_displays_sortino():
+    """The displayed/tie-breaking number is Sortino, a real metric --
+    diversification affects rank via challenge_leaderboard.py's sort key,
+    not by being blended into this number."""
+    perf = {"return_pct": 5.0, "sharpe": 1.2, "sortino": 1.5, "calmar": 2.0}
+    assert score_for("diversified", perf, 2.0) == 1.5
+
+
+_ACCOUNT = {"id": 1, "api_key_id": "key", "api_secret_key_encrypted": "enc"}
+
+
+def test_compute_member_diversification_flags_concentrated_account():
+    positions = [{"symbol": "AAPL", "market_value": "8000"}, {"symbol": "MSFT", "market_value": "2000"}]
+    with patch("services.challenge_service.decrypt_token", return_value="secret"), patch(
+        "services.challenge_service.alpaca_trading_client.list_positions", return_value=positions
+    ):
+        result = asyncio.run(compute_member_diversification(_ACCOUNT))
+    assert result["largest_position_pct"] == 80.0
+    assert result["diversification_ok"] is False
+
+
+def test_compute_member_diversification_ok_within_the_limit():
+    # Evenly split across 5 positions -> 20% largest, under the 25% limit.
+    positions = [{"symbol": f"T{i}", "market_value": "2000"} for i in range(5)]
+    with patch("services.challenge_service.decrypt_token", return_value="secret"), patch(
+        "services.challenge_service.alpaca_trading_client.list_positions", return_value=positions
+    ):
+        result = asyncio.run(compute_member_diversification(_ACCOUNT))
+    assert result["largest_position_pct"] == 20.0
+    assert result["diversification_ok"] is True
+    assert result["largest_position_pct"] < DIVERSIFICATION_CONCENTRATION_LIMIT_PCT
+
+
+def test_compute_member_diversification_exactly_at_the_limit_is_ok():
+    # 4 equal positions -> the largest is exactly 25%, at the limit.
+    positions = [{"symbol": f"T{i}", "market_value": "2500"} for i in range(4)]
+    with patch("services.challenge_service.decrypt_token", return_value="secret"), patch(
+        "services.challenge_service.alpaca_trading_client.list_positions", return_value=positions
+    ):
+        result = asyncio.run(compute_member_diversification(_ACCOUNT))
+    assert result["largest_position_pct"] == DIVERSIFICATION_CONCENTRATION_LIMIT_PCT
+    assert result["diversification_ok"] is True
+
+
+def test_compute_member_diversification_defaults_to_ok_on_alpaca_failure():
+    """"Can't tell" must never be treated as "concentrated" -- it would
+    unfairly penalize a member over a transient API error, not their
+    actual portfolio."""
+    with patch("services.challenge_service.decrypt_token", return_value="secret"), patch(
+        "services.challenge_service.alpaca_trading_client.list_positions",
+        side_effect=AlpacaTradingError(500, "boom"),
+    ):
+        result = asyncio.run(compute_member_diversification(_ACCOUNT))
+    assert result == {"largest_position_pct": None, "diversification_ok": True}
+
+
+def test_compute_member_diversification_empty_account_is_ok():
+    with patch("services.challenge_service.decrypt_token", return_value="secret"), patch(
+        "services.challenge_service.alpaca_trading_client.list_positions", return_value=[]
+    ):
+        result = asyncio.run(compute_member_diversification(_ACCOUNT))
+    assert result == {"largest_position_pct": None, "diversification_ok": True}
 
 
 def test_rebase_handles_empty_and_zero_base():
