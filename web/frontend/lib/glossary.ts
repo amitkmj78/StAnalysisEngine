@@ -471,7 +471,8 @@ export const GLOSSARY: Record<string, ColumnInfo> = {
     title: "Current Price",
     body: [
       "A live quote, fetched on demand — distinct from Last Close, which is the price at the moment this signal was captured (as of the date shown at the top of the page).",
-      "The % shown next to it is the real move since the signal was captured, so you can see at a glance whether the price is actually tracking the model's call or has gone the other way.",
+      "The % shown next to it is the real move since the signal was captured, colored the same way as everywhere else in this app: green for up, red for down -- regardless of what the signal called.",
+      "The separate \"tracking the call\" / \"against the call\" label says whether that move agrees with the signal (e.g. price fell after a SELL) -- a BUY that's down, or a SELL that's up, shows \"against the call\" even though the color above is about the price move itself, not the call.",
       "Click \"Get AI Context\" after loading this to have the explanation address that move directly, alongside the usual technical picture.",
     ],
   },

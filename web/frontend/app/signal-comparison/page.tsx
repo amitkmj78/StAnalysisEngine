@@ -455,9 +455,12 @@ export default function SignalComparisonPage() {
                                   return (
                                     <span className="text-slate-700">
                                       <strong>${livePrice.toFixed(2)}</strong>{" "}
-                                      <span className={trackingCall ? "text-emerald-600" : "text-red-600"}>
+                                      <span className={actualPct >= 0 ? "text-emerald-600" : "text-red-600"}>
                                         ({actualPct >= 0 ? "+" : ""}
                                         {actualPct.toFixed(2)}% since signal)
+                                      </span>{" "}
+                                      <span className={`text-xs ${trackingCall ? "text-emerald-600" : "text-red-600"}`}>
+                                        {trackingCall ? "✓ tracking the call" : "✗ against the call"}
                                       </span>
                                     </span>
                                   );
