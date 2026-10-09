@@ -639,7 +639,14 @@ export default function StockScorePage() {
                     {data.explanations.drivers.map((d) => (
                       <li key={d.factor} className="flex items-center justify-between gap-3 text-sm">
                         <span className="text-slate-700">
-                          <MetricLabel term={d.factor}>{FACTOR_LABELS[d.factor] ?? d.factor}</MetricLabel>
+                          <MetricLabel
+                            term={d.factor}
+                            extraBody={[
+                              `In plain terms: for ${data.ticker} right now, this factor is adding about +${d.contribution.toFixed(1)} points to the score -- one of the things pushing it up today.`,
+                            ]}
+                          >
+                            {FACTOR_LABELS[d.factor] ?? d.factor}
+                          </MetricLabel>
                         </span>
                         <span className="shrink-0 font-mono text-xs font-semibold text-emerald-700">
                           +{d.contribution.toFixed(1)}
@@ -665,7 +672,14 @@ export default function StockScorePage() {
                   {data.explanations.drags.map((d) => (
                     <li key={d.factor} className="flex items-center justify-between gap-3 text-sm">
                       <span className="text-slate-700">
-                        <MetricLabel term={d.factor}>{FACTOR_LABELS[d.factor] ?? d.factor}</MetricLabel>
+                        <MetricLabel
+                          term={d.factor}
+                          extraBody={[
+                            `In plain terms: for ${data.ticker} right now, this factor is subtracting about ${d.contribution.toFixed(1)} points from the score -- one of the things dragging it down today.`,
+                          ]}
+                        >
+                          {FACTOR_LABELS[d.factor] ?? d.factor}
+                        </MetricLabel>
                       </span>
                       <span className="shrink-0 font-mono text-xs font-semibold text-red-700">
                         {d.contribution.toFixed(1)}
@@ -1003,7 +1017,15 @@ export default function StockScorePage() {
                   </div>
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                      <MetricLabel>Gain/Loss</MetricLabel>
+                      <MetricLabel
+                        extraBody={
+                          pos.gain_loss_pct !== null && pos.gain_loss_pct !== undefined
+                            ? [`In plain terms: this position is ${pos.gain_loss_pct >= 0 ? "up" : "down"} ${Math.abs(pos.gain_loss_pct).toFixed(1)}% since you bought it.`]
+                            : undefined
+                        }
+                      >
+                        Gain/Loss
+                      </MetricLabel>
                     </p>
                     <p
                       className={`mt-0.5 text-lg font-semibold ${
@@ -1017,7 +1039,16 @@ export default function StockScorePage() {
                   </div>
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                      <MetricLabel term="Weight">Portfolio Weight</MetricLabel>
+                      <MetricLabel
+                        term="Weight"
+                        extraBody={
+                          pos.weight_pct !== null && pos.weight_pct !== undefined
+                            ? [`In plain terms: ${ticker} makes up about ${pos.weight_pct.toFixed(1)}% of this portfolio's total value right now.`]
+                            : undefined
+                        }
+                      >
+                        Portfolio Weight
+                      </MetricLabel>
                     </p>
                     <p className="mt-0.5 text-lg font-semibold text-slate-900">
                       {pos.weight_pct !== null && pos.weight_pct !== undefined ? `${pos.weight_pct.toFixed(1)}%` : "—"}

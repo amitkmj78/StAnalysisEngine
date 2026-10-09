@@ -892,7 +892,19 @@ export default function PortfolioPage() {
                         onClick={() => setSort(nextSort(sort, "ticker"))} />
                     </th>
                     <th className="px-4 py-3">
-                      <MetricLabel term="Portfolio Signal">Signal</MetricLabel>
+                      <MetricLabel
+                        term="Portfolio Signal"
+                        extraBody={[
+                          (() => {
+                            const buy = insights.filter((i) => i.signal === "BUY").length;
+                            const hold = insights.filter((i) => i.signal === "HOLD").length;
+                            const sell = insights.filter((i) => i.signal === "SELL").length;
+                            return `Right now, across your ${insights.length} holding${insights.length === 1 ? "" : "s"} with a signal: ${buy} BUY, ${hold} HOLD, ${sell} SELL.`;
+                          })(),
+                        ]}
+                      >
+                        Signal
+                      </MetricLabel>
                       <SortArrow active={sort.key === "signal" ? sort.direction : null}
                         label="Sort by signal"
                         onClick={() => setSort(nextSort(sort, "signal"))} />
@@ -928,7 +940,20 @@ export default function PortfolioPage() {
                         onClick={() => setSort(nextSort(sort, "today"))} />
                     </th>
                     <th className="px-4 py-3 text-right">
-                      <MetricLabel term="Gain vs. Paid">Since Cost</MetricLabel>
+                      <MetricLabel
+                        term="Gain vs. Paid"
+                        extraBody={
+                          performance
+                            ? [
+                                `In plain terms: across your whole portfolio right now, you're ${performance.total_gain_vs_cost >= 0 ? "up" : "down"} ` +
+                                  `$${Math.abs(performance.total_gain_vs_cost).toLocaleString(undefined, { maximumFractionDigits: 0 })}` +
+                                  `${performance.total_gain_vs_cost_pct !== null ? ` (${performance.total_gain_vs_cost_pct >= 0 ? "+" : ""}${performance.total_gain_vs_cost_pct.toFixed(1)}%)` : ""} since you paid for it.`,
+                              ]
+                            : undefined
+                        }
+                      >
+                        Since Cost
+                      </MetricLabel>
                       <SortArrow active={sort.key === "since_cost" ? sort.direction : null}
                         label="Sort by since cost"
                         onClick={() => setSort(nextSort(sort, "since_cost"))} />

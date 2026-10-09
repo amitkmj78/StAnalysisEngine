@@ -559,7 +559,13 @@ export default function PredictPage() {
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3.5 py-1 text-[13px] font-bold text-slate-600">
                       {data.signal.signal} &middot; {shownDaysAhead}-day signal
-                      <MetricLabel info={getSignalInfo(shownDaysAhead)} />
+                      <MetricLabel
+                        info={getSignalInfo(shownDaysAhead)}
+                        extraBody={[
+                          `Right now, for ${data.ticker}: the model expects about ${data.signal.expected_return_pct >= 0 ? "+" : ""}${data.signal.expected_return_pct.toFixed(1)}% over the next ${shownDaysAhead} days. ` +
+                            `That's ${Math.abs(data.signal.expected_return_pct) >= 5 ? "past" : "inside"} the ±5% BUY/SELL threshold, which is why this reads ${data.signal.signal}.`,
+                        ]}
+                      />
                     </span>
                     {data.signal.signal_flip_count !== null && (
                       <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${data.signal.signal_unstable ? PF.warnBadge : "bg-slate-100 text-slate-500"}`}>
@@ -593,8 +599,17 @@ export default function PredictPage() {
                     </div>
                     {ciLow !== null && ciHigh !== null && (
                       <div className="min-w-[150px] rounded-xl border border-[var(--pf-border)] bg-white px-4 py-3">
-                        <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
+                        <p className="flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
                           Likely Range (95%)
+                          <MetricLabel
+                            info={{
+                              title: "Likely Range (95%)",
+                              body: [
+                                "The model's 95% confidence interval -- the band it's 95% sure the real outcome will fall inside, not a prediction of exactly where the price lands.",
+                                `In plain terms: based on this model, ${data.ticker} has roughly a 95% chance of landing somewhere between $${ciLow.toFixed(2)} and $${ciHigh.toFixed(2)} in ${shownDaysAhead} days${data.last_close !== null ? ` (today's close: $${data.last_close.toFixed(2)})` : ""} -- and about a 1-in-20 chance it ends up outside that band entirely.`,
+                              ],
+                            }}
+                          />
                         </p>
                         <p className="mt-0.5 text-lg font-semibold" style={MONO_FONT}>
                           ${ciLow.toFixed(2)} – ${ciHigh.toFixed(2)}
@@ -656,9 +671,21 @@ export default function PredictPage() {
                     <BacktestChart ticker={data.ticker} backtest={data.backtest} />
                   </div>
                   <div className="grid grid-cols-1 gap-3 border-t border-slate-200 p-4 sm:grid-cols-3">
-                    <MetricTile label="RMSE" value={data.metrics.rmse.toFixed(2)} />
-                    <MetricTile label="MAE" value={data.metrics.mae.toFixed(2)} />
-                    <MetricTile label="MAPE" value={`${data.metrics.mape.toFixed(2)}%`} />
+                    <MetricTile
+                      label="RMSE"
+                      value={data.metrics.rmse.toFixed(2)}
+                      extraBody={[`For ${data.ticker}: the model's bad days are typically off by about $${data.metrics.rmse.toFixed(2)}.`]}
+                    />
+                    <MetricTile
+                      label="MAE"
+                      value={data.metrics.mae.toFixed(2)}
+                      extraBody={[`In plain terms: for ${data.ticker}, this model's forecasts miss by about $${data.metrics.mae.toFixed(2)} on a typical day.`]}
+                    />
+                    <MetricTile
+                      label="MAPE"
+                      value={`${data.metrics.mape.toFixed(2)}%`}
+                      extraBody={[`In plain terms: for ${data.ticker}, this model's forecasts are typically off by about ${data.metrics.mape.toFixed(1)}% of the price, in either direction.`]}
+                    />
                   </div>
 
                   {data.metrics.naive_rmse !== null && data.metrics.naive_rmse !== undefined && (
@@ -1183,11 +1210,11 @@ export default function PredictPage() {
   );
 }
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function MetricTile({ label, value, extraBody }: { label: string; value: string; extraBody?: string[] }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3">
       <p className="flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-wide text-slate-500">
-        <MetricLabel>{label}</MetricLabel>
+        <MetricLabel extraBody={extraBody}>{label}</MetricLabel>
       </p>
       <p className="mt-1 text-xl font-semibold text-slate-900" style={MONO_FONT}>
         {value}
