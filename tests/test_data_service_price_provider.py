@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
+from services import data_service
 from services.alpaca_client import AlpacaSymbolNotFound
 from services.data_service import (
     get_effective_price,
@@ -85,15 +86,32 @@ def test_get_previous_close_returns_none_when_missing():
         assert get_previous_close("PREV_CLOSE_TICKER_2") is None
 
 
-def test_get_previous_close_does_not_cache_a_failed_lookup():
-    """Regression test: a rate-limited/failed fetch must not be remembered
-    for the same 1hr TTL as a real result — production hit exactly this,
-    where a transient Yahoo rate-limit blanked Today's Gain/Loss for most
-    of a portfolio for a full hour even though Yahoo recovered seconds
-    later. The very next call should retry, not serve a cached None."""
-    with patch("services.data_service.fetch_with_backoff", side_effect=Exception("Too Many Requests")):
+def test_get_previous_close_briefly_caches_a_failed_lookup_then_retries():
+    """Regression test, two incidents deep. First: a rate-limited/failed
+    fetch must not be remembered for the same 1hr TTL as a real result —
+    production hit exactly this, where a transient Yahoo rate-limit
+    blanked Today's Gain/Loss for most of a portfolio for a full hour
+    even though Yahoo recovered seconds later. Second (the opposite
+    failure mode of literally zero caching): a PERSISTENTLY-failing
+    ticker (e.g. a mutual fund neither Yahoo nor Alpaca can quote) was
+    then observed retrying its full backoff chain on every single poll
+    of a page refreshing every ~10-20s, forever — real, repeated latency
+    with zero chance of ever succeeding. The fix for both: a failure IS
+    cached, just much more briefly (_PREVIOUS_CLOSE_FAILURE_TTL_SECONDS)
+    than a real result (_PREVIOUS_CLOSE_TTL_SECONDS)."""
+    with patch("services.data_service.fetch_with_backoff", side_effect=Exception("Too Many Requests")), patch(
+        "services.data_service.get_alpaca_previous_close", return_value=None
+    ):
         assert get_previous_close("PREV_CLOSE_TICKER_3") is None
 
+    # Immediately calling again must NOT retry -- the short failure-TTL
+    # cache should serve the same None without a second fetch attempt.
+    with patch("services.data_service.fetch_with_backoff", return_value=99.5) as mock_fetch:
+        assert get_previous_close("PREV_CLOSE_TICKER_3") is None
+        mock_fetch.assert_not_called()
+
+    # Once the short failure TTL has elapsed, the next call retries for real.
+    data_service._previous_close_cache_ts["PREV_CLOSE_TICKER_3"] -= data_service._PREVIOUS_CLOSE_FAILURE_TTL_SECONDS + 1
     with patch("services.data_service.fetch_with_backoff", return_value=99.5):
         assert get_previous_close("PREV_CLOSE_TICKER_3") == 99.5
 
@@ -105,6 +123,27 @@ def test_get_previous_close_caches_a_successful_lookup():
         assert get_previous_close("PREV_CLOSE_TICKER_4") == 88.25
         assert get_previous_close("PREV_CLOSE_TICKER_4") == 88.25
     assert mock_fetch.call_count == 1
+
+
+def test_get_previous_close_falls_back_to_alpaca_when_yahoo_fails():
+    """A real mitigation for today's incident: when Yahoo fails, this
+    tries Alpaca's daily bars before giving up -- and a result served
+    from that fallback is cached at the full (not the short-failure) TTL,
+    since it's a real answer, not a miss."""
+    with patch("services.data_service.fetch_with_backoff", side_effect=Exception("Too Many Requests")), patch(
+        "services.data_service.get_alpaca_previous_close", return_value=77.10
+    ) as mock_alpaca:
+        assert get_previous_close("PREV_CLOSE_TICKER_5") == 77.10
+    mock_alpaca.assert_called_once_with("PREV_CLOSE_TICKER_5")
+
+    # Cached at the full TTL -- a second call within it must not refetch
+    # from either source.
+    with patch("services.data_service.fetch_with_backoff") as mock_fetch, patch(
+        "services.data_service.get_alpaca_previous_close"
+    ) as mock_alpaca_2:
+        assert get_previous_close("PREV_CLOSE_TICKER_5") == 77.10
+    mock_fetch.assert_not_called()
+    mock_alpaca_2.assert_not_called()
 
 
 def test_switching_provider_does_not_serve_stale_cached_result():
