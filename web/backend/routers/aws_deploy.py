@@ -545,6 +545,8 @@ create table if not exists lesson_progress (
   primary key (user_id, lesson_id)
 );
 create index if not exists lesson_progress_user_idx on lesson_progress(user_id);
+grant select, insert, update on lesson_progress to app_user;
+grant select, insert, update on lesson_progress to app_service;
 
 -- Diversified-basket generation metadata -- only populated for
 -- portfolios created via "Build a Diversified Basket"; NULL/default for
@@ -2282,7 +2284,7 @@ grant select, insert, update on agent_user_settings to app_service;
 grant select, insert on agent_runs to app_service;
 grant select on agent_runs to app_user;
 grant select, insert on agent_order_events to app_service;
-grant select on agent_order_events to app_user;
+grant select, update on agent_order_events to app_user;
 grant select, insert on challenge_rank_history to app_service;
 grant select, insert on challenge_notification_log to app_service;
 grant select, insert on challenges to app_service;

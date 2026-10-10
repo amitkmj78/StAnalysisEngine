@@ -13,3 +13,5 @@ create table if not exists lesson_progress (
   primary key (user_id, lesson_id)
 );
 create index if not exists lesson_progress_user_idx on lesson_progress(user_id);
+grant select, insert, update on lesson_progress to app_user;
+grant select, insert, update on lesson_progress to app_service;
