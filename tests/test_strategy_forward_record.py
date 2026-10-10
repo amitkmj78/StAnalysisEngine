@@ -1,4 +1,4 @@
-from services.strategy_forward_record import MIN_DAYS_SINCE_PUBLISH, _needs_sp500, _resolve_tickers
+from services.strategy_forward_record import MIN_DAYS_SINCE_PUBLISH, _needs_sp500, _new_trades_since, _resolve_tickers
 
 UNIVERSE = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "JPM"]
 
@@ -45,3 +45,24 @@ def test_needs_sp500_only_for_random_sample_without_weights():
 
 def test_min_days_since_publish_is_a_real_positive_gate():
     assert MIN_DAYS_SINCE_PUBLISH >= 1
+
+
+# STS-5 (alerts half only -- never auto-paper-follow): _new_trades_since
+# decides which closed trades are "new" since the last forward-record run.
+
+def test_new_trades_since_never_alerts_on_the_first_ever_snapshot():
+    """No prior row -- the whole backtest history would land at once, which
+    isn't a real new signal."""
+    trade_log = [{"ticker": "AAPL"}, {"ticker": "MSFT"}]
+    assert _new_trades_since(trade_log, None, trades=2) == []
+
+
+def test_new_trades_since_returns_only_the_tail_slice():
+    trade_log = [{"ticker": "AAPL"}, {"ticker": "MSFT"}, {"ticker": "NVDA"}]
+    assert _new_trades_since(trade_log, prior_trades=1, trades=3) == [{"ticker": "MSFT"}, {"ticker": "NVDA"}]
+
+
+def test_new_trades_since_is_empty_when_the_trade_count_did_not_increase():
+    trade_log = [{"ticker": "AAPL"}]
+    assert _new_trades_since(trade_log, prior_trades=1, trades=1) == []
+    assert _new_trades_since(trade_log, prior_trades=2, trades=1) == []

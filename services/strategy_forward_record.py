@@ -20,6 +20,7 @@ from datetime import date
 
 from starlette.concurrency import run_in_threadpool
 
+from services.notification_dispatcher import dispatch_alert
 from services.stock_finder_service import fetch_sp500_tickers
 from services.strategy_engine import feature_frame, run_backtest
 from services.yfinance_cache import get_cached_history_range, get_earnings_report_dates
@@ -108,8 +109,16 @@ async def _evaluate_one(row, universe: list[str], today: date) -> None:
     if cumulative_return_pct is None:
         return
     trades = result.get("trades") or 0
+    trade_log = result.get("trade_log") or []
 
     async with service_conn() as conn:
+        prior_trades = await conn.fetchval(
+            """
+            SELECT trades FROM published_strategy_forward_snapshots
+            WHERE published_strategy_id = $1 ORDER BY as_of_date DESC LIMIT 1
+            """,
+            published_id,
+        )
         await conn.execute(
             """
             INSERT INTO published_strategy_forward_snapshots
@@ -119,6 +128,57 @@ async def _evaluate_one(row, universe: list[str], today: date) -> None:
             """,
             published_id, today, cumulative_return_pct, trades,
         )
+
+    # STS-5 (alerts half only -- never auto-paper-follow): a strategy's
+    # followers get notified when THIS run detects newly-closed trades since
+    # the last run. prior_trades is None on this strategy's first-ever
+    # snapshot -- never alert then, since there is no real "new" baseline to
+    # diff against, only the whole backtest history landing at once.
+    new_trades = _new_trades_since(trade_log, prior_trades, trades)
+    if new_trades:
+        await _alert_followers_of_new_trades(published_id, row.get("name"), new_trades)
+
+
+def _new_trades_since(trade_log: list[dict], prior_trades: int | None, trades: int) -> list[dict]:
+    """trade_log is deterministic and chronological (see run_backtest), so
+    newly-closed trades are always at the tail. prior_trades is None on a
+    strategy's first-ever snapshot -- never alert then, since there is no
+    real "new" baseline to diff against, only the whole backtest history
+    landing at once."""
+    if prior_trades is None or trades <= prior_trades:
+        return []
+    return trade_log[-(trades - prior_trades):]
+
+
+async def _alert_followers_of_new_trades(published_id: int, name, new_trades: list[dict]) -> None:
+    async with service_conn() as conn:
+        followers = await conn.fetch(
+            "SELECT user_id FROM strategy_follows WHERE published_strategy_id = $1", published_id
+        )
+    if not followers:
+        return
+    label = name or "A strategy you follow"
+    for trade in new_trades:
+        ticker = trade.get("ticker")
+        return_pct = trade.get("return_pct")
+        exit_reason = trade.get("exit_reason")
+        summary = f"{ticker}: closed {return_pct}% ({exit_reason})" if return_pct is not None else f"{ticker}: new signal"
+        async with service_conn() as conn:
+            for f in followers:
+                await conn.execute(
+                    """
+                    INSERT INTO strategy_signal_alerts (user_id, published_strategy_id, ticker, trade_summary)
+                    VALUES ($1::uuid, $2, $3, $4)
+                    """,
+                    f["user_id"], published_id, ticker, summary,
+                )
+        for f in followers:
+            await dispatch_alert(
+                str(f["user_id"]), ticker, "strategy_signal",
+                f"{label}: new signal on {ticker}",
+                f"{label} just closed a trade on {ticker}: {summary}.",
+                {"return_pct": return_pct, "exit_reason": exit_reason},
+            )
 
 
 async def evaluate_due_forward_records() -> int:
@@ -131,7 +191,7 @@ async def evaluate_due_forward_records() -> int:
     async with service_conn() as conn:
         rows = await conn.fetch(
             """
-            SELECT id AS published_strategy_id, published_at, definition
+            SELECT id AS published_strategy_id, published_at, definition, name
             FROM published_strategies
             WHERE NOT EXISTS (
                 SELECT 1 FROM published_strategy_forward_snapshots s

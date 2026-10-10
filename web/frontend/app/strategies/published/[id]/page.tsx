@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import CommunityDiscussionPanel from "@/components/stock-detail/CommunityDiscussionPanel";
 import {
-  ApiError, forkPublishedStrategy, getPublishedStrategy, getStrategyForwardRecord, listPublishedStrategyVersions,
+  ApiError, followPublishedStrategy, forkPublishedStrategy, getPublishedStrategy, getStrategyForwardRecord,
+  listPublishedStrategyVersions, unfollowPublishedStrategy,
 } from "@/lib/api";
 import type { PublishedStrategyDetail, PublishedStrategyVersion, StrategyForwardSnapshot } from "@/lib/types";
 
@@ -23,10 +25,15 @@ export default function PublishedStrategyPage() {
   const [forward, setForward] = useState<StrategyForwardSnapshot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forking, setForking] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
 
   useEffect(() => {
     getPublishedStrategy(id)
-      .then(setDetail)
+      .then((res) => {
+        setDetail(res);
+        setFollowing(res.is_following);
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : "This published strategy could not be loaded."));
     listPublishedStrategyVersions(id).then((res) => setVersions(res.versions)).catch(() => setVersions([]));
     getStrategyForwardRecord(id).then((res) => setForward(res.snapshots)).catch(() => setForward([]));
@@ -50,6 +57,23 @@ export default function PublishedStrategyPage() {
     }
   }
 
+  async function handleFollow() {
+    setFollowBusy(true);
+    try {
+      if (following) {
+        await unfollowPublishedStrategy(id);
+        setFollowing(false);
+      } else {
+        await followPublishedStrategy(id);
+        setFollowing(true);
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not update follow status.");
+    } finally {
+      setFollowBusy(false);
+    }
+  }
+
   if (error) return <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-red-700">{error}</div>;
   if (!detail) return <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-slate-500">Loading…</div>;
 
@@ -64,23 +88,39 @@ export default function PublishedStrategyPage() {
         <h1 className="font-display text-2xl font-semibold text-slate-900">
           {detail.name} <span className="text-base font-normal text-slate-400">v{detail.version}</span>
         </h1>
-        {detail.rules_visibility === "public" ? (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleFork}
-            disabled={forking}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            onClick={handleFollow}
+            disabled={followBusy}
+            className={`rounded-md border px-4 py-2 text-sm font-semibold disabled:opacity-50 ${
+              following ? "border-slate-300 bg-white text-slate-700 hover:bg-slate-50" : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+            }`}
           >
-            {forking ? "Forking…" : "Fork this strategy"}
+            {following ? "Following" : "Follow for signal alerts"}
           </button>
-        ) : (
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
-            Rules private — can&apos;t be forked
-          </span>
-        )}
+          {detail.rules_visibility === "public" ? (
+            <button
+              type="button"
+              onClick={handleFork}
+              disabled={forking}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {forking ? "Forking…" : "Fork this strategy"}
+            </button>
+          ) : (
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+              Rules private — can&apos;t be forked
+            </span>
+          )}
+        </div>
       </div>
       <p className="mt-1 text-sm text-slate-500">
         by {detail.author_display_name ?? "a member"} · published {new Date(detail.published_at).toLocaleDateString()}
+      </p>
+      <p className="mt-1 text-xs text-slate-400">
+        Following gets you an alert when this strategy&apos;s forward replay closes a new trade -- it does not
+        place any paper or live order on your behalf.
       </p>
 
       {(versions?.length ?? 0) > 1 && (
@@ -139,6 +179,13 @@ export default function PublishedStrategyPage() {
             <span className="text-slate-500">over {latestForward.trades} trade{latestForward.trades === 1 ? "" : "s"}, as of {latestForward.as_of_date}</span>
           </p>
         )}
+      </div>
+
+      <div className="mt-4">
+        <CommunityDiscussionPanel
+          publishedStrategyId={id}
+          composePlaceholder={`Ask a question or share something about ${detail.name}...`}
+        />
       </div>
     </div>
   );

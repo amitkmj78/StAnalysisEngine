@@ -1,6 +1,8 @@
 """Strategy Builder: backtests, presets, saved strategies, comparison, read-only
-share links, and (STS-1/2/3) publishing a strategy publicly with versioning,
-forking a public one, and its ongoing forward paper track record.
+share links, (STS-1/2/3) publishing a strategy publicly with versioning,
+forking a public one, and its ongoing forward paper track record, (STS-4) a
+leaderboard over that forward record, and (STS-5, alerts half only) following
+a strategy to get its forward signals as alerts.
 
 Nothing here places an order, ever. STS-7: forking only ever copies into the
 forker's own saved_strategies row -- this app's own private paper/builder
@@ -11,6 +13,15 @@ built here either, pending SAF-9's legal review. See web/backend/app_settings.py
 STRATEGY_LIVE_COPY_ENABLED_KEY / STRATEGY_PAID_SUBSCRIPTIONS_ENABLED_KEY (reserved,
 unused) and trading_agent.py's compliance_reference pattern for whoever eventually
 builds either, once sign-off is recorded.
+
+STS-5's OTHER half -- paper-following a strategy automatically, writing into
+the follower's own paper account unattended -- is deliberately not built here.
+It is a materially different, higher-risk capability (an automated process
+acting on a user's account without a fresh action from them each time) and was
+explicitly deferred to its own review, not bundled into this round. The same
+reasoning is why STS-6's ratings (which need a 30-day-paper-followed gate) are
+not built either -- see web/backend/routers/social.py's published_strategy_id
+column for the comments/questions half that IS built.
 """
 
 import hashlib
@@ -31,6 +42,7 @@ from services.signal_publication_service import DEFAULT_HORIZON_DAYS, DEFAULT_LO
 from services.rule_text import parse_rule_text
 from services.strategy_explainer import explain_backtest
 from services.strategy_engine import DEFAULT_COOLDOWN, MAX_TICKERS, Rule, feature_frame, model_portfolio_summary, run_backtest
+from services.strategy_leaderboard import build_strategy_leaderboard
 from services.sp500_membership import current_members, member_flags, members_on, removed_after
 from services.strategy_scan import TEMPLATES, pick_sample, scan
 from services.yfinance_cache import get_cached_history, get_earnings_report_dates
@@ -549,9 +561,21 @@ async def list_published(request: Request, limit: int = Query(50, le=200)):
     }
 
 
+@router.get("/published/leaderboard")
+@limiter.limit("60/minute")
+async def get_strategy_leaderboard(request: Request):
+    """STS-4: ranked by forward risk-adjusted excess return vs SPY, gated
+    on a minimum of 3 months and 30 trades -- strategies below the minimum
+    come back with eligible=false and reason="not enough data yet" instead
+    of a guessed rank. Declared before /published/{published_id} so
+    "leaderboard" is never parsed as an id."""
+    return {"leaderboard": await build_strategy_leaderboard()}
+
+
 @router.get("/published/{published_id}")
 @limiter.limit("60/minute")
 async def get_published(request: Request, published_id: int):
+    user_id = request.state.user["id"]
     async with service_conn() as conn:
         row = await conn.fetchrow(
             """
@@ -561,6 +585,10 @@ async def get_published(request: Request, published_id: int):
             """,
             published_id,
         )
+        is_following = row is not None and bool(await conn.fetchval(
+            "SELECT 1 FROM strategy_follows WHERE user_id = $1::uuid AND published_strategy_id = $2",
+            user_id, published_id,
+        ))
     if row is None:
         raise HTTPException(404, "Published strategy not found.")
     out = {
@@ -574,6 +602,7 @@ async def get_published(request: Request, published_id: int):
         "rules_summary": row["rules_summary"],
         "published_at": row["published_at"].isoformat(),
         "result": json.loads(row["result"]) if isinstance(row["result"], str) else row["result"],
+        "is_following": is_following,
     }
     if row["rules_visibility"] == "public":
         out["definition"] = json.loads(row["definition"]) if isinstance(row["definition"], str) else row["definition"]
@@ -627,6 +656,40 @@ async def fork_published(request: Request, published_id: int):
             user_id, f"{row['name']} (forked)", definition_payload, published_id, row["version"],
         )
     return {"saved_id": new_id}
+
+
+@router.post("/published/{published_id}/follow")
+@limiter.limit("30/minute")
+async def follow_published(request: Request, published_id: int):
+    """STS-5 (alerts half only -- never auto-paper-follow): the follower
+    gets an alert when services/strategy_forward_record.py's nightly replay
+    detects a newly-closed trade. Never writes into any paper or live
+    account on the follower's behalf."""
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        exists = await conn.fetchval("SELECT 1 FROM published_strategies WHERE id = $1", published_id)
+        if not exists:
+            raise HTTPException(404, "Published strategy not found.")
+        await conn.execute(
+            """
+            INSERT INTO strategy_follows (user_id, published_strategy_id) VALUES ($1::uuid, $2)
+            ON CONFLICT DO NOTHING
+            """,
+            user_id, published_id,
+        )
+    return {"ok": True}
+
+
+@router.delete("/published/{published_id}/follow")
+@limiter.limit("30/minute")
+async def unfollow_published(request: Request, published_id: int):
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        await conn.execute(
+            "DELETE FROM strategy_follows WHERE user_id = $1::uuid AND published_strategy_id = $2",
+            user_id, published_id,
+        )
+    return {"ok": True}
 
 
 @router.get("/published/{published_id}/forward-record")

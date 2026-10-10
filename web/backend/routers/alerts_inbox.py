@@ -1,14 +1,16 @@
 """
 ALR-2: a single in-app inbox across every alert-producing table --
 watchlist_alerts (triggered only), portfolio_drop_alerts,
-signal_change_alerts, earnings_alert_log, cost_drop_alerts, and (AGT-28)
+signal_change_alerts, earnings_alert_log, cost_drop_alerts, (AGT-28)
 agent_order_events for the trading agent's own fills, stop triggers, and
-failed runs. No new storage: each row here already exists as its own
-table's in-app record, this just UNIONs and normalizes them into one feed,
-same "no extra work needed for in-app delivery" point services/
-notification_dispatcher.py's docstring makes. Relies on user_conn's RLS
-scoping per source table (same convention web/backend/routers/watchlist.py
-already uses), not an explicit WHERE user_id filter.
+failed runs, and (STS-5, alerts half only) strategy_signal_alerts for a
+newly-closed trade on a followed strategy. No new storage: each row here
+already exists as its own table's in-app record, this just UNIONs and
+normalizes them into one feed, same "no extra work needed for in-app
+delivery" point services/notification_dispatcher.py's docstring makes.
+Relies on user_conn's RLS scoping per source table (same convention
+web/backend/routers/watchlist.py already uses), not an explicit WHERE
+user_id filter.
 
 AGT-28 note: the agent's drawdown-circuit-breaker trips (event_type
 "agent_risk_state" in services/agent/runner.py) are emailed/webhooked via
@@ -26,7 +28,7 @@ router = APIRouter(prefix="/api/v1/alerts", tags=["alerts-inbox"], dependencies=
 
 _SOURCE_TABLES = {
     "watchlist", "condition", "portfolio_drop", "signal_change", "earnings", "cost_drop", "agent",
-    "followed_author", "social",
+    "followed_author", "social", "strategy_signal",
 }
 
 _INBOX_QUERY = """
@@ -90,6 +92,14 @@ FROM followed_author_alerts
 
 UNION ALL
 
+-- STS-5 (alerts half only): a strategy you follow closed a new trade.
+SELECT 'strategy_signal' AS source, id, ticker, 'strategy_signal' AS alert_type,
+       trade_summary AS summary,
+       created_at, created_at AS event_at, seen_at
+FROM strategy_signal_alerts
+
+UNION ALL
+
 -- SOC-9: new_follower/post_reply/mention/group_activity -- one
 -- consolidated table (see migrations/2026-10-social_network.sql)
 -- rather than a near-identical branch per sub-type.
@@ -135,6 +145,7 @@ async def dismiss_inbox_item(request: Request, source: str, alert_id: int):
         "agent": "agent_order_events",
         "followed_author": "followed_author_alerts",
         "social": "social_notifications",
+        "strategy_signal": "strategy_signal_alerts",
     }[source]
 
     user_id = request.state.user["id"]

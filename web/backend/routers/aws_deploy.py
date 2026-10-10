@@ -1951,6 +1951,54 @@ create table if not exists published_strategy_forward_snapshots (
 grant select on published_strategy_forward_snapshots to app_user;
 grant select, insert on published_strategy_forward_snapshots to app_service;
 
+-- STS-5: who follows which published strategy, for the alerts-only half --
+-- NOT auto-paper-follow (deferred). Mirrors author_follows exactly.
+create table if not exists strategy_follows (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  published_strategy_id bigint not null references published_strategies(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint strategy_follows_unique unique (user_id, published_strategy_id)
+);
+create index if not exists strategy_follows_user_idx on strategy_follows(user_id);
+create index if not exists strategy_follows_strategy_idx on strategy_follows(published_strategy_id);
+grant select, insert, delete on strategy_follows to app_user;
+grant select, insert, delete on strategy_follows to app_service;
+
+-- STS-5's in-app alert: "a strategy you follow closed a new trade" -- a 9th
+-- branch in web/backend/routers/alerts_inbox.py's UNION, mirroring
+-- followed_author_alerts exactly, including RLS (this one IS a
+-- per-recipient inbox table, unlike strategy_follows above).
+create table if not exists strategy_signal_alerts (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  published_strategy_id bigint not null references published_strategies(id) on delete cascade,
+  ticker text not null,
+  trade_summary text not null,
+  created_at timestamptz not null default now(),
+  seen_at timestamptz
+);
+create index if not exists strategy_signal_alerts_user_idx on strategy_signal_alerts(user_id, created_at desc);
+alter table strategy_signal_alerts enable row level security;
+drop policy if exists strategy_signal_alerts_isolation on strategy_signal_alerts;
+create policy strategy_signal_alerts_isolation on strategy_signal_alerts for all
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+grant select, update on strategy_signal_alerts to app_user;
+grant select, insert, update on strategy_signal_alerts to app_service;
+
+-- STS-6 (comments/questions half only -- ratings deferred, since they need
+-- a 30-day-paper-followed gate that needs auto-paper-follow, which doesn't
+-- exist yet): mirrors posts.group_id. posts is created earlier in this
+-- script, before published_strategies existed, so this is an ALTER here
+-- rather than an inline column on posts' own CREATE TABLE -- same
+-- "add the column plain, add the FK once both tables exist" reasoning as
+-- saved_strategies.forked_from_published_id above. No membership gate on
+-- read/write, unlike groups -- a published strategy's comments are open
+-- the same way a ticker-page post with no group_id is.
+alter table posts add column if not exists published_strategy_id bigint references published_strategies(id) on delete cascade;
+create index if not exists posts_published_strategy_idx on posts(published_strategy_id, created_at desc) where published_strategy_id is not null;
+
 -- One row per order ticket, inserted at SUBMITTING status BEFORE the
 -- Alpaca call so an ambiguous network failure can be resolved by
 -- re-querying Alpaca for client_order_id rather than blind-retried.

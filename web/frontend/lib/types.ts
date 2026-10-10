@@ -1755,7 +1755,9 @@ export interface AlertInboxItem {
 export type AlertPreferenceType =
   | "signal_change" | "earnings" | "cost_drop" | "condition_alert" | "tradingview_alert" | "followed_author_idea"
   // SOC-9: follows, replies, mentions and groups.
-  | "new_follower" | "post_reply" | "mention" | "group_activity";
+  | "new_follower" | "post_reply" | "mention" | "group_activity"
+  // STS-5 (alerts half only): a followed strategy closed a new trade.
+  | "strategy_signal";
 
 export interface AlertPreferenceOverride {
   id: number;
@@ -1929,6 +1931,8 @@ export interface Post {
   ticker: string | null;
   topic: string | null;
   group_id: number | null;
+  // STS-6 (comments/questions half only).
+  published_strategy_id: number | null;
   chart_snapshot_id: number | null;
   claim_reference_id: number | null;
   verified: boolean;
@@ -3084,6 +3088,9 @@ export interface PublishedStrategyDetail {
   // Omitted entirely by the backend when rules_visibility is summary_only
   // -- never sent redacted, just not sent.
   definition?: Record<string, unknown>;
+  // STS-5 (alerts half only): whether the current user follows this
+  // strategy's forward signals -- never auto-paper-follow.
+  is_following: boolean;
 }
 
 export interface PublishedStrategyVersion {
@@ -3097,6 +3104,22 @@ export interface PublishedStrategyVersion {
 export interface StrategyForwardSnapshot {
   as_of_date: string;
   cumulative_return_pct: number;
+  trades: number;
+}
+
+// STS-4: ranked by risk_adjusted_excess_return (the information ratio vs
+// SPY) when eligible=true; eligible=false strategies carry reason="not
+// enough data yet" and no metrics, per the 3-month/30-trade minimum.
+export interface StrategyLeaderboardEntry {
+  id: number;
+  name: string;
+  author_display_name: string | null;
+  published_at: string;
+  eligible: boolean;
+  reason: string | null;
+  risk_adjusted_excess_return: number | null;
+  cumulative_return_pct: number | null;
+  excess_return_pct: number | null;
   trades: number;
 }
 

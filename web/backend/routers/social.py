@@ -242,6 +242,11 @@ class PostCreateRequest(BaseModel):
     ticker: Optional[str] = None
     topic: Optional[str] = None
     group_id: Optional[int] = None
+    # STS-6 (comments/questions half only -- ratings deferred, see
+    # strategy_builder.py's module docstring): a published strategy's
+    # discussion, same openness as a ticker-page post -- no membership
+    # gate, unlike group_id above.
+    published_strategy_id: Optional[int] = None
     attach_chart: bool = False
     claim_reference_id: Optional[int] = None
 
@@ -307,11 +312,12 @@ async def create_post(request: Request, body: PostCreateRequest):
 
         record = await conn.fetchrow(
             """
-            INSERT INTO posts (author_user_id, post_type, body, ticker, topic, group_id, chart_snapshot_id, claim_reference_id, verified)
-            VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO posts (author_user_id, post_type, body, ticker, topic, group_id, chart_snapshot_id, claim_reference_id, verified, published_strategy_id)
+            VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING *
             """,
             user_id, body.post_type, text, ticker, topic, body.group_id, chart_snapshot_id, claim_reference_id, verified,
+            body.published_strategy_id,
         )
         await _dispatch_mentions(conn, text, user_id, display_name, record["id"])
 
@@ -336,10 +342,13 @@ async def create_post(request: Request, body: PostCreateRequest):
 async def list_posts(
     ticker: Optional[str] = None, topic: Optional[str] = None,
     group_id: Optional[int] = None, author_id: Optional[str] = None,
+    published_strategy_id: Optional[int] = None,
     limit: int = Query(50, le=200),
 ):
     """SOC-3's ticker-page discussion panel is this same endpoint,
-    filtered by `ticker` -- no separate "discussion" table/endpoint."""
+    filtered by `ticker` -- no separate "discussion" table/endpoint. STS-6
+    (comments/questions half only) reuses it the same way, filtered by
+    `published_strategy_id`."""
     where = ["NOT p.hidden"]
     params: list = []
     if ticker:
@@ -351,6 +360,9 @@ async def list_posts(
     if group_id is not None:
         params.append(group_id)
         where.append(f"p.group_id = ${len(params)}")
+    if published_strategy_id is not None:
+        params.append(published_strategy_id)
+        where.append(f"p.published_strategy_id = ${len(params)}")
     if author_id:
         params.append(author_id)
         where.append(f"p.author_user_id = ${len(params)}::uuid")

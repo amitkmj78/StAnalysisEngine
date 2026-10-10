@@ -102,6 +102,7 @@ import type {
   PublishedStrategyDetail,
   PublishedStrategyVersion,
   StrategyForwardSnapshot,
+  StrategyLeaderboardEntry,
   StockTrackRecord,
   ChartGridLayout,
   SavedChartLayout,
@@ -1582,6 +1583,8 @@ export function createPost(body: {
   ticker?: string | null;
   topic?: string | null;
   group_id?: number | null;
+  // STS-6 (comments/questions half only): a published strategy's discussion.
+  published_strategy_id?: number | null;
   attach_chart?: boolean;
   claim_reference_id?: number | null;
 }) {
@@ -1597,12 +1600,13 @@ export function unacceptComment(commentId: number) {
   return apiSend<PostComment>(`/api/v1/social/comments/${commentId}/unaccept`, "POST");
 }
 
-export function getPosts(filter: { ticker?: string; topic?: string; group_id?: number; author_id?: string } = {}) {
+export function getPosts(filter: { ticker?: string; topic?: string; group_id?: number; author_id?: string; published_strategy_id?: number } = {}) {
   const params: Record<string, string> = {};
   if (filter.ticker) params.ticker = filter.ticker;
   if (filter.topic) params.topic = filter.topic;
   if (filter.group_id !== undefined) params.group_id = String(filter.group_id);
   if (filter.author_id) params.author_id = filter.author_id;
+  if (filter.published_strategy_id !== undefined) params.published_strategy_id = String(filter.published_strategy_id);
   return apiFetch<{ posts: Post[] }>("/api/v1/social/posts", params);
 }
 
@@ -2390,6 +2394,22 @@ export function forkPublishedStrategy(id: number) {
 
 export function getStrategyForwardRecord(id: number) {
   return apiFetch<{ snapshots: StrategyForwardSnapshot[] }>(`/api/v1/strategy-builder/published/${id}/forward-record`);
+}
+
+// STS-4: ranked by forward risk-adjusted excess return vs SPY; strategies
+// below the 3-month/30-trade minimum come back eligible=false.
+export function getStrategyLeaderboard() {
+  return apiFetch<{ leaderboard: StrategyLeaderboardEntry[] }>("/api/v1/strategy-builder/published/leaderboard");
+}
+
+// STS-5 (alerts half only -- never auto-paper-follow): get this strategy's
+// forward signals as alerts.
+export function followPublishedStrategy(id: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/strategy-builder/published/${id}/follow`, "POST");
+}
+
+export function unfollowPublishedStrategy(id: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/strategy-builder/published/${id}/follow`, "DELETE");
 }
 
 // Template scan on a random S&P 500 sample. Starts a background job; poll the status until done.

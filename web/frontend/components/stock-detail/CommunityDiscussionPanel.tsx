@@ -13,8 +13,14 @@ import type { Post, PostComment } from "@/lib/types";
  * ticker, not a separate discussion table.
  *
  * BEG-4: a "question" is just a post with post_type = "question"; an
- * "answer" is just a comment on it. Only the asker can accept one. */
-export default function CommunityDiscussionPanel({ ticker }: { ticker: string }) {
+ * "answer" is just a comment on it. Only the asker can accept one.
+ *
+ * STS-6 (comments/questions half only -- ratings deferred): a published
+ * strategy's discussion reuses this same component, filtered by
+ * publishedStrategyId instead of ticker. */
+export default function CommunityDiscussionPanel({
+  ticker, publishedStrategyId, composePlaceholder,
+}: { ticker?: string; publishedStrategyId?: number; composePlaceholder?: string }) {
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -26,7 +32,7 @@ export default function CommunityDiscussionPanel({ ticker }: { ticker: string })
 
   async function load() {
     try {
-      const res = await getPosts({ ticker });
+      const res = await getPosts(ticker ? { ticker } : { published_strategy_id: publishedStrategyId });
       setPosts(res.posts);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load discussion.");
@@ -36,14 +42,17 @@ export default function CommunityDiscussionPanel({ ticker }: { ticker: string })
   useEffect(() => {
     load();
     getCurrentUser().then((u) => setMyUserId(u.id)).catch(() => setMyUserId(null));
-  }, [ticker]);
+  }, [ticker, publishedStrategyId]);
 
   async function handlePost() {
     const text = draft.trim();
     if (!text) return;
     setPosting(true);
     try {
-      await createPost({ body: text, ticker, post_type: isQuestion ? "question" : "note" });
+      await createPost({
+        body: text, ticker, published_strategy_id: publishedStrategyId,
+        post_type: isQuestion ? "question" : "note",
+      });
       setDraft("");
       setIsQuestion(false);
       await load();
@@ -94,7 +103,7 @@ export default function CommunityDiscussionPanel({ ticker }: { ticker: string })
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={`Share something about ${ticker}...`}
+          placeholder={composePlaceholder ?? `Share something about ${ticker}...`}
           className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
         />
         <button
