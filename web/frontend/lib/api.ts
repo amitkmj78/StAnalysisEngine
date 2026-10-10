@@ -222,10 +222,16 @@ function formatErrorDetail(detail: unknown, fallback: string): string {
   return fallback;
 }
 
-async function apiFetch<T>(path: string, params?: Record<string, string>): Promise<T> {
+async function apiFetch<T>(path: string, params?: Record<string, string | string[]>): Promise<T> {
   const url = new URL(`${API_BASE}${path}`, window.location.origin);
   if (params) {
-    Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+    Object.entries(params).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach((v) => url.searchParams.append(key, v));
+      } else {
+        url.searchParams.set(key, value);
+      }
+    });
   }
 
   // Session lives in an httpOnly cookie now (not readable by client JS at
@@ -2318,11 +2324,11 @@ export function runStrategyBacktest(body: {
 }
 
 // Strategy Builder: presets, saved strategies, comparison and read-only share links.
-export function getStrategyPresets(params: { kind: "sp500_sample" | "sector"; size?: number; seed?: number; sector?: string }) {
-  const query: Record<string, string> = { kind: params.kind };
+export function getStrategyPresets(params: { kind: "sp500_sample" | "sector"; size?: number; seed?: number; sector?: string[] }) {
+  const query: Record<string, string | string[]> = { kind: params.kind };
   if (params.size !== undefined) query.size = String(params.size);
   if (params.seed !== undefined) query.seed = String(params.seed);
-  if (params.sector) query.sector = params.sector;
+  if (params.sector && params.sector.length > 0) query.sector = params.sector;
   return apiFetch<StrategyPresetResponse>("/api/v1/strategy-builder/presets", query);
 }
 

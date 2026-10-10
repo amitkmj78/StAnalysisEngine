@@ -3015,7 +3015,7 @@ export interface StrategyPresetResponse {
   kind: "sp500_sample" | "sector";
   tickers: string[];
   seed?: number;
-  sector?: string;
+  sector?: string[];
 }
 
 export interface StrategySummary {

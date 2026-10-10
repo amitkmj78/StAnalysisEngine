@@ -270,7 +270,7 @@ export default function StrategyBuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<StrategyBacktestResponse | null>(null);
   const [lastPayload, setLastPayload] = useState<Record<string, unknown> | null>(null);
-  const [sector, setSector] = useState("");
+  const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
   const [presetError, setPresetError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<string | null>(null);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -410,12 +410,19 @@ export default function StrategyBuilderPage() {
     }
   }
 
-  async function loadSector(name: string) {
-    setSector(name);
-    if (!name) return;
+  async function toggleSector(name: string) {
+    const next = selectedSectors.includes(name)
+      ? selectedSectors.filter((s) => s !== name)
+      : [...selectedSectors, name];
+    setSelectedSectors(next);
+    if (next.length === 0) return;
     setPresetError(null);
     try {
-      const res = await getStrategyPresets({ kind: "sector", size: 10, sector: name });
+      // One sector: 10 tickers, same as before. More than one: 20 total
+      // (the builder's own universe cap), split evenly across the
+      // sectors picked -- see the backend's own docstring for the split.
+      const size = next.length === 1 ? 10 : 20;
+      const res = await getStrategyPresets({ kind: "sector", size, sector: next });
       setTickers(res.tickers);
     } catch (err) {
       setPresetError(err instanceof ApiError ? err.message : "The sector basket could not be loaded.");
@@ -527,14 +534,24 @@ export default function StrategyBuilderPage() {
               </button>
               {portfolioNote && <p className="text-slate-500">{portfolioNote}</p>}
             </div>
-            <select value={sector} onChange={(e) => loadSector(e.target.value)} className="input mt-3 w-full py-1 text-xs" aria-label="Sector basket">
-              <option value="">Sector basket (largest 10)…</option>
+            <p className="mt-3 font-medium text-slate-700">Sector basket (largest stocks, pick one or more)</p>
+            <div className="mt-1 flex flex-wrap gap-1">
               {SECTORS.map((x) => (
-                <option key={x} value={x}>
+                <button
+                  key={x}
+                  type="button"
+                  aria-pressed={selectedSectors.includes(x)}
+                  onClick={() => toggleSector(x)}
+                  className={`rounded-full border px-2 py-0.5 text-xs ${
+                    selectedSectors.includes(x)
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
                   {x}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
             {presetError && <p className="mt-2 text-xs text-red-700">{presetError}</p>}
             </details>
             <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">

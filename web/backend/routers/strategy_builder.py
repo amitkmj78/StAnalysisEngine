@@ -50,6 +50,7 @@ VARIANT_WINDOW_DAYS = 90
 BENCHMARK = "SPY"
 MAX_SAVED_RESULT_CHARS = 400_000
 MAX_COMPARE = 4
+MAX_SECTORS_PER_BASKET = 5
 
 
 class RuleIn(BaseModel):
@@ -248,10 +249,14 @@ async def presets(
     kind: Literal["sp500_sample", "sector"],
     size: int = Query(10, ge=1, le=MAX_TICKERS),
     seed: Optional[int] = Query(None, ge=0, le=2_147_483_647),
-    sector: Optional[str] = Query(None, max_length=60),
+    sector: Optional[list[str]] = Query(None),
 ):
-    """SB-U3: a seeded random sample of S&P 500 members, or the largest stocks in one GICS sector.
-    The sample seed is returned so the same list can be reproduced."""
+    """SB-U3: a seeded random sample of S&P 500 members, or the largest
+    stocks across one or more GICS sectors. With more than one sector,
+    `size` is split as evenly as possible across them (so picking 3
+    sectors doesn't silently return 3x as many tickers) rather than
+    concatenating each sector's own full basket. The sample seed is
+    returned so the same list can be reproduced."""
     if kind == "sp500_sample":
         universe = await _sp500()
         chosen_seed = seed if seed is not None else random.randrange(1, 2_147_483_647)
@@ -259,14 +264,22 @@ async def presets(
         return {"kind": kind, "tickers": sorted(tickers), "seed": chosen_seed}
     if not sector:
         raise HTTPException(422, "sector is required for a sector basket")
+    if len(sector) > MAX_SECTORS_PER_BASKET:
+        raise HTTPException(422, f"Pick at most {MAX_SECTORS_PER_BASKET} sectors at a time.")
+    if any(len(s) > 60 for s in sector):
+        raise HTTPException(422, "Sector name is too long.")
     table = await run_in_threadpool(get_peer_lookup_table, "All")
     if table.empty or "GICS Sector" not in table:
         raise HTTPException(503, "Sector data is unavailable right now.")
-    in_sector = table[table["GICS Sector"] == sector].sort_values("Market Cap ($B)", ascending=False)
-    tickers = in_sector["Ticker"].tolist()[:size]
+
+    per_sector_size = max(1, size // len(sector))
+    tickers: list[str] = []
+    for s in sector:
+        in_sector = table[table["GICS Sector"] == s].sort_values("Market Cap ($B)", ascending=False)
+        tickers.extend(in_sector["Ticker"].tolist()[:per_sector_size])
     if not tickers:
-        raise HTTPException(404, f"No stocks found for the sector {sector}.")
-    return {"kind": kind, "sector": sector, "tickers": tickers}
+        raise HTTPException(404, f"No stocks found for sector(s): {', '.join(sector)}.")
+    return {"kind": kind, "sector": sector, "tickers": sorted(set(tickers))}
 
 
 class SaveRequest(BaseModel):
