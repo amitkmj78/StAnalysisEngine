@@ -6,6 +6,19 @@ VERIFY_PREDICTIONS_ENABLED_KEY = "verify_predictions_enabled"
 # *before* the first real publication happens. Deploying the publication
 # pipeline must not itself start publishing — an explicit admin opt-in does.
 PUBLISH_SIGNALS_ENABLED_KEY = "publish_signals_enabled"
+# STS-7: reserved, not wired into any code path yet -- neither "copy a
+# published strategy into another user's live brokerage account" nor "a
+# paid subscription to one creator's strategy" exists anywhere in this
+# codebase today (web/backend/routers/strategy_builder.py's fork endpoint
+# only ever writes into the forker's own saved_strategies row; web/backend/
+# routers/subscriptions.py is app-tier only, not per-content). Named now,
+# same "define the flag before the feature, default OFF, require an
+# explicit admin opt-in" shape as PUBLISH_SIGNALS_ENABLED_KEY above, so
+# whoever eventually builds either feature has an existing, pre-named place
+# to gate it behind, following trading_agent.py's compliance_reference
+# pattern (SAF-9: written legal sign-off recorded before the flag opens).
+STRATEGY_LIVE_COPY_ENABLED_KEY = "strategy_live_copy_enabled"
+STRATEGY_PAID_SUBSCRIPTIONS_ENABLED_KEY = "strategy_paid_subscriptions_enabled"
 # Defaults ON — the secure default. Admin can turn it off (e.g. temporarily,
 # to debug a signup issue) without a deploy.
 PASSWORD_POLICY_ENABLED_KEY = "password_policy_enabled"

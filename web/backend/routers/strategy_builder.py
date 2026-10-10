@@ -1,6 +1,16 @@
-"""Strategy Builder: backtests, presets, saved strategies, comparison and read-only share links.
+"""Strategy Builder: backtests, presets, saved strategies, comparison, read-only
+share links, and (STS-1/2/3) publishing a strategy publicly with versioning,
+forking a public one, and its ongoing forward paper track record.
 
-Nothing here places an order. Paper forward runs (STB-6) are not built.
+Nothing here places an order, ever. STS-7: forking only ever copies into the
+forker's own saved_strategies row -- this app's own private paper/builder
+workspace -- never a live brokerage account. There is no paid per-strategy
+subscription anywhere in this codebase (confirmed: web/backend/routers/
+subscriptions.py is app-tier only, Stripe-driven, not per-content) and none is
+built here either, pending SAF-9's legal review. See web/backend/app_settings.py's
+STRATEGY_LIVE_COPY_ENABLED_KEY / STRATEGY_PAID_SUBSCRIPTIONS_ENABLED_KEY (reserved,
+unused) and trading_agent.py's compliance_reference pattern for whoever eventually
+builds either, once sign-off is recorded.
 """
 
 import hashlib
@@ -320,13 +330,17 @@ async def list_saved(request: Request):
     user_id = request.state.user["id"]
     async with user_conn(user_id) as conn:
         rows = await conn.fetch(
-            "SELECT id, name, created_at, data_end, result FROM saved_strategies ORDER BY created_at DESC LIMIT 100"
+            """
+            SELECT id, name, created_at, data_end, result, forked_from_published_id, forked_from_version
+            FROM saved_strategies ORDER BY created_at DESC LIMIT 100
+            """
         )
     return {
         "saved": [
             {"id": r["id"], "name": r["name"], "created_at": r["created_at"].isoformat(),
              "data_end": str(r["data_end"]) if r["data_end"] else None,
-             "summary": _verdict_row(json.loads(r["result"]) if isinstance(r["result"], str) else r["result"])}
+             "summary": _verdict_row(json.loads(r["result"]) if isinstance(r["result"], str) else r["result"]),
+             "forked_from_published_id": r["forked_from_published_id"], "forked_from_version": r["forked_from_version"]}
             for r in rows
         ]
     }
@@ -422,6 +436,209 @@ async def get_shared(request: Request, token: str):
         "definition": json.loads(row["definition"]) if isinstance(row["definition"], str) else row["definition"],
         "result": json.loads(row["result"]) if isinstance(row["result"], str) else row["result"],
         "read_only": True,
+    }
+
+
+# ---------------------------------------------------------------- STS-1/2/3: publish, fork, forward record
+
+class PublishRequest(BaseModel):
+    rules_visibility: Literal["public", "summary_only"] = "public"
+    rules_summary: Optional[str] = Field(default=None, max_length=1000)
+    # An existing published_strategies id this user authored, to publish a
+    # new version into the same lineage rather than starting a new one.
+    republish_of: Optional[int] = None
+
+
+@router.post("/saved/{saved_id}/publish")
+@limiter.limit("10/minute")
+async def publish_saved(request: Request, saved_id: int, body: PublishRequest):
+    """STS-1: snapshots this saved strategy's definition/result into a new,
+    public, locked published_strategies row -- published rows are never
+    edited in place. republish_of bumps the version within an existing
+    lineage instead of starting a new one; omitting it starts a new lineage
+    at version 1."""
+    user_id = request.state.user["id"]
+    if body.rules_visibility == "summary_only" and not (body.rules_summary or "").strip():
+        raise HTTPException(422, "rules_summary is required when rules_visibility is summary_only.")
+
+    async with user_conn(user_id) as conn:
+        saved = await conn.fetchrow("SELECT name, definition, result FROM saved_strategies WHERE id = $1", saved_id)
+    if saved is None:
+        raise HTTPException(404, "Saved strategy not found.")
+
+    root_published_id = None
+    version = 1
+    if body.republish_of is not None:
+        async with service_conn() as conn:
+            root = await conn.fetchrow(
+                "SELECT id, author_user_id, root_published_id FROM published_strategies WHERE id = $1",
+                body.republish_of,
+            )
+            if root is None or str(root["author_user_id"]) != user_id:
+                raise HTTPException(404, "The strategy you're publishing a new version of was not found.")
+            root_published_id = root["root_published_id"] or root["id"]
+            version = await conn.fetchval(
+                "SELECT COALESCE(max(version), 0) + 1 FROM published_strategies WHERE id = $1 OR root_published_id = $1",
+                root_published_id,
+            )
+
+    result = json.loads(saved["result"]) if isinstance(saved["result"], str) else saved["result"]
+    result = {k: v for k, v in result.items() if k not in ("trade_log", "disclaimer")}
+    payload = json.dumps(result, default=str)
+    if len(payload) > MAX_SAVED_RESULT_CHARS:
+        raise HTTPException(413, "This result is too large to publish.")
+    definition_payload = saved["definition"] if isinstance(saved["definition"], str) else json.dumps(saved["definition"])
+
+    async with service_conn() as conn:
+        new_id = await conn.fetchval(
+            """
+            INSERT INTO published_strategies
+                (saved_strategy_id, author_user_id, root_published_id, version, name,
+                 definition, result, rules_visibility, rules_summary)
+            VALUES ($1, $2::uuid, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9)
+            RETURNING id
+            """,
+            saved_id, user_id, root_published_id, version, saved["name"],
+            definition_payload, payload, body.rules_visibility, (body.rules_summary or "").strip() or None,
+        )
+    return {"id": new_id, "version": version}
+
+
+@router.get("/published")
+@limiter.limit("60/minute")
+async def list_published(request: Request, limit: int = Query(50, le=200)):
+    """STS-1: the public directory -- latest version per lineage only, newest-published first."""
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT * FROM (
+                SELECT DISTINCT ON (COALESCE(p.root_published_id, p.id))
+                       p.id, p.name, p.version, p.rules_visibility, p.published_at,
+                       p.author_user_id, u.display_name
+                FROM published_strategies p
+                LEFT JOIN users u ON u.id = p.author_user_id
+                ORDER BY COALESCE(p.root_published_id, p.id), p.version DESC
+            ) latest
+            ORDER BY published_at DESC
+            LIMIT $1
+            """,
+            limit,
+        )
+    return {
+        "published": [
+            {
+                "id": r["id"], "name": r["name"], "version": r["version"],
+                "rules_visibility": r["rules_visibility"], "published_at": r["published_at"].isoformat(),
+                "author_display_name": r["display_name"],
+            }
+            for r in rows
+        ]
+    }
+
+
+@router.get("/published/{published_id}")
+@limiter.limit("60/minute")
+async def get_published(request: Request, published_id: int):
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT p.*, u.display_name FROM published_strategies p
+            LEFT JOIN users u ON u.id = p.author_user_id
+            WHERE p.id = $1
+            """,
+            published_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Published strategy not found.")
+    out = {
+        "id": row["id"],
+        "name": row["name"],
+        "version": row["version"],
+        "root_published_id": row["root_published_id"] or row["id"],
+        "author_user_id": str(row["author_user_id"]),
+        "author_display_name": row["display_name"],
+        "rules_visibility": row["rules_visibility"],
+        "rules_summary": row["rules_summary"],
+        "published_at": row["published_at"].isoformat(),
+        "result": json.loads(row["result"]) if isinstance(row["result"], str) else row["result"],
+    }
+    if row["rules_visibility"] == "public":
+        out["definition"] = json.loads(row["definition"]) if isinstance(row["definition"], str) else row["definition"]
+    return out
+
+
+@router.get("/published/{published_id}/versions")
+@limiter.limit("60/minute")
+async def list_published_versions(request: Request, published_id: int):
+    async with service_conn() as conn:
+        root = await conn.fetchval(
+            "SELECT COALESCE(root_published_id, id) FROM published_strategies WHERE id = $1", published_id
+        )
+        if root is None:
+            raise HTTPException(404, "Published strategy not found.")
+        rows = await conn.fetch(
+            "SELECT id, version, published_at FROM published_strategies WHERE id = $1 OR root_published_id = $1 ORDER BY version DESC",
+            root,
+        )
+    return {"versions": [{"id": r["id"], "version": r["version"], "published_at": r["published_at"].isoformat()} for r in rows]}
+
+
+@router.post("/published/{published_id}/fork")
+@limiter.limit("20/minute")
+async def fork_published(request: Request, published_id: int):
+    """STS-2: copies this published strategy's definition into a new,
+    private saved_strategies row the caller owns, with a permanent link
+    back to the exact version forked -- never a live account (STS-7), just
+    this app's own paper/builder workspace. Only forkable when its rules
+    are public; a summary-only strategy's rules were never shown, so there
+    is nothing to copy."""
+    user_id = request.state.user["id"]
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            "SELECT name, definition, version, rules_visibility FROM published_strategies WHERE id = $1",
+            published_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Published strategy not found.")
+    if row["rules_visibility"] != "public":
+        raise HTTPException(422, "This strategy's rules are private -- only a summary was published, so it can't be forked.")
+
+    definition_payload = row["definition"] if isinstance(row["definition"], str) else json.dumps(row["definition"])
+    async with user_conn(user_id) as conn:
+        new_id = await conn.fetchval(
+            """
+            INSERT INTO saved_strategies (user_id, name, definition, result, forked_from_published_id, forked_from_version)
+            VALUES ($1::uuid, $2, $3::jsonb, '{}'::jsonb, $4, $5)
+            RETURNING id
+            """,
+            user_id, f"{row['name']} (forked)", definition_payload, published_id, row["version"],
+        )
+    return {"saved_id": new_id}
+
+
+@router.get("/published/{published_id}/forward-record")
+@limiter.limit("60/minute")
+async def get_forward_record(request: Request, published_id: int):
+    """STS-3: the ongoing forward paper track record from publish date -- a
+    replay of the same backtest math over the real published_at-to-today
+    window, not a brokered paper account. See services/
+    strategy_forward_record.py for how this is computed nightly."""
+    async with service_conn() as conn:
+        exists = await conn.fetchval("SELECT 1 FROM published_strategies WHERE id = $1", published_id)
+        if not exists:
+            raise HTTPException(404, "Published strategy not found.")
+        rows = await conn.fetch(
+            """
+            SELECT as_of_date, cumulative_return_pct, trades FROM published_strategy_forward_snapshots
+            WHERE published_strategy_id = $1 ORDER BY as_of_date
+            """,
+            published_id,
+        )
+    return {
+        "snapshots": [
+            {"as_of_date": str(r["as_of_date"]), "cumulative_return_pct": r["cumulative_return_pct"], "trades": r["trades"]}
+            for r in rows
+        ]
     }
 
 

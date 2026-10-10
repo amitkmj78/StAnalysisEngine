@@ -27,6 +27,7 @@ from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_U
 from services.stock_finder_service import SP500_UNIVERSE_NAME, get_stock_finder_table
 from services.stock_score_capture_service import compute_and_persist_daily_scores
 from web.backend.admin import ADMIN_EMAIL
+from services.strategy_forward_record import evaluate_due_forward_records
 from web.backend.community_ideas_eval import evaluate_due_community_ideas
 from web.backend.community_model_author import publish_model_ideas_for_today
 from web.backend.social_badges import recompute_mentor_badges, recompute_verified_badges
@@ -162,6 +163,8 @@ COMMUNITY_MODEL_AUTHOR_MINUTE_ET = 25
 # minutes" reasoning as the other evaluate-at-horizon jobs.
 COMMUNITY_IDEAS_EVALUATE_HOUR_ET = 17
 COMMUNITY_IDEAS_EVALUATE_MINUTE_ET = 10
+STRATEGY_FORWARD_RECORD_HOUR_ET = 17
+STRATEGY_FORWARD_RECORD_MINUTE_ET = 15
 # SOC-1: right after COMMUNITY_IDEAS_EVALUATE so today's freshly scored
 # ideas (if any) are already on record before the badge recompute reads
 # the leaderboard.
@@ -338,6 +341,14 @@ async def _evaluate_community_ideas_job() -> None:
     scored = await evaluate_due_community_ideas()
     if scored:
         logger.info("Scheduler: scored %d community ideas", scored)
+
+
+async def _evaluate_strategy_forward_records_job() -> None:
+    """STS-3: one forward-record snapshot per published strategy per day --
+    see services/strategy_forward_record.py."""
+    evaluated = await evaluate_due_forward_records()
+    if evaluated:
+        logger.info("Scheduler: evaluated %d published strategies' forward records", evaluated)
 
 
 async def _recompute_verified_badges_job() -> None:
@@ -887,7 +898,8 @@ async def _send_morning_briefs_job() -> None:
     async with service_conn() as conn:
         position_rows = await conn.fetch(
             """
-            SELECT pp.user_id, pp.ticker, pp.shares, pp.avg_cost, pp.acquired_at
+            SELECT pp.user_id, pp.ticker, pp.shares, pp.avg_cost, pp.acquired_at,
+                   pp.alpaca_paper_account_id IS NOT NULL AS is_paper
             FROM portfolio_positions pp
             JOIN portfolios p ON p.id = pp.portfolio_id
             WHERE p.is_active AND pp.ticker IS NOT NULL AND pp.shares > 0
@@ -907,6 +919,7 @@ async def _send_morning_briefs_job() -> None:
                 "shares": row["shares"],
                 "avg_cost": row["avg_cost"],
                 "acquired_at": row["acquired_at"],
+                "is_paper": row["is_paper"],
             }
         )
     watchlisted_by_user: dict = {}
@@ -956,7 +969,8 @@ async def _send_evening_recaps_job() -> None:
     async with service_conn() as conn:
         rows = await conn.fetch(
             """
-            SELECT pp.user_id, pp.ticker, pp.shares, pp.avg_cost, pp.acquired_at
+            SELECT pp.user_id, pp.ticker, pp.shares, pp.avg_cost, pp.acquired_at,
+                   pp.alpaca_paper_account_id IS NOT NULL AS is_paper
             FROM portfolio_positions pp
             JOIN portfolios p ON p.id = pp.portfolio_id
             WHERE p.is_active AND pp.ticker IS NOT NULL AND pp.shares > 0
@@ -973,6 +987,7 @@ async def _send_evening_recaps_job() -> None:
                 "shares": row["shares"],
                 "avg_cost": row["avg_cost"],
                 "acquired_at": row["acquired_at"],
+                "is_paper": row["is_paper"],
             }
         )
 
@@ -1523,6 +1538,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="evaluate_community_ideas",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _evaluate_strategy_forward_records_job,
+        CronTrigger(
+            hour=STRATEGY_FORWARD_RECORD_HOUR_ET, minute=STRATEGY_FORWARD_RECORD_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="evaluate_strategy_forward_records",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

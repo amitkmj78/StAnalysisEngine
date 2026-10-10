@@ -3043,6 +3043,9 @@ export interface StrategySavedRow {
   created_at: string;
   data_end: string | null;
   summary: StrategySummary;
+  // STS-2: set only on a forked copy.
+  forked_from_published_id: number | null;
+  forked_from_version: number | null;
 }
 
 export interface StrategySavedDetail {
@@ -3052,6 +3055,49 @@ export interface StrategySavedDetail {
   definition: Record<string, unknown>;
   result: StrategyBacktestResponse;
   share_token: string | null;
+  // STS-2: set only on a forked copy.
+  forked_from_published_id?: number | null;
+  forked_from_version?: number | null;
+}
+
+// STS-1: the public directory's row shape -- latest version per lineage only.
+export interface PublishedStrategySummary {
+  id: number;
+  name: string;
+  version: number;
+  rules_visibility: "public" | "summary_only";
+  published_at: string;
+  author_display_name: string | null;
+}
+
+export interface PublishedStrategyDetail {
+  id: number;
+  name: string;
+  version: number;
+  root_published_id: number;
+  author_user_id: string;
+  author_display_name: string | null;
+  rules_visibility: "public" | "summary_only";
+  rules_summary: string | null;
+  published_at: string;
+  result: StrategyBacktestResponse;
+  // Omitted entirely by the backend when rules_visibility is summary_only
+  // -- never sent redacted, just not sent.
+  definition?: Record<string, unknown>;
+}
+
+export interface PublishedStrategyVersion {
+  id: number;
+  version: number;
+  published_at: string;
+}
+
+// STS-3: a replay of the same backtest math over [published_at, today] --
+// not a brokered paper account. See services/strategy_forward_record.py.
+export interface StrategyForwardSnapshot {
+  as_of_date: string;
+  cumulative_return_pct: number;
+  trades: number;
 }
 
 export interface StrategyCompareRow extends StrategySummary {

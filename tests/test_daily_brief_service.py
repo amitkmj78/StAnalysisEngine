@@ -4,12 +4,22 @@ from unittest.mock import patch
 from services.daily_brief_service import _format_morning_brief, _select_news_tickers, build_evening_recap
 
 
-def _performance(rows, total_day_gain=None, total_day_gain_pct=None):
-    return {
-        "rows": rows,
-        "total_day_gain": total_day_gain,
-        "total_day_gain_pct": total_day_gain_pct,
-    }
+def _row(ticker, day_gain, value_now=1000.0, is_paper=False):
+    """A realistic-shaped row from compute_portfolio_performance -- real
+    code always carries value_now (a number or None), day_gain_pct is
+    derived the same way production data would be. is_paper is NOT set
+    here -- _tag_rows_with_is_paper overwrites it from the positions list
+    by index, the same as the real call path, so tests exercise that
+    wiring instead of bypassing it."""
+    return {"ticker": ticker, "day_gain": day_gain, "day_gain_pct": round(day_gain / (value_now - day_gain) * 100.0, 2), "value_now": value_now}
+
+
+def _performance(rows):
+    return {"rows": rows}
+
+
+def _positions(rows, is_paper=False):
+    return [{"ticker": r["ticker"], "shares": 1.0, "avg_cost": 10.0, "is_paper": is_paper} for r in rows]
 
 
 def test_build_evening_recap_returns_none_with_no_positions():
@@ -17,44 +27,40 @@ def test_build_evening_recap_returns_none_with_no_positions():
 
 
 def test_build_evening_recap_returns_none_when_no_row_has_day_gain():
-    performance = _performance([{"ticker": "AAA", "day_gain": None, "day_gain_pct": None}])
-    with patch("services.daily_brief_service.compute_portfolio_performance", return_value=performance):
-        result = build_evening_recap([{"ticker": "AAA", "shares": 1.0, "avg_cost": 10.0}])
+    rows = [{"ticker": "AAA", "day_gain": None, "day_gain_pct": None, "value_now": None}]
+    with patch("services.daily_brief_service.compute_portfolio_performance", return_value=_performance(rows)):
+        result = build_evening_recap(_positions(rows))
     assert result is None
 
 
 def test_build_evening_recap_states_portfolio_and_benchmark_pct():
-    rows = [
-        {"ticker": "AAA", "day_gain": 50.0, "day_gain_pct": 2.0},
-        {"ticker": "BBB", "day_gain": -20.0, "day_gain_pct": -1.0},
-    ]
-    performance = _performance(rows, total_day_gain=30.0, total_day_gain_pct=1.5)
-    positions = [{"ticker": "AAA", "shares": 1.0, "avg_cost": 10.0}, {"ticker": "BBB", "shares": 1.0, "avg_cost": 10.0}]
-    with patch("services.daily_brief_service.compute_portfolio_performance", return_value=performance), patch(
+    rows = [_row("AAA", 50.0, value_now=1050.0), _row("BBB", -20.0, value_now=980.0)]
+    # day_gain=30, value_now=2030, value_before=2000 -> +1.50%
+    with patch("services.daily_brief_service.compute_portfolio_performance", return_value=_performance(rows)), patch(
         "services.daily_brief_service._benchmark_today_pct", return_value=0.8
     ):
-        result = build_evening_recap(positions)
+        result = build_evening_recap(_positions(rows))
 
     assert result is not None
     assert "+1.50%" in result["text_body"]
     assert "+0.80%" in result["text_body"]
     assert "SPY" in result["text_body"]
     assert "portfolio +1.50% today" in result["subject"]
+    assert "Your real holdings" in result["text_body"]
+    assert "PAPER" not in result["text_body"]
 
 
 def test_build_evening_recap_ranks_contributors_and_detractors():
     rows = [
-        {"ticker": "GAIN_BIG", "day_gain": 100.0, "day_gain_pct": 5.0},
-        {"ticker": "GAIN_SMALL", "day_gain": 10.0, "day_gain_pct": 0.5},
-        {"ticker": "LOSS_BIG", "day_gain": -80.0, "day_gain_pct": -4.0},
-        {"ticker": "LOSS_SMALL", "day_gain": -5.0, "day_gain_pct": -0.2},
+        _row("GAIN_BIG", 100.0, value_now=2100.0),
+        _row("GAIN_SMALL", 10.0, value_now=2010.0),
+        _row("LOSS_BIG", -80.0, value_now=1920.0),
+        _row("LOSS_SMALL", -5.0, value_now=1995.0),
     ]
-    performance = _performance(rows, total_day_gain=25.0, total_day_gain_pct=1.0)
-    positions = [{"ticker": r["ticker"], "shares": 1.0, "avg_cost": 10.0} for r in rows]
-    with patch("services.daily_brief_service.compute_portfolio_performance", return_value=performance), patch(
+    with patch("services.daily_brief_service.compute_portfolio_performance", return_value=_performance(rows)), patch(
         "services.daily_brief_service._benchmark_today_pct", return_value=0.5
     ):
-        result = build_evening_recap(positions)
+        result = build_evening_recap(_positions(rows))
 
     body = result["text_body"]
     contributors_section = body.split("Top contributors:")[1].split("Top detractors:")[0]
@@ -65,21 +71,56 @@ def test_build_evening_recap_ranks_contributors_and_detractors():
 
 
 def test_build_evening_recap_caps_each_direction_at_three():
-    rows = [{"ticker": f"G{i}", "day_gain": float(10 - i), "day_gain_pct": 1.0} for i in range(5)]
-    performance = _performance(rows, total_day_gain=40.0, total_day_gain_pct=2.0)
-    positions = [{"ticker": r["ticker"], "shares": 1.0, "avg_cost": 10.0} for r in rows]
-    with patch("services.daily_brief_service.compute_portfolio_performance", return_value=performance), patch(
+    rows = [_row(f"G{i}", float(10 - i), value_now=1000.0 + (10 - i)) for i in range(5)]
+    with patch("services.daily_brief_service.compute_portfolio_performance", return_value=_performance(rows)), patch(
         "services.daily_brief_service._benchmark_today_pct", return_value=0.3
     ):
-        result = build_evening_recap(positions)
+        result = build_evening_recap(_positions(rows))
 
     contributors_section = result["text_body"].split("Top contributors:")[1]
     assert contributors_section.count("G") == 3
     assert "G3" not in contributors_section and "G4" not in contributors_section
 
 
-def _rows_with_gain(tickers_and_pct):
-    return [{"ticker": t, "day_gain": pct, "day_gain_pct": pct} for t, pct in tickers_and_pct]
+def test_build_evening_recap_labels_paper_only_holdings():
+    rows = [_row("PAPER1", 25.0, value_now=1025.0)]
+    with patch("services.daily_brief_service.compute_portfolio_performance", return_value=_performance(rows)), patch(
+        "services.daily_brief_service._benchmark_today_pct", return_value=0.1
+    ):
+        result = build_evening_recap(_positions(rows, is_paper=True))
+
+    assert "paper-trading portfolio" in result["subject"]
+    assert "Your PAPER-TRADING holdings (practice money, not real)" in result["text_body"]
+    assert "Your real holdings" not in result["text_body"]
+
+
+def test_build_evening_recap_keeps_real_and_paper_totals_separate():
+    """The whole point of the real/paper split: neither total is ever
+    summed with the other, and the subject line doesn't collapse to one
+    (misleading) figure when both are present."""
+    real_rows = [_row("REAL1", 50.0, value_now=1050.0)]
+    paper_rows = [_row("PAPER1", -200.0, value_now=800.0)]
+    all_rows = real_rows + paper_rows
+    positions = _positions(real_rows, is_paper=False) + _positions(paper_rows, is_paper=True)
+
+    with patch("services.daily_brief_service.compute_portfolio_performance", return_value=_performance(all_rows)), patch(
+        "services.daily_brief_service._benchmark_today_pct", return_value=0.2
+    ):
+        result = build_evening_recap(positions)
+
+    body = result["text_body"]
+    assert "Your real holdings: +$50.00 (+5.00%)" in body
+    assert "Your PAPER-TRADING holdings (practice money, not real): $-200.00 (-20.00%)" in body
+    # Neither a blended dollar figure nor a blended percentage appears.
+    assert "$-150.00" not in body
+    assert "real + paper-trading holdings today" in result["subject"]
+
+
+def _rows_with_gain(tickers_and_pct, is_paper=False):
+    return [
+        {"ticker": t, "day_gain": pct, "day_gain_pct": pct, "value_now": 1000.0 + pct, "is_paper": is_paper}
+        for t, pct in tickers_and_pct
+    ]
 
 
 def test_select_news_tickers_prioritizes_signal_changes_then_movers():
@@ -102,7 +143,6 @@ def test_format_morning_brief_returns_none_cases_render_independently():
     # each section should still render its own "nothing" line, not crash or vanish.
     result = _format_morning_brief(
         today=date(2026, 10, 2),
-        performance={"total_day_gain": None, "total_day_gain_pct": None},
         rows_with_gain=[],
         signal_change_rows=[],
         earnings_today=[],
@@ -121,8 +161,7 @@ def test_format_morning_brief_returns_none_cases_render_independently():
 def test_format_morning_brief_renders_each_section_when_present():
     result = _format_morning_brief(
         today=date(2026, 10, 2),
-        performance={"total_day_gain": 42.0, "total_day_gain_pct": 1.2},
-        rows_with_gain=_rows_with_gain([("AAA", 3.0)]),
+        rows_with_gain=_rows_with_gain([("AAA", 30.0)]),  # value_now=1030, value_before=1000 -> +3.00%
         signal_change_rows=[{"ticker": "AAA", "horizon": "short", "old_signal": "Hold", "new_signal": "Buy"}],
         earnings_today=[{"ticker": "BBB", "date": "2026-10-02", "market_timing": "before market open"}],
         regime="Risk-On",
@@ -130,7 +169,7 @@ def test_format_morning_brief_renders_each_section_when_present():
         sentiment_by_ticker={"AAA": {"label": "Bullish", "reasoning": "Strong guidance."}},
     )
     body = result["text_body"]
-    assert "+$42.00 (+1.20%)" in body
+    assert "Real portfolio: +$30.00 (+3.00%)" in body
     assert "AAA (Short-term): Hold → Buy" in body
     assert "BBB: reports before market open" in body
     assert "Risk-On" in body
@@ -138,10 +177,26 @@ def test_format_morning_brief_renders_each_section_when_present():
     assert "Morning brief for 2026-10-02" == result["subject"]
 
 
+def test_format_morning_brief_separates_paper_overnight_moves():
+    result = _format_morning_brief(
+        today=date(2026, 10, 2),
+        rows_with_gain=_rows_with_gain([("REAL1", 10.0)]) + _rows_with_gain([("PAPER1", -10.0)], is_paper=True),
+        signal_change_rows=[],
+        earnings_today=[],
+        regime=None,
+        news_tickers=[],
+        sentiment_by_ticker={},
+    )
+    body = result["text_body"]
+    assert "Real portfolio:" in body
+    assert "Paper-trading portfolio (practice money, not real):" in body
+    assert "REAL1" in body
+    assert "PAPER1" in body
+
+
 def test_format_morning_brief_news_ticker_without_sentiment_shows_fallback():
     result = _format_morning_brief(
         today=date(2026, 10, 2),
-        performance={"total_day_gain": None, "total_day_gain_pct": None},
         rows_with_gain=[],
         signal_change_rows=[],
         earnings_today=[],

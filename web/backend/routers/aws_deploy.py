@@ -1860,6 +1860,7 @@ create table if not exists strategy_backtest_runs (
   id bigint generated always as identity primary key,
   user_id uuid not null references users(id) on delete cascade,
   definition_hash text not null,
+  sharpe_daily double precision,
   created_at timestamptz not null default now()
 );
 create index if not exists strategy_backtest_runs_user_idx on strategy_backtest_runs(user_id, created_at);
@@ -1868,6 +1869,85 @@ drop policy if exists strategy_backtest_runs_isolation on strategy_backtest_runs
 create policy strategy_backtest_runs_isolation on strategy_backtest_runs
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- Strategy Builder: a user's own saved backtests, private by default (RLS).
+-- share_token is an unlisted read-only link -- not the same as STS-1's public
+-- publish/version concept below, which this was missing from _SCHEMA_SQL
+-- entirely until now (an existing gap, fixed in passing since STS-2's fork
+-- columns need the base table to exist on a fresh install too).
+create table if not exists saved_strategies (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  name text not null,
+  definition jsonb not null,
+  result jsonb not null,
+  data_end date,
+  share_token text unique,
+  -- STS-2: set only on a forked copy -- a permanent link to the exact
+  -- published version it was forked from. Not a `references` clause here
+  -- (published_strategies doesn't exist yet at this point in the script,
+  -- and it in turn references this table) -- the FK is added below, once
+  -- both tables exist.
+  forked_from_published_id bigint,
+  forked_from_version int,
+  created_at timestamptz not null default now()
+);
+create index if not exists saved_strategies_user_idx on saved_strategies(user_id, created_at desc);
+alter table saved_strategies enable row level security;
+drop policy if exists saved_strategies_isolation on saved_strategies;
+create policy saved_strategies_isolation on saved_strategies
+  using (user_id = current_setting('app.user_id', true)::uuid)
+  with check (user_id = current_setting('app.user_id', true)::uuid);
+grant select, insert, update, delete on saved_strategies to app_user;
+grant select, update on saved_strategies to app_service;
+
+-- STS-1: a published, versioned, locked snapshot of a saved strategy --
+-- public data (no RLS), same posture as posts/community_ideas. version=1
+-- when root_published_id is null (this row IS the root); v2+ points at the
+-- v1 row's id. "History" is just every row in a lineage, ordered by version
+-- -- no separate is_latest/superseded flag to keep in sync.
+create table if not exists published_strategies (
+  id bigint generated always as identity primary key,
+  saved_strategy_id bigint references saved_strategies(id) on delete set null,
+  author_user_id uuid not null references users(id) on delete cascade,
+  root_published_id bigint references published_strategies(id) on delete cascade,
+  version int not null default 1,
+  name text not null,
+  definition jsonb not null,
+  result jsonb not null,
+  rules_visibility text not null default 'public' check (rules_visibility in ('public', 'summary_only')),
+  rules_summary text,
+  published_at timestamptz not null default now(),
+  constraint published_strategies_summary_required
+    check (rules_visibility <> 'summary_only' or rules_summary is not null)
+);
+create index if not exists published_strategies_author_idx on published_strategies(author_user_id, published_at desc);
+create index if not exists published_strategies_lineage_idx on published_strategies(root_published_id, version desc);
+grant select, insert on published_strategies to app_user;
+grant select, insert on published_strategies to app_service;
+-- Now that published_strategies exists, saved_strategies can reference it.
+alter table saved_strategies drop constraint if exists saved_strategies_forked_from_published_id_fkey;
+alter table saved_strategies add constraint saved_strategies_forked_from_published_id_fkey
+  foreign key (forked_from_published_id) references published_strategies(id) on delete set null;
+
+-- STS-3: one row per published strategy per day -- a replay of the exact
+-- same backtest math the builder itself uses, over the real
+-- [published_at, today] window. Disclosed as a replay, not a brokered
+-- paper account (compare alpaca_paper_accounts/paper_account_equity_
+-- snapshots, which track a real linked account) -- never confuse the two.
+create table if not exists published_strategy_forward_snapshots (
+  id bigint generated always as identity primary key,
+  published_strategy_id bigint not null references published_strategies(id) on delete cascade,
+  as_of_date date not null,
+  cumulative_return_pct double precision not null,
+  trades int not null default 0,
+  created_at timestamptz not null default now(),
+  unique (published_strategy_id, as_of_date)
+);
+-- No separate index needed: the unique constraint above already indexes
+-- (published_strategy_id, as_of_date), the only lookup this table needs.
+grant select on published_strategy_forward_snapshots to app_user;
+grant select, insert on published_strategy_forward_snapshots to app_service;
 
 -- One row per order ticket, inserted at SUBMITTING status BEFORE the
 -- Alpaca call so an ambiguous network failure can be resolved by

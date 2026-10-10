@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ApiError, compareSavedStrategies, deleteSavedStrategy, listSavedStrategies, shareSavedStrategy } from "@/lib/api";
+import {
+  ApiError, compareSavedStrategies, deleteSavedStrategy, listSavedStrategies, publishStrategy, shareSavedStrategy,
+} from "@/lib/api";
 import type { StrategyCompareRow, StrategySavedRow } from "@/lib/types";
 
 // Saved strategies: pick up to four to compare on the verdict metrics, or share one read-only.
@@ -26,6 +28,11 @@ export default function SavedStrategiesPage() {
   const [compare, setCompare] = useState<StrategyCompareRow[] | null>(null);
   const [shareLinks, setShareLinks] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+
+  const [publishingId, setPublishingId] = useState<number | null>(null);
+  const [publishVisibility, setPublishVisibility] = useState<"public" | "summary_only">("public");
+  const [publishSummary, setPublishSummary] = useState("");
+  const [published, setPublished] = useState<Record<number, { id: number; version: number }>>({});
 
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -74,6 +81,33 @@ export default function SavedStrategiesPage() {
     }
   }
 
+  function startPublish(id: number) {
+    setPublishingId(id);
+    setPublishVisibility("public");
+    setPublishSummary("");
+  }
+
+  async function handlePublish(id: number) {
+    if (publishVisibility === "summary_only" && !publishSummary.trim()) {
+      setError("Enter a summary before publishing with private rules.");
+      return;
+    }
+    setBusy(`publish-${id}`);
+    setError(null);
+    try {
+      const res = await publishStrategy(id, {
+        rules_visibility: publishVisibility,
+        rules_summary: publishVisibility === "summary_only" ? publishSummary.trim() : undefined,
+      });
+      setPublished((prev) => ({ ...prev, [id]: res }));
+      setPublishingId(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "This strategy could not be published.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleDelete(id: number) {
     if (!window.confirm("Delete this saved strategy?")) return;
     try {
@@ -108,6 +142,14 @@ export default function SavedStrategiesPage() {
                 <input type="checkbox" checked={picked.includes(row.id)} onChange={() => toggle(row.id)} className="mt-1" aria-label={`Compare ${row.name}`} />
                 <span>
                   <span className="font-medium text-slate-900">{row.name}</span>
+                  {row.forked_from_published_id && (
+                    <span className="ml-2 text-xs text-slate-500">
+                      forked from{" "}
+                      <Link href={`/strategies/published/${row.forked_from_published_id}`} className="underline">
+                        v{row.forked_from_version}
+                      </Link>
+                    </span>
+                  )}
                   <span className="block text-xs text-slate-500">
                     Saved {new Date(row.created_at).toLocaleDateString()} · data to {row.data_end ?? "–"} · excess CAGR vs same stocks {pct(row.summary.excess_cagr_vs_basket_pct)} · Sharpe vs SPY {plain(row.summary.sharpe_vs_spy)}
                   </span>
@@ -124,6 +166,15 @@ export default function SavedStrategiesPage() {
                 </span>
               </label>
               <div className="flex flex-wrap items-center gap-3 text-xs">
+                {published[row.id] ? (
+                  <Link href={`/strategies/published/${published[row.id].id}`} className="font-medium text-emerald-700 hover:underline">
+                    Published (v{published[row.id].version})
+                  </Link>
+                ) : (
+                  <button type="button" onClick={() => startPublish(row.id)} className="font-medium text-slate-700 hover:underline">
+                    Publish
+                  </button>
+                )}
                 <button type="button" onClick={() => handleShare(row.id)} disabled={busy === `share-${row.id}`} className="font-medium text-slate-700 hover:underline disabled:opacity-50">
                   {shareLinks[row.id] ? "Link created" : "Share (read-only link)"}
                 </button>
@@ -131,6 +182,44 @@ export default function SavedStrategiesPage() {
                   Delete
                 </button>
               </div>
+              {publishingId === row.id && (
+                <div className="flex w-full flex-col gap-2 rounded bg-slate-50 px-3 py-2 sm:basis-full">
+                  <label className="flex items-center gap-2 text-xs text-slate-700">
+                    <input type="radio" checked={publishVisibility === "public"} onChange={() => setPublishVisibility("public")} />
+                    Publish the rules publicly
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-700">
+                    <input type="radio" checked={publishVisibility === "summary_only"} onChange={() => setPublishVisibility("summary_only")} />
+                    Keep rules private -- publish a summary instead
+                  </label>
+                  {publishVisibility === "summary_only" && (
+                    <textarea
+                      value={publishSummary}
+                      onChange={(e) => setPublishSummary(e.target.value)}
+                      placeholder="A plain-language summary of what this strategy does (shown instead of the rules)"
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      rows={2}
+                    />
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handlePublish(row.id)}
+                      disabled={busy === `publish-${row.id}`}
+                      className="rounded-md bg-slate-900 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                    >
+                      {busy === `publish-${row.id}` ? "Publishing…" : "Confirm publish"}
+                    </button>
+                    <button type="button" onClick={() => setPublishingId(null)} className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700">
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Published strategies are public and locked -- editing this saved run afterward won&apos;t change
+                    what&apos;s published; publish again to add a new version.
+                  </p>
+                </div>
+              )}
               {shareLinks[row.id] && (
                 <div className="flex w-full flex-wrap items-center gap-2 rounded bg-slate-50 px-2 py-1 sm:basis-full">
                   <a

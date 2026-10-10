@@ -98,6 +98,10 @@ import type {
   StrategyCompareRow,
   StrategySharedResponse,
   StrategyScanStatus,
+  PublishedStrategySummary,
+  PublishedStrategyDetail,
+  PublishedStrategyVersion,
+  StrategyForwardSnapshot,
   StockTrackRecord,
   ChartGridLayout,
   SavedChartLayout,
@@ -2348,6 +2352,38 @@ export function shareSavedStrategy(id: number) {
 
 export function getSharedStrategy(token: string) {
   return apiFetch<StrategySharedResponse>(`/api/v1/strategy-builder/shared/${encodeURIComponent(token)}`);
+}
+
+// STS-1: publish a saved strategy publicly, versioned and locked. republishOf
+// bumps an existing lineage's version instead of starting a new one.
+export function publishStrategy(
+  savedId: number,
+  body: { rules_visibility: "public" | "summary_only"; rules_summary?: string; republish_of?: number },
+) {
+  return apiSend<{ id: number; version: number }>(`/api/v1/strategy-builder/saved/${savedId}/publish`, "POST", body);
+}
+
+export function listPublishedStrategies(limit = 50) {
+  return apiFetch<{ published: PublishedStrategySummary[] }>("/api/v1/strategy-builder/published", { limit: String(limit) });
+}
+
+export function getPublishedStrategy(id: number) {
+  return apiFetch<PublishedStrategyDetail>(`/api/v1/strategy-builder/published/${id}`);
+}
+
+export function listPublishedStrategyVersions(id: number) {
+  return apiFetch<{ versions: PublishedStrategyVersion[] }>(`/api/v1/strategy-builder/published/${id}/versions`);
+}
+
+// STS-2: copies the published definition into a new saved_strategies row
+// the caller owns -- never a live account, just this app's own builder
+// workspace. Only possible when rules_visibility is "public".
+export function forkPublishedStrategy(id: number) {
+  return apiSend<{ saved_id: number }>(`/api/v1/strategy-builder/published/${id}/fork`, "POST");
+}
+
+export function getStrategyForwardRecord(id: number) {
+  return apiFetch<{ snapshots: StrategyForwardSnapshot[] }>(`/api/v1/strategy-builder/published/${id}/forward-record`);
 }
 
 // Template scan on a random S&P 500 sample. Starts a background job; poll the status until done.

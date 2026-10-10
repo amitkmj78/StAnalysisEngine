@@ -62,49 +62,91 @@ def _benchmark_today_pct(ticker: str = BENCHMARK_TICKER) -> Optional[float]:
     return (price_now / prev_close - 1.0) * 100.0
 
 
+def _tag_rows_with_is_paper(positions: list[dict], performance: dict) -> list[dict]:
+    """compute_portfolio_performance returns one row per input position, in
+    the same order (every position here has shares > 0, so
+    _compute_position_row never returns None for this caller) -- zip by
+    index, not by ticker, since the same ticker can legitimately appear in
+    both a real and a paper-trading holding for one user."""
+    rows = performance["rows"]
+    for pos, row in zip(positions, rows):
+        row["is_paper"] = bool(pos.get("is_paper"))
+    return rows
+
+
+def _group_day_gain(rows: list[dict]) -> tuple[float, Optional[float]]:
+    day_gain = sum(r["day_gain"] for r in rows)
+    value_now = sum(r["value_now"] for r in rows if r["value_now"] is not None)
+    value_before_today = value_now - day_gain
+    pct = (day_gain / value_before_today * 100.0) if value_before_today else None
+    return day_gain, pct
+
+
+def _render_holdings_block(label: str, rows: list[dict]) -> list[str]:
+    day_gain, pct = _group_day_gain(rows)
+    gainers = sorted((r for r in rows if r["day_gain"] > 0), key=lambda r: r["day_gain"], reverse=True)[:MAX_HOLDINGS_PER_DIRECTION]
+    losers = sorted((r for r in rows if r["day_gain"] < 0), key=lambda r: r["day_gain"])[:MAX_HOLDINGS_PER_DIRECTION]
+
+    lines = [f"{label}: {_fmt_dollars(day_gain)} ({_fmt_pct(pct)}) today."]
+    if gainers:
+        lines.append("  Top contributors:")
+        for r in gainers:
+            lines.append(f"    {r['ticker']}: {_fmt_dollars(r['day_gain'])} ({_fmt_pct(r['day_gain_pct'])})")
+    if losers:
+        lines.append("  Top detractors:")
+        for r in losers:
+            lines.append(f"    {r['ticker']}: {_fmt_dollars(r['day_gain'])} ({_fmt_pct(r['day_gain_pct'])})")
+    return lines
+
+
 def build_evening_recap(positions: list[dict]) -> Optional[dict]:
     """BRF-2: today's portfolio move next to SPY's own today move, plus
     the day's top contributors/detractors by holding. Returns None when
     there are no positions, or when no holding has a day_gain yet (e.g.
     before the first regular-session close, or a weekend/holiday run) --
     an empty brief isn't worth sending.
+
+    Real and paper-trading holdings are always reported as two separate
+    totals, never blended into one dollar figure -- a position sourced
+    from a linked Alpaca paper account (portfolio_positions.
+    alpaca_paper_account_id is set) is practice money, not real money, and
+    a recap that silently mixed the two into "your portfolio" would
+    misrepresent both.
     """
     if not positions:
         return None
 
     performance = compute_portfolio_performance(positions)
-    rows_with_gain = [r for r in performance["rows"] if r["day_gain"] is not None]
+    rows_with_gain = [r for r in _tag_rows_with_is_paper(positions, performance) if r["day_gain"] is not None]
     if not rows_with_gain:
         return None
 
-    total_day_gain = performance["total_day_gain"]
-    total_day_gain_pct = performance["total_day_gain_pct"]
+    real_rows = [r for r in rows_with_gain if not r["is_paper"]]
+    paper_rows = [r for r in rows_with_gain if r["is_paper"]]
     benchmark_today_pct = _benchmark_today_pct()
 
-    gainers = sorted(
-        (r for r in rows_with_gain if r["day_gain"] > 0), key=lambda r: r["day_gain"], reverse=True
-    )[:MAX_HOLDINGS_PER_DIRECTION]
-    losers = sorted(
-        (r for r in rows_with_gain if r["day_gain"] < 0), key=lambda r: r["day_gain"]
-    )[:MAX_HOLDINGS_PER_DIRECTION]
+    # The subject line only collapses to one "portfolio X% today" figure
+    # when there's just one kind of holding -- with both present, summing
+    # real and paper day-gain into one number would misrepresent both, so
+    # the subject says so instead of guessing which one to lead with.
+    if real_rows and not paper_rows:
+        _, pct = _group_day_gain(real_rows)
+        subject = f"Evening recap: portfolio {_fmt_pct(pct)} today"
+    elif paper_rows and not real_rows:
+        _, pct = _group_day_gain(paper_rows)
+        subject = f"Evening recap: paper-trading portfolio {_fmt_pct(pct)} today"
+    else:
+        subject = "Evening recap: real + paper-trading holdings today"
 
-    subject = f"Evening recap: portfolio {_fmt_pct(total_day_gain_pct)} today"
-
-    lines = [
-        f"Your portfolio: {_fmt_dollars(total_day_gain)} ({_fmt_pct(total_day_gain_pct)}) today.",
-        f"{BENCHMARK_TICKER}: {_fmt_pct(benchmark_today_pct)} today.",
-        "",
-    ]
-    if gainers:
-        lines.append("Top contributors:")
-        for r in gainers:
-            lines.append(f"  {r['ticker']}: {_fmt_dollars(r['day_gain'])} ({_fmt_pct(r['day_gain_pct'])})")
+    lines = []
+    if real_rows:
+        lines.extend(_render_holdings_block("Your real holdings", real_rows))
         lines.append("")
-    if losers:
-        lines.append("Top detractors:")
-        for r in losers:
-            lines.append(f"  {r['ticker']}: {_fmt_dollars(r['day_gain'])} ({_fmt_pct(r['day_gain_pct'])})")
+    if paper_rows:
+        lines.extend(_render_holdings_block("Your PAPER-TRADING holdings (practice money, not real)", paper_rows))
         lines.append("")
+    lines.append(f"{BENCHMARK_TICKER}: {_fmt_pct(benchmark_today_pct)} today.")
+    lines.append("")
     lines.append(f"See {APP_URL}/portfolio for the full breakdown.")
 
     return {"subject": subject, "text_body": "\n".join(lines)}
@@ -125,7 +167,6 @@ def _select_news_tickers(rows_with_gain: list[dict], signal_change_rows: list) -
 
 def _format_morning_brief(
     today,
-    performance: dict,
     rows_with_gain: list[dict],
     signal_change_rows: list,
     earnings_today: list[dict],
@@ -136,19 +177,30 @@ def _format_morning_brief(
     """Pure rendering step -- every input is already-resolved data, no DB
     or network calls here, so each of the five sections (overnight
     moves, signal changes, earnings today, market regime, top news) can
-    be exercised independently in a test without mocking either."""
-    movers = sorted(rows_with_gain, key=lambda r: abs(r["day_gain_pct"] or 0.0), reverse=True)
+    be exercised independently in a test without mocking either.
+
+    Overnight Moves keeps real and paper-trading holdings as separate
+    totals (see build_evening_recap's docstring for why) -- the other
+    four sections are ticker-level, not value-level, so a signal change
+    or an earnings date applies the same regardless of which account
+    holds the ticker and isn't split.
+    """
     subject = f"Morning brief for {today.isoformat()}"
 
     lines = ["Overnight Moves:"]
-    if rows_with_gain:
-        lines.append(
-            f"  Portfolio: {_fmt_dollars(performance['total_day_gain'])} "
-            f"({_fmt_pct(performance['total_day_gain_pct'])})"
-        )
-        for r in movers[:MAX_OVERNIGHT_MOVERS_SHOWN]:
-            lines.append(f"  {r['ticker']}: {_fmt_pct(r['day_gain_pct'])}")
-    else:
+    real_rows = [r for r in rows_with_gain if not r["is_paper"]]
+    paper_rows = [r for r in rows_with_gain if r["is_paper"]]
+    if real_rows:
+        day_gain, pct = _group_day_gain(real_rows)
+        lines.append(f"  Real portfolio: {_fmt_dollars(day_gain)} ({_fmt_pct(pct)})")
+        for r in sorted(real_rows, key=lambda r: abs(r["day_gain_pct"] or 0.0), reverse=True)[:MAX_OVERNIGHT_MOVERS_SHOWN]:
+            lines.append(f"    {r['ticker']}: {_fmt_pct(r['day_gain_pct'])}")
+    if paper_rows:
+        day_gain, pct = _group_day_gain(paper_rows)
+        lines.append(f"  Paper-trading portfolio (practice money, not real): {_fmt_dollars(day_gain)} ({_fmt_pct(pct)})")
+        for r in sorted(paper_rows, key=lambda r: abs(r["day_gain_pct"] or 0.0), reverse=True)[:MAX_OVERNIGHT_MOVERS_SHOWN]:
+            lines.append(f"    {r['ticker']}: {_fmt_pct(r['day_gain_pct'])}")
+    if not real_rows and not paper_rows:
         lines.append("  No price data yet (pre-market or market closed).")
     lines.append("")
 
@@ -215,7 +267,7 @@ async def build_morning_brief(
     all_tickers = sorted(set(owned_tickers) | set(watchlisted_tickers))
 
     performance = await run_in_threadpool(compute_portfolio_performance, positions)
-    rows_with_gain = [r for r in performance["rows"] if r["day_gain"] is not None]
+    rows_with_gain = [r for r in _tag_rows_with_is_paper(positions, performance) if r["day_gain"] is not None]
 
     async with service_conn() as conn:
         signal_change_rows = await conn.fetch(
@@ -265,6 +317,6 @@ async def build_morning_brief(
             sentiment_by_ticker.update(fresh)
 
     return _format_morning_brief(
-        today, performance, rows_with_gain, signal_change_rows, earnings_today, regime, news_tickers,
+        today, rows_with_gain, signal_change_rows, earnings_today, regime, news_tickers,
         sentiment_by_ticker,
     )

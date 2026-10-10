@@ -37,6 +37,7 @@ const NAV: NavEntry[] = [
     items: [
       { href: "/monthly-plan", label: "Monthly Plan" },
       { href: "/strategies", label: "Strategies", advanced: true },
+      { href: "/strategies/published", label: "Published Strategies" },
       { href: "/trade-journal", label: "Trade Journal" },
     ],
   },
