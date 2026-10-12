@@ -12,7 +12,7 @@ import { useBeginnerMode } from "@/lib/useBeginnerMode";
 // /settings) -- a declutter, not an access wall. The page itself stays
 // reachable by direct URL; this just keeps it out of the menu until the
 // user turns Beginner mode off.
-type NavItem = { href: string; label: string; advanced?: boolean };
+type NavItem = { href: string; label: string; advanced?: boolean; external?: boolean };
 type NavEntry = { label: string; href: string } | { label: string; items: NavItem[] };
 
 const NAV: NavEntry[] = [
@@ -94,6 +94,9 @@ const ADMIN_ENTRY: NavEntry = {
     { href: "/admin/integrations", label: "Integrations" },
     { href: "/admin/community-reports", label: "Community Reports" },
     { href: "/admin/deploy", label: "Deploy" },
+    // Static file served from web/frontend/public/ -- its source of truth is
+    // docs/StAnalysisEngine_Requirements_Tracker.html; re-copy after editing it.
+    { href: "/requirements-tracker.html", label: "Requirements Tracker", external: true },
   ],
 };
 
@@ -144,16 +147,29 @@ function NavDropdown({ entry, active }: { entry: { label: string; items: NavItem
       </button>
       {open && (
         <div className="absolute left-0 top-full z-20 mt-1 min-w-[12rem] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-          {entry.items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-            >
-              {item.label}
-            </Link>
-          ))}
+          {entry.items.map((item) =>
+            item.external ? (
+              <a
+                key={item.href}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setOpen(false)}
+                className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+              >
+                {item.label}
+              </a>
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+              >
+                {item.label}
+              </Link>
+            ),
+          )}
         </div>
       )}
     </div>
@@ -242,18 +258,31 @@ export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin:
               {isGroup(entry) ? (
                 <>
                   <p className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{entry.label}</p>
-                  {entry.items.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`rounded-md px-2 py-2 ${
-                        pathname === item.href ? "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+                  {entry.items.map((item) =>
+                    item.external ? (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setMobileOpen(false)}
+                        className="rounded-md px-2 py-2 text-slate-700 hover:bg-slate-50"
+                      >
+                        {item.label}
+                      </a>
+                    ) : (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={`rounded-md px-2 py-2 ${
+                          pathname === item.href ? "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {item.label}
+                      </Link>
+                    ),
+                  )}
                 </>
               ) : (
                 <Link
