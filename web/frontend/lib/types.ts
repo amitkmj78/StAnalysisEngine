@@ -1711,6 +1711,7 @@ export interface AdminUser {
   email: string;
   approved: boolean;
   is_active: boolean;
+  role: "user" | "admin";
   created_at: string;
   last_login_at: string | null;
   last_login_ip: string | null;
@@ -2040,6 +2041,8 @@ export interface AdminSettings {
   challenge_notifications_enabled: boolean;
   stock_score_compute_enabled: boolean;
   ai_reviewer_enabled: boolean;
+  default_theme_accent_color: string;
+  theme_accent_palette: string[];
 }
 
 export interface BackupRun {

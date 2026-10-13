@@ -9,6 +9,8 @@ from web.backend.app_settings import (
     DAILY_QUOTA_DEFAULT,
     DAILY_QUOTA_KEY,
     DB_BACKUP_ENABLED_KEY,
+    DEFAULT_THEME_ACCENT_DEFAULT,
+    DEFAULT_THEME_ACCENT_KEY,
     EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY,
     EVENING_RECAP_ENABLED_KEY,
     FILING_SUMMARIES_ENABLED_KEY,
@@ -45,6 +47,7 @@ from web.backend.app_settings import (
     SAVED_SCREEN_ALERTS_ENABLED_KEY,
     STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY,
     STOCK_SCORE_COMPUTE_ENABLED_KEY,
+    THEME_ACCENT_PALETTE,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
     get_setting_float,
@@ -121,6 +124,10 @@ async def get_settings():
         "paper_account_equity_capture_enabled": await get_setting_bool(
             PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY, default=False
         ),
+        "default_theme_accent_color": await get_setting_str(
+            DEFAULT_THEME_ACCENT_KEY, default=DEFAULT_THEME_ACCENT_DEFAULT
+        ),
+        "theme_accent_palette": sorted(THEME_ACCENT_PALETTE),
     }
 
 
@@ -448,6 +455,22 @@ async def set_daily_quota(body: DailyQuotaUpdate):
     reads this fresh on every call, no restart needed."""
     await set_setting_int(DAILY_QUOTA_KEY, body.daily_quota)
     return {"daily_quota": body.daily_quota}
+
+
+class ThemeAccentColorUpdate(BaseModel):
+    default_theme_accent_color: str
+
+
+@router.post("/theme-accent-color")
+async def set_default_theme_accent_color(body: ThemeAccentColorUpdate):
+    """The site-wide default -- a user with no personal override (see
+    PUT /api/v1/auth/me/theme) picks this up immediately on their next
+    GET /api/v1/auth/me. Restricted to the same curated palette the
+    per-user setter uses, not a freeform color value."""
+    if body.default_theme_accent_color not in THEME_ACCENT_PALETTE:
+        raise HTTPException(422, f"default_theme_accent_color must be one of {sorted(THEME_ACCENT_PALETTE)}.")
+    await set_setting_str(DEFAULT_THEME_ACCENT_KEY, body.default_theme_accent_color)
+    return {"default_theme_accent_color": body.default_theme_accent_color}
 
 
 @router.post("/db-backup/enable")

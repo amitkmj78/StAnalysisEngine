@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import PasswordPolicyControls from "@/components/admin/PasswordPolicyControls";
+import ThemeColorControls from "@/components/admin/ThemeColorControls";
 import UserApprovalPanel from "@/components/admin/UserApprovalPanel";
 import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
@@ -9,7 +10,7 @@ export default async function AdminUsersPage() {
   const user = await getSession();
 
   // Defense in depth — proxy.ts already gates /admin/*, this is the second check.
-  if (!isAdmin(user?.email)) {
+  if (!isAdmin(user?.email, user?.role)) {
     redirect("/predict");
   }
 
@@ -26,6 +27,10 @@ export default async function AdminUsersPage() {
 
       <div className="mt-8">
         <PasswordPolicyControls />
+      </div>
+
+      <div className="mt-8">
+        <ThemeColorControls />
       </div>
     </div>
   );

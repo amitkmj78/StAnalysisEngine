@@ -192,6 +192,29 @@ COST_DROP_ALERTS_ENABLED_KEY = "cost_drop_alerts_enabled"
 # yesterday's close", this means "vs. cost basis", different concepts.
 COST_DROP_THRESHOLD_PCT_KEY = "cost_drop_threshold_pct"
 COST_DROP_THRESHOLD_DEFAULT = 10.0
+# Site-wide accent color, overridable per-user via
+# user_ui_preferences.theme_accent_color (NULL there means "use this
+# default"). Defaults to the hex already hardcoded in globals.css's
+# --pf-accent, so setting this up changes nothing until an admin actually
+# picks something else.
+DEFAULT_THEME_ACCENT_KEY = "default_theme_accent_color"
+DEFAULT_THEME_ACCENT_DEFAULT = "#0E5C57"
+# A curated palette, not a freeform color picker -- each hand-picked for
+# contrast against the app's fixed --pf-bg/--pf-text tokens, paired with its
+# own light tint (the --pf-accent-soft half) rather than a computed one,
+# since a computed tint can come out muddy for an arbitrary hue. Both the
+# admin site-default setter and the per-user override are restricted to
+# this set server-side.
+THEME_ACCENT_PALETTE: dict[str, str] = {
+    "#0E5C57": "#E7F1EF",  # teal (current default)
+    "#1D4ED8": "#E8EEFC",  # blue
+    "#4338CA": "#ECEAFB",  # indigo
+    "#7E22CE": "#F3E8FD",  # purple
+    "#9D174D": "#FBE7EF",  # wine
+    "#166534": "#E7F5EC",  # forest green
+    "#334155": "#E9ECF0",  # slate
+    "#C2410C": "#FDEEE4",  # burnt orange
+}
 
 
 async def get_setting_bool(key: str, default: bool) -> bool:

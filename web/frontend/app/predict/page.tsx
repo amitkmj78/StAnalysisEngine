@@ -446,7 +446,7 @@ export default function PredictPage() {
           </Link>
         )}
         <h1 className="font-display text-2xl font-semibold" style={DISPLAY_FONT}>
-          AI Price Forecast
+          Quant Price Forecast
         </h1>
         <p className="mt-1 text-sm text-slate-500">
           A backtested quant forecast for one ticker, shown next to how often it has actually beaten doing

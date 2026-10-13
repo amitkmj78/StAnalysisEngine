@@ -61,7 +61,7 @@ export default function TradingAgentPage() {
   useEffect(() => {
     load();
     getCurrentUser()
-      .then((u) => setAdmin(isAdmin(u.email)))
+      .then((u) => setAdmin(isAdmin(u.email, u.role)))
       .catch(() => {});
   }, []);
 

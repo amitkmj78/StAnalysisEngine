@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ApiError, getCurrentUser, updateSocialProfile } from "@/lib/api";
+import { ApiError, getCurrentUser, setMyThemeColor, updateSocialProfile } from "@/lib/api";
 import type { ExperienceLevel } from "@/lib/types";
+import { applyThemeAccent, THEME_PALETTE } from "@/lib/theme";
 
 const LEVELS: { value: ExperienceLevel; label: string; description: string }[] = [
   {
@@ -34,15 +35,34 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [themeOverride, setThemeOverride] = useState<string | null>(null);
+  const [themeSaving, setThemeSaving] = useState<string | "default" | null>(null);
+  const [themeError, setThemeError] = useState<string | null>(null);
+
   useEffect(() => {
     getCurrentUser()
       .then((user) => {
         setUserId(user.id);
         setLevel(user.experience_level);
+        setThemeOverride(user.theme_accent_color);
       })
       .catch(() => setError("Could not load your settings."))
       .finally(() => setLoading(false));
   }, []);
+
+  async function saveTheme(color: string | null) {
+    setThemeSaving(color ?? "default");
+    setThemeError(null);
+    try {
+      const res = await setMyThemeColor(color);
+      setThemeOverride(res.theme_accent_color);
+      applyThemeAccent(res.effective_theme_accent_color, res.effective_theme_accent_soft);
+    } catch (err) {
+      setThemeError(err instanceof ApiError ? err.message : "Could not save your theme color.");
+    } finally {
+      setThemeSaving(null);
+    }
+  }
 
   async function save(next: ExperienceLevel) {
     setSaving(true);
@@ -103,6 +123,45 @@ export default function SettingsPage() {
         {saving && <p className="mt-3 text-xs text-slate-500">Saving…</p>}
         {saved && !saving && <p className="mt-3 text-xs font-medium text-emerald-700">Saved.</p>}
         {error && <p className="mt-3 text-xs font-medium text-red-700">{error}</p>}
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="text-sm font-semibold text-slate-900">Theme color</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Overrides the site&apos;s default accent color for just your account. A curated palette, not a freeform
+          color.
+        </p>
+        {loading ? (
+          <p className="mt-3 text-sm text-slate-500">Loading…</p>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {THEME_PALETTE.map((c) => (
+              <button
+                key={c.accent}
+                type="button"
+                onClick={() => saveTheme(c.accent)}
+                disabled={themeSaving !== null}
+                aria-pressed={themeOverride === c.accent}
+                title={c.name}
+                className={`flex h-9 w-9 items-center justify-center rounded-full border-2 disabled:opacity-50 ${
+                  themeOverride === c.accent ? "border-slate-900" : "border-transparent"
+                }`}
+                style={{ backgroundColor: c.accent }}
+              >
+                {themeSaving === c.accent && <span className="h-2 w-2 animate-pulse rounded-full bg-white" />}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => saveTheme(null)}
+              disabled={themeSaving !== null || themeOverride === null}
+              className="ml-1 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {themeSaving === "default" ? "Resetting…" : "Use site default"}
+            </button>
+          </div>
+        )}
+        {themeError && <p className="mt-3 text-xs font-medium text-red-700">{themeError}</p>}
       </div>
     </div>
   );

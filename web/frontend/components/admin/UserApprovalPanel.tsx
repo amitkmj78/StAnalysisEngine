@@ -5,6 +5,7 @@ import { Fragment, useEffect, useState } from "react";
 import {
   ApiError,
   approveUser,
+  createAdminUser,
   deactivateAdminUserPortfolio,
   deactivateUser,
   deleteAdminUserPortfolio,
@@ -17,6 +18,7 @@ import {
   rejectUser,
   sendWelcomeEmail,
   setAdminUserPortfolioDropAlerts,
+  updateUserRole,
 } from "@/lib/api";
 import type { AdminUser, AdminUserPortfolio } from "@/lib/types";
 
@@ -25,6 +27,13 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [emailStatus, setEmailStatus] = useState<Record<string, "sent" | "failed">>({});
+
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<"user" | "admin">("user");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [created, setCreated] = useState<string | null>(null);
 
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [portfoliosByUser, setPortfoliosByUser] = useState<
@@ -45,6 +54,41 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
   useEffect(() => {
     load();
   }, []);
+
+  async function handleCreateUser() {
+    const email = newEmail.trim().toLowerCase();
+    if (!email || !newPassword) {
+      setCreateError("Email and password are required.");
+      return;
+    }
+    setCreating(true);
+    setCreateError(null);
+    setCreated(null);
+    try {
+      const res = await createAdminUser({ email, password: newPassword, role: newRole });
+      setCreated(`Created ${res.email} as ${res.role}${res.welcome_email_sent ? " — welcome email sent" : ""}.`);
+      setNewEmail("");
+      setNewPassword("");
+      setNewRole("user");
+      await load();
+    } catch (err) {
+      setCreateError(err instanceof ApiError ? err.message : "Could not create user.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleRoleChange(id: string, role: "user" | "admin") {
+    setBusyId(id);
+    try {
+      await updateUserRole(id, role);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not update role.");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function handleApprove(id: string) {
     setBusyId(id);
@@ -241,6 +285,56 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
     <div className="flex flex-col gap-6">
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-lg font-semibold text-slate-900">Create User</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Creates an account directly, already approved — skips the signup/approval queue above. Use this to make
+          another admin, or to onboard someone without them going through public signup.
+        </p>
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Email</label>
+            <input
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="name@example.com"
+              className="w-56 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Password</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Temporary password"
+              className="w-48 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Role</label>
+            <select
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value as "user" | "admin")}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            >
+              <option value="user">Normal user</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button
+            onClick={handleCreateUser}
+            disabled={creating}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {creating ? "Creating…" : "Create"}
+          </button>
+        </div>
+        {createError && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{createError}</p>}
+        {created && <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{created}</p>}
+      </div>
+
       <div>
         <h2 className="text-lg font-semibold text-slate-900">
           Pending Approval {pending.length > 0 && <span className="text-amber-600">({pending.length})</span>}
@@ -296,6 +390,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Role</th>
                 <th className="px-3 py-2">Portfolios</th>
                 <th className="px-3 py-2">Signed Up</th>
                 <th className="px-3 py-2">Last Login</th>
@@ -315,6 +410,25 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                     >
                       {u.is_active ? "Active" : "Inactive"}
                     </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    {u.email.toLowerCase() === currentUserEmail.toLowerCase() ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        {u.role === "admin" ? "Admin" : "User"} (you)
+                      </span>
+                    ) : (
+                      <select
+                        value={u.role}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value as "user" | "admin")}
+                        disabled={busyId === u.id}
+                        className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium ${
+                          u.role === "admin" ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-slate-600">
                     {u.portfolio_count > 0 ? (
@@ -398,7 +512,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                 </tr>
                 {expandedUserId === u.id && (
                   <tr className="border-b border-slate-100 last:border-0 bg-slate-50/60">
-                    <td colSpan={6} className="px-3 py-3">
+                    <td colSpan={7} className="px-3 py-3">
                       {portfolioMessage && (
                         <p className="mb-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
                           {portfolioMessage}

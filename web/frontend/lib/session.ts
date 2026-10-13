@@ -11,13 +11,17 @@ export const SESSION_COOKIE_NAME = "session";
 export interface SessionUser {
   id: string;
   email: string;
+  role: string;
 }
 
 export async function verifySessionToken(token: string): Promise<SessionUser | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey, { algorithms: ["HS256"] });
     if (typeof payload.sub !== "string" || typeof payload.email !== "string") return null;
-    return { id: payload.sub, email: payload.email };
+    // Tokens issued before roles existed have no `role` claim -- treat them
+    // as a normal user until the account's next login reissues the token.
+    const role = typeof payload.role === "string" ? payload.role : "user";
+    return { id: payload.sub, email: payload.email, role };
   } catch {
     return null;
   }

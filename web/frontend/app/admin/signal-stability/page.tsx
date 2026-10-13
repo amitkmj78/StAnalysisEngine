@@ -8,7 +8,7 @@ export default async function AdminSignalStabilityPage() {
   const user = await getSession();
 
   // Defense in depth — proxy.ts already gates /admin/*, this is the second check.
-  if (!isAdmin(user?.email)) {
+  if (!isAdmin(user?.email, user?.role)) {
     redirect("/predict");
   }
 

@@ -449,6 +449,13 @@ alter table users add column if not exists last_login_ip text;
 -- The home screen (Stock Detail) needs a ticker to open on. NULL means "no
 -- user override yet", and the app falls back to SPY.
 alter table users add column if not exists default_ticker text;
+-- Admin-created users with roles: kept alongside (not replacing) the
+-- hardcoded ADMIN_EMAIL fallback in web/backend/admin.py -- every admin
+-- check is role='admin' OR email=ADMIN_EMAIL, so a bad role value can
+-- never lock out the original account.
+alter table users add column if not exists role text not null default 'user'
+  check (role in ('user', 'admin'));
+update users set role = 'admin' where lower(email) = 'amitkmj78@gmail.com';
 
 -- Forgot-password: only a sha256 hash of the token is ever stored, never
 -- the token itself, so a DB read can't be used to reset an account's
@@ -847,6 +854,10 @@ create table if not exists user_ui_preferences (
   default_stock_finder_columns jsonb,
   updated_at timestamptz not null default now()
 );
+-- Per-user theme-color override (NULL means "use the admin-configured
+-- app_settings.default_theme_accent_color" -- see web/backend/routers/
+-- auth.py's /me/theme endpoints).
+alter table user_ui_preferences add column if not exists theme_accent_color text;
 alter table user_ui_preferences enable row level security;
 drop policy if exists user_ui_preferences_isolation on user_ui_preferences;
 create policy user_ui_preferences_isolation on user_ui_preferences for all

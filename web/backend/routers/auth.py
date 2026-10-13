@@ -14,9 +14,16 @@ from services.email_service import APP_URL, send_password_reset_email
 from services.password_policy_service import is_breached_password, validate_password_policy
 
 from web.backend.admin import ADMIN_EMAIL
-from web.backend.app_settings import PASSWORD_POLICY_ENABLED_KEY, get_setting_bool
+from web.backend.app_settings import (
+    DEFAULT_THEME_ACCENT_DEFAULT,
+    DEFAULT_THEME_ACCENT_KEY,
+    PASSWORD_POLICY_ENABLED_KEY,
+    THEME_ACCENT_PALETTE,
+    get_setting_bool,
+    get_setting_str,
+)
 from web.backend.auth import SESSION_COOKIE_NAME, get_client_ip, verify_bearer_token
-from web.backend.db import service_conn
+from web.backend.db import service_conn, user_conn
 from web.backend.rate_limit import limiter
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -45,9 +52,9 @@ async def _validate_new_password(password: str) -> None:
         raise HTTPException(422, "Password must be at least 8 characters.")
 
 
-def _issue_token(user_id: str, email: str) -> str:
+def _issue_token(user_id: str, email: str, role: str) -> str:
     now = datetime.now(timezone.utc)
-    payload = {"sub": user_id, "email": email, "iat": now, "exp": now + SESSION_TTL}
+    payload = {"sub": user_id, "email": email, "role": role, "iat": now, "exp": now + SESSION_TTL}
     return jwt.encode(payload, SESSION_SECRET, algorithm="HS256")
 
 
@@ -102,7 +109,7 @@ async def signup(request: Request, body: SignupRequest, response: Response):
             row = await conn.fetchrow(
                 """
                 INSERT INTO users (email, password_hash, approved, discoverable_for_challenges)
-                VALUES ($1, $2, $3, $4) RETURNING id, email, approved
+                VALUES ($1, $2, $3, $4) RETURNING id, email, approved, role
                 """,
                 body.email.lower(),
                 password_hash,
@@ -123,7 +130,7 @@ async def signup(request: Request, body: SignupRequest, response: Response):
             get_client_ip(request), row["id"],
         )
 
-    token = _issue_token(str(row["id"]), row["email"])
+    token = _issue_token(str(row["id"]), row["email"], row["role"])
     _set_session_cookie(response, token)
     # Token included in the body (not just the Set-Cookie header) because the
     # only caller is our own Next.js Server Action, calling server-to-server —
@@ -136,7 +143,7 @@ async def signup(request: Request, body: SignupRequest, response: Response):
 async def login(request: Request, body: LoginRequest, response: Response):
     async with service_conn() as conn:
         row = await conn.fetchrow(
-            "SELECT id, email, password_hash, approved, is_active FROM users WHERE email = $1",
+            "SELECT id, email, password_hash, approved, is_active, role FROM users WHERE email = $1",
             body.email.lower(),
         )
 
@@ -155,7 +162,7 @@ async def login(request: Request, body: LoginRequest, response: Response):
             get_client_ip(request), row["id"],
         )
 
-    token = _issue_token(str(row["id"]), row["email"])
+    token = _issue_token(str(row["id"]), row["email"], row["role"])
     _set_session_cookie(response, token)
     return {"id": str(row["id"]), "email": row["email"], "token": token}
 
@@ -239,13 +246,55 @@ async def me(request: Request):
     user = await verify_bearer_token(request)
     async with service_conn() as conn:
         row = await conn.fetchrow(
-            "SELECT default_ticker, display_name, experience_level FROM users WHERE id = $1::uuid", user["id"]
+            "SELECT default_ticker, display_name, experience_level, role FROM users WHERE id = $1::uuid", user["id"]
         )
+    async with user_conn(user["id"]) as conn:
+        theme_row = await conn.fetchrow(
+            "SELECT theme_accent_color FROM user_ui_preferences WHERE user_id = $1::uuid", user["id"]
+        )
+    theme_override = theme_row["theme_accent_color"] if theme_row else None
+    effective_theme = theme_override or await get_setting_str(DEFAULT_THEME_ACCENT_KEY, DEFAULT_THEME_ACCENT_DEFAULT)
     return {
         **user,
         "default_ticker": row["default_ticker"] if row else None,
         "display_name": row["display_name"] if row else None,
         "experience_level": row["experience_level"] if row else None,
+        "role": row["role"] if row else user.get("role"),
+        "theme_accent_color": theme_override,
+        "effective_theme_accent_color": effective_theme,
+        "effective_theme_accent_soft": THEME_ACCENT_PALETTE.get(effective_theme, THEME_ACCENT_PALETTE[DEFAULT_THEME_ACCENT_DEFAULT]),
+    }
+
+
+class ThemeColorUpdate(BaseModel):
+    # None clears the override and goes back to the admin-configured site default.
+    theme_accent_color: str | None = None
+
+
+@router.put("/me/theme")
+async def set_my_theme(request: Request, body: ThemeColorUpdate):
+    """Per-user accent-color override -- NULL falls back to the admin's
+    site-wide default (app_settings.default_theme_accent_color). Restricted
+    to the same curated palette the admin setter uses (THEME_ACCENT_PALETTE),
+    not a freeform color value."""
+    user = await verify_bearer_token(request)
+    color = body.theme_accent_color
+    if color is not None and color not in THEME_ACCENT_PALETTE:
+        raise HTTPException(422, f"theme_accent_color must be one of {sorted(THEME_ACCENT_PALETTE)} or null.")
+    async with user_conn(user["id"]) as conn:
+        await conn.execute(
+            """
+            INSERT INTO user_ui_preferences (user_id, theme_accent_color)
+            VALUES ($1::uuid, $2)
+            ON CONFLICT (user_id) DO UPDATE SET theme_accent_color = $2, updated_at = now()
+            """,
+            user["id"], color,
+        )
+    effective = color or await get_setting_str(DEFAULT_THEME_ACCENT_KEY, DEFAULT_THEME_ACCENT_DEFAULT)
+    return {
+        "theme_accent_color": color,
+        "effective_theme_accent_color": effective,
+        "effective_theme_accent_soft": THEME_ACCENT_PALETTE.get(effective, THEME_ACCENT_PALETTE[DEFAULT_THEME_ACCENT_DEFAULT]),
     }
 
 

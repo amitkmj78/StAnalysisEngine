@@ -260,7 +260,20 @@ export function getCurrentUser() {
     email: string;
     default_ticker: string | null;
     experience_level: ExperienceLevel | null;
+    role: string;
+    theme_accent_color: string | null;
+    effective_theme_accent_color: string;
+    effective_theme_accent_soft: string;
   }>("/api/v1/auth/me");
+}
+
+// Theme color (admin site default + per-user override, see
+// web/backend/app_settings.py::THEME_ACCENT_PALETTE). null clears the
+// override and falls back to the site default.
+export function setMyThemeColor(color: string | null) {
+  return apiSend<{ theme_accent_color: string | null; effective_theme_accent_color: string; effective_theme_accent_soft: string }>(
+    "/api/v1/auth/me/theme", "PUT", { theme_accent_color: color },
+  );
 }
 
 // Which ticker Stock Detail (the home screen) opens on for this user --
@@ -1369,6 +1382,19 @@ export function getAdminUsers() {
   return apiFetch<AdminUser[]>("/api/v1/admin/users");
 }
 
+// Admin-created account -- skips the public signup/approval queue (approved
+// immediately, since the admin is vouching for it), unlike the public
+// signup form which always starts pending.
+export function createAdminUser(body: { email: string; password: string; role: "user" | "admin" }) {
+  return apiSend<{ id: string; email: string; role: string; welcome_email_sent: boolean }>(
+    "/api/v1/admin/users", "POST", body,
+  );
+}
+
+export function updateUserRole(userId: string, role: "user" | "admin") {
+  return apiSend<{ id: string; email: string; role: string }>(`/api/v1/admin/users/${userId}/role`, "PUT", { role });
+}
+
 export function approveUser(userId: string) {
   return apiSend<AdminUser>(`/api/v1/admin/users/${userId}/approve`, "POST");
 }
@@ -1964,6 +1990,12 @@ export function setPortfolioDropThreshold(thresholdPct: number) {
 
 export function scanPortfolioDropAlertsNow() {
   return apiSend<{ inserted: number }>("/api/v1/portfolio/drop-alerts/scan-now", "POST");
+}
+
+export function setDefaultThemeAccentColor(color: string) {
+  return apiSend<{ default_theme_accent_color: string }>(
+    "/api/v1/admin/settings/theme-accent-color", "POST", { default_theme_accent_color: color },
+  );
 }
 
 export function setDailyQuota(dailyQuota: number) {

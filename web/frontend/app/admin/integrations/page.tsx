@@ -12,7 +12,7 @@ export default async function AdminIntegrationsPage() {
   const user = await getSession();
 
   // Defense in depth — proxy.ts already gates /admin/*, this is the second check.
-  if (!isAdmin(user?.email)) {
+  if (!isAdmin(user?.email, user?.role)) {
     redirect("/predict");
   }
 

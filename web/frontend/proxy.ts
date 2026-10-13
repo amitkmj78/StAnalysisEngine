@@ -37,7 +37,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const isAdminRoute = ADMIN_PREFIXES.some((p) => path.startsWith(p));
-  if (isAdminRoute && user && !isAdmin(user.email)) {
+  if (isAdminRoute && user && !isAdmin(user.email, user.role)) {
     const url = request.nextUrl.clone();
     url.pathname = "/predict";
     return NextResponse.redirect(url);

@@ -6,6 +6,7 @@ import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
 import RegimeBanner from "@/components/RegimeBanner";
 import SiteHeader from "@/components/SiteHeader";
+import ThemeColorProvider from "@/components/ThemeColorProvider";
 import UnifiedMarketTicker from "@/components/UnifiedMarketTicker";
 
 const geistSans = Geist({
@@ -42,7 +43,8 @@ export default async function RootLayout({
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} ${plexSans.variable} h-full antialiased`}>
       {/* Browser extensions such as Grammarly add attributes to body before React loads; ignore just those. */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        {user && <SiteHeader email={user.email} isAdmin={isAdmin(user.email)} />}
+        {user && <ThemeColorProvider />}
+        {user && <SiteHeader email={user.email} isAdmin={isAdmin(user.email, user.role)} />}
         {user && <UnifiedMarketTicker />}
         {user && <RegimeBanner />}
         <main className="flex-1">{children}</main>

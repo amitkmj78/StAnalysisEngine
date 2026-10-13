@@ -421,7 +421,7 @@ export default function PortfolioPage() {
 
   useEffect(() => {
     getCurrentUser()
-      .then((u) => setIsAdminUser(isAdmin(u.email)))
+      .then((u) => setIsAdminUser(isAdmin(u.email, u.role)))
       .catch(() => {
         // Silent — worst case the polling effect below just stays off.
       });

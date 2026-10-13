@@ -1,10 +1,13 @@
+import asyncpg
+import bcrypt
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from starlette.concurrency import run_in_threadpool
 
 from services.email_service import send_welcome_email
 from web.backend.admin import ADMIN_EMAIL, require_admin
 from web.backend.db import service_conn
+from web.backend.routers.auth import _validate_new_password
 
 router = APIRouter(
     prefix="/api/v1/admin/users",
@@ -22,14 +25,14 @@ async def list_users():
         rows = await conn.fetch(
             """
             SELECT
-                u.id, u.email, u.approved, u.is_active, u.created_at,
+                u.id, u.email, u.approved, u.is_active, u.created_at, u.role,
                 u.last_login_at, u.last_login_ip,
                 count(DISTINCT p.id) AS portfolio_count,
                 count(pp.id) AS position_count
             FROM users u
             LEFT JOIN portfolios p ON p.user_id = u.id
             LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = u.id
-            GROUP BY u.id, u.email, u.approved, u.is_active, u.created_at, u.last_login_at, u.last_login_ip
+            GROUP BY u.id, u.email, u.approved, u.is_active, u.created_at, u.role, u.last_login_at, u.last_login_ip
             ORDER BY u.created_at DESC
             """
         )
@@ -39,6 +42,7 @@ async def list_users():
             "email": r["email"],
             "approved": r["approved"],
             "is_active": r["is_active"],
+            "role": r["role"],
             "created_at": r["created_at"].isoformat(),
             "last_login_at": r["last_login_at"].isoformat() if r["last_login_at"] else None,
             "last_login_ip": r["last_login_ip"],
@@ -47,6 +51,67 @@ async def list_users():
         }
         for r in rows
     ]
+
+
+class CreateUserRequest(BaseModel):
+    email: EmailStr
+    password: str
+    role: str = "user"
+
+
+@router.post("")
+async def create_user(body: CreateUserRequest):
+    """Admin-created account -- skips the public signup/approval queue
+    entirely (approved=true immediately, since the admin is vouching for
+    it), unlike POST /api/v1/auth/signup which always starts pending
+    (except for the bootstrap ADMIN_EMAIL row). Same password policy and
+    duplicate-email handling as public signup; not imported from there
+    since signup has its own request/response shape and auto-login
+    behavior that doesn't apply here."""
+    if body.role not in ("user", "admin"):
+        raise HTTPException(422, "role must be 'user' or 'admin'.")
+    await _validate_new_password(body.password)
+    password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    async with service_conn() as conn:
+        try:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO users (email, password_hash, approved, role)
+                VALUES ($1, $2, true, $3) RETURNING id, email, role
+                """,
+                body.email.lower(), password_hash, body.role,
+            )
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(409, "An account with that email already exists.")
+    # Best-effort, same as approve_user -- a broken mail provider must
+    # never block account creation.
+    sent = await run_in_threadpool(send_welcome_email, row["email"])
+    return {"id": str(row["id"]), "email": row["email"], "role": row["role"], "welcome_email_sent": sent}
+
+
+class RoleUpdateRequest(BaseModel):
+    role: str
+
+
+@router.put("/{user_id}/role")
+async def update_user_role(user_id: str, body: RoleUpdateRequest):
+    if body.role not in ("user", "admin"):
+        raise HTTPException(422, "role must be 'user' or 'admin'.")
+    async with service_conn() as conn:
+        row = await conn.fetchrow("SELECT email FROM users WHERE id = $1", user_id)
+        if row is None:
+            raise HTTPException(404, "User not found.")
+        if row["email"].lower() == ADMIN_EMAIL.lower() and body.role != "admin":
+            raise HTTPException(400, "Cannot demote the admin account.")
+        # Bumping session_invalidated_at makes the role change felt on an
+        # already-open session within ~20s (the same revocation-check cache
+        # TTL deactivate_user/force_logout_user rely on), not just at next
+        # login -- a demoted admin shouldn't keep admin access in an open tab.
+        row = await conn.fetchrow(
+            "UPDATE users SET role = $2, session_invalidated_at = now() WHERE id = $1 RETURNING id, email, role",
+            user_id, body.role,
+        )
+    return {"id": str(row["id"]), "email": row["email"], "role": row["role"]}
 
 
 @router.post("/{user_id}/approve")
