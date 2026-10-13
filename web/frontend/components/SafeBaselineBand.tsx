@@ -205,7 +205,7 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-indigo-700 hover:text-indigo-700 disabled:opacity-50"
+              className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)] disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save this snapshot"}
             </button>
@@ -235,7 +235,7 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
                   <span className="flex items-center gap-2">
                     <button
                       onClick={() => setCompareId(compareId === s.id ? null : s.id)}
-                      className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-900 hover:border-indigo-700 hover:text-indigo-700"
+                      className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]"
                     >
                       {compareId === s.id ? "Hide Compare" : "Compare"}
                     </button>

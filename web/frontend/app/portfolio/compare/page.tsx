@@ -453,7 +453,7 @@ export default function PortfolioComparePage() {
                       <button
                         type="button"
                         onClick={() => toggleForecast(s.ticker)}
-                        className="mt-1 text-xs font-medium text-blue-700 hover:underline"
+                        className="mt-1 text-xs font-medium text-[var(--pf-accent)] hover:underline"
                       >
                         {expanded ? "Hide 10-day forecast" : "Show 10-day forecast"}
                       </button>

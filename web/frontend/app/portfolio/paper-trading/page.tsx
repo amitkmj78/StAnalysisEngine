@@ -17,7 +17,7 @@ import type { PaperAccount, PaperOrder, Portfolio } from "@/lib/types";
 
 function statusBadgeClass(status: PaperOrder["status"]): string {
   if (status === "FILLED") return "bg-emerald-50 text-emerald-700";
-  if (status === "PARTIALLY_FILLED" || status === "OPEN" || status === "SUBMITTING") return "bg-blue-50 text-blue-700";
+  if (status === "PARTIALLY_FILLED" || status === "OPEN" || status === "SUBMITTING") return "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]";
   if (status === "REJECTED" || status === "UNKNOWN") return "bg-red-50 text-red-700";
   return "bg-slate-100 text-slate-500";
 }
@@ -153,7 +153,7 @@ export default function PaperTradingPage() {
             Practice placing orders with simulated money through Alpaca&apos;s paper-trading sandbox. No real money is
             ever involved. You can link one account per portfolio.
           </p>
-          <Link href="/challenges" className="mt-1 inline-block text-sm text-indigo-600 hover:underline">
+          <Link href="/challenges" className="mt-1 inline-block text-sm text-[var(--pf-accent)] hover:underline">
             Compete with friends using this account →
           </Link>
         </div>
@@ -238,7 +238,7 @@ export default function PaperTradingPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-slate-900">Paper Account {account.account_number ?? ""}</span>
-                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">Paper</span>
+                        <span className="rounded-full bg-[var(--pf-accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--pf-accent)]">Paper</span>
                       </div>
                       <button
                         onClick={() => handleUnlink(p.id)}

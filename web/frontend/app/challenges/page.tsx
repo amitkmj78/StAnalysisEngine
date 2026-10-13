@@ -154,7 +154,7 @@ export default function ChallengesPage() {
           <p className="mt-1 text-sm text-slate-500">
             Compete with friends using your paper-trading account. Leaderboards show both return and risk, not just
             who&apos;s up the most.{" "}
-            <Link href="/portfolio/paper-trading" className="text-indigo-600 hover:underline">
+            <Link href="/portfolio/paper-trading" className="text-[var(--pf-accent)] hover:underline">
               Link a paper account
             </Link>{" "}
             first if you haven&apos;t.
@@ -192,7 +192,7 @@ export default function ChallengesPage() {
           {invites.map((invite) => (
             <div
               key={invite.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-4"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)] p-4"
             >
               <p className="text-sm text-slate-900">
                 <span className="font-medium">{invite.invited_by_label}</span> invited you to{" "}
@@ -336,7 +336,7 @@ export default function ChallengesPage() {
                   <p className="font-medium text-slate-900">
                     {c.name}
                     {c.beginner_only && (
-                      <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                      <span className="ml-2 rounded-full bg-[var(--pf-accent-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--pf-accent)]">
                         BEGINNER
                       </span>
                     )}
@@ -345,7 +345,7 @@ export default function ChallengesPage() {
                     {c.start_date} – {c.end_date} · {c.member_count} member{c.member_count === 1 ? "" : "s"}
                   </p>
                 </div>
-                <span className="text-sm text-indigo-600">View →</span>
+                <span className="text-sm text-[var(--pf-accent)]">View →</span>
               </Link>
             ))}
           </div>

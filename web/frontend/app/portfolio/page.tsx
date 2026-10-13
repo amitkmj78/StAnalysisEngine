@@ -834,7 +834,7 @@ export default function PortfolioPage() {
               <p className="font-mono text-[11px] uppercase tracking-wider text-slate-500" style={MONO_FONT}>
                 Total value · {currentPortfolio?.name ?? "Portfolio"}
                 {currentPortfolio?.has_paper_account && (
-                  <span className="ml-1.5 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                  <span className="ml-1.5 rounded-full bg-[var(--pf-accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--pf-accent)]">
                     Paper
                   </span>
                 )}

@@ -17,7 +17,7 @@ export default function RegimeMethodologyPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link href="/predict" className="text-sm text-indigo-600 hover:underline">
+      <Link href="/predict" className="text-sm text-[var(--pf-accent)] hover:underline">
         ← Back to the app
       </Link>
       <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Market regime: methodology</h1>

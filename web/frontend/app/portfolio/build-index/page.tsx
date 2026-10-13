@@ -417,7 +417,7 @@ export default function BuildDiversifiedBasketPage() {
             <p className="mt-1 text-xs text-slate-500">
               Estimated as if today&apos;s picks and weights had been held, unchanged, for the past{" "}
               {preview.risk_preview.lookback} — a retroactive approximation, not a real trade-by-trade backtest.{" "}
-              <Link href="/guides/diversification" className="text-indigo-600 hover:underline">
+              <Link href="/guides/diversification" className="text-[var(--pf-accent)] hover:underline">
                 Learn more →
               </Link>
             </p>

@@ -38,7 +38,7 @@ export default function PortfolioReviewCard({ portfolioId }: { portfolioId: numb
     <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-emerald-50 text-indigo-700">
+          <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-emerald-50 text-[var(--pf-accent)]">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
               <path d="M12 2l2.4 7.2H22l-6 4.6 2.3 7.2L12 16.4 5.7 21l2.3-7.2-6-4.6h7.6z" />
             </svg>
@@ -57,7 +57,7 @@ export default function PortfolioReviewCard({ portfolioId }: { portfolioId: numb
           type="button"
           onClick={handleReview}
           disabled={loading}
-          className="flex-none rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 hover:border-indigo-700 hover:text-indigo-700 disabled:opacity-50"
+          className="flex-none rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)] disabled:opacity-50"
         >
           {loading ? "Reviewing…" : review ? "Review Again" : "Review My Portfolio"}
         </button>

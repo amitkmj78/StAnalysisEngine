@@ -227,7 +227,7 @@ export default function WatchlistPage() {
                           {a.source === "portfolio_auto" && (
                             <span
                               title="Set automatically from your Portfolio strategy's target/stop"
-                              className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-600"
+                              className="ml-2 rounded-full bg-[var(--pf-accent-soft)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--pf-accent)]"
                             >
                               From Portfolio
                             </span>

@@ -226,7 +226,7 @@ export default function SavedStrategiesPage() {
                     href={shareLinks[row.id]}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="break-all font-mono text-xs text-indigo-700 underline underline-offset-2"
+                    className="break-all font-mono text-xs text-[var(--pf-accent)] underline underline-offset-2"
                   >
                     {shareLinks[row.id]}
                   </a>

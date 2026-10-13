@@ -65,7 +65,7 @@ const TEMPLATES = [
 export default function StrategyTemplatesGuidePage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <Link href="/guides" className="text-sm text-indigo-600 hover:underline">
+      <Link href="/guides" className="text-sm text-[var(--pf-accent)] hover:underline">
         ← All guides
       </Link>
       <h1 className="mt-2 text-2xl font-semibold text-slate-900">Strategies: start from a template</h1>
@@ -83,7 +83,7 @@ export default function StrategyTemplatesGuidePage() {
         <section className="rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="text-base font-semibold text-slate-900">1. Start from a template</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed text-slate-700">
-            <li>Open <Link href="/strategies/builder" className="text-indigo-600 hover:underline">the strategy builder</Link>.</li>
+            <li>Open <Link href="/strategies/builder" className="text-[var(--pf-accent)] hover:underline">the strategy builder</Link>.</li>
             <li>Under Start from a template, pick one. The buy rules, sell rules and exit settings fill in for you.</li>
             <li>Choose the stocks to test. You can type a ticker or a company name, or pick a sector. You can also give each stock a weight, or use your portfolio&apos;s actual weights.</li>
             <li>Change anything you like. A template is only a starting point. Each rule is a field, a comparison, and a number.</li>
@@ -189,7 +189,7 @@ export default function StrategyTemplatesGuidePage() {
         <section className="rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="text-base font-semibold text-slate-900">6. Scan first, then build</h2>
           <p className="mt-3 text-sm leading-relaxed text-slate-700">
-            The <Link href="/strategies/scan" className="text-indigo-600 hover:underline">scan</Link> runs all eight
+            The <Link href="/strategies/scan" className="text-[var(--pf-accent)] hover:underline">scan</Link> runs all eight
             templates on a random sample of S&amp;P 500 stocks, with the same test on each. It shows which templates
             beat holding on return or on risk, and which ones did not. In most samples, few or none do. That is a
             result, not a fault: it means simple rules often do worse than holding the same stocks. Use the scan to see
@@ -205,7 +205,7 @@ export default function StrategyTemplatesGuidePage() {
             <li>Whether a stock suits you. Your goals, time horizon, and the amount you can afford to lose matter more than any test.</li>
           </ul>
           <p className="mt-3 text-sm text-slate-600">
-            For a broader view of how signals and scores are produced, see the <Link href="/methodology" className="text-indigo-600 hover:underline">methodology page</Link>.
+            For a broader view of how signals and scores are produced, see the <Link href="/methodology" className="text-[var(--pf-accent)] hover:underline">methodology page</Link>.
           </p>
         </section>
       </div>

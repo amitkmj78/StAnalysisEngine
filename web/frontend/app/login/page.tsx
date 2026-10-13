@@ -20,7 +20,7 @@ export default async function LoginPage({
       </p>
 
       {params.info && (
-        <p className="mb-4 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700">{params.info}</p>
+        <p className="mb-4 rounded-md bg-[var(--pf-accent-soft)] px-3 py-2 text-sm text-[var(--pf-accent)]">{params.info}</p>
       )}
       {params.error && (
         <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{params.error}</p>

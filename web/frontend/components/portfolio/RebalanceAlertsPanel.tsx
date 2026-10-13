@@ -129,7 +129,7 @@ export default function RebalanceAlertsPanel({ allPortfolios }: { allPortfolios:
                 type="button"
                 onClick={() => handleApply(alert.id)}
                 disabled={busyId === alert.id}
-                className="rounded-md bg-indigo-700 px-3 py-1.5 text-sm font-semibold text-slate-50 hover:bg-emerald-800 disabled:opacity-50"
+                className="rounded-md bg-[var(--pf-accent)] px-3 py-1.5 text-sm font-semibold text-slate-50 hover:bg-emerald-800 disabled:opacity-50"
               >
                 {busyId === alert.id ? "Applying…" : "Apply Rebalance"}
               </button>
@@ -137,7 +137,7 @@ export default function RebalanceAlertsPanel({ allPortfolios }: { allPortfolios:
                 type="button"
                 onClick={() => handleDismiss(alert.id)}
                 disabled={busyId === alert.id}
-                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-indigo-700 hover:text-indigo-700 disabled:opacity-50"
+                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)] disabled:opacity-50"
               >
                 Dismiss
               </button>

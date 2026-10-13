@@ -6,7 +6,7 @@ import Link from "next/link";
 export default function MethodologyPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link href="/guides" className="text-sm text-indigo-600 hover:underline">
+      <Link href="/guides" className="text-sm text-[var(--pf-accent)] hover:underline">
         ← All guides
       </Link>
       <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Methodology</h1>
@@ -78,7 +78,7 @@ export default function MethodologyPage() {
             The regime label (for example Risk-On, Cautious or Risk-Off) is built from market data each day. Its
             validation test was run once, with the thresholds fixed in advance. It could not pass with the history
             stored so far, so the regime is shown with a caveat and is not presented as a validated signal. See the{" "}
-            <Link href="/regime/methodology" className="text-indigo-600 hover:underline">
+            <Link href="/regime/methodology" className="text-[var(--pf-accent)] hover:underline">
               regime methodology
             </Link>{" "}
             for the details.

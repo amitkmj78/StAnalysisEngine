@@ -375,7 +375,7 @@ export default function StrategiesPage() {
                   type="button"
                   onClick={() => handleCreatePortfolio(p)}
                   disabled={buildingFor === p.id}
-                  className="mt-3 mr-2 rounded-md border border-indigo-300 px-2.5 py-1 text-xs font-medium text-indigo-800 hover:bg-indigo-50 disabled:opacity-50"
+                  className="mt-3 mr-2 rounded-md border border-[var(--pf-accent)]/40 px-2.5 py-1 text-xs font-medium text-[var(--pf-accent)] hover:bg-[var(--pf-accent-soft)] disabled:opacity-50"
                 >
                   {buildingFor === p.id ? "Creating…" : "Create portfolio from this goal"}
                 </button>

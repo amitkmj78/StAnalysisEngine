@@ -259,7 +259,7 @@ export default function SignalComparisonPage() {
         The internal quant model&apos;s BUY/HOLD/SELL call next to the real Wall Street analyst consensus, for
         every ticker captured that day. Both are point-in-time snapshots — independent of each other, shown
         side by side for comparison, not blended into one score.{" "}
-        <Link href="/guides/signals" className="text-indigo-600 hover:underline">
+        <Link href="/guides/signals" className="text-[var(--pf-accent)] hover:underline">
           Learn more about reading signals →
         </Link>
       </p>

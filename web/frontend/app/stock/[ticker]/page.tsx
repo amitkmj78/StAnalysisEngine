@@ -692,7 +692,7 @@ export default function StockScorePage() {
           </div>
 
           {weeklyChange?.change && (
-            <div className="mt-4 flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+            <div className="mt-4 flex items-center gap-2 rounded-md border border-[var(--pf-accent)]/30 bg-[var(--pf-accent-soft)] px-3 py-2 text-sm text-[var(--pf-accent)]">
               <span className="font-medium">Since {weeklyChange.compared_to}:</span>
               <span>
                 <MetricLabel term={weeklyChange.change.factor}>
@@ -725,7 +725,7 @@ export default function StockScorePage() {
                 <li key={f}>
                   <button
                     onClick={() => setOpenFactor(f)}
-                    className="w-full rounded-md px-2 py-1 text-left hover:bg-slate-50 hover:text-blue-700"
+                    className="w-full rounded-md px-2 py-1 text-left hover:bg-slate-50 hover:text-[var(--pf-accent)]"
                   >
                     {data.sentences[f]}
                   </button>
@@ -1106,10 +1106,10 @@ export default function StockScorePage() {
                 <li key={p.ticker}>
                   <Link
                     href={`/stock/${p.ticker}`}
-                    className="flex items-center justify-between gap-2 py-1.5 text-sm hover:text-blue-700"
+                    className="flex items-center justify-between gap-2 py-1.5 text-sm hover:text-[var(--pf-accent)]"
                   >
                     <span className="min-w-0">
-                      <span className="font-medium text-blue-700">{p.ticker}</span>
+                      <span className="font-medium text-[var(--pf-accent)]">{p.ticker}</span>
                       {p.name && <span className="ml-1.5 text-xs text-slate-400">{p.name}</span>}
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">

@@ -135,7 +135,7 @@ export default function TopPerformersPage() {
       </div>
 
       <hr className="mt-8 border-slate-200" />
-      <div className="mt-6 rounded-lg border border-indigo-200 bg-indigo-50/40 p-5">
+      <div className="mt-6 rounded-lg border border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)]/40 p-5">
         <h2 className="font-semibold text-slate-900">3-Year Test: Does This Ranking Actually Work?</h2>
         <p className="mt-1 text-sm text-slate-600">
           We rewound the clock 3 years and pretended to invest for real. Every {horizonDays} trading days, we
@@ -156,13 +156,13 @@ export default function TopPerformersPage() {
 
         <div className="mt-3 flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-500">Hold period before re-ranking</label>
-          <div className="flex w-fit gap-1 rounded-md border border-indigo-300 bg-white p-1">
+          <div className="flex w-fit gap-1 rounded-md border border-[var(--pf-accent)]/40 bg-white p-1">
             {windows.map((h) => (
               <button
                 key={h}
                 onClick={() => setHorizonDays(h)}
                 className={`rounded px-3 py-1.5 text-sm font-medium ${
-                  horizonDays === h ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-indigo-50"
+                  horizonDays === h ? "bg-[var(--pf-accent)] text-white" : "text-slate-600 hover:bg-[var(--pf-accent-soft)]"
                 }`}
               >
                 {WINDOW_LABELS[h] ?? `${h} Days`}
@@ -174,7 +174,7 @@ export default function TopPerformersPage() {
         <button
           onClick={runBacktest}
           disabled={backtestLoading}
-          className="mt-3 rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+          className="mt-3 rounded-md border border-[var(--pf-accent)]/40 bg-white px-3 py-1.5 text-sm font-medium text-[var(--pf-accent)] hover:bg-[var(--pf-accent-soft)] disabled:opacity-50"
         >
           {backtestLoading ? "Running 3-year backtest…" : backtest ? "Re-run Backtest" : "Run 3-Year Backtest"}
         </button>

@@ -133,7 +133,7 @@ export default function CommunityDiscussionPanel({
               </span>
             )}
             {p.post_type === "question" && (
-              <span className="mt-1 inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+              <span className="mt-1 inline-block rounded-full bg-[var(--pf-accent-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--pf-accent)]">
                 question
               </span>
             )}

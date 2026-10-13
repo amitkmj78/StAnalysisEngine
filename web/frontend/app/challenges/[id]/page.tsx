@@ -151,7 +151,7 @@ export default function ChallengeDetailPage() {
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
           Couldn&apos;t load this challenge — you may not be a member of it.
         </p>
-        <Link href="/challenges" className="mt-4 inline-block text-sm text-indigo-600 hover:underline">
+        <Link href="/challenges" className="mt-4 inline-block text-sm text-[var(--pf-accent)] hover:underline">
           ← All challenges
         </Link>
       </div>
@@ -160,7 +160,7 @@ export default function ChallengeDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <Link href="/challenges" className="text-sm text-indigo-600 hover:underline">
+      <Link href="/challenges" className="text-sm text-[var(--pf-accent)] hover:underline">
         ← All challenges
       </Link>
       <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
@@ -186,7 +186,7 @@ export default function ChallengeDetailPage() {
       <div className="mt-4 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
         <span className="text-slate-500">Join code:</span>
         <span className="font-mono font-semibold tracking-wide text-slate-900">{challenge.join_code}</span>
-        <button onClick={handleCopyCode} className="ml-auto text-xs font-medium text-indigo-600 hover:underline">
+        <button onClick={handleCopyCode} className="ml-auto text-xs font-medium text-[var(--pf-accent)] hover:underline">
           {copied ? "Copied!" : "Copy"}
         </button>
       </div>
@@ -224,7 +224,7 @@ export default function ChallengeDetailPage() {
                   <button
                     onClick={() => handleInviteUser(u)}
                     disabled={invitingUserId === u.id}
-                    className="text-xs font-medium text-indigo-600 hover:underline disabled:opacity-50"
+                    className="text-xs font-medium text-[var(--pf-accent)] hover:underline disabled:opacity-50"
                   >
                     {invitingUserId === u.id ? "Inviting…" : "Invite"}
                   </button>
@@ -294,7 +294,7 @@ export default function ChallengeDetailPage() {
                     ) : !e.has_paper_account ? (
                       <span>
                         No linked paper account.{" "}
-                        <Link href="/portfolio/paper-trading" className="font-medium text-indigo-600 hover:underline">
+                        <Link href="/portfolio/paper-trading" className="font-medium text-[var(--pf-accent)] hover:underline">
                           Link paper account
                         </Link>
                       </span>

@@ -244,7 +244,7 @@ export default function ConditionAlertsPage() {
         <button
           type="submit"
           disabled={saving || !fields}
-          className="mt-4 rounded-md bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-800 disabled:opacity-50"
+          className="mt-4 rounded-md bg-[var(--pf-accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save alert"}
         </button>

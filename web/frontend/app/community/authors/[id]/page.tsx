@@ -77,7 +77,7 @@ export default function CommunityAuthorProfilePage() {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-slate-900">
           {profile.display_name}
-          {isModel && <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700">MODEL</span>}
+          {isModel && <span className="ml-2 rounded-full bg-[var(--pf-accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--pf-accent)]">MODEL</span>}
         </h1>
         <div className="flex gap-3">
           {!isModel && (
@@ -108,7 +108,7 @@ export default function CommunityAuthorProfilePage() {
             </span>
           )}
           {(socialProfile.interests ?? []).map((i) => (
-            <span key={i} className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+            <span key={i} className="rounded-full bg-[var(--pf-accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--pf-accent)]">
               {i}
             </span>
           ))}

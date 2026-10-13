@@ -60,7 +60,7 @@ export default function CommunityLeaderboardPage() {
                     <Link href={`/community/authors/${entry.author_user_id ?? "model"}`} className="hover:underline">
                       {entry.display_name}
                     </Link>
-                    {entry.is_model && <span className="ml-1.5 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">MODEL</span>}
+                    {entry.is_model && <span className="ml-1.5 rounded-full bg-[var(--pf-accent-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--pf-accent)]">MODEL</span>}
                   </td>
                   <td className="px-3 py-2 text-right">
                     {entry.score !== null ? entry.score.toFixed(2) : <span className="text-slate-400">not enough data yet</span>}

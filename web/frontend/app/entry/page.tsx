@@ -20,7 +20,7 @@ function signalBadgeClass(signal: string): string {
     case "Buy on Pullback":
       return "border-emerald-100 bg-emerald-50 text-emerald-600";
     case "Breakout Entry":
-      return "border-blue-200 bg-blue-50 text-blue-700";
+      return "border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]";
     case "Watch for Reversal":
       return "border-amber-200 bg-amber-50 text-amber-700";
     case "Wait for Pullback":
@@ -164,7 +164,7 @@ export default function EntryPage() {
       <h1 className="font-display text-2xl font-semibold text-slate-900">Entry Signals</h1>
       <p className="mt-1 text-sm text-slate-500">
         Scan for the strongest current entry setups, or check one ticker for a buy-zone view.{" "}
-        <Link href="/guides/signals" className="text-indigo-600 hover:underline">
+        <Link href="/guides/signals" className="text-[var(--pf-accent)] hover:underline">
           Learn more about reading signals →
         </Link>
       </p>

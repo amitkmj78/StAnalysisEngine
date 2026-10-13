@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function DiversificationGuidePage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link href="/guides" className="text-sm text-indigo-600 hover:underline">
+      <Link href="/guides" className="text-sm text-[var(--pf-accent)] hover:underline">
         ← All guides
       </Link>
       <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Diversification &amp; Concentration</h1>
@@ -38,7 +38,7 @@ export default function DiversificationGuidePage() {
           <h2 className="text-base font-semibold text-slate-900">Why correlation matters more than position count</h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-700">
             Holding 15 stocks sounds diversified, but if they&apos;re all highly correlated (see the{" "}
-            <Link href="/guides/risk" className="text-indigo-600 hover:underline">
+            <Link href="/guides/risk" className="text-[var(--pf-accent)] hover:underline">
               Risk guide
             </Link>
             ), they behave like a smaller number of real, independent bets. True diversification comes from mixing
@@ -59,10 +59,10 @@ export default function DiversificationGuidePage() {
       <div className="mt-8 border-t border-slate-200 pt-4">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Where this shows up in the app</p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          <Link href="/portfolio/health" className="text-indigo-600 hover:underline">
+          <Link href="/portfolio/health" className="text-[var(--pf-accent)] hover:underline">
             Portfolio Health Check
           </Link>
-          <Link href="/portfolio/build-index" className="text-indigo-600 hover:underline">
+          <Link href="/portfolio/build-index" className="text-[var(--pf-accent)] hover:underline">
             Build Index
           </Link>
         </div>

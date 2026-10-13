@@ -337,7 +337,7 @@ export default function TradingAgentPage() {
       )}
 
       {admin && (
-        <section className="mt-8 rounded-lg border border-indigo-200 bg-indigo-50 p-5">
+        <section className="mt-8 rounded-lg border border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)] p-5">
           <h2 className="text-sm font-semibold text-slate-900">Admin: agent enablement</h2>
           <p className="mt-1 text-xs text-slate-600">
             Enabling a user requires a compliance sign-off reference (AGT-35). The owner account is the only one enabled
@@ -389,7 +389,7 @@ export default function TradingAgentPage() {
             </div>
           </div>
 
-          <div className="mt-5 border-t border-indigo-200 pt-4">
+          <div className="mt-5 border-t border-[var(--pf-accent)]/40 pt-4">
             <h3 className="text-sm font-semibold text-slate-900">AGT-30 backtest validation</h3>
             <p className="mt-1 text-xs text-slate-600">
               Runs the stop-loss-rule backtest against real SPY history and stores the result for the live gate above

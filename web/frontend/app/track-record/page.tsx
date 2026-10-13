@@ -54,7 +54,7 @@ export default function TrackRecordPage() {
           aria-selected={tab === "hypothetical"}
           onClick={() => setTab("hypothetical")}
           className={`flex-1 rounded px-3 py-1.5 text-sm font-medium ${
-            tab === "hypothetical" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-50"
+            tab === "hypothetical" ? "bg-[var(--pf-accent)] text-white" : "text-slate-600 hover:bg-slate-50"
           }`}
         >
           Hypothetical

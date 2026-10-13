@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function RiskGuidePage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link href="/guides" className="text-sm text-indigo-600 hover:underline">
+      <Link href="/guides" className="text-sm text-[var(--pf-accent)] hover:underline">
         ← All guides
       </Link>
       <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Understanding Risk</h1>
@@ -71,10 +71,10 @@ export default function RiskGuidePage() {
       <div className="mt-8 border-t border-slate-200 pt-4">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Where this shows up in the app</p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          <Link href="/portfolio/health" className="text-indigo-600 hover:underline">
+          <Link href="/portfolio/health" className="text-[var(--pf-accent)] hover:underline">
             Portfolio Health Check
           </Link>
-          <Link href="/portfolio/stress-test" className="text-indigo-600 hover:underline">
+          <Link href="/portfolio/stress-test" className="text-[var(--pf-accent)] hover:underline">
             Stress Test
           </Link>
         </div>

@@ -137,7 +137,7 @@ export default function PortfolioHealthPage() {
           subtitle={
             <>
               Largest positions, and your sector mix vs. the S&P 500.{" "}
-              <Link href="/guides/diversification" className="text-indigo-600 hover:underline">
+              <Link href="/guides/diversification" className="text-[var(--pf-accent)] hover:underline">
                 Learn more →
               </Link>
             </>
@@ -239,7 +239,7 @@ export default function PortfolioHealthPage() {
           subtitle={
             <>
               Volatility, beta, correlation to the S&P 500, and max drawdown, using daily data.{" "}
-              <Link href="/guides/risk" className="text-indigo-600 hover:underline">
+              <Link href="/guides/risk" className="text-[var(--pf-accent)] hover:underline">
                 Learn more →
               </Link>
             </>

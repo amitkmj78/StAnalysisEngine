@@ -222,8 +222,8 @@ export default function TradeJournalPage() {
                       </td>
                     </tr>
                     {t.strategy_note && (
-                      <tr className="border-b border-slate-100 bg-indigo-50/40 last:border-0">
-                        <td colSpan={10} className="px-3 py-1.5 text-xs text-indigo-700">
+                      <tr className="border-b border-slate-100 bg-[var(--pf-accent-soft)]/40 last:border-0">
+                        <td colSpan={10} className="px-3 py-1.5 text-xs text-[var(--pf-accent)]">
                           💡 {t.strategy_note}
                         </td>
                       </tr>

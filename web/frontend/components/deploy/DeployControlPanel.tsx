@@ -237,7 +237,7 @@ export default function DeployControlPanel() {
   const runningInstance = status?.instances.find((i) => i.state === "running" && i.public_ip);
 
   return (
-    <div className="mb-8 rounded-xl border border-indigo-200 bg-indigo-50/30 p-5">
+    <div className="mb-8 rounded-xl border border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)]/30 p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-900">Live Deploy Control Panel</h2>
         <span className="text-xs text-slate-500">Runs locally against your AWS account — never shipped to the deployed app</span>
@@ -334,7 +334,7 @@ export default function DeployControlPanel() {
                   <button
                     onClick={() => handleDeploy(inst.public_ip)}
                     disabled={anyJobRunning || deployingIp === inst.public_ip}
-                    className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                    className="rounded-md bg-[var(--pf-accent)] px-3 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
                   >
                     {deployingIp === inst.public_ip ? "Deploying…" : `Deploy app to ${inst.public_ip}`}
                   </button>

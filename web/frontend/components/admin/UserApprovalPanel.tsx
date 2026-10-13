@@ -422,7 +422,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                         onChange={(e) => handleRoleChange(u.id, e.target.value as "user" | "admin")}
                         disabled={busyId === u.id}
                         className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium ${
-                          u.role === "admin" ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-600"
+                          u.role === "admin" ? "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "bg-slate-100 text-slate-600"
                         }`}
                       >
                         <option value="user">User</option>

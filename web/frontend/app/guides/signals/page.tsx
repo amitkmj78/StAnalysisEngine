@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function SignalsGuidePage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link href="/guides" className="text-sm text-indigo-600 hover:underline">
+      <Link href="/guides" className="text-sm text-[var(--pf-accent)] hover:underline">
         ← All guides
       </Link>
       <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Reading Signals</h1>
@@ -70,16 +70,16 @@ export default function SignalsGuidePage() {
       <div className="mt-8 border-t border-slate-200 pt-4">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Where this shows up in the app</p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          <Link href="/entry" className="text-indigo-600 hover:underline">
+          <Link href="/entry" className="text-[var(--pf-accent)] hover:underline">
             Entry Signals
           </Link>
-          <Link href="/stock-finder" className="text-indigo-600 hover:underline">
+          <Link href="/stock-finder" className="text-[var(--pf-accent)] hover:underline">
             Stock Screener
           </Link>
-          <Link href="/signal-comparison" className="text-indigo-600 hover:underline">
+          <Link href="/signal-comparison" className="text-[var(--pf-accent)] hover:underline">
             Quant vs. Analyst
           </Link>
-          <Link href="/portfolio" className="text-indigo-600 hover:underline">
+          <Link href="/portfolio" className="text-[var(--pf-accent)] hover:underline">
             Portfolio Holdings
           </Link>
         </div>

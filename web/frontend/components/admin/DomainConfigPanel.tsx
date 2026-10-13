@@ -180,7 +180,7 @@ export default function DomainConfigPanel() {
                         </span>
                       )}
                       {cfg.overridden_keys.length > 0 && (
-                        <span className="ml-1.5 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
+                        <span className="ml-1.5 rounded-full bg-[var(--pf-accent-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--pf-accent)]">
                           overridden
                         </span>
                       )}

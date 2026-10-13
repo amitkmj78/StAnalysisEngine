@@ -51,9 +51,9 @@ const TOOL_ICON: Record<DrawingKind, string> = {
 
 // Colour dot per drawing type, matching the lines drawn on the chart (indigo for most, amber for Fibonacci).
 const KIND_DOT: Record<DrawingKind, string> = {
-  trend: "bg-indigo-600",
-  horizontal: "bg-indigo-400",
-  rectangle: "bg-indigo-300",
+  trend: "bg-[var(--pf-accent)]",
+  horizontal: "bg-[var(--pf-accent)]",
+  rectangle: "bg-[var(--pf-accent-soft)]",
   fibonacci: "bg-amber-600",
   text: "bg-emerald-600",
 };
@@ -853,7 +853,7 @@ export default function PriceHistoryChart({
               aria-pressed={active.has(o.key)}
               disabled={!indicators || compareActive}
               className={`rounded-full border px-2 py-0.5 disabled:opacity-40 ${
-                active.has(o.key) ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                active.has(o.key) ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
               }`}
             >
               {o.label}
@@ -868,7 +868,7 @@ export default function PriceHistoryChart({
               aria-pressed={active.has(p.key)}
               disabled={compareActive || (p.key === "volume" ? !hasVolume : !indicators)}
               className={`rounded-full border px-2 py-0.5 disabled:opacity-40 ${
-                active.has(p.key) ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                active.has(p.key) ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
               }`}
             >
               {p.label}
@@ -883,7 +883,7 @@ export default function PriceHistoryChart({
               aria-pressed={showScore}
               disabled={compareActive}
               className={`rounded-full border px-2 py-0.5 disabled:opacity-40 ${
-                showScore ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                showScore ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
               }`}
             >
               Score history
@@ -896,7 +896,7 @@ export default function PriceHistoryChart({
             aria-pressed={shadeRegimes}
             disabled={!isDaily || !regimeHistory?.available || compareActive}
             className={`rounded-full border px-2 py-0.5 disabled:opacity-40 ${
-              shadeRegimes ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+              shadeRegimes ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
             }`}
           >
             Regime shading
@@ -918,7 +918,7 @@ export default function PriceHistoryChart({
                 aria-pressed={selected}
                 className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-medium transition-colors ${
                   selected
-                    ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+                    ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white shadow-sm"
                     : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-100"
                 }`}
               >
@@ -946,10 +946,10 @@ export default function PriceHistoryChart({
         <p
           role="status"
           className={`mt-2 flex items-center gap-2 rounded-md px-3 py-1.5 text-xs ${
-            drawNote ? "bg-red-50 text-red-800" : "bg-indigo-50 text-indigo-900"
+            drawNote ? "bg-red-50 text-red-800" : "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]"
           }`}
         >
-          <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${drawNote ? "bg-red-500" : "bg-indigo-500"}`} />
+          <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${drawNote ? "bg-red-500" : "bg-[var(--pf-accent)]"}`} />
           {drawNote ?? (pending.length ? "Now click the second point." : "Click the chart to place the first point.")}
         </p>
       )}

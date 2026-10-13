@@ -28,7 +28,7 @@ const CLASSIFICATION_INFO: Record<SignalStabilityFlip["classification"], { label
   },
   model_shift: {
     label: "Model shift",
-    className: "bg-sky-50 text-sky-700",
+    className: "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]",
     title: "A meaningful change in the forecast that isn't explained by boundary noise or a big same-day price move.",
   },
 };

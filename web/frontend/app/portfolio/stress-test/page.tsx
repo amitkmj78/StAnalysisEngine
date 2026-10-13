@@ -209,7 +209,7 @@ export default function StressTestPage() {
         <p className="mt-1 text-sm text-slate-500">
           Estimated impact of market shocks on your real holdings — every result is an estimate, and shows exactly
           how it was computed directly underneath it, never just a number.{" "}
-          <Link href="/guides/risk" className="text-indigo-600 hover:underline">
+          <Link href="/guides/risk" className="text-[var(--pf-accent)] hover:underline">
             Learn more about risk →
           </Link>
         </p>

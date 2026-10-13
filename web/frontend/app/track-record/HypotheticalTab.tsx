@@ -50,12 +50,12 @@ export default function HypotheticalTab({ data }: { data: PublishedSignalsRespon
 
   return (
     <>
-      <div className="mt-6 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-800">
+      <div className="mt-6 rounded-md border border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)] px-3 py-2 text-sm font-medium text-[var(--pf-accent)]">
         Hypothetical — everything on this tab is a simulation or a live secondary opinion, not part of the
         audited live record on the Live tab. Past and hypothetical performance do not indicate future results.
       </div>
 
-      <div className="mt-6 rounded-lg border border-indigo-200 bg-indigo-50/40 p-5">
+      <div className="mt-6 rounded-lg border border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)]/40 p-5">
         <h2 className="font-semibold text-slate-900">Hypothetical Backtest</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
           A walk-forward simulation of the same ranking rule shown on the Live tab, holding the top{" "}
@@ -106,7 +106,7 @@ export default function HypotheticalTab({ data }: { data: PublishedSignalsRespon
       </div>
 
       {data.signals.length > 0 && (
-        <div className="mt-6 rounded-lg border border-indigo-200 bg-indigo-50/40 p-5">
+        <div className="mt-6 rounded-lg border border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)]/40 p-5">
           <h2 className="font-semibold text-slate-900">Live Secondary Opinion: Predict-Page Algorithm</h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
             This app also has a separate, trained forecasting model (used on the Price Prediction page) — a
@@ -118,14 +118,14 @@ export default function HypotheticalTab({ data }: { data: PublishedSignalsRespon
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Forecast Horizon</label>
-              <div className="flex gap-1 rounded-md border border-indigo-300 bg-white p-1">
+              <div className="flex gap-1 rounded-md border border-[var(--pf-accent)]/40 bg-white p-1">
                 {COMPARE_HORIZONS.map((h) => (
                   <button
                     key={h}
                     type="button"
                     onClick={() => setCompareHorizon(h)}
                     className={`rounded px-3 py-1 text-sm font-medium ${
-                      compareHorizon === h ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-indigo-50"
+                      compareHorizon === h ? "bg-[var(--pf-accent)] text-white" : "text-slate-600 hover:bg-[var(--pf-accent-soft)]"
                     }`}
                   >
                     {h}d
@@ -137,7 +137,7 @@ export default function HypotheticalTab({ data }: { data: PublishedSignalsRespon
               type="button"
               onClick={() => loadComparison(compareHorizon)}
               disabled={comparisonLoading}
-              className="self-end rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+              className="self-end rounded-md border border-[var(--pf-accent)]/40 bg-white px-3 py-1.5 text-sm font-medium text-[var(--pf-accent)] hover:bg-[var(--pf-accent-soft)] disabled:opacity-50"
             >
               {comparisonLoading ? "Comparing…" : comparison ? "Refresh" : "Compare"}
             </button>

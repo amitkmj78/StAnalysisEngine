@@ -66,7 +66,7 @@ export default function RecentNewsPanel({ ticker }: { ticker: string }) {
                   {EVENT_LABELS[item.event_type] ?? item.event_type}
                 </span>
               </div>
-              <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-[var(--pf-accent)] hover:underline">
                 {item.title}
               </a>
               <span className="text-xs text-slate-400">{item.publisher}</span>

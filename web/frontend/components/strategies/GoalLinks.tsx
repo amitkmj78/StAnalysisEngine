@@ -96,7 +96,7 @@ export default function GoalLinks({ planId }: { planId: number }) {
 
   return (
     <div className="mt-3 border-t border-slate-100 pt-3">
-      <button type="button" onClick={() => setOpen((v) => !v)} className="text-xs font-medium text-indigo-700 hover:underline">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="text-xs font-medium text-[var(--pf-accent)] hover:underline">
         {open ? "Hide funded-by holdings" : "Funded by: choose holdings"}
       </button>
 

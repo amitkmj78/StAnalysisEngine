@@ -287,7 +287,7 @@ export default function PredictionsPage() {
         </div>
       )}
 
-      <div className="mt-8 rounded-lg border border-indigo-200 bg-indigo-50/40 p-5">
+      <div className="mt-8 rounded-lg border border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)]/40 p-5">
         <h2 className="font-semibold text-slate-900">Compare Against a Top Fund</h2>
         <p className="mt-1 text-sm text-slate-600">
           For each saved prediction: the stock&apos;s actual return since you saved it, next to what the
@@ -298,7 +298,7 @@ export default function PredictionsPage() {
         <button
           onClick={loadCompare}
           disabled={compareLoading}
-          className="mt-3 rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+          className="mt-3 rounded-md border border-[var(--pf-accent)]/40 bg-white px-3 py-1.5 text-sm font-medium text-[var(--pf-accent)] hover:bg-[var(--pf-accent-soft)] disabled:opacity-50"
         >
           {compareLoading ? "Comparing…" : compare ? "Refresh Comparison" : "Compare"}
         </button>

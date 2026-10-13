@@ -41,7 +41,7 @@ function Leaderboard() {
           {rows.map((row) => (
             <tr key={row.id} className={row.eligible ? "" : "text-slate-400"}>
               <td className="px-4 py-2">
-                <Link href={`/strategies/published/${row.id}`} className="font-medium text-indigo-600 hover:underline">
+                <Link href={`/strategies/published/${row.id}`} className="font-medium text-[var(--pf-accent)] hover:underline">
                   {row.name}
                 </Link>
                 <span className="block text-xs text-slate-400">by {row.author_display_name ?? "a member"}</span>
@@ -87,7 +87,7 @@ function Directory() {
                   {row.rules_visibility === "summary_only" && " · rules private"}
                 </span>
               </span>
-              <span className="text-sm text-indigo-600">View →</span>
+              <span className="text-sm text-[var(--pf-accent)]">View →</span>
             </Link>
           </li>
         ))}
@@ -121,7 +121,7 @@ export default function PublishedStrategiesPage() {
             onClick={() => setTab(t)}
             aria-pressed={tab === t}
             className={`px-3 py-2 text-sm font-medium ${
-              tab === t ? "border-b-2 border-indigo-600 text-indigo-600" : "text-slate-500 hover:text-slate-700"
+              tab === t ? "border-b-2 border-[var(--pf-accent)] text-[var(--pf-accent)]" : "text-slate-500 hover:text-slate-700"
             }`}
           >
             {t === "directory" ? "Directory" : "Leaderboard"}

@@ -300,7 +300,7 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
           )}
 
           {plan.best_stock_comparison && (
-            <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50/40 p-3">
+            <div className="mt-4 rounded-lg border border-[var(--pf-accent)]/30 bg-[var(--pf-accent-soft)]/40 p-3">
               <div className="text-xs font-semibold text-slate-800">
                 What if you bought {plan.best_stock_comparison.ticker} ({plan.best_stock_comparison.name})
                 instead?
