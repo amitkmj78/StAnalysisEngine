@@ -194,8 +194,8 @@ export default function BuildDiversifiedBasketPage() {
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-slate-900">Build a Diversified Basket</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Build a Diversified Basket</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Generates a custom basket of individual stocks spread across sectors — the top-scoring, sector-
             diversified tickers from the universe you pick, then saves it as a new portfolio. A saved basket
             with fixed holdings isn&apos;t an index fund; it&apos;s a one-time snapshot (or, if you turn on
@@ -203,7 +203,7 @@ export default function BuildDiversifiedBasketPage() {
             see the <Link href="/index-fund" className="underline">Fund Screener</Link>.
           </p>
         </div>
-        <Link href="/portfolio" className="text-sm font-medium text-slate-600 hover:underline">
+        <Link href="/portfolio" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
           ← Back to Portfolio
         </Link>
       </div>
@@ -266,12 +266,12 @@ export default function BuildDiversifiedBasketPage() {
               <option value="market_cap_by_sector">Market-cap weighted by sector</option>
             </select>
           </Field>
-          <label className="flex items-center gap-2 pb-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 pb-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={fractionalShares}
               onChange={(e) => setFractionalShares(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
             />
             Fractional shares
           </label>
@@ -279,14 +279,14 @@ export default function BuildDiversifiedBasketPage() {
             {generating ? "Generating…" : "Generate Basket"}
           </button>
           {selectedUniverseDetail?.as_of_date && (
-            <span className="pb-2 text-xs text-slate-500">
+            <span className="pb-2 text-xs text-slate-500 dark:text-slate-400">
               Scores as of {selectedUniverseDetail.as_of_date}
             </span>
           )}
         </div>
 
         {selectedUniverseDetail?.description && (
-          <p className="text-xs text-slate-500">{selectedUniverseDetail.description}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{selectedUniverseDetail.description}</p>
         )}
         {preflightWarning && (
           <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{preflightWarning}</div>
@@ -295,7 +295,7 @@ export default function BuildDiversifiedBasketPage() {
 
       {generateError && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{generateError}</p>}
       {generating && !preview && (
-        <p className="mt-4 text-sm text-slate-500">Scanning the universe — first run for a universe can take a moment.</p>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Scanning the universe — first run for a universe can take a moment.</p>
       )}
 
       {preview && (
@@ -307,21 +307,21 @@ export default function BuildDiversifiedBasketPage() {
             <div key={w} className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{w}</div>
           ))}
           {preview.sector_notes.map((n) => (
-            <p key={n} className="text-xs text-slate-500">{n}</p>
+            <p key={n} className="text-xs text-slate-500 dark:text-slate-400">{n}</p>
           ))}
           {preview.trim_notes.map((n) => (
-            <p key={n} className="text-xs text-slate-500">{n}</p>
+            <p key={n} className="text-xs text-slate-500 dark:text-slate-400">{n}</p>
           ))}
 
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
             {preview.totals.holding_count} stocks · invested {fmtMoney(preview.totals.invested)} · leftover cash{" "}
             {fmtMoney(preview.totals.leftover_cash)} · as of {preview.as_of_date || "N/A"}
           </div>
 
-          <div className="max-h-[28rem] overflow-auto rounded-xl border border-slate-200 bg-white">
+          <div className="max-h-[28rem] overflow-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                <tr className="sticky top-0 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <th className="px-3 py-2"></th>
                   <th className="px-3 py-2">Ticker</th>
                   <th className="px-3 py-2">Name</th>
@@ -335,26 +335,26 @@ export default function BuildDiversifiedBasketPage() {
               </thead>
               <tbody>
                 {preview.holdings.map((h: BasketHolding) => (
-                  <tr key={h.Ticker} className="border-b border-slate-100 last:border-0">
+                  <tr key={h.Ticker} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                     <td className="px-3 py-2">
                       <button
                         type="button"
                         onClick={() => handleRemove(h.Ticker)}
                         disabled={generating}
                         title="Remove this stock"
-                        className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
                       >
                         Remove
                       </button>
                     </td>
-                    <td className="px-3 py-2 font-medium text-slate-800">{h.Ticker}</td>
-                    <td className="px-3 py-2 text-slate-600">{h.Name}</td>
-                    <td className="px-3 py-2 text-slate-600">{h["GICS Sector"]}</td>
-                    <td className="px-3 py-2 text-right text-slate-600">{h.Score.toFixed(1)}</td>
-                    <td className="px-3 py-2 text-right text-slate-600">${h.Price.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right text-slate-600">{h.Shares}</td>
-                    <td className="px-3 py-2 text-right text-slate-600">{fmtMoney(h.Amount)}</td>
-                    <td className="px-3 py-2 text-right text-slate-600">{fmtPct(h.Weight_pct, 2)}</td>
+                    <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{h.Ticker}</td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{h.Name}</td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{h["GICS Sector"]}</td>
+                    <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{h.Score.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">${h.Price.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{h.Shares}</td>
+                    <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{fmtMoney(h.Amount)}</td>
+                    <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{fmtPct(h.Weight_pct, 2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -362,19 +362,19 @@ export default function BuildDiversifiedBasketPage() {
           </div>
 
           {preview.excluded.length > 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
               <button
                 type="button"
                 onClick={() => setShowExclusions((v) => !v)}
-                className="text-sm font-medium text-slate-700"
+                className="text-sm font-medium text-slate-700 dark:text-slate-200"
               >
                 {showExclusions ? "▾" : "▸"} {preview.excluded.length} ticker{preview.excluded.length === 1 ? "" : "s"} excluded
               </button>
               {showExclusions && (
-                <ul className="mt-2 space-y-1 text-xs text-slate-500">
+                <ul className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
                   {preview.excluded.map((e) => (
                     <li key={e.ticker}>
-                      <span className="font-medium text-slate-700">{e.ticker}</span>: {e.reason}
+                      <span className="font-medium text-slate-700 dark:text-slate-200">{e.ticker}</span>: {e.reason}
                     </li>
                   ))}
                 </ul>
@@ -383,11 +383,11 @@ export default function BuildDiversifiedBasketPage() {
           )}
 
           <div>
-            <h3 className="font-semibold text-slate-900">Sector Summary</h3>
-            <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-50">Sector Summary</h3>
+            <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     <th className="px-3 py-2">Sector</th>
                     <th className="px-3 py-2 text-right">Count</th>
                     <th className="px-3 py-2 text-right">Weight %</th>
@@ -396,25 +396,25 @@ export default function BuildDiversifiedBasketPage() {
                 </thead>
                 <tbody>
                   {preview.sector_summary.map((s) => (
-                    <tr key={s.Sector} className="border-b border-slate-100 last:border-0">
-                      <td className="px-3 py-2 text-slate-700">{s.Sector}</td>
-                      <td className="px-3 py-2 text-right text-slate-600">{s.Count}</td>
-                      <td className="px-3 py-2 text-right text-slate-600">{fmtPct(s.Weight_pct, 1)}</td>
-                      <td className="px-3 py-2 text-right text-slate-500">{fmtPct(s.Spy_Approx_Weight_pct, 1)}</td>
+                    <tr key={s.Sector} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{s.Sector}</td>
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{s.Count}</td>
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{fmtPct(s.Weight_pct, 1)}</td>
+                      <td className="px-3 py-2 text-right text-slate-500 dark:text-slate-400">{fmtPct(s.Spy_Approx_Weight_pct, 1)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               &quot;SPY sector mix&quot; is approximated from the aggregate market cap of S&amp;P 500 constituents
               by sector, not SPY&apos;s real published holdings — this app has no source for that.
             </p>
           </div>
 
           <div>
-            <h3 className="font-semibold text-slate-900">Risk Preview</h3>
-            <p className="mt-1 text-xs text-slate-500">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-50">Risk Preview</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Estimated as if today&apos;s picks and weights had been held, unchanged, for the past{" "}
               {preview.risk_preview.lookback} — a retroactive approximation, not a real trade-by-trade backtest.{" "}
               <Link href="/guides/diversification" className="text-[var(--pf-accent)] hover:underline">
@@ -432,14 +432,14 @@ export default function BuildDiversifiedBasketPage() {
               <RiskTile label="Largest sector" value={fmtPct(preview.risk_preview.largest_single_sector_weight_pct)} />
             </div>
             {preview.risk_preview.excluded_from_risk.length > 0 && (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Excluded from this estimate (insufficient history): {preview.risk_preview.excluded_from_risk.join(", ")}
               </p>
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-sm font-medium text-slate-700">Save as a new portfolio</p>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Save as a new portfolio</p>
             <div className="mt-2 flex flex-wrap items-end gap-3">
               <Field label="Portfolio name">
                 <input
@@ -478,7 +478,7 @@ export default function BuildDiversifiedBasketPage() {
               </button>
             </div>
             {rebalanceFrequency !== "none" && (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 {rebalanceFrequency === "monthly" ? "Every 1st of the month" : "Every Jan/Apr/Jul/Oct 1st"}, this
                 basket is re-ranked and checked for drift past {driftThresholdPct}% — you&apos;ll see a review-
                 and-act alert on the Portfolio page with suggested swaps; nothing trades automatically.
@@ -489,9 +489,9 @@ export default function BuildDiversifiedBasketPage() {
         </div>
       )}
 
-      <div className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
-        <h3 className="font-semibold text-slate-900">Final Note</h3>
-        <p className="mt-2 text-sm text-slate-600">
+      <div className="mt-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-50">Final Note</h3>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           This basket is generated from the same ranking/scoring methodology as the Strategies and Stock
           Finder pages — a weighted composite of return, cost, valuation, and risk factors, not personalized
           investment advice. Projections and risk estimates are hypothetical and not predictive of actual
@@ -506,9 +506,9 @@ export default function BuildDiversifiedBasketPage() {
 
 function RiskTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-slate-800">{value}</p>
+    <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-100">{value}</p>
     </div>
   );
 }
@@ -516,7 +516,7 @@ function RiskTile({ label, value }: { label: string; value: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
+      <label className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</label>
       {children}
     </div>
   );

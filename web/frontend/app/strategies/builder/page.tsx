@@ -216,7 +216,7 @@ function RuleRow({ rule, onChange, onRemove }: { rule: StrategyRuleInput; onChan
           ))}
         </select>
       )}
-      <button type="button" onClick={onRemove} className="px-1 text-slate-400 hover:text-slate-700" aria-label="Remove rule">
+      <button type="button" onClick={onRemove} className="px-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200" aria-label="Remove rule">
         ×
       </button>
     </div>
@@ -225,9 +225,9 @@ function RuleRow({ rule, onChange, onRemove }: { rule: StrategyRuleInput; onChan
 
 function Panel({ title, children, right, info }: { title: string; children: React.ReactNode; right?: React.ReactNode; info?: string }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
+    <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           {title}
           {info && STRATEGY_INFO[info] && <MetricLabel info={STRATEGY_INFO[info]} />}
         </h2>
@@ -240,13 +240,13 @@ function Panel({ title, children, right, info }: { title: string; children: Reac
 
 function Stat({ label, value, sub, tone, info }: { label: string; value: string; sub?: string; tone?: string; info?: string }) {
   return (
-    <div className="rounded-md border border-slate-200 p-3">
-      <p className="flex items-center gap-1 text-xs text-slate-500">
+    <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
+      <p className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
         {label}
         {info && STRATEGY_INFO[info] && <MetricLabel info={STRATEGY_INFO[info]} />}
       </p>
-      <p className={`mt-1 font-mono text-xl font-semibold ${tone ?? "text-slate-900"}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
+      <p className={`mt-1 font-mono text-xl font-semibold ${tone ?? "text-slate-900 dark:text-slate-50"}`}>{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{sub}</p>}
     </div>
   );
 }
@@ -477,7 +477,7 @@ export default function StrategyBuilderPage() {
         {/* Builder */}
         <form onSubmit={handleRun} className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
           <Panel title="Strategy" info="template">
-            <label className="mb-2 flex flex-col gap-1 text-xs text-slate-500">
+            <label className="mb-2 flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
               Start from a template
               <select value={template} onChange={(e) => applyTemplate(e.target.value)} className="input py-1 text-xs" aria-label="Template">
                 {TEMPLATES.map((t) => (
@@ -490,12 +490,12 @@ export default function StrategyBuilderPage() {
             <input value={name} onChange={(e) => setName(e.target.value)} className="input w-full py-1 text-sm" aria-label="Strategy name" />
           </Panel>
 
-          <Panel info="universe" title={`Universe · ${tickers.length} of 20`} right={<button type="button" onClick={loadSp500Sample} className="text-xs font-medium text-slate-700 hover:underline">Random S&amp;P 500 ×10</button>}>
+          <Panel info="universe" title={`Universe · ${tickers.length} of 20`} right={<button type="button" onClick={loadSp500Sample} className="text-xs font-medium text-slate-700 dark:text-slate-200 hover:underline">Random S&amp;P 500 ×10</button>}>
             <div className="flex flex-wrap gap-1.5">
               {tickers.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                <span key={t} className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-700 dark:text-slate-200">
                   {t}
-                  <button type="button" onClick={() => { setTickers(tickers.filter((x) => x !== t)); setPortfolioWeights(null); }} className="text-slate-400 hover:text-slate-700" aria-label={`Remove ${t}`}>
+                  <button type="button" onClick={() => { setTickers(tickers.filter((x) => x !== t)); setPortfolioWeights(null); }} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200" aria-label={`Remove ${t}`}>
                     ×
                   </button>
                 </span>
@@ -509,10 +509,10 @@ export default function StrategyBuilderPage() {
               className="input mt-2 w-full py-1 text-xs"
               id="builder-add-ticker"
             />
-            <details className="mt-2 rounded-md border border-slate-200 p-2 text-xs">
-            <summary className="cursor-pointer font-medium text-slate-700">More ways to pick stocks</summary>
+            <details className="mt-2 rounded-md border border-slate-200 dark:border-slate-700 p-2 text-xs">
+            <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-200">More ways to pick stocks</summary>
             <div className="mt-2 flex flex-col gap-2">
-              <p className="font-medium text-slate-700">Test one of my portfolios</p>
+              <p className="font-medium text-slate-700 dark:text-slate-200">Test one of my portfolios</p>
               {portfolios.length > 1 && (
                 <select value={portfolioId ?? ""} onChange={(e) => setPortfolioId(Number(e.target.value))} className="input py-1 text-xs" aria-label="Portfolio">
                   {portfolios.map((p) => (
@@ -528,13 +528,13 @@ export default function StrategyBuilderPage() {
                   ensurePortfoliosLoaded();
                   loadMyPortfolio();
                 }}
-                className="self-start rounded border border-slate-300 bg-white px-2 py-1 font-medium text-slate-700 hover:bg-slate-50"
+                className="self-start rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Use my portfolio&apos;s holdings
               </button>
-              {portfolioNote && <p className="text-slate-500">{portfolioNote}</p>}
+              {portfolioNote && <p className="text-slate-500 dark:text-slate-400">{portfolioNote}</p>}
             </div>
-            <p className="mt-3 font-medium text-slate-700">Sector basket (largest stocks, pick one or more)</p>
+            <p className="mt-3 font-medium text-slate-700 dark:text-slate-200">Sector basket (largest stocks, pick one or more)</p>
             <div className="mt-1 flex flex-wrap gap-1">
               {SECTORS.map((x) => (
                 <button
@@ -545,7 +545,7 @@ export default function StrategyBuilderPage() {
                   className={`rounded-full border px-2 py-0.5 text-xs ${
                     selectedSectors.includes(x)
                       ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                   }`}
                 >
                   {x}
@@ -563,7 +563,7 @@ export default function StrategyBuilderPage() {
           </Panel>
 
           <Panel title="In plain words" info="plain words">
-            <p className="text-sm text-slate-700">
+            <p className="text-sm text-slate-700 dark:text-slate-200">
               Buy when <strong>{plainWords.entry}</strong>. Sell when <strong>{plainWords.exit}</strong>. Wait <strong>{cooldown || 0} sessions</strong> before buying the same stock again.
             </p>
           </Panel>
@@ -581,7 +581,7 @@ export default function StrategyBuilderPage() {
                       <button
                         type="button"
                         onClick={() => setEntry(entry.map((x, j) => (j === i ? { ...x, op: x.op.startsWith(">") || x.op === ">=" ? "crosses_above" : "crosses_below" } : x)))}
-                        className="mt-2 rounded border border-amber-300 bg-white px-2 py-1 font-medium"
+                        className="mt-2 rounded border border-amber-300 bg-white dark:bg-slate-900 px-2 py-1 font-medium"
                       >
                         Switch to “crosses above”
                       </button>
@@ -591,7 +591,7 @@ export default function StrategyBuilderPage() {
               ))}
             </div>
             {entry.length < 5 && (
-              <button type="button" onClick={() => setEntry([...entry, DEFAULT_ENTRY])} className="mt-3 text-xs font-medium text-slate-700 hover:underline">
+              <button type="button" onClick={() => setEntry([...entry, DEFAULT_ENTRY])} className="mt-3 text-xs font-medium text-slate-700 dark:text-slate-200 hover:underline">
                 + Add entry rule
               </button>
             )}
@@ -603,9 +603,9 @@ export default function StrategyBuilderPage() {
                 <RuleRow key={i} rule={rule} onChange={(next) => setExit(exit.map((x, j) => (j === i ? next : x)))} onRemove={() => setExit(exit.filter((_, j) => j !== i))} />
               ))}
             </div>
-            <div className="mt-3 rounded-md border border-dashed border-slate-300 p-3">
-              <p className="flex items-center gap-1 text-xs font-semibold text-slate-700">Protective exit <span className="font-normal text-slate-400">· limits losers</span><MetricLabel info={STRATEGY_INFO["protective exit"]} /></p>
-              <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-3">
+            <div className="mt-3 rounded-md border border-dashed border-slate-300 dark:border-slate-600 p-3">
+              <p className="flex items-center gap-1 text-xs font-semibold text-slate-700 dark:text-slate-200">Protective exit <span className="font-normal text-slate-400 dark:text-slate-500">· limits losers</span><MetricLabel info={STRATEGY_INFO["protective exit"]} /></p>
+              <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-3">
                 <label className="flex flex-col gap-1">
                   Trailing stop %
                   <input value={trailing} onChange={(e) => setTrailing(e.target.value)} className="input py-1 text-xs" />
@@ -619,40 +619,40 @@ export default function StrategyBuilderPage() {
                   <input value={timeStop} onChange={(e) => setTimeStop(e.target.value)} className="input py-1 text-xs" />
                 </label>
               </div>
-              <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+              <label className="mt-3 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                 <input type="checkbox" checked={waive} onChange={(e) => setWaive(e.target.checked)} />
                 Run without a protective exit
               </label>
               {!hasProtective && !waive && <p className="mt-2 text-xs text-amber-700">Add a stop or exit rule, or tick the box above.</p>}
             </div>
             {exit.length < 5 && (
-              <button type="button" onClick={() => setExit([...exit, DEFAULT_EXIT])} className="mt-3 text-xs font-medium text-slate-700 hover:underline">
+              <button type="button" onClick={() => setExit([...exit, DEFAULT_EXIT])} className="mt-3 text-xs font-medium text-slate-700 dark:text-slate-200 hover:underline">
                 + Add exit rule
               </button>
             )}
           </Panel>
 
-          <details className="rounded-xl border border-slate-200 bg-white p-4">
-            <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <details className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+            <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Advanced settings
               <MetricLabel info={STRATEGY_INFO.cooldown} />
             </summary>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600">
+            <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600 dark:text-slate-300">
               <label className="flex flex-col gap-1">
                 Wait before buying again (days)
                 <input value={cooldown} onChange={(e) => setCooldown(e.target.value)} className="input py-1 text-xs" />
               </label>
               <div className="flex flex-col gap-1">
                 <span>How much per stock</span>
-                <span className="rounded border border-slate-200 px-2 py-1 text-slate-700">{portfolioWeights ? "Your actual weights" : "Equal share"}</span>
+                <span className="rounded border border-slate-200 dark:border-slate-700 px-2 py-1 text-slate-700 dark:text-slate-200">{portfolioWeights ? "Your actual weights" : "Equal share"}</span>
               </div>
               <div className="flex flex-col gap-1">
                 <span>Trading costs</span>
-                <span className="rounded border border-slate-200 px-2 py-1 text-slate-700">10 + 5 bps per side</span>
+                <span className="rounded border border-slate-200 dark:border-slate-700 px-2 py-1 text-slate-700 dark:text-slate-200">10 + 5 bps per side</span>
               </div>
               <div className="flex flex-col gap-1">
                 <span>When trades happen</span>
-                <span className="rounded border border-slate-200 px-2 py-1 text-slate-700">Next session’s open</span>
+                <span className="rounded border border-slate-200 dark:border-slate-700 px-2 py-1 text-slate-700 dark:text-slate-200">Next session’s open</span>
               </div>
               <label className="col-span-2 flex flex-col gap-1">
                 Compare the verdict against
@@ -668,31 +668,31 @@ export default function StrategyBuilderPage() {
           <button type="submit" disabled={loading || tickers.length === 0 || (!hasProtective && !waive)} className="rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
             {loading ? "Running backtest…" : "Run backtest"}
           </button>
-          <p className="text-center text-xs text-slate-400">Running this counts as one rule variant in the last 90 days. More variants make the best result less trustworthy.</p>
+          <p className="text-center text-xs text-slate-400 dark:text-slate-500">Running this counts as one rule variant in the last 90 days. More variants make the best result less trustworthy.</p>
         </form>
 
         {/* Results */}
         <div className="flex min-w-0 flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <Link href="/strategies/saved" className="font-medium text-slate-700 hover:underline">Saved strategies →</Link>
+            <Link href="/strategies/saved" className="font-medium text-slate-700 dark:text-slate-200 hover:underline">Saved strategies →</Link>
             {r && (
               <div className="flex items-center gap-2">
-                <button type="button" onClick={handleSave} className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50">
+                <button type="button" onClick={handleSave} className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Save this run
                 </button>
-                {saveState && <span className="text-slate-500">{saveState}</span>}
+                {saveState && <span className="text-slate-500 dark:text-slate-400">{saveState}</span>}
               </div>
             )}
           </div>
           {r && (
-            <p className="font-mono text-xs text-slate-500">
+            <p className="font-mono text-xs text-slate-500 dark:text-slate-400">
               {r.period.start} → {r.period.end} · {r.period.sessions.toLocaleString()} sessions · {r.trades} trades ({plain(r.trades_per_year, 0)} a year) · {r.costs.cost_bps_per_side} + {r.costs.slippage_bps_per_side} bps per side
             </p>
           )}
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Did the rules add value?</p>
-            <p className="mt-2 text-lg font-medium text-slate-900">{verdictText}</p>
+          <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Did the rules add value?</p>
+            <p className="mt-2 text-lg font-medium text-slate-900 dark:text-slate-50">{verdictText}</p>
             {r?.protective_exit.waived && (
               <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">No protective exit: losing positions are held until an exit rule fires.</p>
             )}
@@ -711,10 +711,10 @@ export default function StrategyBuilderPage() {
                 </div>
                 <ul className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
                   {r.checks.map((c) => (
-                    <li key={c.label} className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-xs">
+                    <li key={c.label} className="flex items-start gap-2 rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs">
                       <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-semibold ${BADGE[c.status]}`}>{BADGE_TEXT[c.status]}</span>
                       <span>
-                        <span className="font-medium text-slate-800">{c.label}.</span> <span className="text-slate-600">{c.detail}</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-100">{c.label}.</span> <span className="text-slate-600 dark:text-slate-300">{c.detail}</span>
                       </span>
                     </li>
                   ))}
@@ -726,16 +726,16 @@ export default function StrategyBuilderPage() {
             )}
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Growth of $10,000 and drawdown</p>
-              <div className="flex rounded-md border border-slate-200 p-0.5 text-xs">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Growth of $10,000 and drawdown</p>
+              <div className="flex rounded-md border border-slate-200 dark:border-slate-700 p-0.5 text-xs">
                 {(["basket", "spy", "cash"] as const).map((b) => (
                   <button
                     key={b}
                     type="button"
                     onClick={() => setChartBenchmark(b)}
-                    className={`rounded px-2.5 py-1 font-medium ${chartBenchmark === b ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                    className={`rounded px-2.5 py-1 font-medium ${chartBenchmark === b ? "bg-slate-900 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
                   >
                     {b === "basket" ? "Same stocks" : b === "spy" ? "SPY" : "Cash"}
                   </button>
@@ -767,16 +767,16 @@ export default function StrategyBuilderPage() {
                 config={{ displayModeBar: false }}
               />
             ) : (
-              <p className="mt-6 rounded-md border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">The chart appears after a run.</p>
+              <p className="mt-6 rounded-md border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center text-sm text-slate-500 dark:text-slate-400">The chart appears after a run.</p>
             )}
           </section>
 
           {r && (
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Full period, after costs</p>
+            <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Full period, after costs</p>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full min-w-[40rem] text-right text-sm">
-                  <thead className="text-xs text-slate-400">
+                  <thead className="text-xs text-slate-400 dark:text-slate-500">
                     <tr>
                       <th className="py-1 text-left font-medium"></th>
                       <th className="font-medium">Total</th>
@@ -789,9 +789,9 @@ export default function StrategyBuilderPage() {
                       <th className="font-medium"><span className="inline-flex items-center gap-1">Cost drag<MetricLabel info={STRATEGY_INFO["cost drag"]} /></span></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono text-xs">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-xs">
                     <tr>
-                      <td className="py-2 text-left font-sans text-sm font-medium text-slate-800">Strategy</td>
+                      <td className="py-2 text-left font-sans text-sm font-medium text-slate-800 dark:text-slate-100">Strategy</td>
                       <td>{pct(r.strategy.total_return_pct)}</td>
                       <td>{pct(r.strategy.cagr_pct)}</td>
                       <td>{plain(r.strategy.volatility_pct, 1)}%</td>
@@ -802,7 +802,7 @@ export default function StrategyBuilderPage() {
                       <td>{r.cost_drag.cagr_points != null ? `${plain(r.cost_drag.cagr_points)} pts/yr` : "–"}</td>
                     </tr>
                     <tr>
-                      <td className="py-2 text-left font-sans text-sm text-slate-700">Same stocks, held</td>
+                      <td className="py-2 text-left font-sans text-sm text-slate-700 dark:text-slate-200">Same stocks, held</td>
                       <td>{pct(r.basket.total_return_pct)}</td>
                       <td>{pct(r.basket.cagr_pct)}</td>
                       <td>{plain(r.basket.volatility_pct, 1)}%</td>
@@ -813,7 +813,7 @@ export default function StrategyBuilderPage() {
                       <td>–</td>
                     </tr>
                     <tr>
-                      <td className="py-2 text-left font-sans text-sm text-slate-700">SPY</td>
+                      <td className="py-2 text-left font-sans text-sm text-slate-700 dark:text-slate-200">SPY</td>
                       <td>{pct(r.benchmark_spy.total_return_pct)}</td>
                       <td>{pct(r.benchmark_spy.cagr_pct)}</td>
                       <td>{plain(r.benchmark_spy.volatility_pct, 1)}%</td>
@@ -830,20 +830,20 @@ export default function StrategyBuilderPage() {
           )}
 
           {r?.explanation && (
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <h2 className="text-base font-semibold text-slate-900">What this test shows</h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-700">{r.explanation.bottom_line}</p>
+            <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">What this test shows</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">{r.explanation.bottom_line}</p>
 
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full min-w-[32rem] text-left text-sm">
-                  <thead className="text-xs text-slate-400">
+                  <thead className="text-xs text-slate-400 dark:text-slate-500">
                     <tr><th className="py-1 font-medium">Setting</th><th className="font-medium">Value</th></tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {r.explanation.tested.map((row) => (
                       <tr key={row.item}>
-                        <td className="py-1.5 pr-3 font-medium text-slate-800">{row.item}</td>
-                        <td className="py-1.5 text-slate-700">{row.setting}<span className="block text-xs text-slate-400">{row.plain}</span></td>
+                        <td className="py-1.5 pr-3 font-medium text-slate-800 dark:text-slate-100">{row.item}</td>
+                        <td className="py-1.5 text-slate-700 dark:text-slate-200">{row.setting}<span className="block text-xs text-slate-400 dark:text-slate-500">{row.plain}</span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -851,14 +851,14 @@ export default function StrategyBuilderPage() {
               </div>
 
               {r.explanation.headline.length > 0 && (
-                <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
                   {r.explanation.headline.map((h) => <li key={h}>{h}</li>)}
                 </ul>
               )}
 
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full min-w-[44rem] text-right text-xs">
-                  <thead className="text-slate-400">
+                  <thead className="text-slate-400 dark:text-slate-500">
                     <tr>
                       <th className="py-1 text-left font-medium"></th>
                       <th className="font-medium">Total</th><th className="font-medium">CAGR</th><th className="font-medium">Volatility</th>
@@ -866,10 +866,10 @@ export default function StrategyBuilderPage() {
                       <th className="font-medium">Turnover / yr</th><th className="font-medium">Cost drag</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
                     {r.explanation.full_period.map((row) => (
                       <tr key={row.label}>
-                        <td className="py-1.5 text-left font-sans text-sm text-slate-800">{row.label}</td>
+                        <td className="py-1.5 text-left font-sans text-sm text-slate-800 dark:text-slate-100">{row.label}</td>
                         <td>{row.total}</td><td>{row.cagr}</td><td>{row.volatility}</td><td>{row.max_drop}</td>
                         <td>{row.sharpe}</td><td>{row.worst_month}</td><td>{row.turnover}</td><td>{row.cost_drag}</td>
                       </tr>
@@ -878,73 +878,73 @@ export default function StrategyBuilderPage() {
                 </table>
               </div>
 
-              <h3 className="mt-5 text-sm font-semibold text-slate-900">The checks</h3>
+              <h3 className="mt-5 text-sm font-semibold text-slate-900 dark:text-slate-50">The checks</h3>
               <ul className="mt-2 space-y-3">
                 {r.explanation.checks.map((c) => (
                   <li key={c.label} className="text-sm">
                     <span className={`mr-2 rounded-full px-2 py-0.5 text-xs font-semibold ${BADGE[c.status]}`}>{BADGE_TEXT[c.status]}</span>
-                    <span className="font-medium text-slate-800">{c.label}.</span> <span className="text-slate-700">{c.detail}</span>
-                    {c.meaning && <span className="block text-xs text-slate-500">{c.meaning}</span>}
+                    <span className="font-medium text-slate-800 dark:text-slate-100">{c.label}.</span> <span className="text-slate-700 dark:text-slate-200">{c.detail}</span>
+                    {c.meaning && <span className="block text-xs text-slate-500 dark:text-slate-400">{c.meaning}</span>}
                   </li>
                 ))}
               </ul>
 
               {r.explanation.in_vs_out && (
                 <>
-                  <h3 className="mt-5 text-sm font-semibold text-slate-900">Earlier dates against later dates</h3>
+                  <h3 className="mt-5 text-sm font-semibold text-slate-900 dark:text-slate-50">Earlier dates against later dates</h3>
                   <div className="mt-2 grid gap-3 text-sm sm:grid-cols-2">
-                    <div className="rounded-md bg-slate-50 p-3">
-                      <p className="text-xs font-semibold text-slate-500">First 70% of the period</p>
+                    <div className="rounded-md bg-slate-50 dark:bg-slate-800 p-3">
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">First 70% of the period</p>
                       <p className="font-mono">CAGR {r.explanation.in_vs_out.in_sample.cagr} · Max drop {r.explanation.in_vs_out.in_sample.max_drop} · Sharpe {r.explanation.in_vs_out.in_sample.sharpe}</p>
                     </div>
-                    <div className="rounded-md bg-slate-50 p-3">
-                      <p className="text-xs font-semibold text-slate-500">Last 30% of the period</p>
+                    <div className="rounded-md bg-slate-50 dark:bg-slate-800 p-3">
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Last 30% of the period</p>
                       <p className="font-mono">CAGR {r.explanation.in_vs_out.out_of_sample.cagr} · Max drop {r.explanation.in_vs_out.out_of_sample.max_drop} · Sharpe {r.explanation.in_vs_out.out_of_sample.sharpe}</p>
                     </div>
                   </div>
-                  <p className="mt-2 text-sm text-slate-700">{r.explanation.in_vs_out.note}</p>
+                  <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">{r.explanation.in_vs_out.note}</p>
                 </>
               )}
 
               {r.explanation.problems.length > 0 && (
                 <>
-                  <h3 className="mt-5 text-sm font-semibold text-slate-900">Problems to look at</h3>
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                  <h3 className="mt-5 text-sm font-semibold text-slate-900 dark:text-slate-50">Problems to look at</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
                     {r.explanation.problems.map((p) => <li key={p}>{p}</li>)}
                   </ul>
                 </>
               )}
 
-              <h3 className="mt-5 text-sm font-semibold text-slate-900">What to do next</h3>
-              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-700">
+              <h3 className="mt-5 text-sm font-semibold text-slate-900 dark:text-slate-50">What to do next</h3>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
                 {r.explanation.next_steps.map((n) => <li key={n}>{n}</li>)}
               </ol>
-              <p className="mt-4 text-xs text-slate-400">{r.explanation.disclaimer}</p>
+              <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">{r.explanation.disclaimer}</p>
             </section>
           )}
 
           {r?.model_portfolio && (
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">The app&apos;s model portfolio</p>
+            <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">The app&apos;s model portfolio</p>
               {r.model_portfolio.available ? (
                 <div className="mt-3 grid grid-cols-2 gap-3 font-mono text-sm sm:grid-cols-4">
-                  <div><p className="text-xs text-slate-500">Total</p><p>{pct(r.model_portfolio.total_return_pct)}</p></div>
-                  <div><p className="text-xs text-slate-500">CAGR</p><p>{pct(r.model_portfolio.cagr_pct)}</p></div>
-                  <div><p className="text-xs text-slate-500">Volatility</p><p>{plain(r.model_portfolio.volatility_pct, 1)}%</p></div>
-                  <div><p className="text-xs text-slate-500">Max DD</p><p>{pct(r.model_portfolio.max_drawdown_pct)}</p></div>
-                  <div><p className="text-xs text-slate-500">Sharpe</p><p>{plain(r.model_portfolio.sharpe)}</p></div>
-                  <div><p className="text-xs text-slate-500">Worst period</p><p>{pct(r.model_portfolio.worst_period_pct)}</p></div>
+                  <div><p className="text-xs text-slate-500 dark:text-slate-400">Total</p><p>{pct(r.model_portfolio.total_return_pct)}</p></div>
+                  <div><p className="text-xs text-slate-500 dark:text-slate-400">CAGR</p><p>{pct(r.model_portfolio.cagr_pct)}</p></div>
+                  <div><p className="text-xs text-slate-500 dark:text-slate-400">Volatility</p><p>{plain(r.model_portfolio.volatility_pct, 1)}%</p></div>
+                  <div><p className="text-xs text-slate-500 dark:text-slate-400">Max DD</p><p>{pct(r.model_portfolio.max_drawdown_pct)}</p></div>
+                  <div><p className="text-xs text-slate-500 dark:text-slate-400">Sharpe</p><p>{plain(r.model_portfolio.sharpe)}</p></div>
+                  <div><p className="text-xs text-slate-500 dark:text-slate-400">Worst period</p><p>{pct(r.model_portfolio.worst_period_pct)}</p></div>
                 </div>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">{r.model_portfolio.reason}</p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{r.model_portfolio.reason}</p>
               )}
-              {r.model_portfolio.note && <p className="mt-3 text-xs text-slate-400">{r.model_portfolio.note}</p>}
+              {r.model_portfolio.note && <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">{r.model_portfolio.note}</p>}
             </section>
           )}
 
           {r && (
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <div className="flex gap-1 border-b border-slate-200 text-sm">
+            <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+              <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700 text-sm">
                 {(
                   [
                     ["robustness", "Robustness"],
@@ -956,7 +956,7 @@ export default function StrategyBuilderPage() {
                     key={key}
                     type="button"
                     onClick={() => setTab(key)}
-                    className={`-mb-px border-b-2 px-3 py-2 font-medium ${tab === key ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-800"}`}
+                    className={`-mb-px border-b-2 px-3 py-2 font-medium ${tab === key ? "border-slate-900 text-slate-900 dark:text-slate-50" : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100"}`}
                   >
                     <span className="inline-flex items-center gap-1">
                       {label}
@@ -970,12 +970,12 @@ export default function StrategyBuilderPage() {
               {tab === "robustness" && (
                 <div className="mt-4 flex flex-col gap-4">
                   <div className="flex items-baseline justify-between">
-                    <p className="flex items-center gap-1 text-sm font-medium text-slate-900">In-sample vs out-of-sample<MetricLabel info={STRATEGY_INFO["in-sample"]} /></p>
-                    <p className="text-xs text-slate-400">Split at 70%</p>
+                    <p className="flex items-center gap-1 text-sm font-medium text-slate-900 dark:text-slate-50">In-sample vs out-of-sample<MetricLabel info={STRATEGY_INFO["in-sample"]} /></p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">Split at 70%</p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[32rem] text-right text-sm">
-                      <thead className="text-xs text-slate-400">
+                      <thead className="text-xs text-slate-400 dark:text-slate-500">
                         <tr>
                           <th className="py-1 text-left font-medium">Period</th>
                           <th className="font-medium"><span className="inline-flex items-center gap-1">CAGR<MetricLabel info={STRATEGY_INFO["cagr"]} /></span></th>
@@ -984,16 +984,16 @@ export default function StrategyBuilderPage() {
                           <th className="font-medium"><span className="inline-flex items-center gap-1">Sharpe<MetricLabel info={STRATEGY_INFO["sharpe"]} /></span></th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 font-mono text-xs">
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-xs">
                         <tr>
-                          <td className="py-2 text-left font-sans text-sm text-slate-700">In-sample (first 70%)</td>
+                          <td className="py-2 text-left font-sans text-sm text-slate-700 dark:text-slate-200">In-sample (first 70%)</td>
                           <td>{pct(r.in_sample.cagr_pct)}</td>
                           <td>{plain(r.in_sample.volatility_pct, 1)}%</td>
                           <td>{pct(r.in_sample.max_drawdown_pct)}</td>
                           <td>{plain(r.in_sample.sharpe)}</td>
                         </tr>
                         <tr>
-                          <td className="py-2 text-left font-sans text-sm text-slate-700">Out-of-sample (last 30%)</td>
+                          <td className="py-2 text-left font-sans text-sm text-slate-700 dark:text-slate-200">Out-of-sample (last 30%)</td>
                           <td>{pct(r.out_of_sample.cagr_pct)}</td>
                           <td>{plain(r.out_of_sample.volatility_pct, 1)}%</td>
                           <td>{pct(r.out_of_sample.max_drawdown_pct)}</td>
@@ -1002,7 +1002,7 @@ export default function StrategyBuilderPage() {
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     A rule that works usually looks better in-sample than out. A large gap in the other direction points to the recent market rather than the rules.
                   </p>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1021,10 +1021,10 @@ export default function StrategyBuilderPage() {
                   </div>
                   {r.sensitivity && (
                     <div>
-                      <p className="flex items-center gap-1 text-sm font-medium text-slate-900">Does a small change break it? Each threshold moved ±{r.sensitivity.step_pct}%<MetricLabel info={STRATEGY_INFO["sensitivity"]} /></p>
+                      <p className="flex items-center gap-1 text-sm font-medium text-slate-900 dark:text-slate-50">Does a small change break it? Each threshold moved ±{r.sensitivity.step_pct}%<MetricLabel info={STRATEGY_INFO["sensitivity"]} /></p>
                       <div className="mt-2 overflow-x-auto">
                         <table className="w-full min-w-[32rem] text-right text-xs">
-                          <thead className="text-slate-400">
+                          <thead className="text-slate-400 dark:text-slate-500">
                             <tr>
                               <th className="py-1 text-left font-medium">Threshold</th>
                               <th className="font-medium">−{r.sensitivity.step_pct}%</th>
@@ -1033,10 +1033,10 @@ export default function StrategyBuilderPage() {
                               <th className="font-medium">Sharpe swing</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100 font-mono">
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
                             {r.sensitivity.rows.map((row) => (
                               <tr key={row.parameter}>
-                                <td className="py-1.5 text-left font-sans text-slate-700">{row.parameter}</td>
+                                <td className="py-1.5 text-left font-sans text-slate-700 dark:text-slate-200">{row.parameter}</td>
                                 {row.cells.map((c) => (
                                   <td key={c.factor}>{plain(c.sharpe)}</td>
                                 ))}
@@ -1054,7 +1054,7 @@ export default function StrategyBuilderPage() {
               {tab === "trades" && (
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full min-w-[36rem] text-left text-xs">
-                    <thead className="text-slate-400">
+                    <thead className="text-slate-400 dark:text-slate-500">
                       <tr>
                         <th className="py-1 font-medium">Stock</th>
                         <th className="py-1 font-medium">Entry</th>
@@ -1064,7 +1064,7 @@ export default function StrategyBuilderPage() {
                         <th className="py-1 text-right font-medium">Return</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {r.trade_log.slice(0, 100).map((t, i) => (
                         <tr key={i}>
                           <td className="py-1">{t.ticker}</td>
@@ -1077,7 +1077,7 @@ export default function StrategyBuilderPage() {
                       ))}
                     </tbody>
                   </table>
-                  {r.trade_log.length > 100 && <p className="mt-2 text-xs text-slate-400">Showing the first 100 of {r.trade_log.length} trades.</p>}
+                  {r.trade_log.length > 100 && <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">Showing the first 100 of {r.trade_log.length} trades.</p>}
                 </div>
               )}
 
@@ -1085,8 +1085,8 @@ export default function StrategyBuilderPage() {
                 <ul className="mt-4 flex flex-col gap-2 text-sm">
                   {Object.entries(r.per_ticker_contribution).map(([t, c]) => (
                     <li key={t} className="flex justify-between">
-                      <span className="text-slate-700">{t}</span>
-                      <span className="font-mono text-slate-600">{pct(c)}</span>
+                      <span className="text-slate-700 dark:text-slate-200">{t}</span>
+                      <span className="font-mono text-slate-600 dark:text-slate-300">{pct(c)}</span>
                     </li>
                   ))}
                   {r.top_ticker?.flag && (
@@ -1100,20 +1100,20 @@ export default function StrategyBuilderPage() {
           )}
 
           {r && (
-            <details className="rounded-xl border border-slate-200 bg-white p-5">
-              <summary className="flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Data notes ({r.caveats.length})<MetricLabel info={STRATEGY_INFO["data notes"]} /></summary>
-              <ul className="mt-3 flex flex-col gap-1 text-xs text-slate-500">
+            <details className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+              <summary className="flex cursor-pointer items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Data notes ({r.caveats.length})<MetricLabel info={STRATEGY_INFO["data notes"]} /></summary>
+              <ul className="mt-3 flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
                 {r.caveats.map((c) => (
                   <li key={c}>• {c}</li>
                 ))}
               </ul>
-              <p className="mt-3 text-xs text-slate-400">
+              <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
                 {r.variants_tried} rule variant{r.variants_tried === 1 ? "" : "s"} tried in the last 90 days · cooldown {r.cooldown_sessions} sessions
               </p>
             </details>
           )}
 
-          <p className="text-center text-xs text-slate-400">Backtest of past prices with the rules and costs shown. Not a forecast, not a recommendation, and not an order: nothing is placed.</p>
+          <p className="text-center text-xs text-slate-400 dark:text-slate-500">Backtest of past prices with the rules and costs shown. Not a forecast, not a recommendation, and not an order: nothing is placed.</p>
         </div>
       </div>
     </div>

@@ -25,8 +25,8 @@ export default function TrackRecordPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Track Record</h1>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Track Record</h1>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
         A daily, timestamped, append-only record of one ranking rule&apos;s picks — published before each
         day&apos;s outcome is known, and never edited after the fact. This is impersonal research: the same
         content for every reader, describing what the model ranked and why, not a recommendation to buy or
@@ -36,14 +36,14 @@ export default function TrackRecordPage() {
         <DisclosureBanner />
       </div>
 
-      <div className="mt-6 flex gap-1 rounded-md border border-slate-300 bg-white p-1" role="tablist">
+      <div className="mt-6 flex gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-1" role="tablist">
         <button
           type="button"
           role="tab"
           aria-selected={tab === "live"}
           onClick={() => setTab("live")}
           className={`flex-1 rounded px-3 py-1.5 text-sm font-medium ${
-            tab === "live" ? "bg-emerald-600 text-white" : "text-slate-600 hover:bg-slate-50"
+            tab === "live" ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           Live
@@ -54,14 +54,14 @@ export default function TrackRecordPage() {
           aria-selected={tab === "hypothetical"}
           onClick={() => setTab("hypothetical")}
           className={`flex-1 rounded px-3 py-1.5 text-sm font-medium ${
-            tab === "hypothetical" ? "bg-[var(--pf-accent)] text-white" : "text-slate-600 hover:bg-slate-50"
+            tab === "hypothetical" ? "bg-[var(--pf-accent)] text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           Hypothetical
         </button>
       </div>
 
-      {loading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
+      {loading && <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
       {error && <p className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {data && !loading && (tab === "live" ? <LiveTab data={data} /> : <HypotheticalTab data={data} />)}
@@ -71,9 +71,9 @@ export default function TrackRecordPage() {
 
 export function RecordTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+      <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50">{value}</p>
     </div>
   );
 }

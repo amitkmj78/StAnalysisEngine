@@ -26,8 +26,8 @@ const GUIDES = [
 export default function GuidesPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Guides</h1>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Guides</h1>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
         Short, plain-language explanations of how this app reads signals, risk, and diversification — grounded in
         exactly what it computes, not general market commentary.
       </p>
@@ -37,10 +37,10 @@ export default function GuidesPage() {
           <Link
             key={g.href}
             href={g.href}
-            className="rounded-xl border border-slate-200 bg-white p-5 transition-colors hover:border-slate-300 hover:bg-slate-50"
+            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 transition-colors hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
           >
-            <h2 className="font-semibold text-slate-900">{g.title}</h2>
-            <p className="mt-1 text-sm text-slate-600">{g.description}</p>
+            <h2 className="font-semibold text-slate-900 dark:text-slate-50">{g.title}</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{g.description}</p>
           </Link>
         ))}
       </div>

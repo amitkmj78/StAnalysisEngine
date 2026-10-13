@@ -6,16 +6,16 @@ export default function RiskGuidePage() {
       <Link href="/guides" className="text-sm text-[var(--pf-accent)] hover:underline">
         ← All guides
       </Link>
-      <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Understanding Risk</h1>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+      <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">Understanding Risk</h1>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
         The Health Check and Stress Test pages show several risk numbers side by side. They measure different
         things and can disagree with each other — here&apos;s what each one is actually telling you.
       </p>
 
       <div className="mt-6 flex flex-col gap-6">
         <section>
-          <h2 className="text-base font-semibold text-slate-900">Volatility</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Volatility</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             How much a position&apos;s daily returns bounce around, expressed as an annualized percentage. It&apos;s
             symmetric — it counts big up days the same as big down days — so a volatile stock isn&apos;t
             necessarily a losing one, just a less predictable one. Higher volatility means wider swings in your
@@ -24,8 +24,8 @@ export default function RiskGuidePage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-slate-900">Beta</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Beta</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             How a position tends to move relative to the S&amp;P 500. A beta of 1.5 means that, historically, when
             the market moves 1%, this position has tended to move about 1.5% in the same direction. A beta under 1
             means it&apos;s historically moved less than the market. Beta is about market-wide moves specifically —
@@ -35,8 +35,8 @@ export default function RiskGuidePage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-slate-900">Correlation</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Correlation</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             How closely two positions&apos; returns have moved together historically, from -1 (perfectly opposite)
             to +1 (move in lockstep). This is the number that actually drives diversification, more than how many
             tickers you hold: 10 stocks that are all highly correlated with each other behave like one large bet,
@@ -46,8 +46,8 @@ export default function RiskGuidePage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-slate-900">Max drawdown</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Max drawdown</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             The largest peak-to-trough decline a position or portfolio has actually experienced over the lookback
             window — not a projection, a historical fact. It answers a different question than volatility: not
             &quot;how bumpy is the ride&quot; but &quot;how far underwater has this actually gone before it
@@ -57,8 +57,8 @@ export default function RiskGuidePage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-slate-900">Stress test scenarios</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Stress test scenarios</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             The Stress Test page applies hypothetical shocks (e.g. a market-wide drop) to your actual current
             holdings, scaled by each position&apos;s own beta and size, to estimate portfolio impact. It&apos;s a
             what-if based on historical relationships, not a forecast that the scenario will happen or happen this
@@ -68,8 +68,8 @@ export default function RiskGuidePage() {
         </section>
       </div>
 
-      <div className="mt-8 border-t border-slate-200 pt-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Where this shows up in the app</p>
+      <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Where this shows up in the app</p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
           <Link href="/portfolio/health" className="text-[var(--pf-accent)] hover:underline">
             Portfolio Health Check

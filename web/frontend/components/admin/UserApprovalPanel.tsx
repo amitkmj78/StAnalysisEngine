@@ -275,7 +275,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
   }
 
   if (users === null && !error) {
-    return <p className="text-sm text-slate-500">Loading users…</p>;
+    return <p className="text-sm text-slate-500 dark:text-slate-400">Loading users…</p>;
   }
 
   const pending = (users ?? []).filter((u) => !u.approved);
@@ -285,39 +285,39 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
     <div className="flex flex-col gap-6">
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-lg font-semibold text-slate-900">Create User</h2>
-        <p className="mt-1 text-sm text-slate-500">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Create User</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Creates an account directly, already approved — skips the signup/approval queue above. Use this to make
           another admin, or to onboard someone without them going through public signup.
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Email</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Email</label>
             <input
               type="email"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="name@example.com"
-              className="w-56 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="w-56 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Password</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Password</label>
             <input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Temporary password"
-              className="w-48 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="w-48 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Role</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Role</label>
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value as "user" | "admin")}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             >
               <option value="user">Normal user</option>
               <option value="admin">Admin</option>
@@ -336,16 +336,16 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
           Pending Approval {pending.length > 0 && <span className="text-amber-600">({pending.length})</span>}
         </h2>
         {pending.length === 0 ? (
-          <p className="mt-1 text-sm text-slate-500">No signups waiting on approval.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">No signups waiting on approval.</p>
         ) : (
-          <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <th className="px-3 py-2">Email</th>
                   <th className="px-3 py-2">Signed Up</th>
                   <th className="px-3 py-2"></th>
@@ -353,9 +353,9 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
               </thead>
               <tbody>
                 {pending.map((u) => (
-                  <tr key={u.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-3 py-2 text-slate-700">{u.email}</td>
-                    <td className="px-3 py-2 text-slate-500">{new Date(u.created_at).toLocaleString()}</td>
+                  <tr key={u.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                    <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{u.email}</td>
+                    <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{new Date(u.created_at).toLocaleString()}</td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex justify-end gap-2">
                         <button
@@ -368,7 +368,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                         <button
                           onClick={() => handleReject(u.id)}
                           disabled={busyId === u.id}
-                          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                          className="rounded-md border border-slate-300 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
                         >
                           Reject
                         </button>
@@ -383,11 +383,11 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">Approved Users ({approved.length})</h2>
-        <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Approved Users ({approved.length})</h2>
+        <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Role</th>
@@ -400,12 +400,12 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
             <tbody>
               {approved.map((u) => (
                 <Fragment key={u.id}>
-                <tr className="border-b border-slate-100 last:border-0">
-                  <td className="px-3 py-2 text-slate-700">{u.email}</td>
+                <tr className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                  <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{u.email}</td>
                   <td className="px-3 py-2">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        u.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                        u.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                       }`}
                     >
                       {u.is_active ? "Active" : "Inactive"}
@@ -413,7 +413,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                   </td>
                   <td className="px-3 py-2">
                     {u.email.toLowerCase() === currentUserEmail.toLowerCase() ? (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                      <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                         {u.role === "admin" ? "Admin" : "User"} (you)
                       </span>
                     ) : (
@@ -422,7 +422,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                         onChange={(e) => handleRoleChange(u.id, e.target.value as "user" | "admin")}
                         disabled={busyId === u.id}
                         className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium ${
-                          u.role === "admin" ? "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "bg-slate-100 text-slate-600"
+                          u.role === "admin" ? "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                         }`}
                       >
                         <option value="user">User</option>
@@ -430,31 +430,31 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                       </select>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-slate-600">
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
                     {u.portfolio_count > 0 ? (
                       <button
                         type="button"
                         onClick={() => toggleExpanded(u.id)}
-                        className="underline decoration-dotted hover:text-slate-900"
+                        className="underline decoration-dotted hover:text-slate-900 dark:hover:text-slate-50"
                       >
                         {u.portfolio_count} portfolio{u.portfolio_count === 1 ? "" : "s"}
-                        <span className="text-slate-400"> · {u.position_count} position{u.position_count === 1 ? "" : "s"}</span>
+                        <span className="text-slate-400 dark:text-slate-500"> · {u.position_count} position{u.position_count === 1 ? "" : "s"}</span>
                       </button>
                     ) : (
-                      <span className="text-slate-400">None</span>
+                      <span className="text-slate-400 dark:text-slate-500">None</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-slate-500">{new Date(u.created_at).toLocaleString()}</td>
-                  <td className="px-3 py-2 text-slate-500">
+                  <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{new Date(u.created_at).toLocaleString()}</td>
+                  <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
                     {u.last_login_at ? (
                       <>
                         {new Date(u.last_login_at).toLocaleString()}
                         {u.last_login_ip && (
-                          <div className="text-xs text-slate-400">{u.last_login_ip}</div>
+                          <div className="text-xs text-slate-400 dark:text-slate-500">{u.last_login_ip}</div>
                         )}
                       </>
                     ) : (
-                      <span className="text-slate-400">Never</span>
+                      <span className="text-slate-400 dark:text-slate-500">Never</span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -468,7 +468,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                       <button
                         onClick={() => handleSendWelcomeEmail(u.id)}
                         disabled={busyId === u.id}
-                        className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                        className="rounded-md border border-slate-300 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
                       >
                         {busyId === u.id ? "Sending…" : "Send Welcome Email"}
                       </button>
@@ -477,7 +477,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                           <button
                             onClick={() => handleForceLogout(u.id, u.email)}
                             disabled={busyId === u.id}
-                            className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                            className="rounded-md border border-slate-300 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
                           >
                             Force Logout
                           </button>
@@ -511,7 +511,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                   </td>
                 </tr>
                 {expandedUserId === u.id && (
-                  <tr className="border-b border-slate-100 last:border-0 bg-slate-50/60">
+                  <tr className="border-b border-slate-100 dark:border-slate-800 last:border-0 bg-slate-50 dark:bg-slate-800/60">
                     <td colSpan={7} className="px-3 py-3">
                       {portfolioMessage && (
                         <p className="mb-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
@@ -519,13 +519,13 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                         </p>
                       )}
                       {portfoliosByUser[u.id] === "loading" ? (
-                        <p className="text-xs text-slate-500">Loading portfolios…</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Loading portfolios…</p>
                       ) : portfoliosByUser[u.id] === "error" ? (
                         <p className="text-xs text-red-600">Failed to load portfolios.</p>
                       ) : (
                         <table className="min-w-full text-xs">
                           <thead>
-                            <tr className="text-left uppercase tracking-wide text-slate-400">
+                            <tr className="text-left uppercase tracking-wide text-slate-400 dark:text-slate-500">
                               <th className="py-1 pr-3 font-medium">Name</th>
                               <th className="py-1 pr-3 font-medium">Status</th>
                               <th className="py-1 pr-3 font-medium">Drop Alerts</th>
@@ -536,12 +536,12 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                           </thead>
                           <tbody>
                             {(portfoliosByUser[u.id] as AdminUserPortfolio[]).map((p) => (
-                              <tr key={p.id} className="border-t border-slate-200">
-                                <td className="py-1.5 pr-3 text-slate-700">{p.name}</td>
+                              <tr key={p.id} className="border-t border-slate-200 dark:border-slate-700">
+                                <td className="py-1.5 pr-3 text-slate-700 dark:text-slate-200">{p.name}</td>
                                 <td className="py-1.5 pr-3">
                                   <span
                                     className={`rounded-full px-2 py-0.5 font-medium ${
-                                      p.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-500"
+                                      p.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
                                     }`}
                                   >
                                     {p.is_active ? "Active" : "Inactive"}
@@ -552,14 +552,14 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                                     className={`rounded-full px-2 py-0.5 font-medium ${
                                       p.drop_alerts_enabled
                                         ? "bg-emerald-50 text-emerald-700"
-                                        : "bg-slate-200 text-slate-500"
+                                        : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
                                     }`}
                                   >
                                     {p.drop_alerts_enabled ? "On" : "Off"}
                                   </span>
                                 </td>
-                                <td className="py-1.5 pr-3 text-slate-600">{p.position_count}</td>
-                                <td className="py-1.5 pr-3 text-slate-500">
+                                <td className="py-1.5 pr-3 text-slate-600 dark:text-slate-300">{p.position_count}</td>
+                                <td className="py-1.5 pr-3 text-slate-500 dark:text-slate-400">
                                   {new Date(p.created_at).toLocaleDateString()}
                                 </td>
                                 <td className="py-1.5 pr-3 text-right">
@@ -568,7 +568,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                                       <button
                                         onClick={() => handleToggleDropAlerts(u.id, p.id, false)}
                                         disabled={portfolioBusyId === p.id}
-                                        className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                                        className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-0.5 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
                                       >
                                         Stop Drop Alerts
                                       </button>
@@ -576,7 +576,7 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
                                       <button
                                         onClick={() => handleToggleDropAlerts(u.id, p.id, true)}
                                         disabled={portfolioBusyId === p.id}
-                                        className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                                        className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-0.5 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
                                       >
                                         Resume Drop Alerts
                                       </button>

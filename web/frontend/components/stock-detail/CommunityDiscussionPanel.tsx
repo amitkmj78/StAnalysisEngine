@@ -95,8 +95,8 @@ export default function CommunityDiscussionPanel({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <h3 className="font-semibold text-slate-900">Community Discussion</h3>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+      <h3 className="font-semibold text-slate-900 dark:text-slate-50">Community Discussion</h3>
       {error && <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       <div className="mt-3 flex gap-2">
@@ -104,7 +104,7 @@ export default function CommunityDiscussionPanel({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={composePlaceholder ?? `Share something about ${ticker}...`}
-          className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+          className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm"
         />
         <button
           onClick={handlePost}
@@ -114,18 +114,18 @@ export default function CommunityDiscussionPanel({
           Post
         </button>
       </div>
-      <label className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+      <label className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
         <input type="checkbox" checked={isQuestion} onChange={(e) => setIsQuestion(e.target.checked)} />
         This is a question -- you&apos;ll be able to mark the best reply as the accepted answer.
       </label>
 
-      {posts === null && !error && <p className="mt-4 text-sm text-slate-500">Loading…</p>}
+      {posts === null && !error && <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
       <div className="mt-4 flex flex-col gap-3">
         {posts?.map((p) => (
-          <div key={p.id} className="rounded-md border border-slate-100 p-3 text-sm">
+          <div key={p.id} className="rounded-md border border-slate-100 dark:border-slate-800 p-3 text-sm">
             <div className="flex items-center justify-between">
-              <strong className="text-slate-800">{p.display_name}</strong>
-              <span className="text-xs text-slate-400">{new Date(p.created_at).toLocaleString()}</span>
+              <strong className="text-slate-800 dark:text-slate-100">{p.display_name}</strong>
+              <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(p.created_at).toLocaleString()}</span>
             </div>
             {p.post_type === "performance_claim" && (
               <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${p.verified ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
@@ -137,14 +137,14 @@ export default function CommunityDiscussionPanel({
                 question
               </span>
             )}
-            <p className="mt-1 text-slate-700">{p.body}</p>
-            <button onClick={() => toggleComments(p.id)} className="mt-2 text-xs font-medium text-slate-500 hover:underline">
+            <p className="mt-1 text-slate-700 dark:text-slate-200">{p.body}</p>
+            <button onClick={() => toggleComments(p.id)} className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline">
               {openComments[p.id] ? "Hide replies" : "Replies"}
             </button>
             {openComments[p.id] && (
-              <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-2">
+              <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 dark:border-slate-800 pt-2">
                 {openComments[p.id]!.map((c) => (
-                  <div key={c.id} className="flex items-start justify-between gap-2 text-xs text-slate-600">
+                  <div key={c.id} className="flex items-start justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
                     <span>
                       {c.is_accepted && (
                         <span className="mr-1 rounded-full bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700">
@@ -156,7 +156,7 @@ export default function CommunityDiscussionPanel({
                     {p.post_type === "question" && p.author_user_id === myUserId && (
                       <button
                         onClick={() => (c.is_accepted ? handleUnaccept(p.id, c.id) : handleAccept(p.id, c.id))}
-                        className="flex-none whitespace-nowrap text-slate-400 hover:text-slate-700 hover:underline"
+                        className="flex-none whitespace-nowrap text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:underline"
                       >
                         {c.is_accepted ? "Unaccept" : "Accept"}
                       </button>
@@ -168,9 +168,9 @@ export default function CommunityDiscussionPanel({
                     value={commentDraft[p.id] ?? ""}
                     onChange={(e) => setCommentDraft((prev) => ({ ...prev, [p.id]: e.target.value }))}
                     placeholder="Reply..."
-                    className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                    className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
                   />
-                  <button onClick={() => handleComment(p.id)} className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
+                  <button onClick={() => handleComment(p.id)} className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs hover:bg-slate-50 dark:hover:bg-slate-800">
                     Reply
                   </button>
                 </div>
@@ -178,7 +178,7 @@ export default function CommunityDiscussionPanel({
             )}
           </div>
         ))}
-        {posts?.length === 0 && <p className="text-sm text-slate-500">No discussion yet -- be the first.</p>}
+        {posts?.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No discussion yet -- be the first.</p>}
       </div>
     </div>
   );

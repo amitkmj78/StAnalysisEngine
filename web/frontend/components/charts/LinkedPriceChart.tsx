@@ -57,8 +57,8 @@ export default function LinkedPriceChart({ ticker, range, chartType, logScale, l
   }, [rows]);
   const divId = `linked-chart-${slot}`;
 
-  if (error) return <p className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">{error}</p>;
-  if (!rows) return <p className="rounded-md border border-slate-200 p-6 text-center text-sm text-slate-500">Loading {ticker}…</p>;
+  if (error) return <p className="rounded-md border border-dashed border-slate-300 dark:border-slate-600 p-6 text-center text-sm text-slate-500 dark:text-slate-400">{error}</p>;
+  if (!rows) return <p className="rounded-md border border-slate-200 dark:border-slate-700 p-6 text-center text-sm text-slate-500 dark:text-slate-400">Loading {ticker}…</p>;
 
   const useCandles = chartType === "candles" && rows.every((r) => r.open !== null && r.high !== null && r.low !== null);
   const x = rows.map((r) => dayKey(r.date));
@@ -79,10 +79,10 @@ export default function LinkedPriceChart({ ticker, range, chartType, logScale, l
     : [{ x, y: rows.map((r) => r.close), type: "scatter" as const, mode: "lines" as const, name: ticker, line: { color: "#4f46e5", width: 2 } }];
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
       <div className="mb-1 flex items-baseline justify-between">
-        <p className="text-sm font-semibold text-slate-900">{ticker}</p>
-        <p className="font-mono text-xs text-slate-500">
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{ticker}</p>
+        <p className="font-mono text-xs text-slate-500 dark:text-slate-400">
           {rows[rows.length - 1] ? rows[rows.length - 1].close.toFixed(2) : ""}
           {change !== null && (
             <span className={`ml-2 font-semibold ${change >= 0 ? "text-emerald-700" : "text-red-700"}`}>

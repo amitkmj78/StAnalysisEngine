@@ -72,7 +72,7 @@ function renderInline(text: string) {
     if (!part) return null;
     if (/^<br/i.test(part)) return <br key={idx} />;
     if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={idx} className="font-semibold text-slate-900">{part.slice(2, -2)}</strong>;
+      return <strong key={idx} className="font-semibold text-slate-900 dark:text-slate-50">{part.slice(2, -2)}</strong>;
     }
     return <span key={idx}>{part}</span>;
   });
@@ -81,16 +81,16 @@ function renderInline(text: string) {
 export default function FilingSummaryText({ text }: { text: string }) {
   const blocks = parseBlocks(text);
   return (
-    <div className="flex flex-col gap-3 text-sm leading-relaxed text-slate-800">
+    <div className="flex flex-col gap-3 text-sm leading-relaxed text-slate-800 dark:text-slate-100">
       {blocks.map((b, idx) => {
         if (b.kind === "table") {
           return (
-            <div key={idx} className="overflow-x-auto rounded-md border border-slate-200">
+            <div key={idx} className="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
               <table className="w-full min-w-[32rem] border-collapse text-left text-xs">
-                <thead className="bg-slate-50">
+                <thead className="bg-slate-50 dark:bg-slate-800">
                   <tr>
                     {b.header.map((h, j) => (
-                      <th key={j} className="border-b border-slate-200 px-3 py-2 font-semibold text-slate-700">
+                      <th key={j} className="border-b border-slate-200 dark:border-slate-700 px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">
                         {renderInline(h)}
                       </th>
                     ))}
@@ -98,9 +98,9 @@ export default function FilingSummaryText({ text }: { text: string }) {
                 </thead>
                 <tbody>
                   {b.rows.map((r, j) => (
-                    <tr key={j} className="align-top odd:bg-white even:bg-slate-50/50">
+                    <tr key={j} className="align-top odd:bg-white dark:odd:bg-slate-900 even:bg-slate-50 dark:even:bg-slate-800/50">
                       {r.map((c, k) => (
-                        <td key={k} className="border-b border-slate-100 px-3 py-2 text-slate-800">
+                        <td key={k} className="border-b border-slate-100 dark:border-slate-800 px-3 py-2 text-slate-800 dark:text-slate-100">
                           {renderInline(c)}
                         </td>
                       ))}

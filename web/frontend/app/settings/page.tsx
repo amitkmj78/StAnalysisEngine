@@ -5,7 +5,13 @@ import { useEffect, useState } from "react";
 
 import { ApiError, getCurrentUser, setMyThemeColor, updateSocialProfile } from "@/lib/api";
 import type { ExperienceLevel } from "@/lib/types";
-import { applyThemeAccent, THEME_PALETTE } from "@/lib/theme";
+import { applyThemeAccent, applyThemeMode, getStoredThemeMode, THEME_PALETTE, type ThemeMode } from "@/lib/theme";
+
+const MODES: { value: ThemeMode; label: string; description: string }[] = [
+  { value: "light", label: "Light", description: "Always light, regardless of your device." },
+  { value: "dark", label: "Dark", description: "Always dark, regardless of your device." },
+  { value: "system", label: "System", description: "Follows your device's light/dark setting." },
+];
 
 const LEVELS: { value: ExperienceLevel; label: string; description: string }[] = [
   {
@@ -38,6 +44,7 @@ export default function SettingsPage() {
   const [themeOverride, setThemeOverride] = useState<string | null>(null);
   const [themeSaving, setThemeSaving] = useState<string | "default" | null>(null);
   const [themeError, setThemeError] = useState<string | null>(null);
+  const [mode, setMode] = useState<ThemeMode>("system");
 
   useEffect(() => {
     getCurrentUser()
@@ -48,7 +55,13 @@ export default function SettingsPage() {
       })
       .catch(() => setError("Could not load your settings."))
       .finally(() => setLoading(false));
+    setMode(getStoredThemeMode());
   }, []);
+
+  function handleModeChange(next: ThemeMode) {
+    setMode(next);
+    applyThemeMode(next);
+  }
 
   async function saveTheme(color: string | null) {
     setThemeSaving(color ?? "default");
@@ -81,9 +94,9 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Settings</h1>
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Settings</h1>
       {userId && (
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Also shown on your{" "}
           <Link href={`/community/authors/${userId}`} className="underline decoration-dotted">
             community profile
@@ -92,20 +105,20 @@ export default function SettingsPage() {
         </p>
       )}
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">Experience level</h2>
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Experience level</h2>
         {loading ? (
-          <p className="mt-3 text-sm text-slate-500">Loading…</p>
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Loading…</p>
         ) : (
           <div className="mt-3 flex flex-col gap-3">
             {LEVELS.map((opt) => (
               <label
                 key={opt.value}
                 className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-4 py-3 text-sm ${
-                  level === opt.value ? "border-slate-900 bg-slate-50" : "border-slate-200"
+                  level === opt.value ? "border-slate-900 bg-slate-50 dark:bg-slate-800" : "border-slate-200 dark:border-slate-700"
                 }`}
               >
-                <span className="flex items-center gap-2 font-medium text-slate-900">
+                <span className="flex items-center gap-2 font-medium text-slate-900 dark:text-slate-50">
                   <input
                     type="radio"
                     name="experience_level"
@@ -115,24 +128,44 @@ export default function SettingsPage() {
                   />
                   {opt.label}
                 </span>
-                <span className="text-slate-500">{opt.description}</span>
+                <span className="text-slate-500 dark:text-slate-400">{opt.description}</span>
               </label>
             ))}
           </div>
         )}
-        {saving && <p className="mt-3 text-xs text-slate-500">Saving…</p>}
+        {saving && <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Saving…</p>}
         {saved && !saving && <p className="mt-3 text-xs font-medium text-emerald-700">Saved.</p>}
         {error && <p className="mt-3 text-xs font-medium text-red-700">{error}</p>}
       </div>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">Theme color</h2>
-        <p className="mt-1 text-sm text-slate-500">
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Appearance</h2>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {MODES.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => handleModeChange(m.value)}
+              aria-pressed={mode === m.value}
+              className={`flex flex-col gap-0.5 rounded-lg border px-3 py-2 text-left text-sm ${
+                mode === m.value ? "border-slate-900 bg-slate-50 dark:bg-slate-800" : "border-slate-200 dark:border-slate-700"
+              }`}
+            >
+              <span className="font-medium text-slate-900 dark:text-slate-50">{m.label}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{m.description}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Theme color</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Overrides the site&apos;s default accent color for just your account. A curated palette, not a freeform
           color.
         </p>
         {loading ? (
-          <p className="mt-3 text-sm text-slate-500">Loading…</p>
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Loading…</p>
         ) : (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {THEME_PALETTE.map((c) => (
@@ -148,14 +181,14 @@ export default function SettingsPage() {
                 }`}
                 style={{ backgroundColor: c.accent }}
               >
-                {themeSaving === c.accent && <span className="h-2 w-2 animate-pulse rounded-full bg-white" />}
+                {themeSaving === c.accent && <span className="h-2 w-2 animate-pulse rounded-full bg-white dark:bg-slate-900" />}
               </button>
             ))}
             <button
               type="button"
               onClick={() => saveTheme(null)}
               disabled={themeSaving !== null || themeOverride === null}
-              className="ml-1 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              className="ml-1 rounded-md border border-slate-300 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
             >
               {themeSaving === "default" ? "Resetting…" : "Use site default"}
             </button>

@@ -243,25 +243,25 @@ export default function AlertSettingsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold text-slate-900">Alert Settings</h1>
-        <Link href="/alerts" className="text-sm font-medium text-slate-600 hover:underline">
+        <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Alert Settings</h1>
+        <Link href="/alerts" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
           Inbox
         </Link>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Choose which alert types email you (in-app delivery always happens regardless), set quiet hours, and
         optionally receive one daily digest instead of individual emails.
       </p>
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {(!prefs || !settings) && !error && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
+      {(!prefs || !settings) && !error && <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
 
       {prefs && settings && (
         <>
-          <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <th className="px-3 py-2">Alert type</th>
                   <th className="px-3 py-2 text-center">Enabled</th>
                   <th className="px-3 py-2 text-center">Email</th>
@@ -276,8 +276,8 @@ export default function AlertSettingsPage() {
                   const inapp = pref?.channel_inapp ?? true;
                   const busy = savingKey === `global-${value}`;
                   return (
-                    <tr key={value} className="border-b border-slate-100 last:border-0">
-                      <td className="px-3 py-2 font-medium text-slate-800">{label}</td>
+                    <tr key={value} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                      <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{label}</td>
                       <td className="px-3 py-2 text-center">
                         <input
                           type="checkbox"
@@ -310,8 +310,8 @@ export default function AlertSettingsPage() {
           </div>
 
           <div className="mt-6">
-            <h2 className="text-sm font-semibold text-slate-800">Per-stock overrides</h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Per-stock overrides</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Mute one alert type for a specific ticker — overrides the global setting above for that stock only.
             </p>
             <form onSubmit={handleAddOverride} className="mt-2 flex flex-wrap items-end gap-2">
@@ -319,12 +319,12 @@ export default function AlertSettingsPage() {
                 value={overrideTicker}
                 onChange={(e) => setOverrideTicker(e.target.value)}
                 placeholder="Ticker"
-                className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm uppercase"
+                className="w-28 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm uppercase"
               />
               <select
                 value={overrideType}
                 onChange={(e) => setOverrideType(e.target.value as AlertPreferenceType)}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
               >
                 {ALERT_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>
@@ -335,7 +335,7 @@ export default function AlertSettingsPage() {
               <button
                 type="submit"
                 disabled={savingKey === "add-override" || !overrideTicker.trim()}
-                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
               >
                 Add
               </button>
@@ -346,7 +346,7 @@ export default function AlertSettingsPage() {
                 {tickerOverrides.map((o) => (
                   <div
                     key={o.id}
-                    className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+                    className="flex items-center justify-between rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                   >
                     <span>
                       <strong>{o.ticker}</strong> — {ALERT_TYPES.find((t) => t.value === o.alert_type)?.label ?? o.alert_type}:{" "}
@@ -355,7 +355,7 @@ export default function AlertSettingsPage() {
                     <button
                       onClick={() => handleDeleteOverride(o.id)}
                       disabled={savingKey === `delete-${o.id}`}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                      className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
                     >
                       Remove
                     </button>
@@ -365,71 +365,71 @@ export default function AlertSettingsPage() {
             )}
           </div>
 
-          <form onSubmit={handleSaveSettings} className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="text-sm font-semibold text-slate-800">Quiet hours &amp; digest</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <form onSubmit={handleSaveSettings} className="mt-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Quiet hours &amp; digest</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               During quiet hours (or any time digest mode is on), alerts queue and arrive together instead of
               immediately.
             </p>
 
             <div className="mt-4 flex flex-wrap items-end gap-4">
-              <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+              <label className="flex flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                 Quiet hours start
                 <input
                   type="time"
                   value={quietStart}
                   onChange={(e) => setQuietStart(e.target.value)}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+              <label className="flex flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                 Quiet hours end
                 <input
                   type="time"
                   value={quietEnd}
                   onChange={(e) => setQuietEnd(e.target.value)}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
                 />
               </label>
             </div>
 
             <div className="mt-4 flex flex-wrap items-end gap-4">
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                 <input type="checkbox" checked={digestEnabled} onChange={(e) => setDigestEnabled(e.target.checked)} />
                 Send one daily digest instead of individual emails
               </label>
               {digestEnabled && (
-                <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                   Digest time
                   <input
                     type="time"
                     value={digestTime}
                     onChange={(e) => setDigestTime(e.target.value)}
-                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
                   />
                 </label>
               )}
             </div>
 
-            <h2 className="mt-6 text-sm font-semibold text-slate-800">Webhook (for power users)</h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <h2 className="mt-6 text-sm font-semibold text-slate-800 dark:text-slate-100">Webhook (for power users)</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {settings.has_webhook_secret
                 ? "A signing secret has been generated for your webhook."
                 : "A signing secret is generated the first time you enable this."}
             </p>
             <div className="mt-3 flex flex-wrap items-end gap-4">
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                 <input type="checkbox" checked={webhookEnabled} onChange={(e) => setWebhookEnabled(e.target.checked)} />
                 Enabled
               </label>
-              <label className="flex flex-1 min-w-[240px] flex-col gap-1 text-xs font-medium text-slate-500">
+              <label className="flex flex-1 min-w-[240px] flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                 URL
                 <input
                   type="url"
                   value={webhookUrl}
                   onChange={(e) => setWebhookUrl(e.target.value)}
                   placeholder="https://example.com/webhook"
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
                 />
               </label>
             </div>
@@ -437,7 +437,7 @@ export default function AlertSettingsPage() {
             {revealedSecret && (
               <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                 Your webhook signing secret (shown once — copy it now, it won&apos;t be shown again):
-                <code className="mt-1 block break-all rounded bg-white px-2 py-1 font-mono">{revealedSecret}</code>
+                <code className="mt-1 block break-all rounded bg-white dark:bg-slate-900 px-2 py-1 font-mono">{revealedSecret}</code>
               </div>
             )}
 
@@ -450,45 +450,45 @@ export default function AlertSettingsPage() {
             </button>
           </form>
 
-          <div className="mt-8 rounded-lg border border-slate-200 p-4">
-            <h2 className="text-sm font-semibold text-slate-800">Push notifications</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <div className="mt-8 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Push notifications</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Browser push, on this device — a third delivery channel alongside email and the webhook above.
               Native mobile app push isn&apos;t available (there&apos;s no mobile app), but standard web push
               still reaches a phone if you&apos;ve added this site to your home screen.
             </p>
             {pushUnsupported ? (
-              <p className="mt-2 text-xs text-slate-400">Your browser doesn&apos;t support push notifications.</p>
+              <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">Your browser doesn&apos;t support push notifications.</p>
             ) : (
               <button
                 type="button"
                 onClick={pushSubscribed ? handleUnsubscribePush : handleSubscribePush}
                 disabled={pushBusy || pushSubscribed === null}
-                className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="mt-3 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
               >
                 {pushBusy ? "Working…" : pushSubscribed ? "Disable on this device" : "Enable on this device"}
               </button>
             )}
           </div>
 
-          <div className="mt-8 rounded-lg border border-slate-200 p-4">
-            <h2 className="text-sm font-semibold text-slate-800">TradingView alerts</h2>
-            <p className="mt-1 text-xs text-slate-500">
+          <div className="mt-8 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">TradingView alerts</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Paste this URL as the &quot;Webhook URL&quot; on any TradingView alert — it routes straight into your
               trade journal. Regenerating invalidates any alert still configured with the old URL.
             </p>
             {settings.tradingview_webhook_token ? (
-              <code className="mt-2 block break-all rounded bg-slate-50 px-2 py-1.5 text-xs">
+              <code className="mt-2 block break-all rounded bg-slate-50 dark:bg-slate-800 px-2 py-1.5 text-xs">
                 {getTradingViewWebhookUrl(settings.tradingview_webhook_token)}
               </code>
             ) : (
-              <p className="mt-2 text-xs text-slate-400">No webhook URL generated yet.</p>
+              <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">No webhook URL generated yet.</p>
             )}
             <button
               type="button"
               onClick={handleRegenerateTradingViewToken}
               disabled={regeneratingToken}
-              className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="mt-3 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
             >
               {regeneratingToken ? "Generating…" : settings.tradingview_webhook_token ? "Regenerate" : "Generate webhook URL"}
             </button>

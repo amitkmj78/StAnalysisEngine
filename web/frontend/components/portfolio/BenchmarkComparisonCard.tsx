@@ -47,13 +47,13 @@ export default function BenchmarkComparisonCard({ portfolioId }: { portfolioId: 
   return (
     <div
       className={`mt-3 rounded-xl border p-4 ${
-        data.underperforming ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"
+        data.underperforming ? "border-amber-200 bg-amber-50" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span className="font-semibold text-slate-900">vs. S&amp;P 500 ({data.benchmark_ticker})</span>
-          <span className="text-slate-700">
+          <span className="font-semibold text-slate-900 dark:text-slate-50">vs. S&amp;P 500 ({data.benchmark_ticker})</span>
+          <span className="text-slate-700 dark:text-slate-200">
             {data.benchmark_ticker} today{" "}
             <strong
               className={
@@ -67,10 +67,10 @@ export default function BenchmarkComparisonCard({ portfolioId }: { portfolioId: 
               {fmtPct(data.benchmark_today_pct)}
             </strong>
           </span>
-          <span className="text-slate-700">
+          <span className="text-slate-700 dark:text-slate-200">
             Portfolio <strong>{fmtPct(data.portfolio_return_pct)}</strong>
           </span>
-          <span className="text-slate-700">
+          <span className="text-slate-700 dark:text-slate-200">
             {data.benchmark_ticker} <strong>{fmtPct(data.benchmark_return_pct)}</strong>
           </span>
         </div>
@@ -87,7 +87,7 @@ export default function BenchmarkComparisonCard({ portfolioId }: { portfolioId: 
       {data.underperforming && data.suggestion && (
         <p className="mt-2 text-sm text-amber-700">{data.suggestion}</p>
       )}
-      <p className="mt-2 text-xs text-slate-400">
+      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
         {data.benchmark_ticker} today is a real day-over-day move. Portfolio vs. {data.benchmark_ticker} is since
         this portfolio was created — an approximation, not a date-matched return for each individual position.
       </p>

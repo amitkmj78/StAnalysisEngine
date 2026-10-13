@@ -94,20 +94,20 @@ export default function TickerSearchInput({
         autoComplete="off"
       />
       {open && (
-        <div className="absolute z-20 mt-1 max-h-72 w-72 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
-          {loading && <div className="px-3 py-2 text-xs text-slate-400">Searching…</div>}
+        <div className="absolute z-20 mt-1 max-h-72 w-72 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+          {loading && <div className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500">Searching…</div>}
           {!loading &&
             results.map((r) => (
               <button
                 key={`${r.symbol}-${r.exchange}`}
                 type="button"
                 onClick={() => select(r)}
-                className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
               >
-                <span className="font-medium text-slate-900">
-                  {r.symbol} <span className="font-normal text-slate-500">— {r.name}</span>
+                <span className="font-medium text-slate-900 dark:text-slate-50">
+                  {r.symbol} <span className="font-normal text-slate-500 dark:text-slate-400">— {r.name}</span>
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-400 dark:text-slate-500">
                   {r.exchange} {r.type && `· ${r.type}`}
                 </span>
               </button>

@@ -46,8 +46,8 @@ const MONO_FONT = { fontFamily: "var(--font-pf-mono)" };
 // /stock-finder) reference the same tokens, not a separate copy.
 const PF = {
   page: "bg-[var(--pf-bg)]",
-  card: "rounded-xl border border-[var(--pf-border)] bg-white",
-  btn: "rounded-md border border-[var(--pf-border)] bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]",
+  card: "rounded-xl border border-[var(--pf-border)] bg-white dark:bg-slate-900",
+  btn: "rounded-md border border-[var(--pf-border)] bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-900 dark:text-slate-50 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]",
   btnPrimary: "rounded-md bg-[var(--pf-accent)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90",
   btnDelete: "rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-[var(--pf-down)] hover:bg-red-50 disabled:opacity-50",
   errorBanner: "rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-[var(--pf-down)]",
@@ -59,7 +59,7 @@ const PF = {
 };
 
 function goodBad(v: number | null | undefined): string {
-  if (v === null || v === undefined) return "text-slate-500";
+  if (v === null || v === undefined) return "text-slate-500 dark:text-slate-400";
   return v >= 0 ? "text-[var(--pf-up)]" : "text-[var(--pf-down)]";
 }
 
@@ -437,25 +437,25 @@ export default function PredictPage() {
   }
 
   return (
-    <div className={`${PF.page} text-slate-900`}>
+    <div className={`${PF.page} text-slate-900 dark:text-slate-50`}>
       <div className="mx-auto max-w-4xl px-4 py-8">
         <PortfolioMoversWidget />
         {searchParams.get("from") === "portfolio" && (
-          <Link href="/portfolio" className="mb-2 inline-block text-sm font-medium text-slate-500 hover:underline">
+          <Link href="/portfolio" className="mb-2 inline-block text-sm font-medium text-slate-500 dark:text-slate-400 hover:underline">
             ← Back to Portfolio
           </Link>
         )}
         <h1 className="font-display text-2xl font-semibold" style={DISPLAY_FONT}>
           Quant Price Forecast
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           A backtested quant forecast for one ticker, shown next to how often it has actually beaten doing
           nothing.
         </p>
 
-        <form onSubmit={runPrediction} className="mt-6 flex flex-wrap items-end gap-3 border-b border-slate-200 pb-6">
+        <form onSubmit={runPrediction} className="mt-6 flex flex-wrap items-end gap-3 border-b border-slate-200 dark:border-slate-700 pb-6">
           <div className="flex flex-col gap-1">
-            <label htmlFor="ticker" className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
+            <label htmlFor="ticker" className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500 dark:text-slate-400" style={MONO_FONT}>
               Ticker
             </label>
             <TickerSearchInput
@@ -467,14 +467,14 @@ export default function PredictPage() {
           </div>
           <CurrentPriceBadge ticker={ticker} refreshKey={priceRefreshKey} />
           <div className="flex flex-col gap-1">
-            <label htmlFor="period" className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
+            <label htmlFor="period" className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500 dark:text-slate-400" style={MONO_FONT}>
               Historical window
             </label>
             <select
               id="period"
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
-              className="rounded-md border border-[var(--pf-border)] bg-white px-3 py-2 text-sm"
+              className="rounded-md border border-[var(--pf-border)] bg-white dark:bg-slate-900 px-3 py-2 text-sm"
             >
               {PERIODS.map((p) => (
                 <option key={p.value} value={p.value}>
@@ -484,7 +484,7 @@ export default function PredictPage() {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <span id="days-ahead-label" className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
+            <span id="days-ahead-label" className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500 dark:text-slate-400" style={MONO_FONT}>
               Forecast horizon
             </span>
             <div
@@ -499,7 +499,7 @@ export default function PredictPage() {
                   aria-pressed={daysAhead === d}
                   onClick={() => setDaysAhead(d)}
                   className={`min-h-[38px] rounded px-2.5 text-sm ${
-                    daysAhead === d ? "bg-white font-semibold text-slate-900 shadow-sm" : "text-slate-500"
+                    daysAhead === d ? "bg-white dark:bg-slate-900 font-semibold text-slate-900 dark:text-slate-50 shadow-sm" : "text-slate-500 dark:text-slate-400"
                   }`}
                 >
                   {d}d
@@ -513,7 +513,7 @@ export default function PredictPage() {
         </form>
 
         {loading && (
-          <p className="mt-4 text-sm text-slate-500">
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
             Training the model and running a walk-forward backtest — this can take up to 20 seconds.
           </p>
         )}
@@ -538,16 +538,16 @@ export default function PredictPage() {
                   {data.ticker}
                 </span>
                 {data.last_close !== null && (
-                  <span className="text-xl text-slate-700" style={MONO_FONT}>
+                  <span className="text-xl text-slate-700 dark:text-slate-200" style={MONO_FONT}>
                     ${data.last_close.toFixed(2)}
                   </span>
                 )}
               </div>
               {data.warnings.includes("no_price_data") ? (
-                <p className="mt-1 text-sm text-slate-500">No price data was available for that ticker.</p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">No price data was available for that ticker.</p>
               ) : (
                 data.next_price !== null && (
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     Last close ${data.last_close?.toFixed(2)} → predicted next close{" "}
                     <span style={MONO_FONT}>${data.next_price.toFixed(2)}</span>
                   </p>
@@ -557,7 +557,7 @@ export default function PredictPage() {
               {data.signal && (
                 <>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3.5 py-1 text-[13px] font-bold text-slate-600">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3.5 py-1 text-[13px] font-bold text-slate-600 dark:text-slate-300">
                       {data.signal.signal} &middot; {shownDaysAhead}-day signal
                       <MetricLabel
                         info={getSignalInfo(shownDaysAhead)}
@@ -568,7 +568,7 @@ export default function PredictPage() {
                       />
                     </span>
                     {data.signal.signal_flip_count !== null && (
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${data.signal.signal_unstable ? PF.warnBadge : "bg-slate-100 text-slate-500"}`}>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${data.signal.signal_unstable ? PF.warnBadge : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
                         {data.signal.signal_flip_count === 0
                           ? `No signal flips in the last ${data.signal.signal_days_captured} days.`
                           : `Flipped ${data.signal.signal_flip_count} time${data.signal.signal_flip_count === 1 ? "" : "s"} over its trailing ${data.signal.signal_days_captured}-day history${data.signal.signal_unstable ? " — treat this call with less confidence." : "."}`}
@@ -581,16 +581,16 @@ export default function PredictPage() {
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-3">
-                    <div className="min-w-[150px] rounded-xl border border-[var(--pf-border)] bg-white px-4 py-3">
-                      <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
+                    <div className="min-w-[150px] rounded-xl border border-[var(--pf-border)] bg-white dark:bg-slate-900 px-4 py-3">
+                      <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500 dark:text-slate-400" style={MONO_FONT}>
                         Expected Return ({shownDaysAhead}d)
                       </p>
                       <p className={`mt-0.5 text-lg font-semibold ${goodBad(data.signal.expected_return_pct)}`} style={MONO_FONT}>
                         {data.signal.expected_return_pct.toFixed(2)}%
                       </p>
                     </div>
-                    <div className="min-w-[150px] rounded-xl border border-[var(--pf-border)] bg-white px-4 py-3">
-                      <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
+                    <div className="min-w-[150px] rounded-xl border border-[var(--pf-border)] bg-white dark:bg-slate-900 px-4 py-3">
+                      <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500 dark:text-slate-400" style={MONO_FONT}>
                         Target Price{targetDateStr ? ` (${new Date(targetDateStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })})` : ""}
                       </p>
                       <p className="mt-0.5 text-lg font-semibold" style={MONO_FONT}>
@@ -598,8 +598,8 @@ export default function PredictPage() {
                       </p>
                     </div>
                     {ciLow !== null && ciHigh !== null && (
-                      <div className="min-w-[150px] rounded-xl border border-[var(--pf-border)] bg-white px-4 py-3">
-                        <p className="flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-wide text-slate-500" style={MONO_FONT}>
+                      <div className="min-w-[150px] rounded-xl border border-[var(--pf-border)] bg-white dark:bg-slate-900 px-4 py-3">
+                        <p className="flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-wide text-slate-500 dark:text-slate-400" style={MONO_FONT}>
                           Likely Range (95%)
                           <MetricLabel
                             info={{
@@ -624,11 +624,11 @@ export default function PredictPage() {
                         <h3 className="text-sm font-semibold">Better than a simple guess?</h3>
                         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${edge.cls}`}>{edge.label}</span>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">{edge.text}</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{edge.text}</p>
                     </div>
                   )}
 
-                  <p className="mt-3 max-w-xl text-xs text-slate-500">
+                  <p className="mt-3 max-w-xl text-xs text-slate-500 dark:text-slate-400">
                     This is one data-driven signal, not a guarantee — see Backtest Accuracy below for how it has
                     historically performed against a simple no-change baseline.
                   </p>
@@ -637,7 +637,7 @@ export default function PredictPage() {
                     <button onClick={handleSave} disabled={saving} className={saving ? `${PF.btn} disabled:opacity-50` : PF.btnPrimary}>
                       {saving ? "Saving…" : "Save this prediction"}
                     </button>
-                    {saveMessage && <span className="text-xs text-slate-500">{saveMessage}</span>}
+                    {saveMessage && <span className="text-xs text-slate-500 dark:text-slate-400">{saveMessage}</span>}
                   </div>
                 </>
               )}
@@ -649,14 +649,14 @@ export default function PredictPage() {
                 <h2 className="text-lg font-semibold" style={DISPLAY_FONT}>
                   {shownDaysAhead}-Day Forecast
                 </h2>
-                <span className="text-xs text-slate-500">95% confidence interval</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">95% confidence interval</span>
               </div>
               {data.forecast ? (
                 <div className={`${PF.card} p-4`}>
                   <ForecastChart ticker={data.ticker} forecast={data.forecast} />
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">Not enough price history for a {shownDaysAhead}-day forecast.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Not enough price history for a {shownDaysAhead}-day forecast.</p>
               )}
             </div>
 
@@ -670,7 +670,7 @@ export default function PredictPage() {
                   <div className="p-4 pb-2">
                     <BacktestChart ticker={data.ticker} backtest={data.backtest} />
                   </div>
-                  <div className="grid grid-cols-1 gap-3 border-t border-slate-200 p-4 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 border-t border-slate-200 dark:border-slate-700 p-4 sm:grid-cols-3">
                     <MetricTile
                       label="RMSE"
                       value={data.metrics.rmse.toFixed(2)}
@@ -689,8 +689,8 @@ export default function PredictPage() {
                   </div>
 
                   {data.metrics.naive_rmse !== null && data.metrics.naive_rmse !== undefined && (
-                    <div className="border-t border-slate-200 p-4">
-                      <p className="mb-2 text-xs text-slate-500">
+                    <div className="border-t border-slate-200 dark:border-slate-700 p-4">
+                      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
                         Naive baseline = predicting no price change (tomorrow&apos;s price = today&apos;s close).
                         Delta shown as model minus naive, so negative is better.
                       </p>
@@ -722,7 +722,7 @@ export default function PredictPage() {
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">Not enough price history for a walk-forward backtest.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Not enough price history for a walk-forward backtest.</p>
               )}
             </div>
 
@@ -735,7 +735,7 @@ export default function PredictPage() {
                 <h2 className="text-lg font-semibold" style={DISPLAY_FONT}>
                   More
                 </h2>
-                <span className="text-xs text-slate-500">Click to open</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">Click to open</span>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -747,7 +747,7 @@ export default function PredictPage() {
                   onToggle={() => toggleSection("history")}
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
                       Different from the backtest above, which is a historical simulation, not a live record.
                     </p>
                     {history.length > 0 && (
@@ -757,14 +757,14 @@ export default function PredictPage() {
                     )}
                   </div>
                   {historyLoading ? (
-                    <p className="mt-3 text-sm text-slate-500">Loading history…</p>
+                    <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Loading history…</p>
                   ) : history.length === 0 ? (
-                    <p className="mt-3 text-sm text-slate-500">No saved predictions for {data.ticker} yet.</p>
+                    <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">No saved predictions for {data.ticker} yet.</p>
                   ) : (
                     <div className="mt-3 overflow-x-auto">
                       <table className="min-w-full text-sm">
                         <thead>
-                          <tr className="border-b border-slate-200 text-left font-mono text-[10.5px] font-medium uppercase tracking-wide text-slate-500">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 text-left font-mono text-[10.5px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                             <th className="px-2 py-2">Saved</th>
                             <th className="px-2 py-2">Last Close</th>
                             <th className="px-2 py-2">Predicted Next Close</th>
@@ -782,39 +782,39 @@ export default function PredictPage() {
                         </thead>
                         <tbody>
                           {(showAllHistory ? history : history.slice(0, HISTORY_PREVIEW_ROWS)).map((p) => (
-                            <tr key={p.id} className="border-b border-slate-200 last:border-0">
-                              <td className="px-2 py-2 text-slate-700">{new Date(p.predicted_at).toLocaleDateString()}</td>
-                              <td className="px-2 py-2 text-slate-700">
+                            <tr key={p.id} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{new Date(p.predicted_at).toLocaleDateString()}</td>
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                 {p.last_close !== null ? `$${p.last_close.toFixed(2)}` : "—"}
                               </td>
-                              <td className="px-2 py-2 text-slate-700">
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                 {p.next_price !== null ? `$${p.next_price.toFixed(2)}` : "—"}
                               </td>
-                              <td className="px-2 py-2 text-slate-700">
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                 {p.actual_next_price !== null ? `$${p.actual_next_price.toFixed(2)}` : "pending"}
                               </td>
-                              <td className="px-2 py-2 text-slate-700">
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                 {p.next_price_error_pct !== null ? `${p.next_price_error_pct.toFixed(2)}%` : "—"}
                               </td>
-                              <td className="px-2 py-2 text-slate-700">
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                 {p.target_date ? new Date(p.target_date).toLocaleDateString() : "—"}
                               </td>
-                              <td className="px-2 py-2 text-slate-700">
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                 {p.target_price !== null ? `$${p.target_price.toFixed(2)}` : "—"}
                               </td>
-                              <td className="px-2 py-2 text-slate-700">
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                 {p.actual_target_open !== null ? `$${p.actual_target_open.toFixed(2)}` : "pending"}
                               </td>
-                              <td className="px-2 py-2 text-slate-700">
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                 {p.actual_target_price !== null ? `$${p.actual_target_price.toFixed(2)}` : "pending"}
                               </td>
-                              <td className="px-2 py-2 text-slate-700">
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                 {p.target_price_error_pct !== null ? `${p.target_price_error_pct.toFixed(2)}%` : "—"}
                               </td>
-                              <td className="px-2 py-2 text-slate-700">{p.signal ?? "—"}</td>
+                              <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{p.signal ?? "—"}</td>
                               <td className="px-2 py-2">
                                 {p.signal_correct === null ? (
-                                  <span className="text-slate-400">pending</span>
+                                  <span className="text-slate-400 dark:text-slate-500">pending</span>
                                 ) : p.signal_correct ? (
                                   <span className="text-[var(--pf-up)]">✓ correct</span>
                                 ) : (
@@ -855,7 +855,7 @@ export default function PredictPage() {
                   onToggle={() => toggleSection("ai-context")}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="max-w-xl text-sm text-slate-500">
+                    <p className="max-w-xl text-sm text-slate-500 dark:text-slate-400">
                       Including calling out what might explain a big pre/post-market move, and flagging whether
                       they agree. This does not change the numbers above or below — it&apos;s a separate,
                       on-demand read generated fresh each time you ask.
@@ -864,7 +864,7 @@ export default function PredictPage() {
                       <select
                         value={provider}
                         onChange={(e) => setProvider(e.target.value)}
-                        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
+                        className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs"
                       >
                         {providers.map((p) => (
                           <option key={p} value={p}>
@@ -886,12 +886,12 @@ export default function PredictPage() {
 
                   {narrative && !narrativeLoading && (
                     <div className="mt-4 flex flex-col gap-3">
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-900">{narrative.narrative}</p>
-                      <details className="text-xs text-slate-700" open>
-                        <summary className="cursor-pointer font-medium text-slate-900">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-900 dark:text-slate-50">{narrative.narrative}</p>
+                      <details className="text-xs text-slate-700 dark:text-slate-200" open>
+                        <summary className="cursor-pointer font-medium text-slate-900 dark:text-slate-50">
                           Recent News &amp; Earnings Context ({narrative.provider})
                         </summary>
-                        <p className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-md bg-slate-50 p-3">
+                        <p className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-md bg-slate-50 dark:bg-slate-800 p-3">
                           {narrative.sentiment_context}
                         </p>
                         {narrative.sentiment_sources && narrative.sentiment_sources.length > 0 && (
@@ -910,23 +910,23 @@ export default function PredictPage() {
                         <button onClick={handleSaveNarrative} disabled={savingNarrative} className={`${PF.btn} disabled:opacity-50`}>
                           {savingNarrative ? "Saving…" : "Save this context"}
                         </button>
-                        {saveNarrativeMessage && <span className="text-xs text-slate-500">{saveNarrativeMessage}</span>}
+                        {saveNarrativeMessage && <span className="text-xs text-slate-500 dark:text-slate-400">{saveNarrativeMessage}</span>}
                       </div>
                     </div>
                   )}
 
                   {(narrativeHistoryLoading || narrativeHistory.length > 0) && (
-                    <div className="mt-4 border-t border-slate-200 pt-4">
-                      <h4 className="font-mono text-[10.5px] font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="mt-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+                      <h4 className="font-mono text-[10.5px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                         Saved Contexts for {data.ticker}
                       </h4>
                       {narrativeHistoryLoading ? (
-                        <p className="mt-2 text-sm text-slate-500">Loading saved contexts…</p>
+                        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Loading saved contexts…</p>
                       ) : (
                         <div className="mt-2 flex flex-col gap-2">
                           {narrativeHistory.map((n) => (
-                            <div key={n.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
-                              <span className="text-slate-700">
+                            <div key={n.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm">
+                              <span className="text-slate-700 dark:text-slate-200">
                                 {new Date(n.saved_at).toLocaleString()} &middot; {n.provider}
                               </span>
                               <span className="flex items-center gap-2">
@@ -954,22 +954,22 @@ export default function PredictPage() {
                         if (!saved) return null;
                         return (
                           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                              <p className="text-xs font-semibold text-slate-500">
+                            <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
+                              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                                 Saved {new Date(saved.saved_at).toLocaleString()} &middot; {saved.provider}
                               </p>
-                              <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap text-slate-900">
+                              <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap text-slate-900 dark:text-slate-50">
                                 {saved.narrative}
                               </p>
                             </div>
-                            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                              <p className="text-xs font-semibold text-slate-500">Current</p>
+                            <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
+                              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Current</p>
                               {narrative ? (
-                                <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap text-slate-900">
+                                <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap text-slate-900 dark:text-slate-50">
                                   {narrative.narrative}
                                 </p>
                               ) : (
-                                <p className="mt-2 text-sm text-slate-400">
+                                <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">
                                   Click &quot;Get AI Context&quot; above to generate a new one to compare.
                                 </p>
                               )}
@@ -988,19 +988,19 @@ export default function PredictPage() {
                   open={openSections.has("compare")}
                   onToggle={() => toggleSection("compare")}
                 >
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     Same {period} window and {shownDaysAhead}-day horizon, 30d/90% band.
                   </p>
                   <form onSubmit={addCompareTicker} className="mt-3 flex items-end gap-2">
                     <div className="flex flex-col gap-1">
-                      <label htmlFor="compare-ticker" className="text-xs font-medium text-slate-500">
+                      <label htmlFor="compare-ticker" className="text-xs font-medium text-slate-500 dark:text-slate-400">
                         Add ticker
                       </label>
                       <TickerSearchInput
                         id="compare-ticker"
                         value={compareInput}
                         onChange={setCompareInput}
-                        className="w-40 rounded-md border border-slate-200 px-3 py-2 text-sm"
+                        className="w-40 rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm"
                       />
                     </div>
                     <button type="submit" disabled={!compareInput.trim()} className={`${PF.btn} disabled:opacity-50`}>
@@ -1012,7 +1012,7 @@ export default function PredictPage() {
                     <div className="mt-4 overflow-x-auto">
                       <table className="min-w-full text-sm">
                         <thead>
-                          <tr className="border-b border-slate-200 text-left font-mono text-[10.5px] font-medium uppercase tracking-wide text-slate-500">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 text-left font-mono text-[10.5px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                             <th className="px-2 py-2">Ticker</th>
                             <th className="px-2 py-2">Last Close</th>
                             <th className="px-2 py-2">Predicted Next Close</th>
@@ -1025,25 +1025,25 @@ export default function PredictPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="border-b border-slate-200 bg-slate-50">
-                            <td className="px-2 py-2 font-medium text-slate-900">{data.ticker}</td>
-                            <td className="px-2 py-2 text-slate-700">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                            <td className="px-2 py-2 font-medium text-slate-900 dark:text-slate-50">{data.ticker}</td>
+                            <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                               {data.last_close !== null ? `$${data.last_close.toFixed(2)}` : "—"}
                             </td>
-                            <td className="px-2 py-2 text-slate-700">
+                            <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                               {data.next_price !== null ? `$${data.next_price.toFixed(2)}` : "—"}
                             </td>
-                            <td className="px-2 py-2 text-slate-700">{data.signal?.signal ?? "—"}</td>
-                            <td className="px-2 py-2 text-slate-700">
+                            <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{data.signal?.signal ?? "—"}</td>
+                            <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                               {data.signal ? `${data.signal.expected_return_pct.toFixed(2)}%` : "—"}
                             </td>
-                            <td className="px-2 py-2 text-slate-700">
+                            <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                               {data.signal ? `$${data.signal.target_price.toFixed(2)}` : "—"}
                             </td>
-                            <td className="px-2 py-2 text-slate-700">
+                            <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                               {primaryBand ? `$${primaryBand.floor.toFixed(2)}` : "—"}
                             </td>
-                            <td className="px-2 py-2 text-slate-700">
+                            <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                               {primaryBand ? `$${primaryBand.ceiling.toFixed(2)}` : "—"}
                             </td>
                             <td className="px-2 py-2"></td>
@@ -1051,10 +1051,10 @@ export default function PredictPage() {
                           {compareTickers.map((t) => {
                             const row = compareData[t];
                             return (
-                              <tr key={t} className="border-b border-slate-200 last:border-0">
-                                <td className="px-2 py-2 font-medium text-slate-900">{t}</td>
+                              <tr key={t} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
+                                <td className="px-2 py-2 font-medium text-slate-900 dark:text-slate-50">{t}</td>
                                 {row?.loading ? (
-                                  <td className="px-2 py-2 text-slate-400" colSpan={7}>
+                                  <td className="px-2 py-2 text-slate-400 dark:text-slate-500" colSpan={7}>
                                     Loading…
                                   </td>
                                 ) : row?.error ? (
@@ -1063,23 +1063,23 @@ export default function PredictPage() {
                                   </td>
                                 ) : (
                                   <>
-                                    <td className="px-2 py-2 text-slate-700">
+                                    <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                       {row?.summary?.last_close != null ? `$${row.summary.last_close.toFixed(2)}` : "—"}
                                     </td>
-                                    <td className="px-2 py-2 text-slate-700">
+                                    <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                       {row?.summary?.next_price != null ? `$${row.summary.next_price.toFixed(2)}` : "—"}
                                     </td>
-                                    <td className="px-2 py-2 text-slate-700">{row?.summary?.signal?.signal ?? "—"}</td>
-                                    <td className="px-2 py-2 text-slate-700">
+                                    <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{row?.summary?.signal?.signal ?? "—"}</td>
+                                    <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                       {row?.summary?.signal ? `${row.summary.signal.expected_return_pct.toFixed(2)}%` : "—"}
                                     </td>
-                                    <td className="px-2 py-2 text-slate-700">
+                                    <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                       {row?.summary?.signal ? `$${row.summary.signal.target_price.toFixed(2)}` : "—"}
                                     </td>
-                                    <td className="px-2 py-2 text-slate-700">
+                                    <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                       {row?.band ? `$${row.band.floor.toFixed(2)}` : "—"}
                                     </td>
-                                    <td className="px-2 py-2 text-slate-700">
+                                    <td className="px-2 py-2 text-slate-700 dark:text-slate-200">
                                       {row?.band ? `$${row.band.ceiling.toFixed(2)}` : "—"}
                                     </td>
                                   </>
@@ -1105,7 +1105,7 @@ export default function PredictPage() {
                   open={openSections.has("activity")}
                   onToggle={() => toggleSection("activity")}
                 >
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     Company insiders (officers and directors, from SEC filings) and institutional &quot;outsider&quot;
                     holders (funds and firms with 13F filings).
                   </p>
@@ -1133,11 +1133,11 @@ export default function PredictPage() {
                       </div>
 
                       <div>
-                        <p className="font-mono text-[10.5px] font-medium uppercase tracking-wide text-slate-500">
+                        <p className="font-mono text-[10.5px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           Insiders — {activity.insider_period}
                         </p>
                         {activity.insider_buys === null && activity.insider_sells === null ? (
-                          <p className="mt-1 text-sm text-slate-400">
+                          <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
                             No insider filing data available for this ticker (common for ETFs/funds — there&apos;s no
                             officer or director to file as an insider).
                           </p>
@@ -1150,12 +1150,12 @@ export default function PredictPage() {
                       </div>
 
                       <div>
-                        <p className="font-mono text-[10.5px] font-medium uppercase tracking-wide text-slate-500">
+                        <p className="font-mono text-[10.5px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           Institutional (&quot;Outsider&quot;) Holders
                           {activity.institutional_as_of && ` — as of ${activity.institutional_as_of.slice(0, 10)}`}
                         </p>
                         {activity.institutional_increased === null && activity.institutional_decreased === null ? (
-                          <p className="mt-1 text-sm text-slate-400">No institutional holder data available for this ticker.</p>
+                          <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">No institutional holder data available for this ticker.</p>
                         ) : (
                           <>
                             <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1163,7 +1163,7 @@ export default function PredictPage() {
                               <MetricTile label="Decreased Position" value={String(activity.institutional_decreased ?? "—")} />
                               <MetricTile label="Unchanged" value={String(activity.institutional_unchanged ?? "—")} />
                             </div>
-                            <p className="mt-2 text-xs text-slate-500">
+                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                               Among the top {activity.institutional_holder_count} reported holders, by their most
                               recently filed position change — not the same as buy/sell transaction counts.
                             </p>
@@ -1181,11 +1181,11 @@ export default function PredictPage() {
                   open={openSections.has("how-to-read")}
                   onToggle={() => toggleSection("how-to-read")}
                 >
-                  <p className="text-sm text-slate-700">
+                  <p className="text-sm text-slate-700 dark:text-slate-200">
                     The forecast comes from a gradient-boosted model trained on this ticker&apos;s own recent RSI,
                     MACD, Bollinger position, and lagged returns — not on news, filings, or sentiment.
                   </p>
-                  <p className="mt-2 text-sm text-slate-700">
+                  <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">
                     The naive baseline is simply &quot;assume tomorrow&apos;s price equals today&apos;s close.&quot;
                     Backtesting across several tickers showed the model&apos;s raw predicted move is noisy enough
                     that it loses to that baseline most of the time — so the forecast shown here is deliberately
@@ -1193,7 +1193,7 @@ export default function PredictPage() {
                     cuts down on overconfident BUY/SELL calls. The metrics above are the actual, current test for
                     this ticker, not a marketing claim.
                   </p>
-                  <p className="mt-2 text-sm text-slate-700">
+                  <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">
                     The optional &quot;AI Context&quot; section above is separate from all of this: it reads today&apos;s
                     news/sentiment and restates the forecast in plain English, but it does not feed back into the
                     model, the forecast, or the backtest numbers on this page.
@@ -1212,11 +1212,11 @@ export default function PredictPage() {
 
 function MetricTile({ label, value, extraBody }: { label: string; value: string; extraBody?: string[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <p className="flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-wide text-slate-500">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+      <p className="flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
         <MetricLabel extraBody={extraBody}>{label}</MetricLabel>
       </p>
-      <p className="mt-1 text-xl font-semibold text-slate-900" style={MONO_FONT}>
+      <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-50" style={MONO_FONT}>
         {value}
       </p>
     </div>
@@ -1226,9 +1226,9 @@ function MetricTile({ label, value, extraBody }: { label: string; value: string;
 function DeltaTile({ label, value, delta }: { label: string; value: string; delta: number }) {
   const worse = delta > 0; // model minus naive; positive means model's error is larger
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold text-slate-900" style={MONO_FONT}>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+      <p className="font-mono text-[10.5px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-50" style={MONO_FONT}>
         {value}
       </p>
       <p className={`mt-0.5 text-xs font-medium ${worse ? "text-[var(--pf-down)]" : "text-[var(--pf-up)]"}`} style={MONO_FONT}>
@@ -1263,8 +1263,8 @@ function AccordionItem({
         className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left"
       >
         <div>
-          <div className="text-sm font-semibold text-slate-900">{title}</div>
-          <div className="mt-0.5 text-xs text-slate-500">{desc}</div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{title}</div>
+          <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{desc}</div>
         </div>
         <svg
           viewBox="0 0 24 24"

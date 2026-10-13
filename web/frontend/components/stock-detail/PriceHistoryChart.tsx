@@ -720,16 +720,16 @@ export default function PriceHistoryChart({
   const showNotes = !isDaily || active.size > 0 || subPanels.length > 0 || compare;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-900">{ticker} Price</h3>
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">{ticker} Price</h3>
         <div className="flex flex-wrap gap-1">
           {RANGES.map((r) => (
             <button
               key={r}
               onClick={() => onRangeChange(r)}
               className={`rounded-md px-2 py-1 text-xs font-medium ${
-                r === range ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
+                r === range ? "bg-slate-900 text-white" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
               }`}
             >
               {r}
@@ -739,7 +739,7 @@ export default function PriceHistoryChart({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
-        <span className="mr-1 text-slate-500">Bars:</span>
+        <span className="mr-1 text-slate-500 dark:text-slate-400">Bars:</span>
         {BAR_SIZES.map((b) => {
           const selected = (b.key ?? null) === (interval ?? null);
           // Day, week and month bars need a range longer than 1D.
@@ -751,7 +751,7 @@ export default function PriceHistoryChart({
               disabled={disabled || !onIntervalChange}
               onClick={() => onIntervalChange?.(b.key)}
               className={`rounded-md px-2 py-1 font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
-                selected ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
+                selected ? "bg-slate-900 text-white" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
               }`}
             >
               {b.label}
@@ -760,7 +760,7 @@ export default function PriceHistoryChart({
         })}
       </div>
       {isIntraday && (
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
           Intraday bars cover the last 7 days (1 min), 60 days (5 and 15 min) or 2 years (1 hour). Longer than that is not
           available from the data source.
         </p>
@@ -776,7 +776,7 @@ export default function PriceHistoryChart({
             className={`rounded-md border px-2 py-1 font-medium disabled:opacity-40 ${
               chartType === c.key && !compareActive
                 ? "border-slate-900 bg-slate-900 text-white"
-                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             }`}
           >
             {c.label}
@@ -789,7 +789,7 @@ export default function PriceHistoryChart({
           aria-pressed={logScale}
           disabled={compareActive}
           className={`rounded-md border px-2 py-1 font-medium disabled:opacity-40 ${
-            logScale ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            logScale ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           Log scale
@@ -800,7 +800,7 @@ export default function PriceHistoryChart({
           aria-pressed={compare}
           disabled={!isDaily}
           className={`rounded-md border px-2 py-1 font-medium disabled:opacity-40 ${
-            compare ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            compare ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           Compare SPY{sectorEtf ? ` and ${sectorEtf}` : ""}
@@ -816,7 +816,7 @@ export default function PriceHistoryChart({
             addExtraTickers();
           }}
         >
-          <label htmlFor="compare-extra" className="text-slate-500">
+          <label htmlFor="compare-extra" className="text-slate-500 dark:text-slate-400">
             Add up to 3 tickers to compare:
           </label>
           <input
@@ -826,7 +826,7 @@ export default function PriceHistoryChart({
             placeholder="e.g. MSFT, NVDA"
             className="input w-44 py-1 text-xs"
           />
-          <button type="submit" className="rounded-md border border-slate-200 px-2 py-1 font-medium text-slate-600 hover:bg-slate-50">
+          <button type="submit" className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
             Add
           </button>
           {extraTickers.length > 0 && (
@@ -836,7 +836,7 @@ export default function PriceHistoryChart({
                 setExtraInput("");
                 setExtraTickers([]);
               }}
-              className="text-slate-500 underline-offset-2 hover:underline"
+              className="text-slate-500 dark:text-slate-400 underline-offset-2 hover:underline"
             >
               Clear extra tickers
             </button>
@@ -853,7 +853,7 @@ export default function PriceHistoryChart({
               aria-pressed={active.has(o.key)}
               disabled={!indicators || compareActive}
               className={`rounded-full border px-2 py-0.5 disabled:opacity-40 ${
-                active.has(o.key) ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                active.has(o.key) ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
               }`}
             >
               {o.label}
@@ -868,7 +868,7 @@ export default function PriceHistoryChart({
               aria-pressed={active.has(p.key)}
               disabled={compareActive || (p.key === "volume" ? !hasVolume : !indicators)}
               className={`rounded-full border px-2 py-0.5 disabled:opacity-40 ${
-                active.has(p.key) ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                active.has(p.key) ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
               }`}
             >
               {p.label}
@@ -883,7 +883,7 @@ export default function PriceHistoryChart({
               aria-pressed={showScore}
               disabled={compareActive}
               className={`rounded-full border px-2 py-0.5 disabled:opacity-40 ${
-                showScore ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                showScore ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
               }`}
             >
               Score history
@@ -896,7 +896,7 @@ export default function PriceHistoryChart({
             aria-pressed={shadeRegimes}
             disabled={!isDaily || !regimeHistory?.available || compareActive}
             className={`rounded-full border px-2 py-0.5 disabled:opacity-40 ${
-              shadeRegimes ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+              shadeRegimes ? "border-[var(--pf-accent)] bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
             }`}
           >
             Regime shading
@@ -906,8 +906,8 @@ export default function PriceHistoryChart({
       )}
 
       {drawingsActive && (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs">
-          <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Draw</span>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-2 text-xs">
+          <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Draw</span>
           {DRAW_TOOLS.map((t) => {
             const selected = drawTool === t.key;
             return (
@@ -919,7 +919,7 @@ export default function PriceHistoryChart({
                 className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-medium transition-colors ${
                   selected
                     ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white shadow-sm"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-100"
+                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
                 <span aria-hidden="true" className="w-3 text-center">{TOOL_ICON[t.key]}</span>
@@ -928,7 +928,7 @@ export default function PriceHistoryChart({
             );
           })}
           {drawTool && (
-            <button type="button" onClick={() => chooseTool(null)} className="rounded-md px-2 py-1 text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline">
+            <button type="button" onClick={() => chooseTool(null)} className="rounded-md px-2 py-1 text-slate-500 dark:text-slate-400 underline-offset-2 hover:text-slate-800 dark:hover:text-slate-100 hover:underline">
               Cancel
             </button>
           )}
@@ -936,7 +936,7 @@ export default function PriceHistoryChart({
             type="button"
             onClick={handleClearDrawings}
             disabled={drawings.length === 0}
-            className="ml-auto rounded-md px-2 py-1 text-slate-500 hover:bg-white hover:text-red-700 disabled:opacity-40"
+            className="ml-auto rounded-md px-2 py-1 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:text-red-700 disabled:opacity-40"
           >
             Clear all
           </button>
@@ -955,19 +955,19 @@ export default function PriceHistoryChart({
       )}
       {drawingsActive && drawings.length > 0 && (
         <div className="mt-2">
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Your drawings ({drawings.length})</p>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Your drawings ({drawings.length})</p>
           <ul className="flex flex-wrap gap-1.5 text-xs">
             {drawings.map((d) => (
               <li
                 key={d.id}
-                className="flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white py-1 pl-2.5 pr-1 text-slate-700 shadow-sm"
+                className="flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-1 pl-2.5 pr-1 text-slate-700 dark:text-slate-200 shadow-sm"
               >
                 <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${KIND_DOT[d.kind]}`} />
                 <span className="truncate">{describeDrawing(d)}</span>
                 <button
                   type="button"
                   onClick={() => handleDeleteDrawing(d.id)}
-                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-red-50 hover:text-red-700"
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-slate-400 dark:text-slate-500 hover:bg-red-50 hover:text-red-700"
                   aria-label={`Delete ${describeDrawing(d)}`}
                 >
                   ×
@@ -978,11 +978,11 @@ export default function PriceHistoryChart({
         </div>
       )}
 
-      {loading && <p className="mt-4 text-sm text-slate-500">Loading…</p>}
+      {loading && <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
       {!loading && data && data.history.length === 0 && (
-        <p className="mt-4 text-sm text-slate-400">No price history available for {ticker}.</p>
+        <p className="mt-4 text-sm text-slate-400 dark:text-slate-500">No price history available for {ticker}.</p>
       )}
-      {compareWaiting && !loading && <p className="mt-4 text-sm text-slate-500">Loading comparison…</p>}
+      {compareWaiting && !loading && <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Loading comparison…</p>}
       {!loading && data && data.history.length > 0 && !compareWaiting && (
         <>
           {rangeSummary && <p className="sr-only">{rangeSummary}</p>}
@@ -1021,13 +1021,13 @@ export default function PriceHistoryChart({
       )}
 
       {!loading && compareSeries && compareSeries.dates.length === 0 && (
-        <p className="mt-2 text-xs text-slate-400">No shared dates between {ticker}, SPY and the sector ETF for this range.</p>
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">No shared dates between {ticker}, SPY and the sector ETF for this range.</p>
       )}
       {!loading && fallbackToLine && (
-        <p className="mt-2 text-xs text-slate-400">No open, high or low prices for this range, so the chart shows the close line.</p>
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">No open, high or low prices for this range, so the chart shows the close line.</p>
       )}
       {showNotes && (
-        <div className="mt-2 space-y-1 text-xs text-slate-400">
+        <div className="mt-2 space-y-1 text-xs text-slate-400 dark:text-slate-500">
           {!isDaily && <p>Indicators, signal markers, score history and comparison are available on the daily ranges.</p>}
           {isDaily && (active.size > 0 || subPanels.length > 0) && !compareActive && (
             <p>Indicators are calculated over the bars shown, so long averages stay blank until enough bars exist.</p>
@@ -1067,22 +1067,22 @@ function SignalDetail({
       ? rows.map((r) => `${FACTOR_NAMES[r.factor] ?? r.factor} ${r.contribution > 0 ? "+" : ""}${r.contribution.toFixed(1)}`).join(", ")
       : "None recorded";
   return (
-    <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm">
+    <div className="mt-4 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4 text-sm">
       <div className="flex items-start justify-between gap-3">
-        <p className="font-semibold text-slate-900">
+        <p className="font-semibold text-slate-900 dark:text-slate-50">
           Short-term {signal.short_signal} on {signal.as_of_date}
         </p>
-        <button onClick={onClose} className="text-xs text-slate-500 hover:text-slate-800">
+        <button onClick={onClose} className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100">
           Close
         </button>
       </div>
-      <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-slate-700 sm:grid-cols-2">
+      <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-slate-700 dark:text-slate-200 sm:grid-cols-2">
         <div>
-          <dt className="text-slate-400">Score that day</dt>
+          <dt className="text-slate-400 dark:text-slate-500">Score that day</dt>
           <dd>{signal.short_score?.toFixed(1) ?? "n/a"}</dd>
         </div>
         <div>
-          <dt className="text-slate-400">Confidence</dt>
+          <dt className="text-slate-400 dark:text-slate-500">Confidence</dt>
           <dd>
             {signal.short_confidence
               ? `${signal.short_confidence.label}${signal.short_confidence.score !== null ? ` (${signal.short_confidence.score.toFixed(0)})` : ""}`
@@ -1090,15 +1090,15 @@ function SignalDetail({
           </dd>
         </div>
         <div>
-          <dt className="text-slate-400">Top drivers</dt>
+          <dt className="text-slate-400 dark:text-slate-500">Top drivers</dt>
           <dd>{reasonRows(reasons?.drivers)}</dd>
         </div>
         <div>
-          <dt className="text-slate-400">Top drags</dt>
+          <dt className="text-slate-400 dark:text-slate-500">Top drags</dt>
           <dd>{reasonRows(reasons?.drags)}</dd>
         </div>
         <div className="sm:col-span-2">
-          <dt className="text-slate-400">What happened</dt>
+          <dt className="text-slate-400 dark:text-slate-500">What happened</dt>
           <dd>{outcome}</dd>
         </div>
       </dl>

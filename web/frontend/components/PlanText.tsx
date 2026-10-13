@@ -7,14 +7,14 @@ function renderInline(text: string, keyPrefix: string) {
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return (
-        <strong key={`${keyPrefix}-${i}`} className="font-semibold text-slate-900">
+        <strong key={`${keyPrefix}-${i}`} className="font-semibold text-slate-900 dark:text-slate-50">
           {part.slice(2, -2)}
         </strong>
       );
     }
     if (part.startsWith("`") && part.endsWith("`")) {
       return (
-        <code key={`${keyPrefix}-${i}`} className="rounded bg-slate-200/70 px-1 py-0.5 font-mono text-xs text-slate-800">
+        <code key={`${keyPrefix}-${i}`} className="rounded bg-slate-200 dark:bg-slate-700/70 px-1 py-0.5 font-mono text-xs text-slate-800 dark:text-slate-100">
           {part.slice(1, -1)}
         </code>
       );
@@ -35,7 +35,7 @@ export default function PlanText({ text }: { text: string }) {
         const isTitleOnly = lines.length === 1 && /^\*\*.+\*\*$/.test(lines[0]);
         if (isTitleOnly) {
           return (
-            <h4 key={bi} className="text-sm font-semibold text-slate-900">
+            <h4 key={bi} className="text-sm font-semibold text-slate-900 dark:text-slate-50">
               {lines[0].slice(2, -2)}
             </h4>
           );
@@ -44,7 +44,7 @@ export default function PlanText({ text }: { text: string }) {
         const isList = lines.every((l) => l.startsWith("- "));
         if (isList) {
           return (
-            <ul key={bi} className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
+            <ul key={bi} className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
               {lines.map((l, li) => (
                 <li key={li}>{renderInline(l.replace(/^- /, ""), `${bi}-${li}`)}</li>
               ))}
@@ -53,7 +53,7 @@ export default function PlanText({ text }: { text: string }) {
         }
 
         return (
-          <p key={bi} className="text-sm leading-relaxed text-slate-700">
+          <p key={bi} className="text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             {renderInline(lines.join(" "), `${bi}`)}
           </p>
         );

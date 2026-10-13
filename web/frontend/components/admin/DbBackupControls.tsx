@@ -108,11 +108,11 @@ export default function DbBackupControls() {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Database Backups (NFR-03)</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">Database Backups (NFR-03)</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Nightly backup of the published record and PIT store ({backupTables.join(", ") || "…"}) to S3, with a
             free structural-integrity check on every run. A real restore-into-a-throwaway-database test — the
             actual "restore-tested" requirement — runs automatically every quarter, or on demand below.
@@ -121,7 +121,7 @@ export default function DbBackupControls() {
         {enabled !== null && (
           <span
             className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
             {enabled ? "Backing up" : "Paused"}
@@ -146,14 +146,14 @@ export default function DbBackupControls() {
         <button
           onClick={handleBackupNow}
           disabled={backingUp}
-          className="rounded-md border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+          className="rounded-md border border-emerald-300 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
         >
           {backingUp ? "Backing up…" : "Backup Now"}
         </button>
         <button
           onClick={handleRestoreTest}
           disabled={restoring}
-          className="rounded-md border border-[var(--pf-accent)]/40 bg-white px-4 py-2 text-sm font-medium text-[var(--pf-accent)] hover:bg-[var(--pf-accent-soft)] disabled:opacity-50"
+          className="rounded-md border border-[var(--pf-accent)]/40 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-[var(--pf-accent)] hover:bg-[var(--pf-accent-soft)] disabled:opacity-50"
         >
           {restoring ? "Restoring…" : "Run Restore Test"}
         </button>
@@ -165,10 +165,10 @@ export default function DbBackupControls() {
       {restoreError && <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{restoreError}</p>}
 
       {runs && runs.length > 0 && (
-        <div className="mt-4 overflow-x-auto rounded-md border border-slate-200">
+        <div className="mt-4 overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
           <table className="min-w-full text-xs">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <th className="px-2 py-1.5">Started</th>
                 <th className="px-2 py-1.5">Size</th>
                 <th className="px-2 py-1.5">Structural check</th>
@@ -177,9 +177,9 @@ export default function DbBackupControls() {
             </thead>
             <tbody>
               {runs.map((run) => (
-                <tr key={run.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-2 py-1.5 text-slate-600">{new Date(run.started_at_utc).toLocaleString()}</td>
-                  <td className="px-2 py-1.5 text-slate-600">{formatBytes(run.size_bytes)}</td>
+                <tr key={run.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                  <td className="px-2 py-1.5 text-slate-600 dark:text-slate-300">{new Date(run.started_at_utc).toLocaleString()}</td>
+                  <td className="px-2 py-1.5 text-slate-600 dark:text-slate-300">{formatBytes(run.size_bytes)}</td>
                   <td className="px-2 py-1.5">
                     {run.error ? (
                       <span className="text-red-600" title={run.error}>Failed</span>
@@ -191,7 +191,7 @@ export default function DbBackupControls() {
                   </td>
                   <td className="px-2 py-1.5">
                     {!run.restore_test_run ? (
-                      <span className="text-slate-400">Not tested</span>
+                      <span className="text-slate-400 dark:text-slate-500">Not tested</span>
                     ) : run.restore_test_passed ? (
                       <span className="text-emerald-600">Passed</span>
                     ) : (

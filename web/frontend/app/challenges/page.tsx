@@ -150,8 +150,8 @@ export default function ChallengesPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-slate-900">Challenges</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Challenges</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Compete with friends using your paper-trading account. Leaderboards show both return and risk, not just
             who&apos;s up the most.{" "}
             <Link href="/portfolio/paper-trading" className="text-[var(--pf-accent)] hover:underline">
@@ -160,7 +160,7 @@ export default function ChallengesPage() {
             first if you haven&apos;t.
           </p>
         </div>
-        <Link href="/portfolio" className="text-sm font-medium text-slate-600 hover:underline">
+        <Link href="/portfolio" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
           ← Back to Portfolio
         </Link>
       </div>
@@ -168,10 +168,10 @@ export default function ChallengesPage() {
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {note && <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{note}</p>}
 
-      <div className="mt-4 flex items-center justify-between gap-3 rounded-md bg-slate-50 px-4 py-3">
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-md bg-slate-50 dark:bg-slate-800 px-4 py-3">
         <div>
-          <p className="text-sm font-medium text-slate-900">Discoverable to connect with the community</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-sm font-medium text-slate-900 dark:text-slate-50">Discoverable to connect with the community</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             When on, other members can find and invite you to their challenges.
           </p>
         </div>
@@ -179,7 +179,7 @@ export default function ChallengesPage() {
           onClick={handleToggleDiscoverable}
           disabled={discoverable === null || togglingDiscoverable}
           className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50 ${
-            discoverable ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"
+            discoverable ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
           }`}
         >
           {togglingDiscoverable ? "Updating…" : discoverable ? "On" : "Off"}
@@ -188,13 +188,13 @@ export default function ChallengesPage() {
 
       {invites.length > 0 && (
         <div className="mt-4 flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-slate-900">Invitations</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Invitations</h2>
           {invites.map((invite) => (
             <div
               key={invite.id}
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)] p-4"
             >
-              <p className="text-sm text-slate-900">
+              <p className="text-sm text-slate-900 dark:text-slate-50">
                 <span className="font-medium">{invite.invited_by_label}</span> invited you to{" "}
                 <span className="font-medium">{invite.challenge_name}</span>
               </p>
@@ -209,7 +209,7 @@ export default function ChallengesPage() {
                 <button
                   onClick={() => handleDeclineInvite(invite)}
                   disabled={respondingTo === invite.id}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-50"
+                  className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 disabled:opacity-50"
                 >
                   Decline
                 </button>
@@ -220,37 +220,37 @@ export default function ChallengesPage() {
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <form onSubmit={handleCreate} className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Create a challenge</h2>
-          <p className="mt-1 text-xs text-slate-500">Defaults to the current calendar month if left blank.</p>
+        <form onSubmit={handleCreate} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Create a challenge</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Defaults to the current calendar month if left blank.</p>
           <div className="mt-3 flex flex-col gap-3">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Challenge name"
               required
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm"
             />
             <div className="flex gap-2">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm"
               />
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm"
               />
             </div>
-            <label className="flex items-start gap-2 text-xs text-slate-600">
+            <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
               <input
                 type="checkbox"
                 checked={beginnerOnly}
                 onChange={(e) => setBeginnerOnly(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600"
               />
               <span>
                 Beginner-only: ranked by risk-adjusted return (Sortino) <strong>and</strong> diversification, not raw
@@ -258,13 +258,13 @@ export default function ChallengesPage() {
                 Only joinable by members in Beginner mode. Locks the ranking method below.
               </span>
             </label>
-            <label className="flex flex-col gap-1 text-xs text-slate-500">
+            <label className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
               Ranked by
               <select
                 value={beginnerOnly ? "diversified" : scoring}
                 onChange={(e) => setScoring(e.target.value)}
                 disabled={beginnerOnly}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 disabled:opacity-50"
+                className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-50 disabled:opacity-50"
               >
                 <option value="return">Raw return</option>
                 <option value="excess_spy">Excess return vs S&amp;P 500</option>
@@ -274,12 +274,12 @@ export default function ChallengesPage() {
                 <option value="diversified">Risk-adjusted return + diversification</option>
               </select>
             </label>
-            <label className="flex items-start gap-2 text-xs text-slate-600">
+            <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
               <input
                 type="checkbox"
                 checked={includeModel}
                 onChange={(e) => setIncludeModel(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600"
               />
               <span>
                 Include the quant model as a member. It appears as a hypothetical daily portfolio of its published picks, not a live account.
@@ -295,9 +295,9 @@ export default function ChallengesPage() {
           </div>
         </form>
 
-        <form onSubmit={handleJoin} className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Join with a code</h2>
-          <p className="mt-1 text-xs text-slate-500">Ask whoever created the challenge for their 6-character code.</p>
+        <form onSubmit={handleJoin} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Join with a code</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Ask whoever created the challenge for their 6-character code.</p>
           <div className="mt-3 flex flex-col gap-3">
             <input
               value={joinCode}
@@ -305,7 +305,7 @@ export default function ChallengesPage() {
               placeholder="Join code"
               required
               maxLength={6}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm uppercase tracking-wide"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm uppercase tracking-wide"
             />
             <button
               type="submit"
@@ -319,21 +319,21 @@ export default function ChallengesPage() {
       </div>
 
       <div className="mt-6">
-        <h2 className="text-sm font-semibold text-slate-900">Your challenges</h2>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Your challenges</h2>
         {challenges === undefined ? (
-          <p className="mt-2 text-sm text-slate-500">Loading…</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Loading…</p>
         ) : challenges.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500">You haven&apos;t created or joined a challenge yet.</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">You haven&apos;t created or joined a challenge yet.</p>
         ) : (
           <div className="mt-3 flex flex-col gap-2">
             {challenges.map((c) => (
               <Link
                 key={c.id}
                 href={`/challenges/${c.id}`}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:bg-slate-50"
+                className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 <div>
-                  <p className="font-medium text-slate-900">
+                  <p className="font-medium text-slate-900 dark:text-slate-50">
                     {c.name}
                     {c.beginner_only && (
                       <span className="ml-2 rounded-full bg-[var(--pf-accent-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--pf-accent)]">
@@ -341,7 +341,7 @@ export default function ChallengesPage() {
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     {c.start_date} – {c.end_date} · {c.member_count} member{c.member_count === 1 ? "" : "s"}
                   </p>
                 </div>

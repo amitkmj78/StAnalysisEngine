@@ -156,15 +156,15 @@ export default function AddPositionsPage() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-slate-900">Add Positions</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Add Positions</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Import a Robinhood activity CSV or enter positions manually. Each save also sets watchlist alerts by
             default at the suggested upside target and stop for every position. For a CSV import, the date you
             actually bought is pulled from the file itself; for manual entry, leave &quot;Date acquired&quot;
             blank to default to today.
           </p>
         </div>
-        <Link href="/portfolio" className="text-sm font-medium text-slate-600 hover:underline">
+        <Link href="/portfolio" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
           ← Back to Portfolio
         </Link>
       </div>
@@ -189,26 +189,26 @@ export default function AddPositionsPage() {
       <div className="mt-4 flex gap-2">
         <button
           onClick={() => setMode("manual")}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "manual" ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"}`}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "manual" ? "bg-slate-900 text-white" : "border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
         >
           Manual Entry
         </button>
         <button
           onClick={() => setMode("csv")}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "csv" ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"}`}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "csv" ? "bg-slate-900 text-white" : "border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
         >
           Import Robinhood CSV
         </button>
         <button
           onClick={() => setMode("plaid")}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "plaid" ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100"}`}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "plaid" ? "bg-slate-900 text-white" : "border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
         >
           Connect Brokerage
         </button>
       </div>
 
       {mode === "manual" ? (
-        <form onSubmit={submitManual} className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5">
+        <form onSubmit={submitManual} className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
           {rows.map((row, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
               <Field label="Ticker">
@@ -255,7 +255,7 @@ export default function AddPositionsPage() {
             </div>
           ))}
           <div className="flex items-center gap-3">
-            <button type="button" onClick={addRow} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
+            <button type="button" onClick={addRow} className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
               + Add Position
             </button>
             <button type="submit" disabled={submitting} className="btn-primary">
@@ -264,13 +264,13 @@ export default function AddPositionsPage() {
           </div>
         </form>
       ) : mode === "csv" ? (
-        <form onSubmit={submitCsv} className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5">
+        <form onSubmit={submitCsv} className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
           <Field label="Robinhood activity CSV">
             <input
               type="file"
               accept=".csv"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="text-sm text-slate-700"
+              className="text-sm text-slate-700 dark:text-slate-200"
             />
           </Field>
           <button type="submit" disabled={submitting} className="btn-primary self-start">
@@ -278,8 +278,8 @@ export default function AddPositionsPage() {
           </button>
         </form>
       ) : (
-        <div className="mt-4 flex flex-col items-start gap-3 rounded-xl border border-slate-200 bg-white p-5">
-          <p className="text-sm text-slate-600">
+        <div className="mt-4 flex flex-col items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
             Link a real brokerage account through Plaid — your holdings import automatically and stay in sync.
             Your login credentials go directly to Plaid&apos;s secure widget; this app never sees them. Each
             connection gets its own new portfolio (named after the institution), so it never mixes with positions
@@ -340,7 +340,7 @@ export default function AddPositionsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
+      <label className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</label>
       {children}
     </div>
   );

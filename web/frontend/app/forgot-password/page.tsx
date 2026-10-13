@@ -11,8 +11,8 @@ export default async function ForgotPasswordPage({
 
   return (
     <div className="mx-auto mt-24 max-w-sm px-4">
-      <h1 className="font-display mb-1 text-2xl font-semibold text-slate-900">Reset your password</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <h1 className="font-display mb-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">Reset your password</h1>
+      <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
         Enter the email on your account and we&apos;ll send a link to reset your password.
       </p>
 
@@ -30,7 +30,7 @@ export default async function ForgotPasswordPage({
           placeholder="Email"
           required
           autoComplete="email"
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 dark:focus:border-slate-400 focus:outline-none"
         />
         <button
           type="submit"
@@ -40,8 +40,8 @@ export default async function ForgotPasswordPage({
         </button>
       </form>
 
-      <p className="mt-4 text-sm text-slate-500">
-        <Link href="/login" className="font-medium text-slate-900 underline">
+      <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+        <Link href="/login" className="font-medium text-slate-900 dark:text-slate-50 underline">
           Back to log in
         </Link>
       </p>

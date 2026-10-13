@@ -57,20 +57,20 @@ export default function ChatPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Assistant</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Assistant</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Ask a free-form question about a ticker, your whole portfolio, or the market in general. Answers are built
         from the research stored in this app, with the sources it used. Each answer is a single response.
       </p>
 
-      <div className="mt-4 flex gap-1 rounded-md border border-slate-300 bg-white p-1" role="tablist">
+      <div className="mt-4 flex gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-1" role="tablist">
         <button
           type="button"
           role="tab"
           aria-selected={scope === "ticker"}
           onClick={() => setScope("ticker")}
           className={`flex-1 rounded px-3 py-1.5 text-sm font-medium ${
-            scope === "ticker" ? "bg-emerald-600 text-white" : "text-slate-600 hover:bg-slate-50"
+            scope === "ticker" ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           Ask about a ticker
@@ -81,7 +81,7 @@ export default function ChatPage() {
           aria-selected={scope === "portfolio"}
           onClick={() => setScope("portfolio")}
           className={`flex-1 rounded px-3 py-1.5 text-sm font-medium ${
-            scope === "portfolio" ? "bg-emerald-600 text-white" : "text-slate-600 hover:bg-slate-50"
+            scope === "portfolio" ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           Ask about my portfolio
@@ -92,7 +92,7 @@ export default function ChatPage() {
           aria-selected={scope === "general"}
           onClick={() => setScope("general")}
           className={`flex-1 rounded px-3 py-1.5 text-sm font-medium ${
-            scope === "general" ? "bg-emerald-600 text-white" : "text-slate-600 hover:bg-slate-50"
+            scope === "general" ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           General question
@@ -100,7 +100,7 @@ export default function ChatPage() {
       </div>
 
       {scope !== "general" && (
-        <label className="mt-3 flex items-start gap-2 text-sm text-slate-700">
+        <label className="mt-3 flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
           <input
             type="checkbox"
             checked={cited}
@@ -126,7 +126,7 @@ export default function ChatPage() {
           ) : scope === "portfolio" ? (
             <PortfolioSwitcher selectedPortfolioId={portfolioId} onChange={setPortfolioId} />
           ) : (
-            <p className="text-sm text-slate-500">No ticker needed. Answers use stored filings, earnings releases, and market data.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">No ticker needed. Answers use stored filings, earnings releases, and market data.</p>
           )}
           <Field label="Provider">
             <select value={provider} onChange={(e) => setProvider(e.target.value)} className="input">
@@ -158,7 +158,7 @@ export default function ChatPage() {
       </form>
 
       {loading && (
-        <p className="mt-4 text-sm text-slate-500">
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
           {scope === "ticker"
             ? `The agent is researching ${ticker.toUpperCase()}, this can take a few seconds…`
             : scope === "portfolio"
@@ -169,24 +169,24 @@ export default function ChatPage() {
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {result && !loading && (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             {result.ticker === "PORTFOLIO" ? "Your Portfolio" : result.ticker === "GENERAL" ? "General question" : result.ticker} · {result.provider}
           </p>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{result.answer}</p>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800 dark:text-slate-100">{result.answer}</p>
           {(result.ticker === "GENERAL" || (result.sources && result.sources.length > 0)) && (
             <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
               Answers come from stored data and the app&apos;s model outputs. They are not investment advice.
             </p>
           )}
           {result.sources && result.sources.length > 0 && (
-            <div className="mt-4 border-t border-slate-100 pt-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Sources</p>
-              <ol className="mt-2 flex flex-col gap-2 text-xs text-slate-600">
+            <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Sources</p>
+              <ol className="mt-2 flex flex-col gap-2 text-xs text-slate-600 dark:text-slate-300">
                 {result.sources.map((s) => (
                   <li key={s.number}>
-                    <span className="font-medium text-slate-800">[{s.number}] {s.source}</span>
-                    <span className="mt-0.5 block whitespace-pre-wrap text-slate-500">{s.text}</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-100">[{s.number}] {s.source}</span>
+                    <span className="mt-0.5 block whitespace-pre-wrap text-slate-500 dark:text-slate-400">{s.text}</span>
                   </li>
                 ))}
               </ol>
@@ -201,7 +201,7 @@ export default function ChatPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
+      <label className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</label>
       {children}
     </div>
   );

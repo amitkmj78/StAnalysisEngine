@@ -79,22 +79,22 @@ export default function TopPerformersPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Top Performers</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Top Performers</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Stocks and funds ranked by raw trailing price return over a fixed trading-day window — a simple momentum
         read, separate from the weighted scoring on Best Stock Finder / Best Index Fund.
       </p>
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Window</label>
-          <div className="flex gap-1 rounded-md border border-slate-300 p-1">
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Window</label>
+          <div className="flex gap-1 rounded-md border border-slate-300 dark:border-slate-600 p-1">
             {windows.map((w) => (
               <button
                 key={w}
                 onClick={() => setWindow(w)}
                 className={`rounded px-3 py-1.5 text-sm font-medium ${
-                  window === w ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                  window === w ? "bg-slate-900 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
                 {WINDOW_LABELS[w] ?? `${w} Days`}
@@ -103,7 +103,7 @@ export default function TopPerformersPage() {
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Stock universe</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Stock universe</label>
           <select value={stockUniverse} onChange={(e) => setStockUniverse(e.target.value)} className="input">
             {stockUniverses.map((u) => (
               <option key={u} value={u}>
@@ -113,7 +113,7 @@ export default function TopPerformersPage() {
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Fund category</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Fund category</label>
           <select value={fundCategory} onChange={(e) => setFundCategory(e.target.value)} className="input">
             {fundCategories.map((c) => (
               <option key={c} value={c}>
@@ -134,10 +134,10 @@ export default function TopPerformersPage() {
         <TopPerformersTable title="Top Funds" rows={funds} loading={loading} windowLabel={WINDOW_LABELS[window] ?? `${window} Days`} />
       </div>
 
-      <hr className="mt-8 border-slate-200" />
+      <hr className="mt-8 border-slate-200 dark:border-slate-700" />
       <div className="mt-6 rounded-lg border border-[var(--pf-accent)]/40 bg-[var(--pf-accent-soft)]/40 p-5">
-        <h2 className="font-semibold text-slate-900">3-Year Test: Does This Ranking Actually Work?</h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <h2 className="font-semibold text-slate-900 dark:text-slate-50">3-Year Test: Does This Ranking Actually Work?</h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           We rewound the clock 3 years and pretended to invest for real. Every {horizonDays} trading days, we
           picked the 5 {stockUniverse} stocks with the best recent run (the same{" "}
           {WINDOW_LABELS[window] ?? `${window}-day`} ranking you see above), using only what would have been
@@ -147,7 +147,7 @@ export default function TopPerformersPage() {
           honestly at any past date. Simulated day by day, not computed as one bulk average — a real day-by-day
           walk through the market, holding period by holding period.
         </p>
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
           Trading costs are included by default, not left out to flatter the number: 5 bps slippage plus
           commission each time a position turns over, plus a borrow-cost formula that's structurally $0 here
           since this strategy only ever holds long positions — there are no borrowed shares to charge for.
@@ -155,14 +155,14 @@ export default function TopPerformersPage() {
         </p>
 
         <div className="mt-3 flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Hold period before re-ranking</label>
-          <div className="flex w-fit gap-1 rounded-md border border-[var(--pf-accent)]/40 bg-white p-1">
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Hold period before re-ranking</label>
+          <div className="flex w-fit gap-1 rounded-md border border-[var(--pf-accent)]/40 bg-white dark:bg-slate-900 p-1">
             {windows.map((h) => (
               <button
                 key={h}
                 onClick={() => setHorizonDays(h)}
                 className={`rounded px-3 py-1.5 text-sm font-medium ${
-                  horizonDays === h ? "bg-[var(--pf-accent)] text-white" : "text-slate-600 hover:bg-[var(--pf-accent-soft)]"
+                  horizonDays === h ? "bg-[var(--pf-accent)] text-white" : "text-slate-600 dark:text-slate-300 hover:bg-[var(--pf-accent-soft)]"
                 }`}
               >
                 {WINDOW_LABELS[h] ?? `${h} Days`}
@@ -174,7 +174,7 @@ export default function TopPerformersPage() {
         <button
           onClick={runBacktest}
           disabled={backtestLoading}
-          className="mt-3 rounded-md border border-[var(--pf-accent)]/40 bg-white px-3 py-1.5 text-sm font-medium text-[var(--pf-accent)] hover:bg-[var(--pf-accent-soft)] disabled:opacity-50"
+          className="mt-3 rounded-md border border-[var(--pf-accent)]/40 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-[var(--pf-accent)] hover:bg-[var(--pf-accent-soft)] disabled:opacity-50"
         >
           {backtestLoading ? "Running 3-year backtest…" : backtest ? "Re-run Backtest" : "Run 3-Year Backtest"}
         </button>
@@ -217,7 +217,7 @@ export default function TopPerformersPage() {
               />
             </div>
 
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
               In plain terms: <strong>Win Rate</strong> is how often, round by round, our 5 picks did better than
               just owning everything — close to 50% means it&apos;s basically a coin flip each time, even if the
               overall total still comes out ahead (or behind) over the full stretch. The two &quot;Total&quot;
@@ -234,7 +234,7 @@ export default function TopPerformersPage() {
               <BacktestTile label="Max Drawdown" hint="worst peak-to-trough" value={backtest.max_drawdown_pct !== null ? `${backtest.max_drawdown_pct.toFixed(1)}%` : "N/A"} positive={backtest.max_drawdown_pct !== null && backtest.max_drawdown_pct >= -0.01} />
               <BacktestTile label="Avg Turnover" hint="per rebalance round" value={backtest.avg_turnover_pct !== null ? `${backtest.avg_turnover_pct.toFixed(0)}%` : "N/A"} />
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
               {backtest.capacity_estimate_usd !== null && (
                 <>
                   Rough capacity estimate: about{" "}
@@ -246,14 +246,14 @@ export default function TopPerformersPage() {
               )}
             </p>
 
-            <details className="mt-3 text-xs text-slate-600">
-              <summary className="cursor-pointer font-medium text-slate-700">
+            <details className="mt-3 text-xs text-slate-600 dark:text-slate-300">
+              <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-200">
                 Show all {backtest.periods.length} rounds, one by one
               </summary>
-              <div className="mt-2 max-h-80 overflow-y-auto overflow-x-auto rounded-md border border-slate-200 bg-white">
+              <div className="mt-2 max-h-80 overflow-y-auto overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                 <table className="min-w-full text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       <th className="px-2 py-1.5">Date</th>
                       <th className="px-2 py-1.5">Our 5 Picks</th>
                       <th className="px-2 py-1.5 text-right">Picks Return (Net)</th>
@@ -264,19 +264,19 @@ export default function TopPerformersPage() {
                   </thead>
                   <tbody>
                     {backtest.periods.map((p) => (
-                      <tr key={p.date} className="border-b border-slate-100 last:border-0">
-                        <td className="px-2 py-1.5 text-slate-600">{p.date}</td>
-                        <td className="px-2 py-1.5 text-slate-600">{p.picks.join(", ")}</td>
-                        <td className="px-2 py-1.5 text-right text-slate-700">
+                      <tr key={p.date} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                        <td className="px-2 py-1.5 text-slate-600 dark:text-slate-300">{p.date}</td>
+                        <td className="px-2 py-1.5 text-slate-600 dark:text-slate-300">{p.picks.join(", ")}</td>
+                        <td className="px-2 py-1.5 text-right text-slate-700 dark:text-slate-200">
                           {p.strategy_return_pct !== null ? `${p.strategy_return_pct.toFixed(2)}%` : "—"}
                         </td>
-                        <td className="px-2 py-1.5 text-right text-slate-400">
+                        <td className="px-2 py-1.5 text-right text-slate-400 dark:text-slate-500">
                           {p.strategy_return_gross_pct !== null ? `${p.strategy_return_gross_pct.toFixed(2)}%` : "—"}
                         </td>
-                        <td className="px-2 py-1.5 text-right text-slate-700">
+                        <td className="px-2 py-1.5 text-right text-slate-700 dark:text-slate-200">
                           {p.benchmark_return_pct !== null ? `${p.benchmark_return_pct.toFixed(2)}%` : "—"}
                         </td>
-                        <td className="px-2 py-1.5 text-right text-slate-500">{p.turnover_pct.toFixed(0)}%</td>
+                        <td className="px-2 py-1.5 text-right text-slate-500 dark:text-slate-400">{p.turnover_pct.toFixed(0)}%</td>
                       </tr>
                     ))}
                   </tbody>
@@ -284,15 +284,15 @@ export default function TopPerformersPage() {
               </div>
             </details>
 
-            <p className="mt-2 text-xs text-slate-400">Run #{backtest.run_id} — retrievable later at this exact result.</p>
+            <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">Run #{backtest.run_id} — retrievable later at this exact result.</p>
           </div>
         )}
       </div>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h3 className="font-semibold text-slate-900">How To Read This Page</h3>
-        <p className="mt-2 text-sm text-slate-600">
-          Each return is just <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">(price now / price {window} trading days ago) − 1</code>,
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-50">How To Read This Page</h3>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+          Each return is just <code className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.5 text-xs">(price now / price {window} trading days ago) − 1</code>,
           nothing weighted or model-scored — pure recent price momentum. Useful for spotting what&apos;s hot right
           now; not the same as the multi-factor ranking used elsewhere in this app, and says nothing about
           whether a run continues.
@@ -314,16 +314,16 @@ function BacktestTile({
   positive?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <p className="text-xs font-medium text-slate-700">{label}</p>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+      <p className="text-xs font-medium text-slate-700 dark:text-slate-200">{label}</p>
       <p
         className={`mt-1 text-lg font-semibold ${
-          positive === undefined ? "text-slate-900" : positive ? "text-emerald-600" : "text-red-600"
+          positive === undefined ? "text-slate-900 dark:text-slate-50" : positive ? "text-emerald-600" : "text-red-600"
         }`}
       >
         {value}
       </p>
-      {hint && <p className="mt-0.5 text-[11px] leading-tight text-slate-400">{hint}</p>}
+      {hint && <p className="mt-0.5 text-[11px] leading-tight text-slate-400 dark:text-slate-500">{hint}</p>}
     </div>
   );
 }
@@ -340,19 +340,19 @@ function TopPerformersTable({
   windowLabel: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="font-semibold text-slate-900">{title}</h2>
-        <p className="text-xs text-slate-500">Ranked by {windowLabel} trailing return</p>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+      <div className="border-b border-slate-200 dark:border-slate-700 px-4 py-3">
+        <h2 className="font-semibold text-slate-900 dark:text-slate-50">{title}</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Ranked by {windowLabel} trailing return</p>
       </div>
       {loading && !rows ? (
-        <p className="px-4 py-6 text-sm text-slate-500">Loading…</p>
+        <p className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       ) : !rows || rows.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-slate-500">No data available right now.</p>
+        <p className="px-4 py-6 text-sm text-slate-500 dark:text-slate-400">No data available right now.</p>
       ) : (
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <th className="px-3 py-2">#</th>
               <th className="px-3 py-2">Ticker</th>
               <th className="px-3 py-2">Name</th>
@@ -362,11 +362,11 @@ function TopPerformersTable({
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={r.ticker} className="border-b border-slate-100 last:border-0">
-                <td className="px-3 py-2 text-slate-400">{i + 1}</td>
-                <td className="px-3 py-2 font-medium text-slate-800">{r.ticker}</td>
-                <td className="px-3 py-2 text-slate-600">{r.name}</td>
-                <td className="px-3 py-2 text-right text-slate-600">
+              <tr key={r.ticker} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{i + 1}</td>
+                <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{r.ticker}</td>
+                <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{r.name}</td>
+                <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">
                   {r.price !== null ? `$${r.price.toFixed(2)}` : "—"}
                 </td>
                 <td className={`px-3 py-2 text-right font-medium ${r.return_pct >= 0 ? "text-emerald-600" : "text-red-600"}`}>

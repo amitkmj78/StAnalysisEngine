@@ -67,16 +67,16 @@ export default function UnifiedMarketTicker() {
   const loopEntries = [...entries, ...entries];
 
   return (
-    <div className="relative overflow-hidden border-b border-slate-200 bg-white">
+    <div className="relative overflow-hidden border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
       <div className="market-ticker-track text-strip flex flex-shrink-0 items-center gap-6 whitespace-nowrap py-1.5 pl-4">
         {loopEntries.map((entry, i) => (
           <span key={`${entry.key}-${i}`} className="flex flex-none items-center gap-1.5">
             {entry.kind === "price" ? (
               <>
-                <span className="font-medium text-slate-700">{entry.quote.label}</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200">{entry.quote.label}</span>
                 {entry.quote.price !== null ? (
                   <>
-                    <span className="text-slate-600">{entry.quote.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                    <span className="text-slate-600 dark:text-slate-300">{entry.quote.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                     {entry.quote.change_pct !== null && (
                       <span className={entry.quote.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}>
                         {entry.quote.change_pct >= 0 ? "▲" : "▼"}
@@ -85,7 +85,7 @@ export default function UnifiedMarketTicker() {
                     )}
                   </>
                 ) : (
-                  <span className="text-slate-400">—</span>
+                  <span className="text-slate-400 dark:text-slate-500">—</span>
                 )}
               </>
             ) : (
@@ -93,7 +93,7 @@ export default function UnifiedMarketTicker() {
                 href={entry.item.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-slate-700 hover:text-slate-900 hover:underline"
+                className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-slate-50 hover:underline"
               >
                 <span className="text-strip-meta rounded bg-[var(--pf-accent)] px-1.5 py-0.5 font-bold uppercase tracking-wide text-white">
                   News

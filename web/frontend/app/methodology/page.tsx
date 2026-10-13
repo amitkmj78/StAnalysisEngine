@@ -9,20 +9,20 @@ export default function MethodologyPage() {
       <Link href="/guides" className="text-sm text-[var(--pf-accent)] hover:underline">
         ← All guides
       </Link>
-      <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900">Methodology</h1>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+      <h1 className="font-display mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">Methodology</h1>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
         How the scores, signals, confidence, market regime and track record are produced, and which parts are not yet
         proven. This is general information about how the app works, not a recommendation to buy, hold or sell anything.
       </p>
 
       <div className="mt-6 flex flex-col gap-6">
         <section>
-          <h2 className="text-base font-semibold text-slate-900">1. Scores (0 to 100)</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">1. Scores (0 to 100)</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             Each stock gets two scores, recomputed each night after the close. Each score is dated by the day it was
             computed.
           </p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             <li>
               <span className="font-medium">Short-term</span> (intended for 10 to 90 days): momentum, short-term reversal,
               earnings surprise and earnings revisions.
@@ -34,8 +34,8 @@ export default function MethodologyPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-slate-900">2. Signals (Buy, Hold, Trim)</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">2. Signals (Buy, Hold, Trim)</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             The stock-page signal is set by the score alone: <span className="font-medium">Buy</span> at 70 or above,{" "}
             <span className="font-medium">Trim</span> at 30 or below, and <span className="font-medium">Hold</span> in
             between. A score is a relative ranking of the stock on these factors, not a price forecast.
@@ -43,8 +43,8 @@ export default function MethodologyPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-slate-900">3. Confidence</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">3. Confidence</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             Each signal is shown with its score and a confidence label. The confidence is <span className="font-medium">not yet a
             calibrated probability</span> that the signal will be right. Calibrating it needs a longer out-of-sample
             history than the app has today, so that work is still open.
@@ -52,11 +52,11 @@ export default function MethodologyPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-slate-900">4. Track record</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">4. Track record</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             Two different records are shown, and they measure different things:
           </p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             <li>
               <span className="font-medium">Per stock</span>, under each stock chart: the short-term signal is checked 10
               trading days later and compared with SPY. It shows the hit rate, the average excess return and the worst
@@ -67,14 +67,14 @@ export default function MethodologyPage() {
               record does not yet score the Buy, Hold and Trim signals themselves. Changing it to do so is still open.
             </li>
           </ul>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             Past results do not guarantee future results. Each record is also a short sample for the period it covers.
           </p>
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-slate-900">5. Market regime</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">5. Market regime</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             The regime label (for example Risk-On, Cautious or Risk-Off) is built from market data each day. Its
             validation test was run once, with the thresholds fixed in advance. It could not pass with the history
             stored so far, so the regime is shown with a caveat and is not presented as a validated signal. See the{" "}
@@ -86,8 +86,8 @@ export default function MethodologyPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-slate-900">6. Data</h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">6. Data</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             Prices and company data currently come from yfinance. That source is not yet licensed for display to the
             public, and a licensed vendor is still to be chosen. The figures on this site may change when that happens.
           </p>

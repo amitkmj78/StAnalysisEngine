@@ -60,7 +60,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
         <div className="mt-3">
           <a
             href={getSignalsCsvExportUrl(data.universe_id, data.lookback_days)}
-            className="inline-block rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            className="inline-block rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             Export CSV
           </a>
@@ -68,15 +68,15 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
       )}
 
       {data.signals.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 text-sm text-slate-500 dark:text-slate-400">
           No signals have been published yet. This page will show the current picks and the full history as
           soon as publication begins — nothing is backfilled or reconstructed after the fact.
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <th className="px-3 py-2">Rank</th>
                 <th className="px-3 py-2">Ticker</th>
                 <th className="px-3 py-2 text-right">{data.lookback_days}-Day Trailing Return</th>
@@ -85,9 +85,9 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
             </thead>
             <tbody>
               {data.signals.map((s) => (
-                <tr key={s.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-3 py-2 text-slate-400">{s.rank}</td>
-                  <td className="px-3 py-2 font-medium text-slate-800">{s.ticker}</td>
+                <tr key={s.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                  <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{s.rank}</td>
+                  <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{s.ticker}</td>
                   <td
                     className={`px-3 py-2 text-right font-medium ${
                       s.trailing_return_pct >= 0 ? "text-emerald-600" : "text-red-600"
@@ -114,9 +114,9 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
               ))}
             </tbody>
           </table>
-          <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
+          <p className="border-t border-slate-100 dark:border-slate-800 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
             Published {data.target_date} · universe &quot;{data.universe_id}&quot; · model version{" "}
-            <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">
+            <code className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.5 font-mono text-[11px]">
               {data.signals[0]?.model_version_hash.slice(0, 12)}
             </code>
             {" · "}
@@ -132,15 +132,15 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
 
       <div className="mt-8 rounded-lg border border-emerald-200 bg-emerald-50/40 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-semibold text-slate-900">Live Performance to Date</h2>
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">Live Performance to Date</h2>
           <div className="flex flex-wrap items-center gap-2">
             {regimeOptions.length > 0 && (
-              <label className="flex items-center gap-1.5 text-xs text-slate-600">
+              <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
                 Regime
                 <select
                   value={regime}
                   onChange={(e) => setRegime(e.target.value)}
-                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                  className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs"
                 >
                   <option value="">All regimes</option>
                   {regimeOptions.map((r) => (
@@ -151,14 +151,14 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                 </select>
               </label>
             )}
-            <div className="flex gap-1 rounded-md border border-emerald-300 bg-white p-1">
+            <div className="flex gap-1 rounded-md border border-emerald-300 bg-white dark:bg-slate-900 p-1">
               {HORIZONS.map((h) => (
                 <button
                   key={h}
                   type="button"
                   onClick={() => setHorizon(h)}
                   className={`rounded px-2.5 py-1 text-xs font-medium ${
-                    horizon === h ? "bg-emerald-600 text-white" : "text-slate-600 hover:bg-emerald-50"
+                    horizon === h ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-emerald-50"
                   }`}
                 >
                   {h}d
@@ -167,7 +167,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
             </div>
           </div>
         </div>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+        <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
           Real, out-of-sample results only — never a simulation, never blended with any backtest.{" "}
           <strong>This scores the actual Buy/Trim signal shown on each stock&apos;s own page</strong> (not the
           trailing-return picks list above, which is a separate momentum rule — see the methodology note at the
@@ -179,12 +179,12 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
         {trackRecordError && (
           <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{trackRecordError}</p>
         )}
-        {loading && <p className="mt-3 text-sm text-slate-500">Loading…</p>}
+        {loading && <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
 
         {trackRecord && !loading && (
           <>
             {trackRecord.metrics.num_evaluated_dates === 0 ? (
-              <p className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm text-slate-500">
+              <p className="mt-3 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 text-sm text-slate-500 dark:text-slate-400">
                 No Buy/Trim signal has completed its {horizon}-trading-day holding window yet — nothing is
                 evaluated or estimated before it&apos;s actually knowable. Check back once the earliest captured
                 signal is that far out.
@@ -201,7 +201,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                   <RecordTile label="Avg Return" value={fmtPct(trackRecord.metrics.avg_return_pct)} />
                   <RecordTile label="Avg Excess vs SPY" value={fmtPct(trackRecord.avg_excess_vs_spy_pct)} />
                 </div>
-                <p className="mt-3 text-xs text-slate-500">
+                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
                   <strong>Hit Rate</strong> is the share of signals that beat SPY&apos;s own return over the
                   identical window (a Buy beats it by rising more, a Trim by falling more/rising less).{" "}
                   <strong>Avg Excess vs SPY</strong> is the average of that same gap in percentage points. There
@@ -212,15 +212,15 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
 
                 {modelVersions.length > 1 && (
                   <div className="mt-4">
-                    <h3 className="text-sm font-semibold text-slate-800">By Model Version</h3>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">By Model Version</h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       A model-version change starts a new record — older versions stay visible, never merged
                       away.
                     </p>
-                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                       <table className="min-w-full text-xs">
                         <thead>
-                          <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
                             <th className="px-2 py-1.5">Model Version</th>
                             <th className="px-2 py-1.5 text-right">Picks</th>
                             <th className="px-2 py-1.5 text-right">Hit Rate</th>
@@ -231,7 +231,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                           {modelVersions.map((v) => {
                             const m = trackRecord.metrics_by_model_version[v];
                             return (
-                              <tr key={v} className="border-b border-slate-100 last:border-0">
+                              <tr key={v} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                                 <td className="px-2 py-1.5 font-mono">{v.slice(0, 12)}</td>
                                 <td className="px-2 py-1.5 text-right">{m.num_evaluated_picks}</td>
                                 <td className="px-2 py-1.5 text-right">{m.hit_rate_pct !== null ? `${m.hit_rate_pct.toFixed(1)}%` : "—"}</td>
@@ -247,12 +247,12 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
 
                 {signalGroups.length > 0 && (
                   <div className="mt-4">
-                    <h3 className="text-sm font-semibold text-slate-800">By Signal</h3>
-                    <p className="mt-1 text-xs text-slate-500">{trackRecord.signal_note}</p>
-                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">By Signal</h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{trackRecord.signal_note}</p>
+                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                       <table className="min-w-full text-xs">
                         <thead>
-                          <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
                             <th className="px-2 py-1.5">Signal</th>
                             <th className="px-2 py-1.5 text-right">Picks</th>
                             <th className="px-2 py-1.5 text-right">Hit Rate</th>
@@ -263,7 +263,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                           {signalGroups.map((s) => {
                             const m = trackRecord.metrics_by_signal[s];
                             return (
-                              <tr key={s} className="border-b border-slate-100 last:border-0">
+                              <tr key={s} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                                 <td className="px-2 py-1.5">{s}</td>
                                 <td className="px-2 py-1.5 text-right">{m.num_evaluated_picks}</td>
                                 <td className="px-2 py-1.5 text-right">{m.hit_rate_pct !== null ? `${m.hit_rate_pct.toFixed(1)}%` : "—"}</td>
@@ -279,22 +279,22 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
 
                 {regimeOptions.length > 0 && (
                   <div className="mt-4">
-                    <h3 className="text-sm font-semibold text-slate-800">By Regime</h3>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">By Regime</h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       REG-2: hit rate by market regime on the day each signal was issued. &quot;unknown&quot;
                       covers dates before a regime reading existed for that day.{" "}
                       {regime ? `Filtered to ${regime} above.` : "Use the Regime selector above to filter."}{" "}
                       The regime label itself is shown for information only — it has not passed its own
                       validation gate; see the{" "}
-                      <a href="/methodology" className="underline hover:text-slate-700">
+                      <a href="/methodology" className="underline hover:text-slate-700 dark:hover:text-slate-200">
                         methodology page
                       </a>
                       .
                     </p>
-                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                       <table className="min-w-full text-xs">
                         <thead>
-                          <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
                             <th className="px-2 py-1.5">Regime</th>
                             <th className="px-2 py-1.5 text-right">Picks</th>
                             <th className="px-2 py-1.5 text-right">Hit Rate</th>
@@ -305,7 +305,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                           {regimeOptions.map((r) => {
                             const m = trackRecord.metrics_by_regime[r];
                             return (
-                              <tr key={r} className="border-b border-slate-100 last:border-0">
+                              <tr key={r} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                                 <td className="px-2 py-1.5">{r}</td>
                                 <td className="px-2 py-1.5 text-right">{m.num_evaluated_picks}</td>
                                 <td className="px-2 py-1.5 text-right">{m.hit_rate_pct !== null ? `${m.hit_rate_pct.toFixed(1)}%` : "—"}</td>
@@ -320,17 +320,17 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                 )}
 
                 <div className="mt-4">
-                  <h3 className="text-sm font-semibold text-slate-800">Calibration</h3>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Calibration</h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     Stated confidence vs. actual hit rate, grouped into coarse ranges. Confidence here is the
                     real value captured when each signal was issued (services.portfolio_compare_service.
                     derive_confidence — a stability-based score, not yet itself calibrated; see the Confidence
                     Calibration check below, which tests exactly that).
                   </p>
-                  <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+                  <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                     <table className="min-w-full text-xs">
                       <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                        <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           <th className="px-2 py-1.5">Confidence Bucket</th>
                           <th className="px-2 py-1.5 text-right">Hit Rate</th>
                           <th className="px-2 py-1.5 text-right">Sample Size</th>
@@ -338,7 +338,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                       </thead>
                       <tbody>
                         {trackRecord.calibration.map((b) => (
-                          <tr key={b.bucket_label} className="border-b border-slate-100 last:border-0">
+                          <tr key={b.bucket_label} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                             <td className="px-2 py-1.5">{b.bucket_label}</td>
                             <td className="px-2 py-1.5 text-right">{b.hit_rate_pct !== null ? `${b.hit_rate_pct.toFixed(1)}%` : "not enough data yet"}</td>
                             <td className="px-2 py-1.5 text-right">{b.sample_size}</td>
@@ -350,8 +350,8 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                 </div>
 
                 <div className="mt-4">
-                  <h3 className="text-sm font-semibold text-slate-800">Confidence Calibration (fit vs. holdout)</h3>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Confidence Calibration (fit vs. holdout)</h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     FND-4: is the stated confidence score actually a calibrated probability of a hit? The
                     earlier {trackRecord.confidence_calibration.fit_set_size} signals (by date) fit an empirical
                     hit rate per exact score; the later {trackRecord.confidence_calibration.holdout_set_size}
@@ -362,12 +362,12 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                     site today — it is a check of that number, not yet a replacement for it.
                   </p>
                   {Object.keys(trackRecord.confidence_calibration.buckets).length === 0 ? (
-                    <p className="mt-2 text-xs text-slate-400">Not enough history yet to check any score.</p>
+                    <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">Not enough history yet to check any score.</p>
                   ) : (
-                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                       <table className="min-w-full text-xs">
                         <thead>
-                          <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
                             <th className="px-2 py-1.5">Stated Score</th>
                             <th className="px-2 py-1.5 text-right">Fit Hit Rate (n)</th>
                             <th className="px-2 py-1.5 text-right">Holdout Hit Rate (n)</th>
@@ -378,7 +378,7 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                           {Object.entries(trackRecord.confidence_calibration.buckets)
                             .sort((a, b) => Number(b[0]) - Number(a[0]))
                             .map(([score, b]) => (
-                              <tr key={score} className="border-b border-slate-100 last:border-0">
+                              <tr key={score} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                                 <td className="px-2 py-1.5">{score}</td>
                                 <td className="px-2 py-1.5 text-right">
                                   {b.fit_hit_rate_pct !== null ? `${b.fit_hit_rate_pct.toFixed(1)}% (n=${b.fit_n})` : "insufficient data"}
@@ -400,15 +400,15 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                 </div>
 
                 <div className="mt-4">
-                  <h3 className="text-sm font-semibold text-slate-800">Worst Misses</h3>
-                  <p className="mt-1 text-xs text-slate-500">{trackRecord.trim_note}</p>
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Worst Misses</h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{trackRecord.trim_note}</p>
                   {trackRecord.worst_misses.length === 0 ? (
-                    <p className="mt-2 text-xs text-slate-400">No evaluated picks yet.</p>
+                    <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">No evaluated picks yet.</p>
                   ) : (
-                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+                    <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                       <table className="min-w-full text-xs">
                         <thead>
-                          <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-500">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
                             <th className="px-2 py-1.5">Date</th>
                             <th className="px-2 py-1.5">Ticker</th>
                             <th className="px-2 py-1.5">Signal</th>
@@ -417,10 +417,10 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
                         </thead>
                         <tbody>
                           {trackRecord.worst_misses.map((m) => (
-                            <tr key={`${m.target_date}-${m.ticker}`} className="border-b border-slate-100 last:border-0">
-                              <td className="px-2 py-1.5 text-slate-600">{m.target_date}</td>
-                              <td className="px-2 py-1.5 font-medium text-slate-800">{m.ticker}</td>
-                              <td className="px-2 py-1.5 text-slate-600">{m.signal ?? "Buy"}</td>
+                            <tr key={`${m.target_date}-${m.ticker}`} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                              <td className="px-2 py-1.5 text-slate-600 dark:text-slate-300">{m.target_date}</td>
+                              <td className="px-2 py-1.5 font-medium text-slate-800 dark:text-slate-100">{m.ticker}</td>
+                              <td className="px-2 py-1.5 text-slate-600 dark:text-slate-300">{m.signal ?? "Buy"}</td>
                               <td className="px-2 py-1.5 text-right text-red-600">{fmtPct(m.realized_return_pct)}</td>
                             </tr>
                           ))}
@@ -432,8 +432,8 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
 
                 {trackRecord.model_portfolio_series.length >= 2 && (
                   <div className="mt-4">
-                    <h3 className="text-sm font-semibold text-slate-800">Model Portfolio vs. SPY</h3>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Model Portfolio vs. SPY</h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Equal-weight Buys, rebalanced at each non-overlapping {horizon}-day period (publication is
                       daily, but chaining every day would double-count overlapping windows — see the methodology
                       note below). After assumed trading costs: {trackRecord.model_portfolio_cost_bps_one_way} bps
@@ -486,27 +486,27 @@ export default function LiveTab({ data }: { data: PublishedSignalsResponse }) {
         )}
       </div>
 
-      <div className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="font-semibold text-slate-900">Methodology</h2>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+      <div className="mt-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="font-semibold text-slate-900 dark:text-slate-50">Methodology</h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
           <strong>Today&apos;s Picks (table above):</strong> once a day, after market close, a fixed rule ranks a
           fixed universe of large, liquid US stocks by trailing price return over the stated lookback window, and
           publishes the top {data.signals.length || 25}. It uses only price data available at the time of
           publication — no future information, no fundamentals, no subjective judgment. The same rule, applied
           consistently, so any past publication can be checked against what actually happened next.
         </p>
-        <p className="mt-3 text-sm leading-relaxed text-slate-600">
+        <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
           <strong>Live Performance to Date (section above):</strong> a separate, different measurement — every
           stock&apos;s own real short-term Buy/Hold/Trim signal from its stock page (the same two-score system
           described on the{" "}
-          <a href="/methodology" className="underline hover:text-slate-700">
+          <a href="/methodology" className="underline hover:text-slate-700 dark:hover:text-slate-200">
             methodology page
           </a>
           ), scored against its own realized move once the holding window elapses. This is the app&apos;s actual
           published signal, not the trailing-return picks list above — the two are intentionally different
           systems shown on the same page.
         </p>
-        <p className="mt-3 text-sm leading-relaxed text-slate-600">
+        <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
           Neither is personalized to any reader, considers anyone&apos;s holdings or goals, or is investment
           advice. Past performance does not indicate future results.
         </p>

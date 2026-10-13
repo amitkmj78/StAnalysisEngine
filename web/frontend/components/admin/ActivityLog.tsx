@@ -24,7 +24,7 @@ export default function ActivityLog() {
   }, []);
 
   if (rows === null && !error) {
-    return <p className="text-sm text-slate-500">Loading activity…</p>;
+    return <p className="text-sm text-slate-500 dark:text-slate-400">Loading activity…</p>;
   }
 
   const filtered = (rows ?? []).filter((r) =>
@@ -37,31 +37,31 @@ export default function ActivityLog() {
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Filter by email</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Filter by email</label>
           <input
             value={emailFilter}
             onChange={(e) => setEmailFilter(e.target.value)}
             placeholder="e.g. amitkmj78@gmail.com"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
           />
         </div>
         <button
           onClick={load}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
         >
           Refresh
         </button>
       </div>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         Showing the most recent {filtered.length} of {rows?.length ?? 0} logged requests (quota-tracked endpoints
         only).
       </p>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <th className="px-3 py-2">User</th>
               <th className="px-3 py-2">Endpoint</th>
               <th className="px-3 py-2">Time</th>
@@ -70,16 +70,16 @@ export default function ActivityLog() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-3 py-4 text-center text-slate-500">
+                <td colSpan={3} className="px-3 py-4 text-center text-slate-500 dark:text-slate-400">
                   No activity found.
                 </td>
               </tr>
             ) : (
               filtered.map((r) => (
-                <tr key={r.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-3 py-2 text-slate-700">{r.email}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-slate-600">{r.endpoint}</td>
-                  <td className="px-3 py-2 text-slate-500">{new Date(r.created_at).toLocaleString()}</td>
+                <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                  <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{r.email}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-slate-600 dark:text-slate-300">{r.endpoint}</td>
+                  <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{new Date(r.created_at).toLocaleString()}</td>
                 </tr>
               ))
             )}

@@ -26,7 +26,7 @@ function signalBadgeClass(signal: string): string {
     case "Wait for Pullback":
       return "border-amber-100 bg-amber-50 text-amber-600";
     default:
-      return "border-slate-200 bg-slate-100 text-slate-600";
+      return "border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
   }
 }
 
@@ -46,8 +46,8 @@ function SignalBadge({ signal, className = "" }: { signal: string; className?: s
 function quantSignalBadgeClass(signal: string): string {
   if (signal === "BUY") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (signal === "SELL") return "border-red-200 bg-red-50 text-red-700";
-  if (signal === "HOLD") return "border-slate-200 bg-slate-100 text-slate-600";
-  return "border-slate-200 bg-slate-100 text-slate-400";
+  if (signal === "HOLD") return "border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
+  return "border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500";
 }
 
 function QuantSignalBadge({ signal, className = "" }: { signal: string | null | undefined; className?: string }) {
@@ -69,13 +69,13 @@ function EntryScoreBar({ score }: { score: number }) {
   // has 100%-of-its-width to work with, so fill is clamped for display
   // while the number next to it always shows the real value.
   const fillPct = Math.max(0, Math.min(100, score));
-  const barColor = score >= 100 ? "bg-emerald-600" : score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-slate-400";
+  const barColor = score >= 100 ? "bg-emerald-600" : score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-slate-400 dark:bg-slate-500";
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
+      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
         <div className={`h-full rounded-full ${barColor}`} style={{ width: `${fillPct}%` }} />
       </div>
-      <span className="text-xs tabular-nums text-slate-500">{score}</span>
+      <span className="text-xs tabular-nums text-slate-500 dark:text-slate-400">{score}</span>
     </div>
   );
 }
@@ -161,8 +161,8 @@ export default function EntryPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Entry Signals</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Entry Signals</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Scan for the strongest current entry setups, or check one ticker for a buy-zone view.{" "}
         <Link href="/guides/signals" className="text-[var(--pf-accent)] hover:underline">
           Learn more about reading signals →
@@ -227,21 +227,21 @@ export default function EntryPage() {
         </button>
       </form>
 
-      {loading && <p className="mt-4 text-sm text-slate-500">Scanning current setups…</p>}
+      {loading && <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Scanning current setups…</p>}
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {!loading && hasSearched && !error && scanResults.length === 0 && !singlePlan && (
-        <p className="mt-4 text-sm text-slate-500">No results — try another selection or ticker.</p>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No results — try another selection or ticker.</p>
       )}
 
       {mode === "scan" && winner && !loading && (
         <div className="mt-6 flex flex-col gap-6">
-          <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-white to-slate-50 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
                   Top entry right now · {universe}
                 </p>
-                <h2 className="mt-1 text-2xl font-semibold text-slate-900">{winner.Ticker}</h2>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{winner.Ticker}</h2>
               </div>
               <div className="flex items-center gap-2">
                 <SignalBadge signal={winner.Signal} className="px-3 py-1 text-sm" />
@@ -249,7 +249,7 @@ export default function EntryPage() {
               </div>
             </div>
             <div className="mt-3 flex items-center gap-3">
-              <span className="text-xs font-medium text-slate-500">Entry Score</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Entry Score</span>
               <EntryScoreBar score={Number(winner["Entry Score"])} />
               <MetricLabel term="Entry Score" />
             </div>
@@ -265,19 +265,19 @@ export default function EntryPage() {
           {/* Table — sm and up. A cramped horizontally-scrolling table is a
               poor fit for a phone screen, so mobile gets its own card list
               below instead of just squeezing this one narrower. */}
-          <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white sm:block">
+          <div className="hidden overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sm:block">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {SCAN_COLUMNS.map((col) => (
                     <th key={col} className="px-3 py-2">
                       <button
                         type="button"
                         onClick={() => toggleSort(col)}
-                        className="flex items-center gap-1 hover:text-slate-700"
+                        className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200"
                       >
                         {col}
-                        {sortColumn === col && <span className="text-slate-400">{sortDir === "desc" ? "↓" : "↑"}</span>}
+                        {sortColumn === col && <span className="text-slate-400 dark:text-slate-500">{sortDir === "desc" ? "↓" : "↑"}</span>}
                       </button>
                       {/* "Signal"/"Quant Signal" are keyed distinctly here
                           ("Entry Signal"/"Entry Quant Signal") from the
@@ -292,9 +292,9 @@ export default function EntryPage() {
               </thead>
               <tbody>
                 {sortedResults.map((row) => (
-                  <tr key={row.Ticker} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                  <tr key={row.Ticker} className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800">
                     {SCAN_COLUMNS.map((col) => (
-                      <td key={col} className="px-3 py-2 text-slate-700">
+                      <td key={col} className="px-3 py-2 text-slate-700 dark:text-slate-200">
                         {col === "Signal" ? (
                           <SignalBadge signal={String(row[col])} />
                         ) : col === "Quant Signal" ? (
@@ -316,9 +316,9 @@ export default function EntryPage() {
               horizontally-scrolling table. */}
           <div className="flex flex-col gap-3 sm:hidden">
             {sortedResults.map((row) => (
-              <div key={row.Ticker} className="rounded-xl border border-slate-200 bg-white p-4">
+              <div key={row.Ticker} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-slate-900">{row.Ticker}</span>
+                  <span className="font-semibold text-slate-900 dark:text-slate-50">{row.Ticker}</span>
                   <div className="flex items-center gap-1.5">
                     <SignalBadge signal={String(row.Signal)} />
                     <QuantSignalBadge signal={row["Quant Signal"]} />
@@ -327,18 +327,18 @@ export default function EntryPage() {
                 <div className="mt-2">
                   <EntryScoreBar score={Number(row["Entry Score"])} />
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+                <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
                   <span>
-                    Price <span className="tabular-nums text-slate-800">${Number(row["Current Price"]).toFixed(2)}</span>
+                    Price <span className="tabular-nums text-slate-800 dark:text-slate-100">${Number(row["Current Price"]).toFixed(2)}</span>
                   </span>
                   <span>
-                    RSI <span className="tabular-nums text-slate-800">{formatCell(row.RSI)}</span>
+                    RSI <span className="tabular-nums text-slate-800 dark:text-slate-100">{formatCell(row.RSI)}</span>
                   </span>
                   <span>
-                    Entry <span className="tabular-nums text-slate-800">${Number(row["Entry Low"]).toFixed(2)}–${Number(row["Entry High"]).toFixed(2)}</span>
+                    Entry <span className="tabular-nums text-slate-800 dark:text-slate-100">${Number(row["Entry Low"]).toFixed(2)}–${Number(row["Entry High"]).toFixed(2)}</span>
                   </span>
                   <span>
-                    Stop <span className="tabular-nums text-slate-800">${Number(row["Stop Loss"]).toFixed(2)}</span>
+                    Stop <span className="tabular-nums text-slate-800 dark:text-slate-100">${Number(row["Stop Loss"]).toFixed(2)}</span>
                   </span>
                 </div>
               </div>
@@ -349,9 +349,9 @@ export default function EntryPage() {
 
       {mode === "check" && singlePlan && !loading && (
         <div className="mt-6 flex flex-col gap-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-slate-900">{singlePlan.ticker} Entry Snapshot</h2>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{singlePlan.ticker} Entry Snapshot</h2>
               <div className="flex items-center gap-2">
                 <SignalBadge signal={singlePlan.signal} />
                 <MetricLabel term="Entry Signal" />
@@ -360,7 +360,7 @@ export default function EntryPage() {
                 <MetricLabel term="Entry Quant Signal" />
               </div>
             </div>
-            <p className="mt-2 text-sm text-slate-600">{singlePlan.summary}</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{singlePlan.summary}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -371,45 +371,45 @@ export default function EntryPage() {
           </div>
 
           {singleHistory && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
               <EntryChart plan={singlePlan} history={singleHistory} />
             </div>
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h3 className="font-semibold text-slate-900">Entry Levels</h3>
-              <p className="mt-2 text-sm text-slate-600">Buy zone: ${singlePlan.ideal_entry_low.toFixed(2)} – ${singlePlan.ideal_entry_high.toFixed(2)}</p>
-              <p className="text-sm text-slate-600">Breakout trigger: ${singlePlan.breakout_entry.toFixed(2)}</p>
-              <p className="text-sm text-slate-600">Stop loss: ${singlePlan.stop_loss.toFixed(2)}</p>
-              <p className="text-sm text-slate-600">First target: ${singlePlan.first_target.toFixed(2)}</p>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-50">Entry Levels</h3>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Buy zone: ${singlePlan.ideal_entry_low.toFixed(2)} – ${singlePlan.ideal_entry_high.toFixed(2)}</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">Breakout trigger: ${singlePlan.breakout_entry.toFixed(2)}</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">Stop loss: ${singlePlan.stop_loss.toFixed(2)}</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">First target: ${singlePlan.first_target.toFixed(2)}</p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h3 className="font-semibold text-slate-900">Trend Read</h3>
-              <p className="mt-2 text-sm text-slate-600">RSI: {singlePlan.rsi?.toFixed(2) ?? "N/A"}</p>
-              <p className="text-sm text-slate-600">Short-term trend: {singlePlan.trend_up ? "Uptrend" : "Mixed / weak"}</p>
-              <p className="text-sm text-slate-600">Long-term trend: {singlePlan.long_term_up ? "Long-term uptrend" : "Not fully supportive"}</p>
-              <p className="text-sm text-slate-600">20D support / resistance: ${singlePlan.support_20.toFixed(2)} / ${singlePlan.resistance_20.toFixed(2)}</p>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-50">Trend Read</h3>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">RSI: {singlePlan.rsi?.toFixed(2) ?? "N/A"}</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">Short-term trend: {singlePlan.trend_up ? "Uptrend" : "Mixed / weak"}</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">Long-term trend: {singlePlan.long_term_up ? "Long-term uptrend" : "Not fully supportive"}</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">20D support / resistance: ${singlePlan.support_20.toFixed(2)} / ${singlePlan.resistance_20.toFixed(2)}</p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h3 className="flex items-center gap-1.5 font-semibold text-slate-900">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+              <h3 className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-50">
                 Quant Forecast
                 <MetricLabel term="Entry Quant Signal" />
               </h3>
               {singlePlan.quant_signal ? (
                 <>
-                  <p className="mt-2 text-sm text-slate-600">
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
                     10-day signal: <QuantSignalBadge signal={singlePlan.quant_signal} />
                   </p>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     Expected return: {singlePlan.quant_expected_return_pct !== null ? `${singlePlan.quant_expected_return_pct >= 0 ? "+" : ""}${singlePlan.quant_expected_return_pct.toFixed(2)}%` : "N/A"}
                   </p>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     Target price: {singlePlan.quant_target_price !== null ? `$${singlePlan.quant_target_price.toFixed(2)}` : "N/A"}
                   </p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-slate-400">Forecast unavailable for this ticker right now.</p>
+                <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">Forecast unavailable for this ticker right now.</p>
               )}
             </div>
           </div>
@@ -429,7 +429,7 @@ function formatCell(value: string | number | null | undefined) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
+      <label className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</label>
       {children}
     </div>
   );

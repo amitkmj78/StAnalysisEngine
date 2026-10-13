@@ -41,9 +41,9 @@ export default function ThemeColorControls() {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <h2 className="font-semibold text-slate-900">Site Theme Color</h2>
-      <p className="mt-1 text-sm text-slate-600">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+      <h2 className="font-semibold text-slate-900 dark:text-slate-50">Site Theme Color</h2>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
         The default accent color for every user who hasn&apos;t picked their own in Settings. A curated palette, not
         a freeform color — each option is chosen for contrast against the app&apos;s fixed background and text
         colors.
@@ -65,7 +65,7 @@ export default function ThemeColorControls() {
             }`}
             style={{ backgroundColor: c.accent }}
           >
-            {saving === c.accent && <span className="h-2 w-2 animate-pulse rounded-full bg-white" />}
+            {saving === c.accent && <span className="h-2 w-2 animate-pulse rounded-full bg-white dark:bg-slate-900" />}
           </button>
         ))}
       </div>

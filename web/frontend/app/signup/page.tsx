@@ -11,8 +11,8 @@ export default async function SignupPage({
 
   return (
     <div className="mx-auto mt-24 max-w-sm px-4">
-      <h1 className="font-display mb-1 text-2xl font-semibold text-slate-900">Sign up</h1>
-      <p className="mb-1 text-sm text-slate-500">AI Price Prediction &amp; Best Stock Finder</p>
+      <h1 className="font-display mb-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">Sign up</h1>
+      <p className="mb-1 text-sm text-slate-500 dark:text-slate-400">AI Price Prediction &amp; Best Stock Finder</p>
       <p className="mb-6 flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <a href="/marketing.html" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline hover:text-emerald-800">
           How it works &amp; what&apos;s inside
@@ -36,7 +36,7 @@ export default async function SignupPage({
           placeholder="Email"
           required
           autoComplete="email"
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 dark:focus:border-slate-400 focus:outline-none"
         />
         <input
           name="password"
@@ -45,14 +45,14 @@ export default async function SignupPage({
           required
           minLength={8}
           autoComplete="new-password"
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+          className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 dark:focus:border-slate-400 focus:outline-none"
         />
-        <label className="flex items-start gap-2 text-sm text-slate-600">
+        <label className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
           <input
             name="discoverable_for_challenges"
             type="checkbox"
             defaultChecked
-            className="mt-0.5 h-4 w-4 rounded border-slate-300"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600"
           />
           <span>
             I want to take part in public challenges and be discoverable so other members can invite me to
@@ -67,9 +67,9 @@ export default async function SignupPage({
         </button>
       </form>
 
-      <p className="mt-4 text-sm text-slate-500">
+      <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-slate-900 underline">
+        <Link href="/login" className="font-medium text-slate-900 dark:text-slate-50 underline">
           Log in
         </Link>
       </p>

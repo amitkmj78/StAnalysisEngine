@@ -27,16 +27,16 @@ type SortKey = "ticker" | "quant_expected_return_pct" | "analyst_buy_pct" | "ana
 function signalBadgeClass(signal: string): string {
   if (signal === "BUY") return "bg-emerald-50 text-emerald-700";
   if (signal === "SELL") return "bg-red-50 text-red-700";
-  if (signal === "HOLD") return "bg-slate-100 text-slate-600";
-  return "bg-slate-100 text-slate-400";
+  if (signal === "HOLD") return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
+  return "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500";
 }
 
 function consensusBadgeClass(consensus: string | null): string {
-  if (!consensus) return "bg-slate-100 text-slate-400";
+  if (!consensus) return "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500";
   const c = consensus.toLowerCase();
   if (c.includes("buy")) return "bg-emerald-50 text-emerald-700";
   if (c.includes("sell")) return "bg-red-50 text-red-700";
-  return "bg-slate-100 text-slate-600";
+  return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
 }
 
 interface NarrativeState {
@@ -235,9 +235,9 @@ export default function SignalComparisonPage() {
 
   function SortableTh({ label, sortKeyName, info }: { label: string; sortKeyName: SortKey; info?: string }) {
     return (
-      <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-left">
+      <th className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-left">
         <div className="flex items-center gap-1">
-          <button onClick={() => handleSort(sortKeyName)} className="hover:text-slate-900">
+          <button onClick={() => handleSort(sortKeyName)} className="hover:text-slate-900 dark:hover:text-slate-50">
             {label}
             {sortKey === sortKeyName && <span className="ml-1">{sortDesc ? "↓" : "↑"}</span>}
           </button>
@@ -250,12 +250,12 @@ export default function SignalComparisonPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       {searchParams.get("from") === "portfolio" && (
-        <Link href="/portfolio" className="mb-2 inline-block text-sm font-medium text-slate-600 hover:underline">
+        <Link href="/portfolio" className="mb-2 inline-block text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
           ← Back to Portfolio
         </Link>
       )}
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Quant Signal vs. Analyst Rating</h1>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Quant Signal vs. Analyst Rating</h1>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
         The internal quant model&apos;s BUY/HOLD/SELL call next to the real Wall Street analyst consensus, for
         every ticker captured that day. Both are point-in-time snapshots — independent of each other, shown
         side by side for comparison, not blended into one score.{" "}
@@ -264,7 +264,7 @@ export default function SignalComparisonPage() {
         </Link>
       </p>
 
-      {loading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
+      {loading && <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
       {error && <p className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {data && !loading && outcomes && (
@@ -280,40 +280,40 @@ export default function SignalComparisonPage() {
       {data && !loading && (
         <>
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-              As of <span className="font-medium text-slate-900">{data.as_of_date ?? "—"}</span> ·{" "}
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
+              As of <span className="font-medium text-slate-900 dark:text-slate-50">{data.as_of_date ?? "—"}</span> ·{" "}
               {data.ticker_count} tickers · <span className="text-emerald-700">{counts.BUY} BUY</span> ·{" "}
               <span className="text-red-700">{counts.SELL} SELL</span> ·{" "}
-              <span className="text-slate-500">{counts.HOLD} HOLD</span>
+              <span className="text-slate-500 dark:text-slate-400">{counts.HOLD} HOLD</span>
             </div>
             <input
               type="text"
               placeholder="Search ticker…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
             />
-            <div className="flex gap-1 rounded-md border border-slate-300 bg-white p-1">
+            <div className="flex gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-1">
               {(["ALL", "BUY", "SELL", "HOLD"] as SignalFilter[]).map((f) => (
                 <button
                   key={f}
                   onClick={() => setSignalFilter(f)}
                   className={`rounded px-3 py-1 text-sm font-medium ${
-                    signalFilter === f ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                    signalFilter === f ? "bg-slate-900 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                   }`}
                 >
                   {f}
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-1">
+            <div className="flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-1">
               {(["ALL", "STABLE", "UNSTABLE"] as StabilityFilter[]).map((f) => (
                 <button
                   key={f}
                   onClick={() => setStabilityFilter(f)}
                   title={f === "UNSTABLE" ? "Signal has flipped 3+ times in its trailing history" : undefined}
                   className={`rounded px-3 py-1 text-sm font-medium ${
-                    stabilityFilter === f ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                    stabilityFilter === f ? "bg-slate-900 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                   }`}
                 >
                   {f === "ALL" ? "All Signals" : f === "STABLE" ? "Stable Only" : "Unstable Only"}
@@ -323,16 +323,16 @@ export default function SignalComparisonPage() {
           </div>
 
           {rows.length === 0 ? (
-            <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
+            <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 text-sm text-slate-500 dark:text-slate-400">
               No tickers match this filter.
             </div>
           ) : (
-            <div className="mt-6 max-h-[70vh] overflow-auto rounded-xl border border-slate-200 bg-white">
+            <div className="mt-6 max-h-[70vh] overflow-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     <SortableTh label="Ticker" sortKeyName="ticker" />
-                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-left">
+                    <th className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-left">
                       <div className="flex items-center gap-1">
                         Signal
                         <MetricLabel term="quant_signal" extraBody={quantSignalExtraBody} />
@@ -340,33 +340,33 @@ export default function SignalComparisonPage() {
                     </th>
                     <SortableTh label="Exp. Return" sortKeyName="quant_expected_return_pct" info="quant_expected_return_pct" />
                     <SortableTh label="Flips" sortKeyName="signal_flip_count" info="signal_flip_count" />
-                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">
+                    <th className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
                         Target
                         <MetricLabel term="quant_target_price" />
                       </div>
                     </th>
-                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">Last Close</th>
-                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">
+                    <th className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-right">Last Close</th>
+                    <th className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
                         Current Price
                         <MetricLabel term="current_price" />
                       </div>
                     </th>
-                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-left">
+                    <th className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-left">
                       <div className="flex items-center gap-1">
                         Analyst Consensus
                         <MetricLabel term="analyst_consensus" />
                       </div>
                     </th>
                     <SortableTh label="Buy %" sortKeyName="analyst_buy_pct" info="analyst_buy_pct" />
-                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right">
+                    <th className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
                         Target (Mean)
                         <MetricLabel term="analyst_target_mean" />
                       </div>
                     </th>
-                    <th className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-left">AI Context</th>
+                    <th className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-left">AI Context</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -376,8 +376,8 @@ export default function SignalComparisonPage() {
                     const price = prices[r.ticker];
                     return (
                       <Fragment key={r.ticker}>
-                        <tr className="border-b border-slate-100 last:border-0">
-                          <td className="px-3 py-2 font-medium text-slate-800">{r.ticker}</td>
+                        <tr className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{r.ticker}</td>
                           <td className="px-3 py-2">
                             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${signalBadgeClass(r.quant_signal)}`}>
                               {r.quant_signal}
@@ -395,7 +395,7 @@ export default function SignalComparisonPage() {
                             <span
                               title={`${r.signal_flip_count} flip${r.signal_flip_count === 1 ? "" : "s"} over ${r.signal_days_captured} captured days`}
                               className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                r.signal_unstable ? "bg-amber-50 text-amber-700" : "text-slate-500"
+                                r.signal_unstable ? "bg-amber-50 text-amber-700" : "text-slate-500 dark:text-slate-400"
                               }`}
                             >
                               {r.signal_flip_count}
@@ -404,13 +404,13 @@ export default function SignalComparisonPage() {
                             {r.signal_flip_count > 0 && !flip && (
                               <button
                                 onClick={() => loadFlipDetails(r)}
-                                className="ml-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
+                                className="ml-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:underline"
                               >
                                 Why?
                               </button>
                             )}
                             {flip?.status === "loading" && (
-                              <span className="ml-1.5 text-xs text-slate-400">…</span>
+                              <span className="ml-1.5 text-xs text-slate-400 dark:text-slate-500">…</span>
                             )}
                             {flip?.status === "error" && (
                               <button
@@ -421,18 +421,18 @@ export default function SignalComparisonPage() {
                               </button>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-right text-slate-600">{r.quant_target_price.toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right text-slate-600">{r.last_close.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{r.quant_target_price.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{r.last_close.toFixed(2)}</td>
                           <td className="px-3 py-2 text-right">
                             {!price && (
                               <button
                                 onClick={() => loadCurrentPrice(r.ticker)}
-                                className="rounded-md border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                               >
                                 Load
                               </button>
                             )}
-                            {price?.status === "loading" && <span className="text-xs text-slate-400">…</span>}
+                            {price?.status === "loading" && <span className="text-xs text-slate-400 dark:text-slate-500">…</span>}
                             {price?.status === "error" && (
                               <button
                                 onClick={() => loadCurrentPrice(r.ticker)}
@@ -443,7 +443,7 @@ export default function SignalComparisonPage() {
                             )}
                             {price?.status === "ok" &&
                               (price.price === null || price.price === undefined ? (
-                                <span className="text-xs text-slate-400">unavailable</span>
+                                <span className="text-xs text-slate-400 dark:text-slate-500">unavailable</span>
                               ) : (
                                 (() => {
                                   const livePrice = price.price as number;
@@ -453,7 +453,7 @@ export default function SignalComparisonPage() {
                                     (r.quant_signal === "SELL" && actualPct <= 0) ||
                                     r.quant_signal === "HOLD";
                                   return (
-                                    <span className="text-slate-700">
+                                    <span className="text-slate-700 dark:text-slate-200">
                                       <strong>${livePrice.toFixed(2)}</strong>{" "}
                                       <span className={actualPct >= 0 ? "text-emerald-600" : "text-red-600"}>
                                         ({actualPct >= 0 ? "+" : ""}
@@ -473,25 +473,25 @@ export default function SignalComparisonPage() {
                                 {r.analyst_consensus}
                               </span>
                             ) : (
-                              <span className="text-xs text-slate-400">No data</span>
+                              <span className="text-xs text-slate-400 dark:text-slate-500">No data</span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-right text-slate-600">
+                          <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">
                             {r.analyst_buy_pct !== null ? `${r.analyst_buy_pct.toFixed(0)}%` : "—"}
                           </td>
-                          <td className="px-3 py-2 text-right text-slate-600">
+                          <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">
                             {r.analyst_target_mean !== null ? r.analyst_target_mean.toFixed(2) : "—"}
                           </td>
                           <td className="px-3 py-2">
                             {!narrative && (
                               <button
                                 onClick={() => loadNarrative(r)}
-                                className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                                className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
                               >
                                 Get AI Context
                               </button>
                             )}
-                            {narrative?.status === "loading" && <span className="text-xs text-slate-500">Thinking…</span>}
+                            {narrative?.status === "loading" && <span className="text-xs text-slate-500 dark:text-slate-400">Thinking…</span>}
                             {narrative?.status === "error" && (
                               <button
                                 onClick={() => loadNarrative(r)}
@@ -506,21 +506,21 @@ export default function SignalComparisonPage() {
                           </td>
                         </tr>
                         {narrative?.status === "ok" && (
-                          <tr className="border-b border-slate-100 bg-slate-50/60 last:border-0">
-                            <td colSpan={11} className="px-3 py-2 text-xs leading-relaxed text-slate-600">
+                          <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 last:border-0">
+                            <td colSpan={11} className="px-3 py-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
                               {narrative.plainEnglish && (
                                 <p className="mb-2">
-                                  <strong className="text-slate-700">{r.ticker} — in plain terms:</strong>{" "}
+                                  <strong className="text-slate-700 dark:text-slate-200">{r.ticker} — in plain terms:</strong>{" "}
                                   {narrative.plainEnglish}
                                 </p>
                               )}
-                              <p className="text-slate-500">
-                                <strong className="text-slate-600">
+                              <p className="text-slate-500 dark:text-slate-400">
+                                <strong className="text-slate-600 dark:text-slate-300">
                                   {r.ticker} — quant technical context:
                                 </strong>{" "}
                                 {narrative.text}
                               </p>
-                              <p className="mt-2 text-[11px] italic text-slate-400">
+                              <p className="mt-2 text-[11px] italic text-slate-400 dark:text-slate-500">
                                 This explains what the indicators show, not investment advice — the model&apos;s own{" "}
                                 {r.quant_signal} call above is a forecast, not a guarantee.
                               </p>
@@ -528,15 +528,15 @@ export default function SignalComparisonPage() {
                           </tr>
                         )}
                         {flip?.status === "ok" && (
-                          <tr className="border-b border-slate-100 bg-amber-50/40 last:border-0">
-                            <td colSpan={11} className="px-3 py-2 text-xs leading-relaxed text-slate-600">
+                          <tr className="border-b border-slate-100 dark:border-slate-800 bg-amber-50/40 last:border-0">
+                            <td colSpan={11} className="px-3 py-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
                               {flip.explanation ? (
                                 <p>
-                                  <strong className="text-slate-700">{r.ticker} — most recent flip:</strong>{" "}
+                                  <strong className="text-slate-700 dark:text-slate-200">{r.ticker} — most recent flip:</strong>{" "}
                                   {flip.explanation}
                                 </p>
                               ) : (
-                                <p className="text-slate-400">
+                                <p className="text-slate-400 dark:text-slate-500">
                                   No flip found in the last 30 captured days for {r.ticker} — the flip count above
                                   may reflect an older change outside this window.
                                 </p>
@@ -545,7 +545,7 @@ export default function SignalComparisonPage() {
                           </tr>
                         )}
                         {flip?.status === "error" && (
-                          <tr className="border-b border-slate-100 bg-red-50/40 last:border-0">
+                          <tr className="border-b border-slate-100 dark:border-slate-800 bg-red-50/40 last:border-0">
                             <td colSpan={11} className="px-3 py-2 text-xs text-red-700">
                               {flip.error}
                             </td>

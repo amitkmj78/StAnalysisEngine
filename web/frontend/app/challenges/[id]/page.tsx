@@ -140,7 +140,7 @@ export default function ChallengeDetailPage() {
   if (challenge === undefined) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8">
-        <p className="text-sm text-slate-500">Loading…</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       </div>
     );
   }
@@ -165,8 +165,8 @@ export default function ChallengeDetailPage() {
       </Link>
       <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-slate-900">{challenge.name}</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">{challenge.name}</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {challenge.start_date} – {challenge.end_date} · {challenge.members.length} member
             {challenge.members.length === 1 ? "" : "s"}
           </p>
@@ -183,16 +183,16 @@ export default function ChallengeDetailPage() {
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {note && <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{note}</p>}
 
-      <div className="mt-4 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
-        <span className="text-slate-500">Join code:</span>
-        <span className="font-mono font-semibold tracking-wide text-slate-900">{challenge.join_code}</span>
+      <div className="mt-4 flex items-center gap-2 rounded-md bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm">
+        <span className="text-slate-500 dark:text-slate-400">Join code:</span>
+        <span className="font-mono font-semibold tracking-wide text-slate-900 dark:text-slate-50">{challenge.join_code}</span>
         <button onClick={handleCopyCode} className="ml-auto text-xs font-medium text-[var(--pf-accent)] hover:underline">
           {copied ? "Copied!" : "Copy"}
         </button>
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">Invite someone</h2>
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Invite someone</h2>
 
         <form onSubmit={handleInviteEmail} className="mt-2 flex gap-2">
           <input
@@ -201,7 +201,7 @@ export default function ChallengeDetailPage() {
             onChange={(e) => setInviteEmail(e.target.value)}
             placeholder="Friend's email"
             required
-            className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm"
           />
           <button
             type="submit"
@@ -214,13 +214,13 @@ export default function ChallengeDetailPage() {
 
         {discoverableUsers.length > 0 && (
           <div className="mt-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
               Connect with the community
             </p>
             <div className="mt-2 flex flex-col gap-1.5">
               {discoverableUsers.map((u) => (
-                <div key={u.id} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-1.5">
-                  <span className="text-sm text-slate-700">{u.label}</span>
+                <div key={u.id} className="flex items-center justify-between rounded-md bg-slate-50 dark:bg-slate-800 px-3 py-1.5">
+                  <span className="text-sm text-slate-700 dark:text-slate-200">{u.label}</span>
                   <button
                     onClick={() => handleInviteUser(u)}
                     disabled={invitingUserId === u.id}
@@ -235,10 +235,10 @@ export default function ChallengeDetailPage() {
         )}
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <th className="px-4 py-3">Rank</th>
               <th className="px-4 py-3">Member</th>
               <th className="px-4 py-3 text-right">Score</th>
@@ -252,11 +252,11 @@ export default function ChallengeDetailPage() {
           </thead>
           <tbody>
             {entries.map((e, i) => (
-              <tr key={`${i}-${e.member}`} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 text-slate-500">{i + 1}</td>
-                <td className="px-4 py-3 text-slate-900">
+              <tr key={`${i}-${e.member}`} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{i + 1}</td>
+                <td className="px-4 py-3 text-slate-900 dark:text-slate-50">
                   {e.member}
-                  {e.is_model && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">hypothetical</span>}
+                  {e.is_model && <span className="ml-2 rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-xs text-slate-500 dark:text-slate-400">hypothetical</span>}
                   {e.badges.map((b) => (
                     <span
                       key={b.badge}
@@ -267,13 +267,13 @@ export default function ChallengeDetailPage() {
                     </span>
                   ))}
                 </td>
-                <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-slate-50">
                   {fmtScore(e.score, board?.scoring ?? "return")}
                 </td>
                 {diversified && (
                   <td className="px-4 py-3 text-right">
                     {e.largest_position_pct === null || e.largest_position_pct === undefined ? (
-                      <span className="text-slate-400">—</span>
+                      <span className="text-slate-400 dark:text-slate-500">—</span>
                     ) : (
                       <span
                         title={`Largest position: ${e.largest_position_pct}% of the account (limit: ${board?.diversification_limit_pct}%)`}
@@ -282,13 +282,13 @@ export default function ChallengeDetailPage() {
                         {e.diversification_ok ? "✓" : "✗"} {e.largest_position_pct.toFixed(1)}%
                       </span>
                     )}
-                    <span className="ml-1.5 text-xs text-slate-400">
+                    <span className="ml-1.5 text-xs text-slate-400 dark:text-slate-500">
                       ({e.holdings_count ?? 0} holding{e.holdings_count === 1 ? "" : "s"})
                     </span>
                   </td>
                 )}
                 {e.return_pct === null ? (
-                  <td colSpan={diversified ? 6 : 5} className="px-4 py-3 text-sm text-slate-600">
+                  <td colSpan={diversified ? 6 : 5} className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
                     {e.is_model ? (
                       <span>No published picks cover this window yet.</span>
                     ) : !e.has_paper_account ? (
@@ -313,14 +313,14 @@ export default function ChallengeDetailPage() {
                     </td>
                     <td
                       className={`px-4 py-3 text-right ${
-                        e.vs_spy_pct === null ? "text-slate-400" : e.vs_spy_pct >= 0 ? "text-emerald-600" : "text-red-600"
+                        e.vs_spy_pct === null ? "text-slate-400 dark:text-slate-500" : e.vs_spy_pct >= 0 ? "text-emerald-600" : "text-red-600"
                       }`}
                     >
                       {fmtPct(e.vs_spy_pct)}
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-700">{fmtPct(e.max_drawdown_pct)}</td>
-                    <td className="px-4 py-3 text-right text-slate-700">{fmtPct(e.annualized_volatility_pct)}</td>
-                    <td className="px-4 py-3 text-right text-slate-500">
+                    <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-200">{fmtPct(e.max_drawdown_pct)}</td>
+                    <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-200">{fmtPct(e.annualized_volatility_pct)}</td>
+                    <td className="px-4 py-3 text-right text-slate-500 dark:text-slate-400">
                       {e.days_of_data}
                       {e.days_of_data > 0 && e.days_of_data < MIN_DAYS_FOR_CONFIDENT_READING && (
                         <span title="Early data -- interpret with caution" className="ml-1 text-amber-500">
@@ -336,20 +336,20 @@ export default function ChallengeDetailPage() {
         </table>
       </div>
       {curves && (
-        <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Equity curves</h2>
+        <section className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Equity curves</h2>
           <div className="mt-3">
             <EquityCurveChart data={curves} />
           </div>
         </section>
       )}
       {board && (
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
           Ranked by <span className="font-medium">{board.scoring_label}</span>. S&amp;P 500 over this window:{" "}
           {fmtPct(board.spy_return_pct)}.
         </p>
       )}
-      <p className="mt-2 text-xs text-slate-400">
+      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
         Return and max drawdown are computed from each member&apos;s linked paper-trading account, from the first
         snapshot on/after this challenge started to the latest on/before today (or when it ended). A member with no
         linked account, or too little data yet, shows &quot;—&quot; rather than a 0% that isn&apos;t real.

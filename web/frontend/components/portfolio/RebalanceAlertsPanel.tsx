@@ -79,22 +79,22 @@ export default function RebalanceAlertsPanel({ allPortfolios }: { allPortfolios:
         return (
           <div key={alert.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-semibold text-slate-900">
+              <span className="font-semibold text-slate-900 dark:text-slate-50">
                 Rebalance suggested — {portfolioName}
               </span>
               <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
                 Max drift {alert.max_drift_pct.toFixed(1)} pts
               </span>
             </div>
-            <p className="mt-1 text-xs text-slate-400">Scores as of {alert.score_as_of}</p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Scores as of {alert.score_as_of}</p>
 
             {alert.drift_summary.length > 0 && (
               <div className="mt-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Weight drift</p>
-                <ul className="mt-1 space-y-0.5 text-sm text-slate-700">
+                <ul className="mt-1 space-y-0.5 text-sm text-slate-700 dark:text-slate-200">
                   {alert.drift_summary.map((d) => (
                     <li key={d.ticker}>
-                      <span className="font-medium text-slate-900">{d.ticker}</span>: target{" "}
+                      <span className="font-medium text-slate-900 dark:text-slate-50">{d.ticker}</span>: target{" "}
                       {d.target_weight_pct.toFixed(1)}% → now {d.current_weight_pct.toFixed(1)}% ({fmtPct(d.drift_pct)})
                     </li>
                   ))}
@@ -105,19 +105,19 @@ export default function RebalanceAlertsPanel({ allPortfolios }: { allPortfolios:
             {alert.suggested_swaps.length > 0 && (
               <div className="mt-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Suggested swaps</p>
-                <ul className="mt-1 space-y-0.5 text-sm text-slate-700">
+                <ul className="mt-1 space-y-0.5 text-sm text-slate-700 dark:text-slate-200">
                   {alert.suggested_swaps.map((s) => (
                     <li key={s.sell_ticker}>
-                      Sell <span className="font-medium text-slate-900">{s.sell_ticker}</span>
+                      Sell <span className="font-medium text-slate-900 dark:text-slate-50">{s.sell_ticker}</span>
                       {s.buy_ticker ? (
                         <>
-                          {" "}→ buy <span className="font-medium text-slate-900">{s.buy_ticker}</span>
+                          {" "}→ buy <span className="font-medium text-slate-900 dark:text-slate-50">{s.buy_ticker}</span>
                           {s.buy_name ? ` (${s.buy_name})` : ""}
                         </>
                       ) : (
                         " — no same-sector replacement available"
                       )}
-                      <span className="text-slate-400"> · {s.reason}</span>
+                      <span className="text-slate-400 dark:text-slate-500"> · {s.reason}</span>
                     </li>
                   ))}
                 </ul>
@@ -137,7 +137,7 @@ export default function RebalanceAlertsPanel({ allPortfolios }: { allPortfolios:
                 type="button"
                 onClick={() => handleDismiss(alert.id)}
                 disabled={busyId === alert.id}
-                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)] disabled:opacity-50"
+                className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-900 dark:text-slate-50 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)] disabled:opacity-50"
               >
                 Dismiss
               </button>

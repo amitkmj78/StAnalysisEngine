@@ -8,13 +8,13 @@ import type { PortfolioReviewResponse } from "@/lib/types";
 const SIGNAL_BADGE_CLASS: Record<string, string> = {
   BUY: "bg-emerald-50 text-emerald-700",
   SELL: "bg-red-50 text-red-700",
-  HOLD: "bg-slate-100 text-slate-600",
+  HOLD: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
 };
 
 const SENTIMENT_BADGE_CLASS: Record<string, string> = {
   Bullish: "bg-emerald-50 text-emerald-700",
   Bearish: "bg-red-50 text-red-700",
-  Neutral: "bg-slate-100 text-slate-600",
+  Neutral: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
 };
 
 export default function PortfolioReviewCard({ portfolioId }: { portfolioId: number | null }) {
@@ -35,7 +35,7 @@ export default function PortfolioReviewCard({ portfolioId }: { portfolioId: numb
   }
 
   return (
-    <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+    <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-emerald-50 text-[var(--pf-accent)]">
@@ -44,8 +44,8 @@ export default function PortfolioReviewCard({ portfolioId }: { portfolioId: numb
             </svg>
           </div>
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Portfolio Review</h2>
-            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Portfolio Review</h2>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-500 dark:text-slate-400">
               Flags positions worth a second look — a SELL signal, a concentrated position (single-ticker or a whole
               sector spread across several), or sentiment and the quant signal agreeing — using today&apos;s
               already-computed Signal and Sentiment plus live dollar values for each holding, then summarizes why.
@@ -57,7 +57,7 @@ export default function PortfolioReviewCard({ portfolioId }: { portfolioId: numb
           type="button"
           onClick={handleReview}
           disabled={loading}
-          className="flex-none rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)] disabled:opacity-50"
+          className="flex-none rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-900 dark:text-slate-50 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)] disabled:opacity-50"
         >
           {loading ? "Reviewing…" : review ? "Review Again" : "Review My Portfolio"}
         </button>
@@ -66,7 +66,7 @@ export default function PortfolioReviewCard({ portfolioId }: { portfolioId: numb
       {error && <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {review && review.flagged.length === 0 && (
-        <p className="mt-3 text-sm text-slate-500">
+        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
           Nothing stands out today — no SELL signals, no concentrated positions, and sentiment isn&apos;t
           reinforcing or conflicting with any signal in a notable way.
         </p>
@@ -75,15 +75,15 @@ export default function PortfolioReviewCard({ portfolioId }: { portfolioId: numb
       {review && review.flagged.length > 0 && (
         <>
           {review.summary && (
-            <p className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-700">
+            <p className="mt-3 rounded-md bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
               {review.summary}
             </p>
           )}
           <ul className="mt-3 flex flex-col gap-2">
             {review.flagged.map((f) => (
-              <li key={f.ticker} className="rounded-md border border-slate-200 px-3 py-2 text-sm">
+              <li key={f.ticker} className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-slate-900">{f.ticker}</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-50">{f.ticker}</span>
                   {f.signal && (
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${SIGNAL_BADGE_CLASS[f.signal]}`}>
                       {f.signal}
@@ -97,16 +97,16 @@ export default function PortfolioReviewCard({ portfolioId }: { portfolioId: numb
                     </span>
                   )}
                   {f.weight_pct !== null && (
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-400 dark:text-slate-500">
                       {f.weight_pct.toFixed(1)}% of portfolio
                       {f.market_value !== null && ` (${f.market_value.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 })})`}
                     </span>
                   )}
                   {f.sector && (
-                    <span className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-500">{f.sector}</span>
+                    <span className="rounded-full bg-slate-50 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400">{f.sector}</span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-slate-500">{f.reasons.join(" · ")}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{f.reasons.join(" · ")}</p>
               </li>
             ))}
           </ul>

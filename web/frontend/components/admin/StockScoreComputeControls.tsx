@@ -65,11 +65,11 @@ export default function StockScoreComputeControls() {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Stock Score Compute (Phase 1 &quot;Trust&quot;)</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">Stock Score Compute (Phase 1 &quot;Trust&quot;)</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Daily job (weekdays, 4:15pm ET) that computes every ticker&apos;s short-term/long-term two-score
             and saves it to stock_scores. One ticker&apos;s or one factor&apos;s data failing degrades just
             that piece to &quot;no data&quot; rather than aborting the whole night — safe to re-run (it only
@@ -80,7 +80,7 @@ export default function StockScoreComputeControls() {
         {enabled !== null && (
           <span
             className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
             {enabled ? "Scoring" : "Paused"}
@@ -105,7 +105,7 @@ export default function StockScoreComputeControls() {
         <button
           onClick={handleRunNow}
           disabled={running}
-          className="rounded-md border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+          className="rounded-md border border-emerald-300 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
         >
           {running ? "Scoring…" : "Run Now"}
         </button>

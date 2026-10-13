@@ -19,7 +19,7 @@ function statusBadgeClass(status: PaperOrder["status"]): string {
   if (status === "FILLED") return "bg-emerald-50 text-emerald-700";
   if (status === "PARTIALLY_FILLED" || status === "OPEN" || status === "SUBMITTING") return "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]";
   if (status === "REJECTED" || status === "UNKNOWN") return "bg-red-50 text-red-700";
-  return "bg-slate-100 text-slate-500";
+  return "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400";
 }
 
 type LinkFormState = { apiKeyId: string; apiSecretKey: string };
@@ -148,8 +148,8 @@ export default function PaperTradingPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-slate-900">Paper Trading</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Paper Trading</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Practice placing orders with simulated money through Alpaca&apos;s paper-trading sandbox. No real money is
             ever involved. You can link one account per portfolio.
           </p>
@@ -157,7 +157,7 @@ export default function PaperTradingPage() {
             Compete with friends using this account →
           </Link>
         </div>
-        <Link href="/portfolio" className="text-sm font-medium text-slate-600 hover:underline">
+        <Link href="/portfolio" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
           ← Back to Portfolio
         </Link>
       </div>
@@ -166,20 +166,20 @@ export default function PaperTradingPage() {
       {note && <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{note}</p>}
 
       {loading ? (
-        <p className="mt-6 text-sm text-slate-500">Loading…</p>
+        <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       ) : portfolios.length === 0 ? (
-        <form onSubmit={handleCreatePortfolio} className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Create a portfolio for paper trading</h2>
-          <p className="mt-1 text-xs text-slate-500">
+        <form onSubmit={handleCreatePortfolio} className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Create a portfolio for paper trading</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             You need a portfolio before linking a paper account. Name it something you&apos;ll recognize as
             practice money -- you can always rename or create another real one later from the main Portfolio page.
           </p>
-          <label className="mt-3 block text-xs font-medium text-slate-600">
+          <label className="mt-3 block text-xs font-medium text-slate-600 dark:text-slate-300">
             Portfolio name
             <input
               value={newPortfolioName}
               onChange={(e) => setNewPortfolioName(e.target.value)}
-              className="mt-1 w-full max-w-sm rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="mt-1 w-full max-w-sm rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
             />
           </label>
           <button
@@ -196,33 +196,33 @@ export default function PaperTradingPage() {
           {portfolios.map((p) => {
             const account = accountByPortfolio.get(p.id);
             return (
-              <div key={p.id} className="rounded-xl border border-slate-200 bg-white p-5">
-                {portfolios.length > 1 && <h2 className="text-sm font-semibold text-slate-900">{p.name}</h2>}
+              <div key={p.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+                {portfolios.length > 1 && <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">{p.name}</h2>}
                 {!account ? (
                   <form onSubmit={(e) => handleLink(e, p.id)} className={portfolios.length > 1 ? "mt-3 flex flex-col gap-3" : "flex flex-col gap-3"}>
-                    {portfolios.length === 1 && <h2 className="text-sm font-semibold text-slate-900">Link your Alpaca paper account</h2>}
-                    <p className="text-xs text-slate-500">
+                    {portfolios.length === 1 && <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Link your Alpaca paper account</h2>}
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Generate a paper-trading API key pair from your own Alpaca dashboard (paper account, not live)
                       and paste it below. The secret key is encrypted before it&apos;s stored.
                     </p>
-                    <label className="text-xs font-medium text-slate-600">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
                       API Key ID
                       <input
                         value={linkForms[p.id]?.apiKeyId ?? ""}
                         onChange={(e) => updateLinkForm(p.id, { apiKeyId: e.target.value })}
                         required
-                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                        className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
                         placeholder="PK..."
                       />
                     </label>
-                    <label className="text-xs font-medium text-slate-600">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
                       API Secret Key
                       <input
                         value={linkForms[p.id]?.apiSecretKey ?? ""}
                         onChange={(e) => updateLinkForm(p.id, { apiSecretKey: e.target.value })}
                         required
                         type="password"
-                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                        className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
                       />
                     </label>
                     <button
@@ -237,7 +237,7 @@ export default function PaperTradingPage() {
                   <div className={portfolios.length > 1 ? "mt-3" : ""}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-slate-900">Paper Account {account.account_number ?? ""}</span>
+                        <span className="font-medium text-slate-900 dark:text-slate-50">Paper Account {account.account_number ?? ""}</span>
                         <span className="rounded-full bg-[var(--pf-accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--pf-accent)]">Paper</span>
                       </div>
                       <button
@@ -280,9 +280,9 @@ export default function PaperTradingPage() {
         </div>
       )}
 
-      <h2 className="mt-8 text-sm font-semibold text-slate-900">Orders</h2>
+      <h2 className="mt-8 text-sm font-semibold text-slate-900 dark:text-slate-50">Orders</h2>
       {orders.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">No orders yet.</p>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No orders yet.</p>
       ) : (
         <div className="mt-3 flex flex-col gap-2">
           {orders.map((order) => {
@@ -291,21 +291,21 @@ export default function PaperTradingPage() {
             return (
               <div
                 key={order.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3"
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-slate-900">
+                    <span className="font-medium text-slate-900 dark:text-slate-50">
                       {order.side === "buy" ? "Buy" : "Sell"} {order.qty} {order.ticker}
                     </span>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(order.status)}`}>
                       {order.status.replace("_", " ")}
                     </span>
                     {showPortfolioLabel && portfolioName && (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{portfolioName}</span>
+                      <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400">{portfolioName}</span>
                     )}
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {order.order_type === "limit" ? `Limit $${order.limit_price}` : "Market"} ·{" "}
                     {order.time_in_force.toUpperCase()}
                     {order.filled_qty > 0 &&

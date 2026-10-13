@@ -49,27 +49,27 @@ export default function SocialChatRoomPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold text-slate-900">
+        <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">
           #{room === "general" ? "general" : room} chat
         </h1>
-        <Link href="/social/feed" className="text-sm font-medium text-slate-600 hover:underline">Feed</Link>
+        <Link href="/social/feed" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">Feed</Link>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Open during market hours (Mon-Fri, 9:30-16:00 ET) -- not a market-holiday-aware calendar yet. Refreshes every
         few seconds; not real-time (this app has no WebSocket layer).
       </p>
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <div className="mt-4 flex h-96 flex-col gap-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-4">
+      <div className="mt-4 flex h-96 flex-col gap-2 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
         {messages.map((m) => (
           <div key={m.id} className="text-sm">
-            <strong className="text-slate-800">{m.display_name ?? "User"}</strong>{" "}
-            <span className="text-xs text-slate-400">{new Date(m.created_at).toLocaleTimeString()}</span>
-            <p className="text-slate-700">{m.body}</p>
+            <strong className="text-slate-800 dark:text-slate-100">{m.display_name ?? "User"}</strong>{" "}
+            <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(m.created_at).toLocaleTimeString()}</span>
+            <p className="text-slate-700 dark:text-slate-200">{m.body}</p>
           </div>
         ))}
-        {messages.length === 0 && <p className="text-sm text-slate-500">No messages yet.</p>}
+        {messages.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No messages yet.</p>}
       </div>
 
       <div className="mt-3 flex gap-2">
@@ -79,7 +79,7 @@ export default function SocialChatRoomPage() {
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder={marketOpen === false ? "Chat is closed outside market hours" : "Message..."}
           disabled={marketOpen === false}
-          className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:bg-slate-50"
+          className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm disabled:bg-slate-50 dark:disabled:bg-slate-800"
         />
         <button onClick={handleSend} disabled={marketOpen === false || !draft.trim()} className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
           Send

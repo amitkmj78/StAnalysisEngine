@@ -131,17 +131,17 @@ export default function DomainConfigPanel() {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div>
-        <h2 className="font-semibold text-slate-900">CrawlSearch — Domain Config</h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <h2 className="font-semibold text-slate-900 dark:text-slate-50">CrawlSearch — Domain Config</h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Per-domain crawl settings, merged from domains.yaml and any live overrides below. A saved edit here
           takes effect on the next crawl (on-demand or scheduled) — no redeploy needed.
         </p>
       </div>
 
       {stats && (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
           {stats.indexed_pages.toLocaleString()} pages indexed across {stats.domains_with_pages} domains ·{" "}
           {stats.enabled_domains}/{stats.configured_domains} domains enabled · {stats.retention_days}-day
           retention · {stats.pages_last_24h} page{stats.pages_last_24h === 1 ? "" : "s"} crawled in the last 24h
@@ -150,13 +150,13 @@ export default function DomainConfigPanel() {
 
       {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      {loading && <p className="mt-4 text-sm text-slate-500">Loading…</p>}
+      {loading && <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
 
       {domains && (
-        <div className="mt-4 overflow-x-auto rounded-md border border-slate-200">
+        <div className="mt-4 overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
           <table className="min-w-full text-xs">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left font-medium uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <th className="px-2 py-1.5">Domain</th>
                 <th className="px-2 py-1.5">Enabled</th>
                 <th className="px-2 py-1.5 text-right">Max Pages</th>
@@ -171,8 +171,8 @@ export default function DomainConfigPanel() {
             <tbody>
               {domains.map((cfg) => (
                 <Fragment key={cfg.domain}>
-                  <tr className="border-b border-slate-100 last:border-0">
-                    <td className="px-2 py-1.5 font-medium text-slate-800">
+                  <tr className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                    <td className="px-2 py-1.5 font-medium text-slate-800 dark:text-slate-100">
                       {cfg.domain}
                       {!cfg.in_yaml && (
                         <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
@@ -188,23 +188,23 @@ export default function DomainConfigPanel() {
                     <td className="px-2 py-1.5">
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          cfg.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                          cfg.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                         }`}
                       >
                         {cfg.enabled ? "Yes" : "No"}
                       </span>
                     </td>
-                    <td className="px-2 py-1.5 text-right text-slate-600">{cfg.max_pages}</td>
-                    <td className="px-2 py-1.5 text-right text-slate-600">{cfg.max_depth}</td>
-                    <td className="px-2 py-1.5 text-right text-slate-600">{cfg.min_delay_seconds}</td>
-                    <td className="px-2 py-1.5 text-right text-slate-600">{cfg.boost}</td>
-                    <td className="px-2 py-1.5 text-right text-slate-600">{cfg.pages}</td>
-                    <td className="px-2 py-1.5 text-slate-500">{fmtDate(cfg.last_crawled)}</td>
+                    <td className="px-2 py-1.5 text-right text-slate-600 dark:text-slate-300">{cfg.max_pages}</td>
+                    <td className="px-2 py-1.5 text-right text-slate-600 dark:text-slate-300">{cfg.max_depth}</td>
+                    <td className="px-2 py-1.5 text-right text-slate-600 dark:text-slate-300">{cfg.min_delay_seconds}</td>
+                    <td className="px-2 py-1.5 text-right text-slate-600 dark:text-slate-300">{cfg.boost}</td>
+                    <td className="px-2 py-1.5 text-right text-slate-600 dark:text-slate-300">{cfg.pages}</td>
+                    <td className="px-2 py-1.5 text-slate-500 dark:text-slate-400">{fmtDate(cfg.last_crawled)}</td>
                     <td className="px-2 py-1.5">
                       <div className="flex gap-2">
                         <button
                           onClick={() => (expanded === cfg.domain ? cancelEdit() : startEdit(cfg))}
-                          className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                          className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                           {expanded === cfg.domain ? "Close" : "Edit"}
                         </button>
@@ -221,10 +221,10 @@ export default function DomainConfigPanel() {
                     </td>
                   </tr>
                   {expanded === cfg.domain && form && (
-                    <tr className="border-b border-slate-100 bg-slate-50">
+                    <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">
                       <td colSpan={9} className="px-3 py-3">
                         <div className="flex flex-wrap items-end gap-3">
-                          <label className="flex items-center gap-1.5 text-xs text-slate-700">
+                          <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-200">
                             <input
                               type="checkbox"
                               checked={form.enabled}
@@ -232,7 +232,7 @@ export default function DomainConfigPanel() {
                             />
                             Enabled
                           </label>
-                          <label className="flex items-center gap-1.5 text-xs text-slate-700">
+                          <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-200">
                             <input
                               type="checkbox"
                               checked={form.use_sitemap}
@@ -240,27 +240,27 @@ export default function DomainConfigPanel() {
                             />
                             Use sitemap
                           </label>
-                          <label className="flex flex-col gap-1 text-xs text-slate-600">
+                          <label className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
                             Max pages
                             <input
                               type="number"
                               min={1}
                               value={form.max_pages}
                               onChange={(e) => setForm({ ...form, max_pages: e.target.value })}
-                              className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                              className="w-20 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
                             />
                           </label>
-                          <label className="flex flex-col gap-1 text-xs text-slate-600">
+                          <label className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
                             Max depth
                             <input
                               type="number"
                               min={0}
                               value={form.max_depth}
                               onChange={(e) => setForm({ ...form, max_depth: e.target.value })}
-                              className="w-16 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                              className="w-16 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
                             />
                           </label>
-                          <label className="flex flex-col gap-1 text-xs text-slate-600">
+                          <label className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
                             Delay (s)
                             <input
                               type="number"
@@ -268,10 +268,10 @@ export default function DomainConfigPanel() {
                               step="0.5"
                               value={form.min_delay_seconds}
                               onChange={(e) => setForm({ ...form, min_delay_seconds: e.target.value })}
-                              className="w-16 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                              className="w-16 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
                             />
                           </label>
-                          <label className="flex flex-col gap-1 text-xs text-slate-600">
+                          <label className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
                             Boost
                             <input
                               type="number"
@@ -279,37 +279,37 @@ export default function DomainConfigPanel() {
                               step="0.1"
                               value={form.boost}
                               onChange={(e) => setForm({ ...form, boost: e.target.value })}
-                              className="w-16 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                              className="w-16 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
                             />
                           </label>
-                          <label className="flex flex-col gap-1 text-xs text-slate-600">
+                          <label className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
                             Include (comma-separated path substrings)
                             <input
                               type="text"
                               value={form.include}
                               onChange={(e) => setForm({ ...form, include: e.target.value })}
                               placeholder="/markets/, /article/"
-                              className="w-56 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                              className="w-56 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
                             />
                           </label>
-                          <label className="flex flex-col gap-1 text-xs text-slate-600">
+                          <label className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
                             Exclude (comma-separated path substrings)
                             <input
                               type="text"
                               value={form.exclude}
                               onChange={(e) => setForm({ ...form, exclude: e.target.value })}
                               placeholder="/video/, /sponsored/"
-                              className="w-56 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                              className="w-56 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
                             />
                           </label>
-                          <label className="flex flex-col gap-1 text-xs text-slate-600">
+                          <label className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
                             Tags (comma-separated)
                             <input
                               type="text"
                               value={form.tags}
                               onChange={(e) => setForm({ ...form, tags: e.target.value })}
                               placeholder="finance, news"
-                              className="w-40 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                              className="w-40 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
                             />
                           </label>
                           <div className="flex gap-2">
@@ -323,7 +323,7 @@ export default function DomainConfigPanel() {
                             <button
                               onClick={cancelEdit}
                               disabled={saving}
-                              className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
                             >
                               Cancel
                             </button>

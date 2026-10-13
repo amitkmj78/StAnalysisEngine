@@ -33,25 +33,25 @@ export default function EvidencePanel({
   const rankText = (r: { rank: number; of: number } | null) => (r ? `#${r.rank} of ${r.of}` : "Not ranked");
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-900">Evidence</h3>
-        <p className="text-xs text-slate-500">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Evidence</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           As of {asOfDate}: short-term{" "}
-          <span className="font-mono font-semibold text-slate-800">{shortScore?.toFixed(1) ?? "n/a"}</span>, long-term{" "}
-          <span className="font-mono font-semibold text-slate-800">{longScore?.toFixed(1) ?? "n/a"}</span>
+          <span className="font-mono font-semibold text-slate-800 dark:text-slate-100">{shortScore?.toFixed(1) ?? "n/a"}</span>, long-term{" "}
+          <span className="font-mono font-semibold text-slate-800 dark:text-slate-100">{longScore?.toFixed(1) ?? "n/a"}</span>
         </p>
       </div>
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Pushing the score up</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Pushing the score up</p>
           {topDrivers.length === 0 ? (
-            <p className="mt-1 text-xs text-slate-400">No positive drivers today.</p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">No positive drivers today.</p>
           ) : (
             <ul className="mt-1 flex flex-col gap-1">
               {topDrivers.map((d) => (
                 <li key={d.label} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-slate-700">{d.label}</span>
+                  <span className="text-slate-700 dark:text-slate-200">{d.label}</span>
                   <span className="font-mono text-xs font-semibold text-emerald-700">+{d.contribution.toFixed(1)}</span>
                 </li>
               ))}
@@ -59,14 +59,14 @@ export default function EvidencePanel({
           )}
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Pulling the score down</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Pulling the score down</p>
           {topDrags.length === 0 ? (
-            <p className="mt-1 text-xs text-slate-400">No negative drags today.</p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">No negative drags today.</p>
           ) : (
             <ul className="mt-1 flex flex-col gap-1">
               {topDrags.map((d) => (
                 <li key={d.label} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-slate-700">{d.label}</span>
+                  <span className="text-slate-700 dark:text-slate-200">{d.label}</span>
                   <span className="font-mono text-xs font-semibold text-red-700">{d.contribution.toFixed(1)}</span>
                 </li>
               ))}
@@ -74,17 +74,17 @@ export default function EvidencePanel({
           )}
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs sm:grid-cols-3">
-        <p className="text-slate-600">
-          <span className="text-slate-400">Short-term rank in {sectorKey}: </span>
+      <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-2 border-t border-slate-100 dark:border-slate-800 pt-3 text-xs sm:grid-cols-3">
+        <p className="text-slate-600 dark:text-slate-300">
+          <span className="text-slate-400 dark:text-slate-500">Short-term rank in {sectorKey}: </span>
           {rankText(shortSectorRank)}
         </p>
-        <p className="text-slate-600">
-          <span className="text-slate-400">Long-term rank in {sectorKey}: </span>
+        <p className="text-slate-600 dark:text-slate-300">
+          <span className="text-slate-400 dark:text-slate-500">Long-term rank in {sectorKey}: </span>
           {rankText(longSectorRank)}
         </p>
-        <p className="text-slate-600">
-          <span className="text-slate-400">Market regime: </span>
+        <p className="text-slate-600 dark:text-slate-300">
+          <span className="text-slate-400 dark:text-slate-500">Market regime: </span>
           {regime ?? "Not available"}
         </p>
       </div>

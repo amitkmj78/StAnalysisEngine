@@ -14,16 +14,16 @@ export default async function AdminDeployPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">AWS Deploy</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">AWS Deploy</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Live control panel above, manual runbook below. The control panel runs against your AWS account
         from this machine — it doesn&apos;t store credentials in the deployed app.
       </p>
 
       <DeployControlPanel />
 
-      <h2 className="mt-2 text-lg font-semibold text-slate-900">Manual Runbook</h2>
-      <p className="mt-1 text-sm text-slate-500">
+      <h2 className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-50">Manual Runbook</h2>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Reference for anything the automation above doesn&apos;t cover (e.g. HTTPS setup once a domain
         exists), or to do it by hand.
       </p>
@@ -48,7 +48,7 @@ sudo apt install -y python3-venv python3-pip nginx git curl postgresql
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 git clone <this-repo-url> app && cd app`}</Code>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           Postgres runs directly on this instance (no RDS cost) — same choice made for local dev.
         </p>
       </Section>
@@ -169,9 +169,9 @@ curl -b cookies.txt "http://<elastic-ip>/api/v1/predict/summary?ticker=AAPL&peri
         </p>
       </Section>
 
-      <div className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
-        <h3 className="font-semibold text-slate-900">No domain yet</h3>
-        <p className="mt-2 text-sm text-slate-600">
+      <div className="mt-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-50">No domain yet</h3>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           This serves plain HTTP on the instance&apos;s IP, and the session cookie is <Code inline>httpOnly</Code>
           {" "}+ <Code inline>SameSite=Lax</Code>. Keep <Code inline>COOKIE_SECURE=false</Code> until a domain +
           TLS cert exist — a <Code inline>Secure</Code> cookie is silently dropped by the browser over plain
@@ -186,17 +186,17 @@ curl -b cookies.txt "http://<elastic-ip>/api/v1/predict/summary?ticker=AAPL&peri
 function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <div className="mt-6">
-      <h2 className="text-lg font-semibold text-slate-900">
+      <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
         {n}. {title}
       </h2>
-      <div className="mt-2 text-sm text-slate-700">{children}</div>
+      <div className="mt-2 text-sm text-slate-700 dark:text-slate-200">{children}</div>
     </div>
   );
 }
 
 function Code({ children, inline }: { children: string; inline?: boolean }) {
   if (inline) {
-    return <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800">{children}</code>;
+    return <code className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 font-mono text-xs text-slate-800 dark:text-slate-100">{children}</code>;
   }
   return (
     <pre className="mt-2 overflow-x-auto rounded-md bg-slate-900 p-4 text-xs leading-relaxed text-slate-100">

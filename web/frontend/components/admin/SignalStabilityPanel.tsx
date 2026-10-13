@@ -11,14 +11,14 @@ const LOOKBACK_OPTIONS = [14, 30, 60, 90];
 const SIGNAL_BADGE_CLASS: Record<string, string> = {
   BUY: "bg-emerald-50 text-emerald-700",
   SELL: "bg-red-50 text-red-700",
-  HOLD: "bg-slate-100 text-slate-600",
-  UNKNOWN: "bg-slate-100 text-slate-400",
+  HOLD: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
+  UNKNOWN: "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500",
 };
 
 const CLASSIFICATION_INFO: Record<SignalStabilityFlip["classification"], { label: string; className: string; title: string }> = {
   boundary: {
     label: "Boundary",
-    className: "bg-slate-100 text-slate-600",
+    className: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
     title: "expected_return_pct barely crossed the ±5% BUY/SELL cutoff — likely noise around a view that hasn't really changed.",
   },
   chase: {
@@ -61,7 +61,7 @@ function InfoButton({ onClick, label }: { onClick: () => void; label: string }) 
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
+      className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 dark:border-slate-600 text-[10px] font-normal normal-case text-slate-400 dark:text-slate-500 hover:border-slate-500 dark:hover:border-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
     >
       i
     </button>
@@ -104,43 +104,43 @@ export default function SignalStabilityPanel() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-slate-600">Lookback</label>
+        <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Lookback</label>
         <select
           value={lookbackDays}
           onChange={(e) => setLookbackDays(Number(e.target.value))}
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
         >
           {LOOKBACK_OPTIONS.map((d) => (
             <option key={d} value={d}>{d} days</option>
           ))}
         </select>
         {report && (
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
             Signal flips at ≥{report.buy_threshold_pct}% (BUY) / ≤{report.sell_threshold_pct}% (SELL) expected return.
           </span>
         )}
       </div>
 
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {loading && !report && <p className="text-sm text-slate-500">Loading…</p>}
+      {loading && !report && <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
 
       {report && !loading && report.tickers.length === 0 && (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           Not enough Quant Signal history yet — need at least two captured days to detect a flip.
         </p>
       )}
 
       {report && report.tickers.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">Flip rate by ticker</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Flip rate by ticker</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Most-flipped tickers first — a high flip count relative to days captured means the signal isn&apos;t
             settling on a view.
           </p>
-          <div className="mt-2 max-h-[26rem] overflow-auto rounded-xl border border-slate-200 bg-white">
+          <div className="mt-2 max-h-[26rem] overflow-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                <tr className="sticky top-0 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <th className="px-3 py-2">Ticker</th>
                   <th className="px-3 py-2 text-right">
                     Days Captured
@@ -154,17 +154,17 @@ export default function SignalStabilityPanel() {
               </thead>
               <tbody>
                 {report.tickers.map((t) => (
-                  <tr key={t.ticker} className="border-b border-slate-100 last:border-0">
-                    <td className="px-3 py-2 font-medium text-slate-800">{t.ticker}</td>
-                    <td className="px-3 py-2 text-right text-slate-600">{t.days_captured}</td>
-                    <td className="px-3 py-2 text-right text-slate-600">{t.flip_count}</td>
+                  <tr key={t.ticker} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                    <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{t.ticker}</td>
+                    <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{t.days_captured}</td>
+                    <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{t.flip_count}</td>
                     <td className="px-3 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${SIGNAL_BADGE_CLASS[t.current_signal]}`}>
                         {t.current_signal}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-right text-slate-600">{t.current_streak_days}d</td>
-                    <td className="px-3 py-2 text-slate-600">{t.last_flip_date ?? "—"}</td>
+                    <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{t.current_streak_days}d</td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{t.last_flip_date ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -175,15 +175,15 @@ export default function SignalStabilityPanel() {
 
       {report && report.recent_flips.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">Recent flips</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Recent flips</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Most recent 50 signal changes across all tickers, with the model&apos;s forecast and the ticker&apos;s
             own price move around the flip.
           </p>
-          <div className="mt-2 max-h-[26rem] overflow-auto rounded-xl border border-slate-200 bg-white">
+          <div className="mt-2 max-h-[26rem] overflow-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="sticky top-0 border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                <tr className="sticky top-0 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <th className="px-3 py-2">Ticker</th>
                   <th className="px-3 py-2">Date</th>
                   <th className="px-3 py-2">Signal Change</th>
@@ -202,24 +202,24 @@ export default function SignalStabilityPanel() {
                 {report.recent_flips.map((f, i) => {
                   const info = CLASSIFICATION_INFO[f.classification];
                   return (
-                    <tr key={`${f.ticker}-${f.date}-${i}`} className="border-b border-slate-100 last:border-0">
-                      <td className="px-3 py-2 font-medium text-slate-800">{f.ticker}</td>
-                      <td className="px-3 py-2 text-slate-600">
+                    <tr key={`${f.ticker}-${f.date}-${i}`} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                      <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{f.ticker}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
                         {f.prev_date} → {f.date}
                       </td>
                       <td className="px-3 py-2">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${SIGNAL_BADGE_CLASS[f.prev_signal]}`}>
                           {f.prev_signal}
                         </span>
-                        <span className="mx-1 text-slate-400">→</span>
+                        <span className="mx-1 text-slate-400 dark:text-slate-500">→</span>
                         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${SIGNAL_BADGE_CLASS[f.signal]}`}>
                           {f.signal}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right text-slate-600">
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">
                         {fmtPct(f.prev_expected_return_pct)} → {fmtPct(f.expected_return_pct)}
                       </td>
-                      <td className="px-3 py-2 text-right text-slate-600">
+                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-300">
                         {fmtPrice(f.prev_close)} → {fmtPrice(f.last_close)}
                         {f.price_move_pct !== null && (
                           <span className={`ml-1 ${f.price_move_pct >= 0 ? "text-emerald-600" : "text-red-600"}`}>

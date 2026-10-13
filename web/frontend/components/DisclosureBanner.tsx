@@ -22,7 +22,7 @@ export function DisclosureBanner({ variant = "standard" }: { variant?: "standard
   }
 
   return (
-    <p className="text-xs leading-relaxed text-slate-500">
+    <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
       This is impersonal research: the same content is shown to every reader, describing what the
       model ranked and why — not individualized advice and not a recommendation to buy or sell any
       security. Past performance does not indicate future results.

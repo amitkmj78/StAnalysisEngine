@@ -12,12 +12,12 @@ import type { EarningsCalendarResponse } from "@/lib/types";
 const PF = {
   page: "bg-[var(--pf-bg)]",
   ink: "text-[var(--pf-text)]",
-  muted: "text-slate-500",
+  muted: "text-slate-500 dark:text-slate-400",
   line: "border-[var(--pf-border)]",
-  card: "rounded-xl border border-[var(--pf-border)] bg-white",
-  surface2: "bg-slate-100",
-  chip: "inline-flex items-center gap-1 rounded-full border border-[var(--pf-border)] bg-white px-2.5 py-1 text-xs font-medium",
-  btn: "rounded-md border border-[var(--pf-border)] bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]",
+  card: "rounded-xl border border-[var(--pf-border)] bg-white dark:bg-slate-900",
+  surface2: "bg-slate-100 dark:bg-slate-800",
+  chip: "inline-flex items-center gap-1 rounded-full border border-[var(--pf-border)] bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-medium",
+  btn: "rounded-md border border-[var(--pf-border)] bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-900 dark:text-slate-50 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]",
 };
 
 export default function EarningsCalendarPage() {

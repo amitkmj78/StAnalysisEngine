@@ -88,37 +88,37 @@ export default function SocialFeedPage() {
   return (
     <Container>
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold text-slate-900">Feed</h1>
+        <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Feed</h1>
         <div className="flex gap-3 text-sm">
-          <Link href="/social/groups" className="font-medium text-slate-600 hover:underline">Groups</Link>
-          <Link href="/social/messages" className="font-medium text-slate-600 hover:underline">Messages</Link>
+          <Link href="/social/groups" className="font-medium text-slate-600 dark:text-slate-300 hover:underline">Groups</Link>
+          <Link href="/social/messages" className="font-medium text-slate-600 dark:text-slate-300 hover:underline">Messages</Link>
         </div>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Posts, chart snapshots and ideas from people, tickers and topics you follow -- newest first. Follow authors
         from their profile or the <Link href="/community/leaderboard" className="underline">leaderboard</Link>.
       </p>
 
       <Card padding="p-4" className="mt-4 flex flex-col gap-2 sm:flex-row">
-        <input value={followTickerInput} onChange={(e) => setFollowTickerInput(e.target.value)} placeholder="Follow a ticker (e.g. AAPL)" className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm" />
+        <input value={followTickerInput} onChange={(e) => setFollowTickerInput(e.target.value)} placeholder="Follow a ticker (e.g. AAPL)" className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm" />
         <Button variant="secondary" onClick={handleFollowTicker}>Follow ticker</Button>
-        <input value={followTopicInput} onChange={(e) => setFollowTopicInput(e.target.value)} placeholder="Follow a topic (e.g. options)" className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm" />
+        <input value={followTopicInput} onChange={(e) => setFollowTopicInput(e.target.value)} placeholder="Follow a topic (e.g. options)" className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm" />
         <Button variant="secondary" onClick={handleFollowTopic}>Follow topic</Button>
       </Card>
       {followMsg && <p className="mt-2 text-xs text-emerald-700">{followMsg}</p>}
 
       <Card padding="p-4" className="mt-4">
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Share an update, a setup, a question..." className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" rows={3} />
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Share an update, a setup, a question..." className="w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm" rows={3} />
         <div className="mt-2 flex flex-wrap gap-2">
-          <input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="Ticker (optional)" className="w-32 rounded-md border border-slate-300 px-2 py-1 text-sm" />
-          <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Topic (optional)" className="w-40 rounded-md border border-slate-300 px-2 py-1 text-sm" />
+          <input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="Ticker (optional)" className="w-32 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm" />
+          <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Topic (optional)" className="w-40 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm" />
           {ticker.trim() && (
-            <label className="flex items-center gap-1.5 text-sm text-slate-600">
+            <label className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
               <input type="checkbox" checked={attachChart} onChange={(e) => setAttachChart(e.target.checked)} />
               Attach my {ticker.trim().toUpperCase()} chart
             </label>
           )}
-          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+          <label className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
             <input type="checkbox" checked={isPerformanceClaim} onChange={(e) => setIsPerformanceClaim(e.target.checked)} />
             This is a performance claim
           </label>
@@ -127,12 +127,12 @@ export default function SocialFeedPage() {
               value={claimIdeaId}
               onChange={(e) => setClaimIdeaId(e.target.value)}
               placeholder="Your idea ID to verify it (optional)"
-              className="w-56 rounded-md border border-slate-300 px-2 py-1 text-sm"
+              className="w-56 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm"
             />
           )}
           <Button onClick={handlePost} disabled={posting || !body.trim()}>Post</Button>
         </div>
-        <p className="mt-2 text-xs text-slate-400">
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
           Attaching a chart shares a copy of your saved drawings for that ticker -- a reader gets their own editable
           copy, not a live shared canvas. A performance claim only shows as &ldquo;verified&rdquo; when it links one
           of your own published ideas (find its ID on the <Link href="/community" className="underline">Idea Feed</Link>) --
@@ -141,7 +141,7 @@ export default function SocialFeedPage() {
       </Card>
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {feed === null && !error && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
+      {feed === null && !error && <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
 
       <div className="mt-6 flex flex-col gap-3">
         {feed?.map((item) => (
@@ -149,18 +149,18 @@ export default function SocialFeedPage() {
             {item.kind === "post" ? (
               <>
                 <div className="flex items-center justify-between">
-                  <Link href={`/community/authors/${item.author_user_id}`} className="font-medium text-slate-800 hover:underline">
+                  <Link href={`/community/authors/${item.author_user_id}`} className="font-medium text-slate-800 dark:text-slate-100 hover:underline">
                     {item.display_name}
                   </Link>
-                  <span className="text-xs text-slate-400">{new Date(item.created_at).toLocaleString()}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(item.created_at).toLocaleString()}</span>
                 </div>
                 {item.post_type === "performance_claim" && (
                   <Badge variant={item.verified ? "verified" : "warning"} className="mt-1 inline-block">
                     {item.verified ? "verified claim" : "unverified"}
                   </Badge>
                 )}
-                <p className="mt-1 text-slate-700">{item.body}</p>
-                <div className="mt-1 flex gap-2 text-xs text-slate-400">
+                <p className="mt-1 text-slate-700 dark:text-slate-200">{item.body}</p>
+                <div className="mt-1 flex gap-2 text-xs text-slate-400 dark:text-slate-500">
                   {item.ticker && <Link href={`/stock/${item.ticker}`} className="hover:underline">${item.ticker}</Link>}
                   {item.topic && <span>#{item.topic}</span>}
                 </div>
@@ -168,22 +168,22 @@ export default function SocialFeedPage() {
             ) : (
               <>
                 <div className="flex items-center justify-between">
-                  <Link href={`/community/authors/${item.author_user_id ?? "model"}`} className="font-medium text-slate-800 hover:underline">
+                  <Link href={`/community/authors/${item.author_user_id ?? "model"}`} className="font-medium text-slate-800 dark:text-slate-100 hover:underline">
                     {item.display_name}
                   </Link>
-                  <span className="text-xs text-slate-400">{new Date(item.created_at).toLocaleString()}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(item.created_at).toLocaleString()}</span>
                 </div>
-                <p className="mt-1 text-slate-700">
+                <p className="mt-1 text-slate-700 dark:text-slate-200">
                   <span className={item.direction === "LONG" ? "text-emerald-700" : "text-red-700"}>{item.direction}</span>{" "}
                   <Link href={`/stock/${item.ticker}`} className="font-medium hover:underline">{item.ticker}</Link>
-                  {item.scored_at && <span className="ml-2 text-xs text-slate-400">{item.outcome} ({fmtPct(item.realized_return_pct)})</span>}
+                  {item.scored_at && <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">{item.outcome} ({fmtPct(item.realized_return_pct)})</span>}
                 </p>
               </>
             )}
           </Card>
         ))}
         {feed?.length === 0 && (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Nothing here yet -- follow a ticker, topic, or an author to start seeing posts and ideas.
           </p>
         )}

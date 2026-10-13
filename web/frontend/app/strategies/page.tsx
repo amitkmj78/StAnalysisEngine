@@ -27,13 +27,13 @@ const CARDS = [
 export default function StrategiesHubPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Strategies</h1>
-      <p className="mt-1 text-sm text-slate-500">Test ideas on past prices before you rely on them. Nothing here places an order.</p>
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Strategies</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Test ideas on past prices before you rely on them. Nothing here places an order.</p>
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {CARDS.map((c) => (
-          <Link key={c.href} href={c.href} className="rounded-xl border border-slate-200 bg-white p-5 hover:border-slate-400">
-            <p className="font-semibold text-slate-900">{c.title}</p>
-            <p className="mt-1 text-sm text-slate-600">{c.body}</p>
+          <Link key={c.href} href={c.href} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 hover:border-slate-400 dark:hover:border-slate-500">
+            <p className="font-semibold text-slate-900 dark:text-slate-50">{c.title}</p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{c.body}</p>
           </Link>
         ))}
       </div>

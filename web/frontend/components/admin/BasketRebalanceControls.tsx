@@ -118,8 +118,8 @@ export default function BasketRebalanceControls() {
     <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Diversified Basket Rebalancing</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">Diversified Basket Rebalancing</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Monthly (1st of the month) and quarterly (Jan/Apr/Jul/Oct) re-ranks every saved basket&apos;s
             original universe/goal, flags weight drift past its own threshold and any holding that fell out
             of its sector&apos;s fresh top-N, and writes a review-and-act alert — never executes a trade
@@ -129,7 +129,7 @@ export default function BasketRebalanceControls() {
         {rebalanceEnabled !== null && (
           <span
             className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-              rebalanceEnabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              rebalanceEnabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
             {rebalanceEnabled ? "Scanning" : "Disabled"}
@@ -163,7 +163,7 @@ export default function BasketRebalanceControls() {
           <button
             onClick={() => setConfirming(null)}
             disabled={busy === "rebalance"}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             Cancel
           </button>
@@ -171,7 +171,7 @@ export default function BasketRebalanceControls() {
         <button
           onClick={handleScanNow}
           disabled={scanning}
-          className="rounded-md border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+          className="rounded-md border border-emerald-300 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
         >
           {scanning ? "Scanning…" : "Scan Now"}
         </button>
@@ -183,8 +183,8 @@ export default function BasketRebalanceControls() {
       <div className="mt-5 border-t border-amber-200 pt-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="font-medium text-slate-900">Stock-Finder Cache Prewarm</h3>
-            <p className="mt-1 text-sm text-slate-600">
+            <h3 className="font-medium text-slate-900 dark:text-slate-50">Stock-Finder Cache Prewarm</h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
               Every ~50 minutes, rescans the &quot;All&quot; and S&amp;P 500 universes purely to keep the
               Diversified Basket page&apos;s &lt;3s generation goal met in steady state. A real, continuous
               increase in Yahoo Finance traffic — a genuine cost/rate-limit tradeoff, not free.
@@ -193,7 +193,7 @@ export default function BasketRebalanceControls() {
           {prewarmEnabled !== null && (
             <span
               className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-                prewarmEnabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                prewarmEnabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
               }`}
             >
               {prewarmEnabled ? "Prewarming" : "Disabled"}
@@ -225,7 +225,7 @@ export default function BasketRebalanceControls() {
             <button
               onClick={() => setConfirming(null)}
               disabled={busy === "prewarm"}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               Cancel
             </button>
@@ -236,8 +236,8 @@ export default function BasketRebalanceControls() {
       <div className="mt-5 border-t border-amber-200 pt-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="font-medium text-slate-900">Saved Screen Alerts (SCN-3)</h3>
-            <p className="mt-1 text-sm text-slate-600">
+            <h3 className="font-medium text-slate-900 dark:text-slate-50">Saved Screen Alerts (SCN-3)</h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
               Nightly (16:30 ET, after the day&apos;s scores compute), re-applies every saved screen&apos;s own
               filters to the fresh Stock Finder table and emails the owner when a ticker enters or leaves —
               only on a genuine change, never a repeat for the same one.
@@ -246,7 +246,7 @@ export default function BasketRebalanceControls() {
           {screenAlertsEnabled !== null && (
             <span
               className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-                screenAlertsEnabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                screenAlertsEnabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
               }`}
             >
               {screenAlertsEnabled ? "Scanning" : "Disabled"}
@@ -278,7 +278,7 @@ export default function BasketRebalanceControls() {
             <button
               onClick={() => setConfirming(null)}
               disabled={busy === "screenAlerts"}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               Cancel
             </button>

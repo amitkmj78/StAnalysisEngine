@@ -64,7 +64,7 @@ const MONO_FONT = { fontFamily: "var(--font-pf-mono)" };
 function signalBadgeClass(signal: string): string {
   if (signal === "Buy") return "bg-emerald-50 text-emerald-700";
   if (signal === "Trim") return "bg-red-50 text-red-700";
-  return "bg-slate-100 text-slate-600";
+  return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
 }
 
 // SCR-3: "Top 8% of S&P 500" -- a friendly name for the universe_id the
@@ -102,7 +102,7 @@ const FACTOR_LABELS: Record<string, string> = {
 function sentimentBadgeClass(label: string): string {
   if (label === "Bullish") return "bg-emerald-50 text-emerald-700";
   if (label === "Bearish") return "bg-red-50 text-red-700";
-  return "bg-slate-100 text-slate-600";
+  return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300";
 }
 
 function sentimentAccentClass(label: string): string {
@@ -149,7 +149,7 @@ function confidenceClass(label: string): string {
   if (label === "high") return "text-emerald-700";
   if (label === "medium") return "text-amber-700";
   if (label === "low") return "text-red-700";
-  return "text-slate-400";
+  return "text-slate-400 dark:text-slate-500";
 }
 
 // REG-3: a caution note, not a confidence number change -- see
@@ -206,22 +206,22 @@ function ScoreCard({
   }
 
   return (
-    <div className={`rounded-xl border border-l-4 border-slate-200 bg-white p-5 ${signalAccentClass(signal)}`}>
+    <div className={`rounded-xl border border-l-4 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 ${signalAccentClass(signal)}`}>
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-          <p className="text-xs text-slate-500">{horizon}</p>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">{title}</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{horizon}</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-semibold ${signalBadgeClass(signal)}`}>{signal}</span>
       </div>
       <div className="mt-3 flex items-end gap-2">
-        <span className="text-4xl font-semibold tracking-tight text-slate-900">
+        <span className="text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
           {score !== null ? score.toFixed(0) : "—"}
         </span>
-        <span className="pb-1 text-sm text-slate-400">/ 100</span>
+        <span className="pb-1 text-sm text-slate-400 dark:text-slate-500">/ 100</span>
       </div>
-      {asOfDate && <p className="text-[11px] text-slate-400">as of {asOfDate}</p>}
-      <p className="mt-1 text-xs text-slate-500">
+      {asOfDate && <p className="text-[11px] text-slate-400 dark:text-slate-500">as of {asOfDate}</p>}
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         {rankParts.length > 0 ? rankParts.join(", ") : `No rank yet — ${sectorKey}`}
       </p>
       <p className={`mt-1 text-xs font-medium ${confidenceClass(confidence.label)}`}>
@@ -478,19 +478,19 @@ export default function StockScorePage() {
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Stock Detail</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Stock Detail</p>
           <div className="flex items-baseline gap-3">
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-slate-900" style={DISPLAY_FONT}>{ticker}</h1>
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-50" style={DISPLAY_FONT}>{ticker}</h1>
             {detail?.current_price !== null && detail?.current_price !== undefined && (
-              <span className="text-lg font-medium tabular-nums text-slate-500" style={MONO_FONT}>${detail.current_price.toFixed(2)}</span>
+              <span className="text-lg font-medium tabular-nums text-slate-500 dark:text-slate-400" style={MONO_FONT}>${detail.current_price.toFixed(2)}</span>
             )}
           </div>
           {data && (
             <div className="mt-1.5 flex items-center gap-2">
-              <span className="inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+              <span className="inline-block rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                 {data.sector_key}
               </span>
-              <span className="text-xs text-slate-400">as of {data.as_of_date}</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">as of {data.as_of_date}</span>
             </div>
           )}
         </div>
@@ -508,7 +508,7 @@ export default function StockScorePage() {
                   ? `${ticker} opens by default when you sign in`
                   : "Open this ticker by default when you sign in"
               }
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-60"
             >
               {homeTicker === ticker ? "★ Home" : settingHome ? "Setting…" : "☆ Set as home"}
             </button>
@@ -592,7 +592,7 @@ export default function StockScorePage() {
         <CommunityDiscussionPanel ticker={ticker} />
       </div>
 
-      {loading && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
+      {loading && <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
       {error && <p className="mt-6 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {data && (
@@ -629,16 +629,16 @@ export default function StockScorePage() {
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-l-4 border-slate-200 border-l-emerald-400 bg-white p-5">
-              <h3 className="text-sm font-semibold text-slate-900">Top Drivers</h3>
+            <div className="rounded-lg border border-l-4 border-slate-200 dark:border-slate-700 border-l-emerald-400 bg-white dark:bg-slate-900 p-5">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Top Drivers</h3>
               {data.explanations.drivers.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-400">No positive drivers today.</p>
+                <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">No positive drivers today.</p>
               ) : (
                 <>
                   <ul className="mt-2 flex flex-col gap-1.5">
                     {data.explanations.drivers.map((d) => (
                       <li key={d.factor} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="text-slate-700">
+                        <span className="text-slate-700 dark:text-slate-200">
                           <MetricLabel
                             term={d.factor}
                             extraBody={[
@@ -654,7 +654,7 @@ export default function StockScorePage() {
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
+                  <p className="mt-3 border-t border-slate-100 dark:border-slate-800 pt-3 text-xs text-slate-400 dark:text-slate-500">
                     The number is each factor&apos;s contribution to its score: how far above/below the universe
                     median it ranks, weighted by that factor&apos;s share of the composite. Pooled from both
                     scores &mdash; a Short-Term factor&apos;s own 4 siblings sum to (Short-Term score &minus; 50),
@@ -663,15 +663,15 @@ export default function StockScorePage() {
                 </>
               )}
             </div>
-            <div className="rounded-lg border border-l-4 border-slate-200 border-l-red-400 bg-white p-5">
-              <h3 className="text-sm font-semibold text-slate-900">Top Drags</h3>
+            <div className="rounded-lg border border-l-4 border-slate-200 dark:border-slate-700 border-l-red-400 bg-white dark:bg-slate-900 p-5">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Top Drags</h3>
               {data.explanations.drags.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-400">No negative drags today.</p>
+                <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">No negative drags today.</p>
               ) : (
                 <ul className="mt-2 flex flex-col gap-1.5">
                   {data.explanations.drags.map((d) => (
                     <li key={d.factor} className="flex items-center justify-between gap-3 text-sm">
-                      <span className="text-slate-700">
+                      <span className="text-slate-700 dark:text-slate-200">
                         <MetricLabel
                           term={d.factor}
                           extraBody={[
@@ -704,12 +704,12 @@ export default function StockScorePage() {
             </div>
           )}
 
-          <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+          <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">Why these scores</h3>
-              <span className="text-xs text-slate-400">Click a factor for its history</span>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Why these scores</h3>
+              <span className="text-xs text-slate-400 dark:text-slate-500">Click a factor for its history</span>
             </div>
-            <ul className="mt-2 flex flex-col gap-1 text-sm text-slate-700">
+            <ul className="mt-2 flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-200">
               {(
                 [
                   "momentum",
@@ -725,14 +725,14 @@ export default function StockScorePage() {
                 <li key={f}>
                   <button
                     onClick={() => setOpenFactor(f)}
-                    className="w-full rounded-md px-2 py-1 text-left hover:bg-slate-50 hover:text-[var(--pf-accent)]"
+                    className="w-full rounded-md px-2 py-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-[var(--pf-accent)]"
                   >
                     {data.sentences[f]}
                   </button>
                 </li>
               ))}
             </ul>
-            <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
+            <p className="mt-3 border-t border-slate-100 dark:border-slate-800 pt-3 text-xs text-slate-400 dark:text-slate-500">
               Rules-based composite scores from real, already-captured data — not a trained prediction model.
             </p>
           </div>
@@ -740,38 +740,38 @@ export default function StockScorePage() {
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Key Stats</h3>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Key Stats</h3>
           {detail ? (
             <dl className="mt-2 grid grid-cols-2 gap-y-2 text-sm">
-              <dt className="text-slate-500"><MetricLabel>Sector</MetricLabel></dt>
-              <dd className="text-right text-slate-900">{detail.sector ?? "—"}</dd>
-              <dt className="text-slate-500"><MetricLabel term="Forward PE">Forward P/E</MetricLabel></dt>
-              <dd className="text-right text-slate-900">
+              <dt className="text-slate-500 dark:text-slate-400"><MetricLabel>Sector</MetricLabel></dt>
+              <dd className="text-right text-slate-900 dark:text-slate-50">{detail.sector ?? "—"}</dd>
+              <dt className="text-slate-500 dark:text-slate-400"><MetricLabel term="Forward PE">Forward P/E</MetricLabel></dt>
+              <dd className="text-right text-slate-900 dark:text-slate-50">
                 {detail.fundamentals.forward_pe !== null ? detail.fundamentals.forward_pe.toFixed(1) : "—"}
               </dd>
-              <dt className="text-slate-500"><MetricLabel term="Revenue Growth %">Revenue Growth</MetricLabel></dt>
-              <dd className="text-right text-slate-900">
+              <dt className="text-slate-500 dark:text-slate-400"><MetricLabel term="Revenue Growth %">Revenue Growth</MetricLabel></dt>
+              <dd className="text-right text-slate-900 dark:text-slate-50">
                 {detail.fundamentals.revenue_growth_pct !== null
                   ? `${detail.fundamentals.revenue_growth_pct.toFixed(1)}%`
                   : "—"}
               </dd>
-              <dt className="text-slate-500"><MetricLabel term="Earnings Growth %">Earnings Growth</MetricLabel></dt>
-              <dd className="text-right text-slate-900">
+              <dt className="text-slate-500 dark:text-slate-400"><MetricLabel term="Earnings Growth %">Earnings Growth</MetricLabel></dt>
+              <dd className="text-right text-slate-900 dark:text-slate-50">
                 {detail.fundamentals.earnings_growth_pct !== null
                   ? `${detail.fundamentals.earnings_growth_pct.toFixed(1)}%`
                   : "—"}
               </dd>
             </dl>
           ) : (
-            <p className="mt-2 text-xs text-slate-400">No fundamentals on record for {ticker} yet.</p>
+            <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">No fundamentals on record for {ticker} yet.</p>
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Earnings &amp; Dividends</h3>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Earnings &amp; Dividends</h3>
           {detail ? (
-            <div className="mt-2 text-sm text-slate-700">
+            <div className="mt-2 text-sm text-slate-700 dark:text-slate-200">
               <p>
                 Next earnings:{" "}
                 {detail.next_earnings ? (
@@ -786,7 +786,7 @@ export default function StockScorePage() {
                 )}
               </p>
               {detail.recent_dividends.length > 0 ? (
-                <ul className="mt-2 flex flex-col gap-1 text-xs text-slate-500">
+                <ul className="mt-2 flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
                   {detail.recent_dividends.map((d) => (
                     <li key={d.date}>
                       {d.date}: ${d.amount.toFixed(4)}
@@ -794,20 +794,20 @@ export default function StockScorePage() {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-2 text-xs text-slate-400">No dividend history — {ticker} hasn&apos;t paid one.</p>
+                <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">No dividend history — {ticker} hasn&apos;t paid one.</p>
               )}
             </div>
           ) : (
-            <p className="mt-2 text-xs text-slate-400">Loading…</p>
+            <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">Loading…</p>
           )}
         </div>
       </div>
 
       {detail && detail.past_earnings.length > 0 && (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Earnings History</h3>
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Earnings History</h3>
           {detail.typical_earnings_move && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Usually moves &plusmn;{detail.typical_earnings_move.avg_abs_move_pct}% the day after reporting (based
               on {detail.typical_earnings_move.quarters_counted} of the last 8 quarters).
             </p>
@@ -815,7 +815,7 @@ export default function StockScorePage() {
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <th className="px-2 py-1.5">Date</th>
                   <th className="px-2 py-1.5"><MetricLabel>EPS Est.</MetricLabel></th>
                   <th className="px-2 py-1.5"><MetricLabel>EPS Actual</MetricLabel></th>
@@ -828,17 +828,17 @@ export default function StockScorePage() {
                 {detail.past_earnings.map((row) => {
                   const move = detail.earnings_moves.find((m) => m.date === row.date);
                   return (
-                    <tr key={row.date} className="border-b border-slate-100 last:border-0">
-                      <td className="px-2 py-1.5 text-slate-700">{row.date}</td>
-                      <td className="px-2 py-1.5 text-slate-700">
+                    <tr key={row.date} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                      <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">{row.date}</td>
+                      <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">
                         {row.eps_estimate !== null ? `$${row.eps_estimate.toFixed(2)}` : "—"}
                       </td>
-                      <td className="px-2 py-1.5 text-slate-700">
+                      <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">
                         {row.reported_eps !== null ? `$${row.reported_eps.toFixed(2)}` : "—"}
                       </td>
                       <td className="px-2 py-1.5">
                         {row.eps_beat === null ? (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-400 dark:text-slate-500">—</span>
                         ) : (
                           <span
                             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -852,8 +852,8 @@ export default function StockScorePage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-2 py-1.5 text-xs text-slate-400">Not available</td>
-                      <td className="px-2 py-1.5 text-slate-700">
+                      <td className="px-2 py-1.5 text-xs text-slate-400 dark:text-slate-500">Not available</td>
+                      <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">
                         {move && move.move_pct !== null ? (
                           <span className={move.move_pct >= 0 ? "text-emerald-700" : "text-red-700"}>
                             {move.move_pct >= 0 ? "+" : ""}
@@ -863,7 +863,7 @@ export default function StockScorePage() {
                           "—"
                         )}
                         {move && (
-                          <span className="ml-1 text-xs text-slate-400">
+                          <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">
                             ({move.market_timing === "before_market" ? "BMO" : "AMC"})
                           </span>
                         )}
@@ -874,7 +874,7 @@ export default function StockScorePage() {
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
             Before/after-market (BMO/AMC) is inferred from the report&apos;s timestamp, not a confirmed flag from
             the data provider. Revenue beat/miss isn&apos;t available for past quarters — no data source has a
             historical record of what was estimated at the time.
@@ -883,12 +883,12 @@ export default function StockScorePage() {
       )}
 
       <div
-        className={`mt-6 rounded-xl border border-l-4 border-slate-200 bg-white p-5 ${
+        className={`mt-6 rounded-xl border border-l-4 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 ${
           sentiment?.label ? sentimentAccentClass(sentiment.label) : "border-l-slate-200"
         }`}
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">News &amp; Sentiment</h3>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">News &amp; Sentiment</h3>
           {sentiment?.label && (
             <span className={`rounded-full px-3 py-1 text-sm font-semibold ${sentimentBadgeClass(sentiment.label)}`}>
               {sentiment.label}
@@ -897,38 +897,38 @@ export default function StockScorePage() {
         </div>
         {!sentiment && !sentimentLoading && (
           <>
-            <p className="mt-2 text-xs text-slate-400">
+            <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
               Today&apos;s real news and earnings coverage for {ticker}, read live and summarized on demand (not
               bundled into the page load, since it costs a real web search and AI call).
             </p>
             <button
               onClick={handleLoadSentiment}
-              className="mt-3 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              className="mt-3 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               Load news &amp; sentiment
             </button>
           </>
         )}
-        {sentimentLoading && <p className="mt-2 text-sm text-slate-500">Reading today&apos;s news…</p>}
+        {sentimentLoading && <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Reading today&apos;s news…</p>}
         {sentimentError && <p className="mt-2 text-sm text-red-700">{sentimentError}</p>}
         {sentiment && !sentiment.label && (
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
             Couldn&apos;t form a clear sentiment reading for {ticker} from today&apos;s coverage.
           </p>
         )}
         {sentiment?.label && sentiment.reasoning && (
-          <p className="mt-2 text-sm text-slate-700">{sentiment.reasoning}</p>
+          <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">{sentiment.reasoning}</p>
         )}
       </div>
 
       {filingSummaries && filingSummaries.filings.length > 0 && (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Filing Summary</h3>
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Filing Summary</h3>
           <div className="mt-3 flex flex-col gap-4">
             {filingSummaries.filings.map((f) => (
-              <div key={f.form_type} className="border-t border-slate-100 pt-3 first:border-t-0 first:pt-0">
+              <div key={f.form_type} className="border-t border-slate-100 dark:border-slate-800 pt-3 first:border-t-0 first:pt-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     {f.form_type} · filed {f.filing_date}
                     {f.compared_to_prior_filing ? "" : " (first on file)"}
                   </p>
@@ -952,10 +952,10 @@ export default function StockScorePage() {
       )}
 
       {earningsRelease?.release && (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Earnings Release Summary</h3>
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Earnings Release Summary</h3>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+            <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
               8-K press release · filed {earningsRelease.release.filing_date}
             </p>
             <a
@@ -987,36 +987,36 @@ export default function StockScorePage() {
       )}
 
       {loggedIn && (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Your Position</h3>
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Your Position</h3>
           {ownedPositions.length > 0 ? (
-            <div className="mt-3 flex flex-col divide-y divide-slate-100">
+            <div className="mt-3 flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
               {ownedPositions.map((pos) => (
                 <div key={pos.portfolioName} className="grid grid-cols-2 gap-4 py-3 first:pt-0 last:pb-0 sm:grid-cols-5">
                   {portfolios.length > 1 && (
                     <div className="col-span-2 sm:col-span-1">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Portfolio</p>
-                      <p className="mt-0.5 text-sm font-semibold text-slate-900">{pos.portfolioName}</p>
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Portfolio</p>
+                      <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-slate-50">{pos.portfolioName}</p>
                     </div>
                   )}
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
                       <MetricLabel>Shares</MetricLabel>
                     </p>
-                    <p className="mt-0.5 text-lg font-semibold text-slate-900">
+                    <p className="mt-0.5 text-lg font-semibold text-slate-900 dark:text-slate-50">
                       {pos.shares !== null && pos.shares !== undefined
                         ? Number(pos.shares.toFixed(4)).toString()
                         : "—"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
                       <MetricLabel term="Avg Cost Paid">Avg Cost</MetricLabel>
                     </p>
-                    <p className="mt-0.5 text-lg font-semibold text-slate-900">${pos.avg_cost?.toFixed(2)}</p>
+                    <p className="mt-0.5 text-lg font-semibold text-slate-900 dark:text-slate-50">${pos.avg_cost?.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
                       <MetricLabel
                         extraBody={
                           pos.gain_loss_pct !== null && pos.gain_loss_pct !== undefined
@@ -1038,7 +1038,7 @@ export default function StockScorePage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
                       <MetricLabel
                         term="Weight"
                         extraBody={
@@ -1050,7 +1050,7 @@ export default function StockScorePage() {
                         Portfolio Weight
                       </MetricLabel>
                     </p>
-                    <p className="mt-0.5 text-lg font-semibold text-slate-900">
+                    <p className="mt-0.5 text-lg font-semibold text-slate-900 dark:text-slate-50">
                       {pos.weight_pct !== null && pos.weight_pct !== undefined ? `${pos.weight_pct.toFixed(1)}%` : "—"}
                     </p>
                   </div>
@@ -1058,7 +1058,7 @@ export default function StockScorePage() {
               ))}
             </div>
           ) : (
-            <p className="mt-2 text-xs text-slate-400">
+            <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
               You don&apos;t own {ticker} in {portfolios.length > 1 ? "any of your portfolios" : "this portfolio"}.
             </p>
           )}
@@ -1066,14 +1066,14 @@ export default function StockScorePage() {
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Signal History</h3>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Signal History</h3>
           {signalHistory && signalHistory.history.length > 0 ? (
             <>
-              <ul className="mt-2 flex flex-col divide-y divide-slate-100">
+              <ul className="mt-2 flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
                 {signalHistory.history.slice(0, 8).map((h) => (
                   <li key={h.as_of_date} className="flex items-center justify-between gap-2 py-1.5 text-xs">
-                    <span className="text-slate-500">{h.as_of_date}</span>
+                    <span className="text-slate-500 dark:text-slate-400">{h.as_of_date}</span>
                     <span className="flex gap-2">
                       <span className="flex items-center gap-1">
                         <span className={`rounded-full px-2 py-0.5 font-medium ${signalBadgeClass(h.short_signal)}`}>
@@ -1091,17 +1091,17 @@ export default function StockScorePage() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-xs text-slate-400">{signalHistory.note}</p>
+              <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">{signalHistory.note}</p>
             </>
           ) : (
-            <p className="mt-2 text-xs text-slate-400">No signal history on record for {ticker} yet.</p>
+            <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">No signal history on record for {ticker} yet.</p>
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Similar Stocks</h3>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Similar Stocks</h3>
           {peers && peers.peers.length > 0 ? (
-            <ul className="mt-2 flex flex-col divide-y divide-slate-100">
+            <ul className="mt-2 flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
               {peers.peers.map((p) => (
                 <li key={p.ticker}>
                   <Link
@@ -1110,7 +1110,7 @@ export default function StockScorePage() {
                   >
                     <span className="min-w-0">
                       <span className="font-medium text-[var(--pf-accent)]">{p.ticker}</span>
-                      {p.name && <span className="ml-1.5 text-xs text-slate-400">{p.name}</span>}
+                      {p.name && <span className="ml-1.5 text-xs text-slate-400 dark:text-slate-500">{p.name}</span>}
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
                       {p.short_signal && (
@@ -1123,14 +1123,14 @@ export default function StockScorePage() {
                           L:{p.long_signal}
                         </span>
                       )}
-                      <span className="font-mono text-xs text-slate-500">${p.market_cap_b.toFixed(1)}B</span>
+                      <span className="font-mono text-xs text-slate-500 dark:text-slate-400">${p.market_cap_b.toFixed(1)}B</span>
                     </span>
                   </Link>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs text-slate-400">{peers?.message ?? `No same-sector peers found for ${ticker}.`}</p>
+            <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">{peers?.message ?? `No same-sector peers found for ${ticker}.`}</p>
           )}
         </div>
       </div>

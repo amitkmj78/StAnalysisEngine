@@ -63,10 +63,10 @@ export default function TradeImpactCard({
     : [];
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-900">Portfolio impact preview</h3>
-        <p className="text-xs text-slate-500">Hypothetical. Nothing is placed.</p>
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Portfolio impact preview</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Hypothetical. Nothing is placed.</p>
       </div>
 
       <form onSubmit={handlePreview} className="mt-3 flex flex-wrap items-end gap-3 text-sm">
@@ -78,14 +78,14 @@ export default function TradeImpactCard({
               aria-pressed={side === s}
               onClick={() => setSide(s)}
               className={`rounded-md border px-3 py-1.5 font-medium capitalize ${
-                side === s ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                side === s ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
               }`}
             >
               {s}
             </button>
           ))}
         </div>
-        <label className="flex flex-col gap-1 text-xs text-slate-500">
+        <label className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
           Shares
           <input
             value={shares}
@@ -96,7 +96,7 @@ export default function TradeImpactCard({
           />
         </label>
         {portfolios.length > 1 && (
-          <label className="flex flex-col gap-1 text-xs text-slate-500">
+          <label className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
             Portfolio
             <select
               value={portfolioId ?? ""}
@@ -120,7 +120,7 @@ export default function TradeImpactCard({
 
       {result && (
         <div className="mt-4">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {result.side === "buy" ? "Buy" : "Sell"} {result.shares} {result.ticker} at ${fmt(result.trade_price, 2)} (
             ${fmt(result.trade_price * result.shares, 0)}).
           </p>
@@ -139,7 +139,7 @@ export default function TradeImpactCard({
           )}
           <div className="overflow-x-auto">
             <table className="mt-2 w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-slate-400">
+              <thead className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">
               <tr>
                 <th className="py-1 font-medium">Measure</th>
                 <th className="py-1 font-medium">Before</th>
@@ -147,34 +147,34 @@ export default function TradeImpactCard({
                 <th className="py-1 font-medium">Change</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               <tr>
-                <td className="py-1.5 text-slate-700">Largest position</td>
+                <td className="py-1.5 text-slate-700 dark:text-slate-200">Largest position</td>
                 <td>{fmt(result.before.concentration.largest_position_pct, 1, "%")}</td>
                 <td>{fmt(result.after.concentration.largest_position_pct, 1, "%")}</td>
                 <td>{signed(result.changes.largest_position_pct, 1, " pts")}</td>
               </tr>
               <tr>
-                <td className="py-1.5 text-slate-700">Top 5 positions</td>
+                <td className="py-1.5 text-slate-700 dark:text-slate-200">Top 5 positions</td>
                 <td>{fmt(result.before.concentration.top5_pct, 1, "%")}</td>
                 <td>{fmt(result.after.concentration.top5_pct, 1, "%")}</td>
                 <td>{signed(result.changes.top5_pct, 1, " pts")}</td>
               </tr>
               <tr>
-                <td className="py-1.5 text-slate-700">Beta to SPY</td>
+                <td className="py-1.5 text-slate-700 dark:text-slate-200">Beta to SPY</td>
                 <td>{fmt(result.before.beta, 2)}</td>
                 <td>{fmt(result.after.beta, 2)}</td>
                 <td>{signed(result.changes.beta, 2)}</td>
               </tr>
               <tr>
-                <td className="py-1.5 text-slate-700">Portfolio score (short-term, model output)</td>
+                <td className="py-1.5 text-slate-700 dark:text-slate-200">Portfolio score (short-term, model output)</td>
                 <td>
                   {fmt(result.before.portfolio_score.score, 1)}
-                  <span className="block text-xs text-slate-400">covers {fmt(result.before.portfolio_score.coverage_pct, 0, "%")}</span>
+                  <span className="block text-xs text-slate-400 dark:text-slate-500">covers {fmt(result.before.portfolio_score.coverage_pct, 0, "%")}</span>
                 </td>
                 <td>
                   {fmt(result.after.portfolio_score.score, 1)}
-                  <span className="block text-xs text-slate-400">covers {fmt(result.after.portfolio_score.coverage_pct, 0, "%")}</span>
+                  <span className="block text-xs text-slate-400 dark:text-slate-500">covers {fmt(result.after.portfolio_score.coverage_pct, 0, "%")}</span>
                 </td>
                 <td>{signed(result.changes.portfolio_score, 1)}</td>
               </tr>
@@ -184,12 +184,12 @@ export default function TradeImpactCard({
 
           {movedSectors.length > 0 && (
             <div className="mt-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Sector weights that move</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Sector weights that move</p>
               <ul className="mt-1 flex flex-col gap-1 text-sm">
                 {movedSectors.map((s) => (
                   <li key={s.sector} className="flex justify-between gap-3">
-                    <span className="text-slate-700">{s.sector}</span>
-                    <span className="font-mono text-xs text-slate-600">
+                    <span className="text-slate-700 dark:text-slate-200">{s.sector}</span>
+                    <span className="font-mono text-xs text-slate-600 dark:text-slate-300">
                       {fmt(s.before_pct, 1, "%")} → {fmt(s.after_pct, 1, "%")} ({signed(s.change_pct, 1, " pts")})
                     </span>
                   </li>
@@ -197,7 +197,7 @@ export default function TradeImpactCard({
               </ul>
             </div>
           )}
-          <p className="mt-3 text-xs text-slate-400">{result.note}</p>
+          <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">{result.note}</p>
         </div>
       )}
     </div>

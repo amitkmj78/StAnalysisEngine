@@ -52,9 +52,9 @@ export default function DailyQuotaControls() {
   const dirty = quota !== null && quotaInput !== String(quota);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <h2 className="font-semibold text-slate-900">Daily Request Limit</h2>
-      <p className="mt-1 text-sm text-slate-600">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+      <h2 className="font-semibold text-slate-900 dark:text-slate-50">Daily Request Limit</h2>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
         Per-user cap on quota-gated API requests in any rolling 24-hour window (predictions, screeners,
         portfolio actions, chat, and similar) — backed by this same activity log, so it survives a
         restart. Takes effect on the very next request; no deploy needed.
@@ -64,7 +64,7 @@ export default function DailyQuotaControls() {
 
       <div className="mt-4 flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Requests per 24h, per user</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Requests per 24h, per user</label>
           <input
             type="number"
             min={1}
@@ -75,7 +75,7 @@ export default function DailyQuotaControls() {
               setQuotaInput(e.target.value);
               setSaved(false);
             }}
-            className="w-32 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="w-32 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
           />
         </div>
         <button

@@ -140,42 +140,42 @@ function ChartGrid() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Chart grid</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Chart grid</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Up to four charts side by side. With linked crosshairs on, hovering a date moves every chart to that date.
       </p>
 
-      <div className="mt-6 flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="mt-6 flex flex-col gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <div className="flex rounded-md border border-slate-200 p-0.5">
+          <div className="flex rounded-md border border-slate-200 dark:border-slate-700 p-0.5">
             {RANGES.map((r) => (
               <button
                 key={r}
                 type="button"
                 onClick={() => setRange(r)}
-                className={`rounded px-2.5 py-1 font-medium ${range === r ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                className={`rounded px-2.5 py-1 font-medium ${range === r ? "bg-slate-900 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
               >
                 {r}
               </button>
             ))}
           </div>
-          <div className="flex rounded-md border border-slate-200 p-0.5">
+          <div className="flex rounded-md border border-slate-200 dark:border-slate-700 p-0.5">
             {(["line", "candles"] as const).map((c) => (
               <button
                 key={c}
                 type="button"
                 onClick={() => setChartType(c)}
-                className={`rounded px-2.5 py-1 font-medium capitalize ${chartType === c ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                className={`rounded px-2.5 py-1 font-medium capitalize ${chartType === c ? "bg-slate-900 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
               >
                 {c}
               </button>
             ))}
           </div>
-          <label className="flex items-center gap-1.5 text-slate-600">
+          <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
             <input type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
             Log scale
           </label>
-          <label className="flex items-center gap-1.5 text-slate-600">
+          <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
             <input type="checkbox" checked={linked} onChange={(e) => setLinked(e.target.checked)} />
             Linked crosshairs
           </label>
@@ -233,37 +233,37 @@ function ChartGrid() {
               onHover={handleHover}
             />
           ) : (
-            <div key={slot} className="flex h-64 items-center justify-center rounded-lg border border-dashed border-slate-300 text-sm text-slate-400">
+            <div key={slot} className="flex h-64 items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-sm text-slate-400 dark:text-slate-500">
               Empty chart slot
             </div>
           );
         })}
       </div>
 
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">Saved layouts</h2>
+      <section className="mt-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Saved layouts</h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input value={layoutName} onChange={(e) => setLayoutName(e.target.value)} placeholder="Layout name" className="input w-56 py-1 text-sm" aria-label="Layout name" />
           <button type="button" onClick={handleSave} className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800">
             Save this layout
           </button>
-          {message && <span className="text-xs text-slate-500">{message}</span>}
+          {message && <span className="text-xs text-slate-500 dark:text-slate-400">{message}</span>}
         </div>
         {saved.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-500">No saved layouts yet.</p>
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">No saved layouts yet.</p>
         ) : (
-          <ul className="mt-3 divide-y divide-slate-100">
+          <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
             {saved.map((s) => (
               <li key={s.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <span>
-                  <span className="font-medium text-slate-800">{s.name}</span>
-                  <span className="ml-2 text-xs text-slate-500">{s.layout.tickers.join(", ")} · {s.layout.range} · {s.layout.chart_type}</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-100">{s.name}</span>
+                  <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{s.layout.tickers.join(", ")} · {s.layout.range} · {s.layout.chart_type}</span>
                 </span>
                 <span className="flex gap-3 text-xs">
-                  <button type="button" onClick={() => applyLayout(s.layout)} className="font-medium text-slate-700 hover:underline">
+                  <button type="button" onClick={() => applyLayout(s.layout)} className="font-medium text-slate-700 dark:text-slate-200 hover:underline">
                     Load
                   </button>
-                  <button type="button" onClick={() => handleDelete(s.id)} className="text-slate-500 hover:text-red-700">
+                  <button type="button" onClick={() => handleDelete(s.id)} className="text-slate-500 dark:text-slate-400 hover:text-red-700">
                     Delete
                   </button>
                 </span>

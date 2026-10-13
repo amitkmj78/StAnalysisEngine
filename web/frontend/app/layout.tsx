@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Geist, Geist_Mono, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 import { isAdmin } from "@/lib/admin";
@@ -39,7 +40,17 @@ export default async function RootLayout({
   const user = await getSession();
 
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} ${plexSans.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} ${plexSans.variable} h-full antialiased`}
+    >
+      {/* Resolves "system" to an explicit light/dark on <html data-theme>
+          before first paint, so there's no flash of the wrong theme -- the
+          toggle itself lives in lib/theme.ts + components/ThemeColorMenu.tsx. */}
+      <Script id="theme-bootstrap" strategy="beforeInteractive">
+        {`(function(){try{var m=localStorage.getItem("stanalysis-theme-mode");var d=m==="dark"||((!m||m==="system")&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";}catch(e){}})();`}
+      </Script>
       {/* Browser extensions such as Grammarly add attributes to body before React loads; ignore just those. */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {user && <SiteHeader email={user.email} isAdmin={isAdmin(user.email, user.role)} />}

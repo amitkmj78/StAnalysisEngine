@@ -156,9 +156,9 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
   if (portfolioId === null) return null;
 
   return (
-    <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
-      <h2 className="text-sm font-semibold text-slate-900">Goal-Based Investing Plan</h2>
-      <p className="mt-1 text-xs text-slate-500">
+    <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Goal-Based Investing Plan</h2>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Set a target amount and date — this figures out how much to invest each month, and what
         percentage of it should go to each of this portfolio&apos;s holdings, tilted toward
         whichever currently has the strongest signal.
@@ -166,22 +166,22 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
 
       <div className="mt-3 flex flex-wrap items-end gap-3 text-xs">
         <label className="flex flex-col gap-1">
-          <span className="font-medium text-slate-600">Target amount</span>
+          <span className="font-medium text-slate-600 dark:text-slate-300">Target amount</span>
           <input
             type="number"
             min={1}
             value={targetAmount}
             onChange={(e) => setTargetAmount(e.target.value)}
-            className="w-32 rounded-md border border-slate-300 px-2 py-1"
+            className="w-32 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1"
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="font-medium text-slate-600">Target date</span>
+          <span className="font-medium text-slate-600 dark:text-slate-300">Target date</span>
           <input
             type="date"
             value={targetDate}
             onChange={(e) => setTargetDate(e.target.value)}
-            className="rounded-md border border-slate-300 px-2 py-1"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1"
           />
         </label>
         <label className="flex items-center gap-1.5 pb-1.5">
@@ -189,19 +189,19 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
             type="checkbox"
             checked={useOwnAmount}
             onChange={(e) => setUseOwnAmount(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-slate-300"
+            className="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-600"
           />
-          <span className="text-slate-600">I already invest a fixed amount</span>
+          <span className="text-slate-600 dark:text-slate-300">I already invest a fixed amount</span>
         </label>
         {useOwnAmount && (
           <label className="flex flex-col gap-1">
-            <span className="font-medium text-slate-600">Monthly amount</span>
+            <span className="font-medium text-slate-600 dark:text-slate-300">Monthly amount</span>
             <input
               type="number"
               min={0}
               value={monthlyAmount}
               onChange={(e) => setMonthlyAmount(e.target.value)}
-              className="w-28 rounded-md border border-slate-300 px-2 py-1"
+              className="w-28 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1"
             />
           </label>
         )}
@@ -220,15 +220,15 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
             type="checkbox"
             checked={compareToBest}
             onChange={(e) => setCompareToBest(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-slate-300"
+            className="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-600"
           />
-          <span className="text-slate-600">Compare to buying the best-ranked stock instead</span>
+          <span className="text-slate-600 dark:text-slate-300">Compare to buying the best-ranked stock instead</span>
         </label>
         {compareToBest && (
           <select
             value={compareUniverse}
             onChange={(e) => setCompareUniverse(e.target.value)}
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
           >
             {universes.map((u) => (
               <option key={u} value={u}>
@@ -242,7 +242,7 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 
       {plan && (
-        <div className="mt-4 border-t border-slate-100 pt-4">
+        <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
           {plan.warnings.map((w, i) => (
             <p key={i} className="mb-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
               {w}
@@ -251,30 +251,30 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
-              <div className="text-[11px] uppercase tracking-wide text-slate-400">Current Value</div>
-              <div className="text-sm font-semibold text-slate-800">{fmtMoney(plan.current_value)}</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Current Value</div>
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{fmtMoney(plan.current_value)}</div>
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-wide text-slate-400">Months to Go</div>
-              <div className="text-sm font-semibold text-slate-800">{plan.months_remaining}</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Months to Go</div>
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{plan.months_remaining}</div>
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-wide text-slate-400">
+              <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
                 Current Holdings, Trailing Annualized
               </div>
-              <div className="text-sm font-semibold text-slate-800">
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 {plan.current_holdings_annualized_return_pct !== null
                   ? `${plan.current_holdings_annualized_return_pct >= 0 ? "+" : ""}${plan.current_holdings_annualized_return_pct.toFixed(1)}%`
                   : "—"}
               </div>
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-wide text-slate-400">
+              <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
                 {plan.required_monthly_contribution === 0 ? "On Track — Needed" : "Required Monthly"}
               </div>
               <div
                 className={`text-sm font-semibold ${
-                  plan.required_monthly_contribution === 0 ? "text-emerald-600" : "text-slate-800"
+                  plan.required_monthly_contribution === 0 ? "text-emerald-600" : "text-slate-800 dark:text-slate-100"
                 }`}
               >
                 {plan.required_monthly_contribution !== null
@@ -285,9 +285,9 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
           </div>
 
           {plan.projected_value_with_given_contribution !== undefined && plan.gap_vs_target !== undefined && (
-            <p className="mt-3 text-xs text-slate-600">
+            <p className="mt-3 text-xs text-slate-600 dark:text-slate-300">
               At {fmtMoney(Number(monthlyAmount))}/month, you&apos;re projected to have{" "}
-              <span className="font-semibold text-slate-800">
+              <span className="font-semibold text-slate-800 dark:text-slate-100">
                 {fmtMoney(plan.projected_value_with_given_contribution)}
               </span>{" "}
               by {plan.target_date} —{" "}
@@ -301,13 +301,13 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
 
           {plan.best_stock_comparison && (
             <div className="mt-4 rounded-lg border border-[var(--pf-accent)]/30 bg-[var(--pf-accent-soft)]/40 p-3">
-              <div className="text-xs font-semibold text-slate-800">
+              <div className="text-xs font-semibold text-slate-800 dark:text-slate-100">
                 What if you bought {plan.best_stock_comparison.ticker} ({plan.best_stock_comparison.name})
                 instead?
               </div>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                 Top-ranked pick in {plan.best_stock_comparison.universe} right now, trailing{" "}
-                <span className="font-medium text-slate-800">
+                <span className="font-medium text-slate-800 dark:text-slate-100">
                   {plan.best_stock_comparison.annualized_return_pct >= 0 ? "+" : ""}
                   {plan.best_stock_comparison.annualized_return_pct.toFixed(1)}%
                 </span>{" "}
@@ -319,8 +319,8 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
               </p>
               <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-slate-400">Required Monthly</div>
-                  <div className="text-sm font-semibold text-slate-800">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Required Monthly</div>
+                  <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                     {plan.best_stock_comparison.required_monthly_contribution !== null
                       ? fmtMoney(plan.best_stock_comparison.required_monthly_contribution)
                       : "—"}
@@ -329,7 +329,7 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
                 {plan.required_monthly_contribution !== null &&
                   plan.best_stock_comparison.required_monthly_contribution !== null && (
                     <div>
-                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Vs. Your Plan</div>
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Vs. Your Plan</div>
                       <div
                         className={`text-sm font-semibold ${
                           plan.best_stock_comparison.required_monthly_contribution <=
@@ -353,7 +353,7 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
                   )}
                 {plan.best_stock_comparison.gap_vs_target !== undefined && (
                   <div>
-                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
                       Gap at Your Monthly Amount
                     </div>
                     <div
@@ -370,31 +370,31 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
             </div>
           )}
 
-          <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+          <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
             <label className="flex flex-col gap-1 text-xs">
-              <span className="font-medium text-slate-600">Save this goal as</span>
+              <span className="font-medium text-slate-600 dark:text-slate-300">Save this goal as</span>
               <input
                 type="text"
                 value={goalName}
                 onChange={(e) => setGoalName(e.target.value)}
                 placeholder="e.g. Retirement by 2035"
-                className="w-56 rounded-md border border-slate-300 px-2 py-1"
+                className="w-56 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1"
               />
             </label>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save Goal"}
             </button>
-            {saveMessage && <span className="text-xs text-slate-500">{saveMessage}</span>}
+            {saveMessage && <span className="text-xs text-slate-500 dark:text-slate-400">{saveMessage}</span>}
           </div>
 
-          <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
+          <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
             <table className="min-w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left uppercase tracking-wide text-slate-400">
+                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left uppercase tracking-wide text-slate-400 dark:text-slate-500">
                   <th className="px-3 py-2 font-medium">Ticker</th>
                   <th className="px-3 py-2 font-medium">Signal</th>
                   <th className="px-3 py-2 text-right font-medium">Trailing Annualized</th>
@@ -407,8 +407,8 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
                   .slice()
                   .sort((a, b) => b.weight_pct - a.weight_pct)
                   .map((a) => (
-                    <tr key={a.ticker} className="border-t border-slate-100">
-                      <td className="px-3 py-1.5 font-medium text-slate-800">{a.ticker}</td>
+                    <tr key={a.ticker} className="border-t border-slate-100 dark:border-slate-800">
+                      <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-100">{a.ticker}</td>
                       <td className="px-3 py-1.5">
                         {a.signal ? (
                           <span
@@ -417,22 +417,22 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
                                 ? "bg-emerald-50 text-emerald-700"
                                 : a.signal === "SELL"
                                 ? "bg-red-50 text-red-700"
-                                : "bg-slate-100 text-slate-600"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                             }`}
                           >
                             {a.signal}
                           </span>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-400 dark:text-slate-500">—</span>
                         )}
                       </td>
-                      <td className="px-3 py-1.5 text-right text-slate-600">
+                      <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">
                         {a.annualized_return_pct !== null ? `${a.annualized_return_pct.toFixed(1)}%` : "—"}
                       </td>
-                      <td className="px-3 py-1.5 text-right font-medium text-slate-700">
+                      <td className="px-3 py-1.5 text-right font-medium text-slate-700 dark:text-slate-200">
                         {a.weight_pct.toFixed(1)}%
                       </td>
-                      <td className="px-3 py-1.5 text-right text-slate-700">{fmtMoney(a.monthly_amount)}</td>
+                      <td className="px-3 py-1.5 text-right text-slate-700 dark:text-slate-200">{fmtMoney(a.monthly_amount)}</td>
                     </tr>
                   ))}
               </tbody>
@@ -442,29 +442,29 @@ export default function GoalPlan({ portfolioId }: { portfolioId: number | null }
       )}
 
       {savedGoals !== null && savedGoals.length > 0 && (
-        <div className="mt-4 border-t border-slate-100 pt-3">
-          <div className="text-xs font-semibold text-slate-700">Saved Goals</div>
+        <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3">
+          <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Saved Goals</div>
           {savedGoalsError && <p className="mt-1 text-xs text-red-600">{savedGoalsError}</p>}
           <ul className="mt-2 flex flex-col gap-1.5">
             {savedGoals.map((g) => (
               <li
                 key={g.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs"
               >
-                <span className="text-slate-700">
+                <span className="text-slate-700 dark:text-slate-200">
                   <span className="font-medium">{g.name}</span> — {fmtMoney(g.target_amount)} by{" "}
                   {g.target_date}
                   {g.monthly_amount !== null && (
-                    <span className="text-slate-400"> · {fmtMoney(g.monthly_amount)}/mo</span>
+                    <span className="text-slate-400 dark:text-slate-500"> · {fmtMoney(g.monthly_amount)}/mo</span>
                   )}
                   {g.compare_universe && (
-                    <span className="text-slate-400"> · vs. best in {g.compare_universe}</span>
+                    <span className="text-slate-400 dark:text-slate-500"> · vs. best in {g.compare_universe}</span>
                   )}
                 </span>
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleLoadSavedGoal(g)}
-                    className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-600 hover:bg-slate-100"
+                    className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-0.5 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                   >
                     Load
                   </button>

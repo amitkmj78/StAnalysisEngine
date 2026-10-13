@@ -103,13 +103,13 @@ export default function TradeJournalPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Trade Journal</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Trade Journal</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Log trade ideas with an entry range, stop, and target, then re-evaluate them against live prices.
       </p>
 
-      <form onSubmit={submit} className="mt-6 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">New Trade Idea</h2>
+      <form onSubmit={submit} className="mt-6 flex flex-col gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">New Trade Idea</h2>
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Ticker">
             <TickerSearchInput value={ticker} onChange={setTicker} className="input w-36" />
@@ -160,25 +160,25 @@ export default function TradeJournalPage() {
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       <div className="mt-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">Your Trades</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Your Trades</h2>
         <button
           onClick={runEvaluate}
           disabled={evaluating || trades.length === 0}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
         >
           {evaluating ? "Evaluating…" : "Re-evaluate against live prices"}
         </button>
       </div>
 
       {loading ? (
-        <p className="mt-4 text-sm text-slate-500">Loading trades…</p>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Loading trades…</p>
       ) : trades.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-500">No trades logged yet.</p>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No trades logged yet.</p>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <th className="px-3 py-2">Ticker</th>
                 <th className="px-3 py-2">Current Price</th>
                 <th className="px-3 py-2">Dir</th>
@@ -197,22 +197,22 @@ export default function TradeJournalPage() {
                 const pnlIsUnrealized = t.realized_pnl_pct === null && t.unrealized_pnl_pct !== null;
                 return (
                   <Fragment key={t.trade_id}>
-                    <tr className="border-b border-slate-100 last:border-0">
-                      <td className="px-3 py-2 font-medium text-slate-900">{t.ticker}</td>
-                      <td className="px-3 py-2 text-slate-700">
+                    <tr className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                      <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-50">{t.ticker}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
                         {t.current_price !== null ? `$${t.current_price.toFixed(2)}` : "—"}
                       </td>
-                      <td className="px-3 py-2 text-slate-700">{t.direction}</td>
-                      <td className="px-3 py-2 text-slate-700">
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{t.direction}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
                         {t.entry_low?.toFixed(2)} – {t.entry_high?.toFixed(2)}
                       </td>
-                      <td className="px-3 py-2 text-slate-700">{t.stop_loss?.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-slate-700">{t.target?.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-slate-700">
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{t.stop_loss?.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{t.target?.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
                         {t.risk_reward_ratio !== null ? `${t.risk_reward_ratio.toFixed(2)}:1` : "—"}
                       </td>
-                      <td className="px-3 py-2 text-slate-700">{t.status}</td>
-                      <td className={`px-3 py-2 ${pnl !== null && pnl < 0 ? "text-red-600" : pnl !== null && pnl > 0 ? "text-emerald-600" : "text-slate-700"}`}>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{t.status}</td>
+                      <td className={`px-3 py-2 ${pnl !== null && pnl < 0 ? "text-red-600" : pnl !== null && pnl > 0 ? "text-emerald-600" : "text-slate-700 dark:text-slate-200"}`}>
                         {pnl !== null ? `${pnl.toFixed(2)}%${pnlIsUnrealized ? " (unrealized)" : ""}` : "—"}
                       </td>
                       <td className="px-3 py-2">
@@ -222,7 +222,7 @@ export default function TradeJournalPage() {
                       </td>
                     </tr>
                     {t.strategy_note && (
-                      <tr className="border-b border-slate-100 bg-[var(--pf-accent-soft)]/40 last:border-0">
+                      <tr className="border-b border-slate-100 dark:border-slate-800 bg-[var(--pf-accent-soft)]/40 last:border-0">
                         <td colSpan={10} className="px-3 py-1.5 text-xs text-[var(--pf-accent)]">
                           💡 {t.strategy_note}
                         </td>
@@ -242,7 +242,7 @@ export default function TradeJournalPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
+      <label className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</label>
       {children}
     </div>
   );

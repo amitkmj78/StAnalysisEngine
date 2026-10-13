@@ -12,7 +12,7 @@ export default function EquityCurveChart({ data }: { data: ChallengeEquityCurves
   const hasSpy = data.spy.length > 0;
   if (series.length === 0 && !hasSpy) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         No equity history yet. Curves appear once the daily snapshot job has captured a few days of account values.
       </p>
     );
@@ -62,7 +62,7 @@ export default function EquityCurveChart({ data }: { data: ChallengeEquityCurves
           {allDates[allDates.length - 1]}
         </text>
       </svg>
-      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
         {series.map((m, i) => (
           <li key={`${m.member}-${i}`} className="flex items-center gap-1.5">
             <span className="inline-block h-0.5 w-4" style={{ background: PALETTE[i % PALETTE.length] }} />
@@ -76,7 +76,7 @@ export default function EquityCurveChart({ data }: { data: ChallengeEquityCurves
           </li>
         )}
       </ul>
-      <p className="mt-1 text-xs text-slate-400">Each line starts at 100 on its first snapshot in this window. Raw balances are not shown.</p>
+      <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Each line starts at 100 on its first snapshot in this window. Raw balances are not shown.</p>
     </div>
   );
 }

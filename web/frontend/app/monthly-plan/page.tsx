@@ -148,8 +148,8 @@ export default function MonthlyPlanPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Monthly Investing Plan</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Monthly Investing Plan</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         See what investing a fixed amount every month into the top-ranked fund <em>and</em> the top-ranked stock
         could look like, side by side — so you can compare before picking one.
       </p>
@@ -230,27 +230,27 @@ export default function MonthlyPlanPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          className="rounded-md border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save Plan"}
         </button>
-        {saveMessage && <span className="text-xs text-slate-500">{saveMessage}</span>}
+        {saveMessage && <span className="text-xs text-slate-500 dark:text-slate-400">{saveMessage}</span>}
       </div>
 
       {savedPlans !== null && savedPlans.length > 0 && (
-        <div className="mt-4 border-t border-slate-200 pt-3">
-          <div className="text-xs font-semibold text-slate-700">Saved Plans</div>
+        <div className="mt-4 border-t border-slate-200 dark:border-slate-700 pt-3">
+          <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Saved Plans</div>
           {savedPlansError && <p className="mt-1 text-xs text-red-600">{savedPlansError}</p>}
           <ul className="mt-2 flex flex-col gap-1.5">
             {savedPlans.map((p) => (
               <li
                 key={p.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs"
               >
-                <span className="text-slate-700">
+                <span className="text-slate-700 dark:text-slate-200">
                   <span className="font-medium">{p.name}</span> — ${p.monthly_amount.toLocaleString()}/mo for{" "}
                   {p.years} {p.years === 1 ? "year" : "years"}
-                  <span className="text-slate-400">
+                  <span className="text-slate-400 dark:text-slate-500">
                     {" "}
                     · Fund: {p.fund_goal} ({p.fund_category}) · Stock: {p.stock_goal} ({p.stock_universe})
                   </span>
@@ -258,7 +258,7 @@ export default function MonthlyPlanPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleLoadSavedPlan(p)}
-                    className="rounded-md border border-slate-300 px-2 py-0.5 font-medium text-slate-600 hover:bg-slate-100"
+                    className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-0.5 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                   >
                     Load
                   </button>
@@ -276,7 +276,7 @@ export default function MonthlyPlanPage() {
         </div>
       )}
 
-      {loading && <p className="mt-4 text-sm text-slate-500">Building both plans…</p>}
+      {loading && <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Building both plans…</p>}
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {!loading && (fundData || stockData) && (
@@ -287,9 +287,9 @@ export default function MonthlyPlanPage() {
       )}
 
       {!loading && (fundData || stockData) && (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="font-semibold text-slate-900">Final Note</h3>
-          <p className="mt-2 text-sm text-slate-600">
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h3 className="font-semibold text-slate-900 dark:text-slate-50">Final Note</h3>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             This planner is a simple dollar-cost averaging view. It does not account for taxes, fees, dividends, or
             future regime changes, so use it as a planning tool rather than a promise. Comparing a diversified fund
             against a single stock this way is illustrative — a single stock carries materially more risk than a
@@ -316,18 +316,18 @@ function PlanResultCard({
 }) {
   if (!data) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-        <p className="mt-2 text-sm text-slate-500">Could not load a pick for this side right now.</p>
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{title}</h2>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Could not load a pick for this side right now.</p>
       </div>
     );
   }
 
   if (!data.recommendation) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-        <p className="mt-2 text-sm text-slate-500">No ranked pick was available right now. Try a different filter.</p>
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{title}</h2>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No ranked pick was available right now. Try a different filter.</p>
       </div>
     );
   }
@@ -337,12 +337,12 @@ function PlanResultCard({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{title}</p>
-        <h2 className="mt-1 text-lg font-semibold text-slate-900">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">{title}</p>
+        <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50">
           {recommendation.ticker} — {recommendation.name}
         </h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           This {recommendation.asset_type.toLowerCase()} ranked highest for <strong>{goalLabel}</strong> in the
           current screen.
         </p>
@@ -369,13 +369,13 @@ function PlanResultCard({
             />
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
             <MonthlyChart ticker={recommendation.ticker} history={data.history} />
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <h3 className="font-semibold text-slate-900">Forward Estimate</h3>
-            <p className="mt-2 text-sm text-slate-600">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-50">Forward Estimate</h3>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               Projected portfolio value:{" "}
               <strong>{data.projected_value !== null ? `$${data.projected_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "N/A"}</strong>{" "}
               — uses the asset&apos;s trailing annualized return as a simple forward estimate, useful for
@@ -384,7 +384,7 @@ function PlanResultCard({
           </div>
         </>
       ) : (
-        <p className="text-sm text-slate-500">Not enough price history was available to simulate this plan.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Not enough price history was available to simulate this plan.</p>
       )}
 
     </div>
@@ -394,7 +394,7 @@ function PlanResultCard({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
+      <label className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</label>
       {children}
     </div>
   );

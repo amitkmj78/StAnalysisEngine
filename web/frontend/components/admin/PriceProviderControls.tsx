@@ -74,9 +74,9 @@ export default function PriceProviderControls() {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <h2 className="font-semibold text-slate-900">Live Price Provider</h2>
-      <p className="mt-1 text-sm text-slate-600">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+      <h2 className="font-semibold text-slate-900 dark:text-slate-50">Live Price Provider</h2>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
         Which source get_latest_price and the extended-hours badge use. Takes effect on the very next
         price request — no restart needed. Extended-hours (pre/post-market) pricing only works on Yahoo;
         switching to Alpaca disables it rather than guessing.
@@ -89,10 +89,10 @@ export default function PriceProviderControls() {
           <label
             key={p.value}
             className={`flex cursor-pointer flex-col gap-0.5 rounded-md border px-3 py-2 text-sm ${
-              provider === p.value ? "border-slate-900 bg-slate-50" : "border-slate-300"
+              provider === p.value ? "border-slate-900 bg-slate-50 dark:bg-slate-800" : "border-slate-300 dark:border-slate-600"
             }`}
           >
-            <span className="flex items-center gap-2 font-medium text-slate-800">
+            <span className="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-100">
               <input
                 type="radio"
                 name="price-provider"
@@ -102,12 +102,12 @@ export default function PriceProviderControls() {
               />
               {p.label}
             </span>
-            <span className="text-xs text-slate-500">{p.note}</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">{p.note}</span>
           </label>
         ))}
       </div>
 
-      {saving && <p className="mt-3 text-xs text-slate-500">Switching…</p>}
+      {saving && <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Switching…</p>}
       {saveError && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{saveError}</p>}
 
       {/* Is data actually flowing right now, not just "which one is selected" —
@@ -116,7 +116,7 @@ export default function PriceProviderControls() {
         <div
           className={`mt-3 flex items-center gap-2 rounded-md px-2.5 py-2 text-xs ${
             liveCheck.status === "checking"
-              ? "bg-slate-50 text-slate-500"
+              ? "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
               : liveCheck.error || liveCheck.result?.ok === false
                 ? "bg-red-50 text-red-700"
                 : "bg-emerald-50 text-emerald-800"
@@ -125,7 +125,7 @@ export default function PriceProviderControls() {
           <span
             className={`h-2 w-2 shrink-0 rounded-full ${
               liveCheck.status === "checking"
-                ? "animate-pulse bg-slate-400"
+                ? "animate-pulse bg-slate-400 dark:bg-slate-500"
                 : liveCheck.error || liveCheck.result?.ok === false
                   ? "bg-red-500"
                   : "bg-emerald-500"
@@ -138,7 +138,7 @@ export default function PriceProviderControls() {
               {liveCheck.result!.ok ? "Live — " : "Not working — "}
               {liveCheck.result!.detail}
               {liveCheck.result!.latency_ms !== null && (
-                <span className="text-slate-400">({liveCheck.result!.latency_ms}ms)</span>
+                <span className="text-slate-400 dark:text-slate-500">({liveCheck.result!.latency_ms}ms)</span>
               )}
             </>
           )}

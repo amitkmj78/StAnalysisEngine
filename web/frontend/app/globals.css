@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Dark mode is a manual Light/Dark/System toggle (see lib/theme.ts +
+   components/ThemeColorMenu.tsx), not the OS media query -- app/layout.tsx's
+   beforeInteractive bootstrap script always resolves "system" down to an
+   explicit data-theme="light"|"dark" on <html> before paint, so every
+   dark: class and every --pf-* token below keys off that one attribute. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -26,18 +33,35 @@
   --pf-warn-soft: #FDF3E2;
 }
 
+:root[data-theme="dark"] {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+
+  --pf-bg: #14181A;
+  --pf-surface: #1C2124;
+  --pf-surface-2: #20262A;
+  --pf-border: #2E3538;
+  --pf-border-strong: #3C4448;
+  --pf-divider: #262C2F;
+  --pf-text: #E7EAE8;
+  --pf-text-2: #C3C9C5;
+  --pf-text-3: #9AA19C;
+  /* --pf-accent itself is unaffected by mode -- a user's picked color stays
+     the same hex in both; only --pf-accent-soft is recomputed per mode (see
+     lib/theme.ts's softForMode -- the stored palette tint is pastel-for-light
+     and would look like a bright smear on a dark surface). */
+  --pf-up: #4ADE80;
+  --pf-down: #F87171;
+  --pf-down-soft: #3A1E1C;
+  --pf-warn: #FBBF24;
+  --pf-warn-soft: #3A2F14;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

@@ -19,7 +19,7 @@ export default function GainVsPaidChart({ rows }: { rows: PortfolioPerformanceRo
   const SURFACE = "#ffffff";
 
   return (
-    <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+    <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
       <PlotlyChart
         data={[
           {

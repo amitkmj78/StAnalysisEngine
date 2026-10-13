@@ -24,14 +24,14 @@ import PortfolioSwitcher from "@/components/PortfolioSwitcher";
 import { useUrlState } from "@/lib/useUrlState";
 
 function SkeletonBlock({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />;
+  return <div className={`animate-pulse rounded-md bg-slate-200 dark:bg-slate-700 ${className}`} />;
 }
 
 function Card({ title, subtitle, children }: { title: string; subtitle?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-      {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">{title}</h2>
+      {subtitle && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>}
       <div className="mt-3">{children}</div>
     </div>
   );
@@ -115,8 +115,8 @@ export default function PortfolioHealthPage() {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-slate-900">Portfolio Health Check</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Portfolio Health Check</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Concentration, fund overlap, risk, income, fees, and tax-loss harvesting for your real holdings — each
             section loads independently, so a slow one never blocks the rest.
           </p>
@@ -153,14 +153,14 @@ export default function PortfolioHealthPage() {
           {concentration && !concentrationLoading && (
             <div className="flex flex-col gap-6">
               {concentration.largest_positions.length === 0 ? (
-                <p className="text-sm text-slate-500">No positions yet.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">No positions yet.</p>
               ) : (
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Largest positions</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Largest positions</p>
                   <div className="mt-2 overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           <th className="px-2 py-1.5"><MetricLabel>Ticker</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel>Weight</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel>Concentrated</MetricLabel></th>
@@ -168,16 +168,16 @@ export default function PortfolioHealthPage() {
                       </thead>
                       <tbody>
                         {concentration.largest_positions.map((p) => (
-                          <tr key={p.ticker} className="border-b border-slate-100 last:border-0">
-                            <td className="px-2 py-1.5 font-medium text-slate-900">{p.ticker}</td>
-                            <td className="px-2 py-1.5 text-slate-700">{p.weight_pct.toFixed(1)}%</td>
+                          <tr key={p.ticker} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                            <td className="px-2 py-1.5 font-medium text-slate-900 dark:text-slate-50">{p.ticker}</td>
+                            <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">{p.weight_pct.toFixed(1)}%</td>
                             <td className="px-2 py-1.5">
                               {p.concentrated ? (
                                 <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
                                   25%+ of portfolio
                                 </span>
                               ) : (
-                                <span className="text-slate-400">—</span>
+                                <span className="text-slate-400 dark:text-slate-500">—</span>
                               )}
                             </td>
                           </tr>
@@ -189,19 +189,19 @@ export default function PortfolioHealthPage() {
               )}
 
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Sector weight vs. S&amp;P 500
                 </p>
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
                   S&amp;P 500 side is an approximation (market-cap share across the index, not real fund weights).
                 </p>
                 {concentration.sector_comparison.length === 0 ? (
-                  <p className="mt-2 text-sm text-slate-500">No sector data available.</p>
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No sector data available.</p>
                 ) : (
                   <div className="mt-2 overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           <th className="px-2 py-1.5"><MetricLabel>Sector</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel>Your Portfolio</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel term="S&P 500">S&amp;P 500</MetricLabel></th>
@@ -212,10 +212,10 @@ export default function PortfolioHealthPage() {
                         {[...concentration.sector_comparison]
                           .sort((a, b) => b.portfolio_weight_pct - a.portfolio_weight_pct)
                           .map((row) => (
-                            <tr key={row.sector} className="border-b border-slate-100 last:border-0">
-                              <td className="px-2 py-1.5 text-slate-900">{row.sector}</td>
-                              <td className="px-2 py-1.5 text-slate-700">{row.portfolio_weight_pct.toFixed(1)}%</td>
-                              <td className="px-2 py-1.5 text-slate-700">{row.sp500_weight_pct.toFixed(1)}%</td>
+                            <tr key={row.sector} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                              <td className="px-2 py-1.5 text-slate-900 dark:text-slate-50">{row.sector}</td>
+                              <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">{row.portfolio_weight_pct.toFixed(1)}%</td>
+                              <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">{row.sp500_weight_pct.toFixed(1)}%</td>
                               <td
                                 className={`px-2 py-1.5 font-medium ${
                                   row.gap_pct >= 0 ? "text-emerald-700" : "text-red-700"
@@ -276,9 +276,9 @@ export default function PortfolioHealthPage() {
               <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{overlap.disclosure}</p>
 
               {Object.keys(overlap.fund_coverage_pct).length > 0 && (
-                <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                <div className="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
                   {Object.entries(overlap.fund_coverage_pct).map(([ticker, pct]) => (
-                    <span key={ticker} className="rounded-full border border-slate-200 px-2 py-0.5">
+                    <span key={ticker} className="rounded-full border border-slate-200 dark:border-slate-700 px-2 py-0.5">
                       {ticker}: top 10 = {pct.toFixed(1)}% of fund
                     </span>
                   ))}
@@ -286,12 +286,12 @@ export default function PortfolioHealthPage() {
               )}
 
               {overlap.combined_exposure.length === 0 ? (
-                <p className="text-sm text-slate-500">No positions yet.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">No positions yet.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                      <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                         <th className="px-2 py-1.5"><MetricLabel>Ticker</MetricLabel></th>
                         <th className="px-2 py-1.5"><MetricLabel>Direct</MetricLabel></th>
                         <th className="px-2 py-1.5"><MetricLabel>Via Funds</MetricLabel></th>
@@ -301,10 +301,10 @@ export default function PortfolioHealthPage() {
                     </thead>
                     <tbody>
                       {overlap.combined_exposure.slice(0, 20).map((row) => (
-                        <tr key={row.ticker} className="border-b border-slate-100 last:border-0">
-                          <td className="px-2 py-1.5 font-medium text-slate-900">{row.ticker}</td>
-                          <td className="px-2 py-1.5 text-slate-700">${row.direct_value.toLocaleString()}</td>
-                          <td className="px-2 py-1.5 text-slate-700">
+                        <tr key={row.ticker} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                          <td className="px-2 py-1.5 font-medium text-slate-900 dark:text-slate-50">{row.ticker}</td>
+                          <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">${row.direct_value.toLocaleString()}</td>
+                          <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">
                             {row.look_through_value > 0 ? (
                               <span title={row.via_funds.map((f) => `${f.fund_ticker}: $${f.dollars}`).join(", ")}>
                                 ${row.look_through_value.toLocaleString()}
@@ -313,10 +313,10 @@ export default function PortfolioHealthPage() {
                               "—"
                             )}
                           </td>
-                          <td className="px-2 py-1.5 font-medium text-slate-900">
+                          <td className="px-2 py-1.5 font-medium text-slate-900 dark:text-slate-50">
                             ${row.combined_value.toLocaleString()}
                           </td>
-                          <td className="px-2 py-1.5 text-slate-700">{row.combined_weight_pct.toFixed(1)}%</td>
+                          <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">{row.combined_weight_pct.toFixed(1)}%</td>
                         </tr>
                       ))}
                     </tbody>
@@ -326,13 +326,13 @@ export default function PortfolioHealthPage() {
 
               {overlap.sector_comparison.length > 0 && (
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     Sector weight vs. S&amp;P 500 (look-through-adjusted)
                   </p>
                   <div className="mt-2 overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           <th className="px-2 py-1.5"><MetricLabel>Sector</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel>Your Portfolio</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel term="S&P 500">S&amp;P 500</MetricLabel></th>
@@ -343,10 +343,10 @@ export default function PortfolioHealthPage() {
                         {[...overlap.sector_comparison]
                           .sort((a, b) => b.portfolio_weight_pct - a.portfolio_weight_pct)
                           .map((row) => (
-                            <tr key={row.sector} className="border-b border-slate-100 last:border-0">
-                              <td className="px-2 py-1.5 text-slate-900">{row.sector}</td>
-                              <td className="px-2 py-1.5 text-slate-700">{row.portfolio_weight_pct.toFixed(1)}%</td>
-                              <td className="px-2 py-1.5 text-slate-700">{row.sp500_weight_pct.toFixed(1)}%</td>
+                            <tr key={row.sector} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                              <td className="px-2 py-1.5 text-slate-900 dark:text-slate-50">{row.sector}</td>
+                              <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">{row.portfolio_weight_pct.toFixed(1)}%</td>
+                              <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">{row.sp500_weight_pct.toFixed(1)}%</td>
                               <td
                                 className={`px-2 py-1.5 font-medium ${
                                   row.gap_pct >= 0 ? "text-emerald-700" : "text-red-700"
@@ -377,21 +377,21 @@ export default function PortfolioHealthPage() {
             <div className="flex flex-col gap-6">
               <div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       <MetricLabel term="Trailing">Trailing (last 12mo)</MetricLabel>
                     </p>
-                    <p className="mt-1 text-xl font-semibold text-slate-900">
+                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-50">
                       {incomeFees.dividends.total_trailing_income !== null
                         ? `$${incomeFees.dividends.total_trailing_income.toLocaleString()}`
                         : "—"}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       <MetricLabel term="Projected">Projected (annual)</MetricLabel>
                     </p>
-                    <p className="mt-1 text-xl font-semibold text-slate-900">
+                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-50">
                       {incomeFees.dividends.total_projected_income !== null
                         ? `$${incomeFees.dividends.total_projected_income.toLocaleString()}`
                         : "—"}
@@ -403,7 +403,7 @@ export default function PortfolioHealthPage() {
                   <div className="mt-3 overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           <th className="px-2 py-1.5"><MetricLabel>Ticker</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel>Trailing</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel>Projected</MetricLabel></th>
@@ -413,12 +413,12 @@ export default function PortfolioHealthPage() {
                         {incomeFees.dividends.by_ticker
                           .filter((r) => r.trailing_income !== null || r.projected_income !== null)
                           .map((r) => (
-                            <tr key={r.ticker} className="border-b border-slate-100 last:border-0">
-                              <td className="px-2 py-1.5 font-medium text-slate-900">{r.ticker}</td>
-                              <td className="px-2 py-1.5 text-slate-700">
+                            <tr key={r.ticker} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                              <td className="px-2 py-1.5 font-medium text-slate-900 dark:text-slate-50">{r.ticker}</td>
+                              <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">
                                 {r.trailing_income !== null ? `$${r.trailing_income.toLocaleString()}` : "—"}
                               </td>
-                              <td className="px-2 py-1.5 text-slate-700">
+                              <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">
                                 {r.projected_income !== null ? `$${r.projected_income.toLocaleString()}` : "—"}
                               </td>
                             </tr>
@@ -430,7 +430,7 @@ export default function PortfolioHealthPage() {
               </div>
 
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Fund fee drag — total $
                   {incomeFees.fee_drag.total_annual_fee_drag_dollars !== null
                     ? incomeFees.fee_drag.total_annual_fee_drag_dollars.toLocaleString()
@@ -438,12 +438,12 @@ export default function PortfolioHealthPage() {
                   /year
                 </p>
                 {incomeFees.fee_drag.by_fund.length === 0 ? (
-                  <p className="mt-2 text-sm text-slate-500">No fund holdings.</p>
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No fund holdings.</p>
                 ) : (
                   <div className="mt-2 overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           <th className="px-2 py-1.5"><MetricLabel>Fund</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel>Value</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel term="Expense Ratio %">Expense Ratio</MetricLabel></th>
@@ -452,13 +452,13 @@ export default function PortfolioHealthPage() {
                       </thead>
                       <tbody>
                         {incomeFees.fee_drag.by_fund.map((r) => (
-                          <tr key={r.ticker} className="border-b border-slate-100 last:border-0">
-                            <td className="px-2 py-1.5 font-medium text-slate-900">{r.ticker}</td>
-                            <td className="px-2 py-1.5 text-slate-700">${r.market_value.toLocaleString()}</td>
-                            <td className="px-2 py-1.5 text-slate-700">
+                          <tr key={r.ticker} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                            <td className="px-2 py-1.5 font-medium text-slate-900 dark:text-slate-50">{r.ticker}</td>
+                            <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">${r.market_value.toLocaleString()}</td>
+                            <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">
                               {r.expense_ratio_pct !== null ? `${r.expense_ratio_pct.toFixed(2)}%` : "—"}
                             </td>
-                            <td className="px-2 py-1.5 text-slate-700">
+                            <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">
                               {r.annual_fee_drag_dollars !== null ? `$${r.annual_fee_drag_dollars.toLocaleString()}` : "—"}
                             </td>
                           </tr>
@@ -483,9 +483,9 @@ export default function PortfolioHealthPage() {
           {tlh && !tlhLoading && (
             <div>
               {!tlh.eligible ? (
-                <p className="text-sm text-slate-500">{tlh.reason}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{tlh.reason}</p>
               ) : tlh.candidates.length === 0 ? (
-                <p className="text-sm text-slate-500">No positions are currently below cost.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">No positions are currently below cost.</p>
               ) : (
                 <div className="flex flex-col gap-3">
                   <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -494,7 +494,7 @@ export default function PortfolioHealthPage() {
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           <th className="px-2 py-1.5"><MetricLabel>Ticker</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel>Shares</MetricLabel></th>
                           <th className="px-2 py-1.5"><MetricLabel term="Avg Cost Paid">Avg Cost</MetricLabel></th>
@@ -504,11 +504,11 @@ export default function PortfolioHealthPage() {
                       </thead>
                       <tbody>
                         {tlh.candidates.map((c) => (
-                          <tr key={c.ticker} className="border-b border-slate-100 last:border-0">
-                            <td className="px-2 py-1.5 font-medium text-slate-900">{c.ticker}</td>
-                            <td className="px-2 py-1.5 text-slate-700">{c.shares}</td>
-                            <td className="px-2 py-1.5 text-slate-700">${c.avg_cost.toFixed(2)}</td>
-                            <td className="px-2 py-1.5 text-slate-700">${c.current_price.toFixed(2)}</td>
+                          <tr key={c.ticker} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                            <td className="px-2 py-1.5 font-medium text-slate-900 dark:text-slate-50">{c.ticker}</td>
+                            <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">{c.shares}</td>
+                            <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">${c.avg_cost.toFixed(2)}</td>
+                            <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">${c.current_price.toFixed(2)}</td>
                             <td className="px-2 py-1.5 font-medium text-red-700">
                               {c.unrealized_loss_pct.toFixed(1)}% (${c.unrealized_loss_dollars.toLocaleString()})
                             </td>
@@ -529,33 +529,33 @@ export default function PortfolioHealthPage() {
 
 function RiskWindowTile({ label, window }: { label: string; window: PortfolioRiskWindow }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-slate-700">{label}</span>
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
         {window.data_start && window.data_end && (
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-400 dark:text-slate-500">
             {window.data_start} – {window.data_end}
           </span>
         )}
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
-        <dt className="text-slate-500"><MetricLabel>Volatility</MetricLabel></dt>
-        <dd className="text-right text-slate-900">
+        <dt className="text-slate-500 dark:text-slate-400"><MetricLabel>Volatility</MetricLabel></dt>
+        <dd className="text-right text-slate-900 dark:text-slate-50">
           {window.volatility_pct !== null ? `${window.volatility_pct.toFixed(1)}%` : "—"}
         </dd>
-        <dt className="text-slate-500"><MetricLabel>Beta (vs. SPY)</MetricLabel></dt>
-        <dd className="text-right text-slate-900">{window.beta_to_spy !== null ? window.beta_to_spy.toFixed(2) : "—"}</dd>
-        <dt className="text-slate-500"><MetricLabel>Correlation (vs. SPY)</MetricLabel></dt>
-        <dd className="text-right text-slate-900">
+        <dt className="text-slate-500 dark:text-slate-400"><MetricLabel>Beta (vs. SPY)</MetricLabel></dt>
+        <dd className="text-right text-slate-900 dark:text-slate-50">{window.beta_to_spy !== null ? window.beta_to_spy.toFixed(2) : "—"}</dd>
+        <dt className="text-slate-500 dark:text-slate-400"><MetricLabel>Correlation (vs. SPY)</MetricLabel></dt>
+        <dd className="text-right text-slate-900 dark:text-slate-50">
           {window.correlation_to_spy !== null ? window.correlation_to_spy.toFixed(2) : "—"}
         </dd>
-        <dt className="text-slate-500"><MetricLabel>Max drawdown</MetricLabel></dt>
-        <dd className="text-right text-slate-900">
+        <dt className="text-slate-500 dark:text-slate-400"><MetricLabel>Max drawdown</MetricLabel></dt>
+        <dd className="text-right text-slate-900 dark:text-slate-50">
           {window.max_drawdown_pct !== null ? `${window.max_drawdown_pct.toFixed(1)}%` : "—"}
         </dd>
       </dl>
       {window.excluded_from_risk.length > 0 && (
-        <p className="mt-2 text-xs text-slate-400">
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
           Excluded (no price history for this window): {window.excluded_from_risk.join(", ")}
         </p>
       )}

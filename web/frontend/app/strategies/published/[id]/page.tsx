@@ -75,18 +75,18 @@ export default function PublishedStrategyPage() {
   }
 
   if (error) return <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-red-700">{error}</div>;
-  if (!detail) return <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-slate-500">Loading…</div>;
+  if (!detail) return <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-slate-500 dark:text-slate-400">Loading…</div>;
 
   const latestForward = forward && forward.length > 0 ? forward[forward.length - 1] : null;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <Link href="/strategies/published" className="text-sm font-medium text-slate-600 hover:underline">
+      <Link href="/strategies/published" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
         ← Published strategies
       </Link>
       <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="font-display text-2xl font-semibold text-slate-900">
-          {detail.name} <span className="text-base font-normal text-slate-400">v{detail.version}</span>
+        <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">
+          {detail.name} <span className="text-base font-normal text-slate-400 dark:text-slate-500">v{detail.version}</span>
         </h1>
         <div className="flex items-center gap-2">
           <button
@@ -94,7 +94,7 @@ export default function PublishedStrategyPage() {
             onClick={handleFollow}
             disabled={followBusy}
             className={`rounded-md border px-4 py-2 text-sm font-semibold disabled:opacity-50 ${
-              following ? "border-slate-300 bg-white text-slate-700 hover:bg-slate-50" : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+              following ? "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800" : "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
             }`}
           >
             {following ? "Following" : "Follow for signal alerts"}
@@ -109,16 +109,16 @@ export default function PublishedStrategyPage() {
               {forking ? "Forking…" : "Fork this strategy"}
             </button>
           ) : (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+            <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-medium text-slate-500 dark:text-slate-400">
               Rules private — can&apos;t be forked
             </span>
           )}
         </div>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         by {detail.author_display_name ?? "a member"} · published {new Date(detail.published_at).toLocaleDateString()}
       </p>
-      <p className="mt-1 text-xs text-slate-400">
+      <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
         Following gets you an alert when this strategy&apos;s forward replay closes a new trade -- it does not
         place any paper or live order on your behalf.
       </p>
@@ -129,7 +129,7 @@ export default function PublishedStrategyPage() {
             <Link
               key={v.id}
               href={`/strategies/published/${v.id}`}
-              className={`rounded-full px-2 py-0.5 ${v.id === detail.id ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              className={`rounded-full px-2 py-0.5 ${v.id === detail.id ? "bg-slate-900 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"}`}
             >
               v{v.version}
             </Link>
@@ -137,46 +137,46 @@ export default function PublishedStrategyPage() {
         </div>
       )}
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">Rules</h2>
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Rules</h2>
         {detail.rules_visibility === "public" && detail.definition ? (
-          <pre className="mt-2 overflow-x-auto rounded bg-slate-50 p-3 text-xs text-slate-700">
+          <pre className="mt-2 overflow-x-auto rounded bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-700 dark:text-slate-200">
             {JSON.stringify({ entry: detail.definition.entry, exit: detail.definition.exit, exits: detail.definition.exits }, null, 2)}
           </pre>
         ) : (
-          <p className="mt-2 text-sm text-slate-700">{detail.rules_summary}</p>
+          <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">{detail.rules_summary}</p>
         )}
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">Backtest (historical)</h2>
-        <p className="mt-1 text-xs text-slate-400">Past prices only. Not a forecast or a recommendation.</p>
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Backtest (historical)</h2>
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Past prices only. Not a forecast or a recommendation.</p>
         <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm sm:grid-cols-4">
-          <dt className="text-slate-500">Total return</dt>
-          <dd className="font-mono font-semibold text-slate-900">{pct(detail.result.strategy?.total_return_pct)}</dd>
-          <dt className="text-slate-500">CAGR</dt>
-          <dd className="font-mono font-semibold text-slate-900">{pct(detail.result.strategy?.cagr_pct)}</dd>
-          <dt className="text-slate-500">Max drawdown</dt>
-          <dd className="font-mono text-slate-900">{pct(detail.result.strategy?.max_drawdown_pct)}</dd>
-          <dt className="text-slate-500">Sharpe</dt>
-          <dd className="font-mono text-slate-900">{detail.result.strategy?.sharpe?.toFixed(2) ?? "–"}</dd>
+          <dt className="text-slate-500 dark:text-slate-400">Total return</dt>
+          <dd className="font-mono font-semibold text-slate-900 dark:text-slate-50">{pct(detail.result.strategy?.total_return_pct)}</dd>
+          <dt className="text-slate-500 dark:text-slate-400">CAGR</dt>
+          <dd className="font-mono font-semibold text-slate-900 dark:text-slate-50">{pct(detail.result.strategy?.cagr_pct)}</dd>
+          <dt className="text-slate-500 dark:text-slate-400">Max drawdown</dt>
+          <dd className="font-mono text-slate-900 dark:text-slate-50">{pct(detail.result.strategy?.max_drawdown_pct)}</dd>
+          <dt className="text-slate-500 dark:text-slate-400">Sharpe</dt>
+          <dd className="font-mono text-slate-900 dark:text-slate-50">{detail.result.strategy?.sharpe?.toFixed(2) ?? "–"}</dd>
         </dl>
       </div>
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">Forward record</h2>
-        <p className="mt-1 text-xs text-slate-400">
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Forward record</h2>
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
           A replay of the same backtest rules over the real time since this was published -- not a brokered paper
           account, and separate from the historical backtest above.
         </p>
-        {forward === null && <p className="mt-2 text-sm text-slate-500">Loading…</p>}
+        {forward === null && <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
         {forward?.length === 0 && (
-          <p className="mt-2 text-sm text-slate-500">No forward reading yet -- check back a day or two after publishing.</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No forward reading yet -- check back a day or two after publishing.</p>
         )}
         {latestForward && (
           <p className="mt-2 text-sm">
-            Since publish: <span className="font-mono font-semibold text-slate-900">{pct(latestForward.cumulative_return_pct)}</span>{" "}
-            <span className="text-slate-500">over {latestForward.trades} trade{latestForward.trades === 1 ? "" : "s"}, as of {latestForward.as_of_date}</span>
+            Since publish: <span className="font-mono font-semibold text-slate-900 dark:text-slate-50">{pct(latestForward.cumulative_return_pct)}</span>{" "}
+            <span className="text-slate-500 dark:text-slate-400">over {latestForward.trades} trade{latestForward.trades === 1 ? "" : "s"}, as of {latestForward.as_of_date}</span>
           </p>
         )}
       </div>

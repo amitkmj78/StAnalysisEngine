@@ -14,8 +14,8 @@ export default async function AdminSignalStabilityPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Signal Stability</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Signal Stability</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Day-over-day BUY/HOLD/SELL flip analysis from the Quant Signal point-in-time history — how often each
         ticker&apos;s signal changes, and whether a flip looks like boundary noise, the model chasing a big
         same-day price move, or a cleaner shift in view.

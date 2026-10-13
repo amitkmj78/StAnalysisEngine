@@ -41,7 +41,7 @@ const FACTOR_BENCHMARKS = [
 ];
 
 function SkeletonBlock({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />;
+  return <div className={`animate-pulse rounded-md bg-slate-200 dark:bg-slate-700 ${className}`} />;
 }
 
 function fmtPct(v: number | null, decimals = 1): string {
@@ -205,8 +205,8 @@ export default function StressTestPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-slate-900">Stress Test</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Stress Test</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Estimated impact of market shocks on your real holdings — every result is an estimate, and shows exactly
           how it was computed directly underneath it, never just a number.{" "}
           <Link href="/guides/risk" className="text-[var(--pf-accent)] hover:underline">
@@ -226,9 +226,9 @@ export default function StressTestPage() {
       {catalogError && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{catalogError}</p>}
 
       {/* Preset shocks */}
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">Preset Shocks</h2>
-        <p className="mt-1 text-xs text-slate-500">
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Preset Shocks</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Beta-based estimates: your portfolio&apos;s historical beta to a real-world proxy, applied to a
           hypothetical move.
         </p>
@@ -238,7 +238,7 @@ export default function StressTestPage() {
               key={preset.preset_key}
               onClick={() => runPreset(preset.preset_key)}
               disabled={selectedPortfolioId === null || presetResults[preset.preset_key]?.loading}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
             >
               {presetResults[preset.preset_key]?.loading ? "Running…" : preset.label}
             </button>
@@ -250,8 +250,8 @@ export default function StressTestPage() {
             const preset = catalog?.presets.find((p) => p.preset_key === key);
             if (!preset) return null;
             return (
-              <div key={key} className="rounded-md border border-slate-200 p-4">
-                <h3 className="text-sm font-semibold text-slate-800">{preset.label}</h3>
+              <div key={key} className="rounded-md border border-slate-200 dark:border-slate-700 p-4">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{preset.label}</h3>
                 {state.loading && <SkeletonBlock className="mt-2 h-16" />}
                 {state.error && <p className="mt-2 text-xs text-red-700">{state.error}</p>}
                 {state.data && !state.loading && (
@@ -264,10 +264,10 @@ export default function StressTestPage() {
                       >
                         {fmtDollars(state.data.estimated_dollar_impact)}
                       </span>
-                      <span className="text-sm text-slate-500">{fmtPct(state.data.estimated_pct_impact)}</span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">{fmtPct(state.data.estimated_pct_impact)}</span>
                     </div>
                     {state.data.beta !== null && (
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         <MetricLabel term="Beta to Benchmark">Beta</MetricLabel> to {state.data.benchmark_ticker}:{" "}
                         {state.data.beta.toFixed(2)} · {state.data.data_start}
                         {" – "}
@@ -275,7 +275,7 @@ export default function StressTestPage() {
                       </p>
                     )}
                     {state.data.excluded_from_beta.length > 0 && (
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
                         Excluded (no price history): {state.data.excluded_from_beta.join(", ")}
                       </p>
                     )}
@@ -289,9 +289,9 @@ export default function StressTestPage() {
       </div>
 
       {/* Historical replays */}
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">Historical Replays</h2>
-        <p className="mt-1 text-xs text-slate-500">
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Historical Replays</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Each holding&apos;s own actual return over a real historical crisis window, applied to its current value —
           realized history, not a model.
         </p>
@@ -301,7 +301,7 @@ export default function StressTestPage() {
               key={replay.replay_key}
               onClick={() => runReplay(replay.replay_key)}
               disabled={selectedPortfolioId === null || replayResults[replay.replay_key]?.loading}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
             >
               {replayResults[replay.replay_key]?.loading ? "Running…" : replay.label}
             </button>
@@ -313,8 +313,8 @@ export default function StressTestPage() {
             const replay = catalog?.replays.find((r) => r.replay_key === key);
             if (!replay) return null;
             return (
-              <div key={key} className="rounded-md border border-slate-200 p-4">
-                <h3 className="text-sm font-semibold text-slate-800">
+              <div key={key} className="rounded-md border border-slate-200 dark:border-slate-700 p-4">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                   {replay.label} ({replay.window_start} – {replay.window_end})
                 </h3>
                 {state.loading && <SkeletonBlock className="mt-2 h-24" />}
@@ -329,12 +329,12 @@ export default function StressTestPage() {
                       >
                         {fmtDollars(state.data.estimated_dollar_impact)}
                       </span>
-                      <span className="text-sm text-slate-500">{fmtPct(state.data.estimated_pct_impact)}</span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">{fmtPct(state.data.estimated_pct_impact)}</span>
                     </div>
                     <div className="mt-3 overflow-x-auto">
                       <table className="min-w-full text-xs">
                         <thead>
-                          <tr className="border-b border-slate-200 text-left uppercase tracking-wide text-slate-500">
+                          <tr className="border-b border-slate-200 dark:border-slate-700 text-left uppercase tracking-wide text-slate-500 dark:text-slate-400">
                             <th className="py-1 pr-3"><MetricLabel>Ticker</MetricLabel></th>
                             <th className="py-1 pr-3 text-right"><MetricLabel term="Replay Market Value">Market Value</MetricLabel></th>
                             <th className="py-1 pr-3 text-right"><MetricLabel term="Replay %">%</MetricLabel></th>
@@ -345,14 +345,14 @@ export default function StressTestPage() {
                           {state.data.holdings.map((h) => (
                             <tr
                               key={h.ticker}
-                              className={`border-b border-slate-100 last:border-0 ${
-                                h.method_used === "excluded_no_history_for_window" ? "text-slate-400" : ""
+                              className={`border-b border-slate-100 dark:border-slate-800 last:border-0 ${
+                                h.method_used === "excluded_no_history_for_window" ? "text-slate-400 dark:text-slate-500" : ""
                               }`}
                             >
                               <td className="py-1 pr-3 font-medium">
                                 {h.ticker}
                                 {h.method_used === "excluded_no_history_for_window" && (
-                                  <span className="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px]">
+                                  <span className="ml-1 rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px]">
                                     excluded
                                   </span>
                                 )}
@@ -375,9 +375,9 @@ export default function StressTestPage() {
       </div>
 
       {/* Custom scenario builder */}
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-900">Custom Scenario</h2>
-        <p className="mt-1 text-xs text-slate-500">
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Custom Scenario</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Combine sector and factor moves. Sector moves apply directly to holdings classified in that sector; factor
           moves apply via your portfolio&apos;s beta. Impacts are summed — this doesn&apos;t model correlation
           between components.
@@ -387,7 +387,7 @@ export default function StressTestPage() {
           <select
             value={newSectorChoice}
             onChange={(e) => setNewSectorChoice(e.target.value)}
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
           >
             {SECTORS.map((s) => (
               <option key={s} value={s}>
@@ -399,11 +399,11 @@ export default function StressTestPage() {
             type="number"
             value={newSectorShock}
             onChange={(e) => setNewSectorShock(e.target.value)}
-            className="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="w-20 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
           />
           <button
             onClick={addSectorComponent}
-            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             Add sector move
           </button>
@@ -411,7 +411,7 @@ export default function StressTestPage() {
           <select
             value={newFactorChoice}
             onChange={(e) => setNewFactorChoice(e.target.value)}
-            className="ml-4 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="ml-4 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
           >
             {FACTOR_BENCHMARKS.map((b) => (
               <option key={b.ticker} value={b.ticker}>
@@ -423,11 +423,11 @@ export default function StressTestPage() {
             type="number"
             value={newFactorShock}
             onChange={(e) => setNewFactorShock(e.target.value)}
-            className="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="w-20 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
           />
           <button
             onClick={addFactorComponent}
-            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             Add factor move
           </button>
@@ -438,7 +438,7 @@ export default function StressTestPage() {
             {customComponents.map((c, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm"
+                className="flex items-center justify-between rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-sm"
               >
                 <span>{c.label}</span>
                 <button onClick={() => removeComponent(i)} className="text-xs text-red-600 hover:underline">
@@ -463,12 +463,12 @@ export default function StressTestPage() {
               value={scenarioName}
               onChange={(e) => setScenarioName(e.target.value)}
               placeholder="Scenario name"
-              className="w-40 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="w-40 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             />
             <button
               type="submit"
               disabled={savingScenario || !scenarioName.trim() || customComponents.length === 0}
-              className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
             >
               {savingScenario ? "Saving…" : "Save"}
             </button>
@@ -479,7 +479,7 @@ export default function StressTestPage() {
 
         {customResult.error && <p className="mt-3 text-xs text-red-700">{customResult.error}</p>}
         {customResult.data && !customResult.loading && (
-          <div className="mt-4 rounded-md border border-slate-200 p-4">
+          <div className="mt-4 rounded-md border border-slate-200 dark:border-slate-700 p-4">
             <div className="flex items-baseline gap-2">
               <span
                 className={`text-2xl font-semibold ${
@@ -488,11 +488,11 @@ export default function StressTestPage() {
               >
                 {fmtDollars(customResult.data.total_estimated_dollar_impact)}
               </span>
-              <span className="text-sm text-slate-500">{fmtPct(customResult.data.total_estimated_pct_impact)}</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">{fmtPct(customResult.data.total_estimated_pct_impact)}</span>
             </div>
             <div className="mt-2 flex flex-col gap-1">
               {customResult.data.components.map((c, i) => (
-                <p key={i} className="text-xs text-slate-600">
+                <p key={i} className="text-xs text-slate-600 dark:text-slate-300">
                   <strong>{c.label}:</strong> {fmtDollars(c.estimated_dollar_impact)} ({fmtPct(c.estimated_pct_impact)})
                 </p>
               ))}
@@ -503,16 +503,16 @@ export default function StressTestPage() {
 
         {savedScenarios.length > 0 && (
           <div className="mt-5">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saved Scenarios</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Saved Scenarios</h3>
             <div className="mt-2 flex flex-col gap-1">
               {savedScenarios.map((s) => (
                 <div
                   key={s.id}
-                  className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm"
+                  className="flex items-center justify-between rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm"
                 >
                   <span>{s.name}</span>
                   <div className="flex gap-2">
-                    <button onClick={() => handleLoadScenario(s)} className="text-xs text-slate-700 hover:underline">
+                    <button onClick={() => handleLoadScenario(s)} className="text-xs text-slate-700 dark:text-slate-200 hover:underline">
                       Load
                     </button>
                     <button

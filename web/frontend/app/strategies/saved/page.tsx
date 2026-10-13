@@ -122,17 +122,17 @@ export default function SavedStrategiesPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="font-display text-2xl font-semibold text-slate-900">Saved strategies</h1>
-        <Link href="/strategies/builder" className="text-sm font-medium text-slate-700 hover:underline">← Back to the builder</Link>
+        <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Saved strategies</h1>
+        <Link href="/strategies/builder" className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:underline">← Back to the builder</Link>
       </div>
-      <p className="mt-1 text-sm text-slate-500">Pick up to four to compare. Each saved run keeps its rules, stocks, costs and results as they were when saved.</p>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Pick up to four to compare. Each saved run keeps its rules, stocks, costs and results as they were when saved.</p>
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white">
-        {rows === null && !error && <p className="p-5 text-sm text-slate-500">Loading…</p>}
-        {rows?.length === 0 && <p className="p-5 text-sm text-slate-500">Nothing saved yet. Run a backtest in the builder and choose Save this run.</p>}
-        <ul className="divide-y divide-slate-100">
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        {rows === null && !error && <p className="p-5 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
+        {rows?.length === 0 && <p className="p-5 text-sm text-slate-500 dark:text-slate-400">Nothing saved yet. Run a backtest in the builder and choose Save this run.</p>}
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           {rows?.map((row) => (
             <li
               key={row.id}
@@ -141,25 +141,25 @@ export default function SavedStrategiesPage() {
               <label className="flex items-start gap-3">
                 <input type="checkbox" checked={picked.includes(row.id)} onChange={() => toggle(row.id)} className="mt-1" aria-label={`Compare ${row.name}`} />
                 <span>
-                  <span className="font-medium text-slate-900">{row.name}</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-50">{row.name}</span>
                   {row.forked_from_published_id && (
-                    <span className="ml-2 text-xs text-slate-500">
+                    <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                       forked from{" "}
                       <Link href={`/strategies/published/${row.forked_from_published_id}`} className="underline">
                         v{row.forked_from_version}
                       </Link>
                     </span>
                   )}
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-slate-500 dark:text-slate-400">
                     Saved {new Date(row.created_at).toLocaleDateString()} · data to {row.data_end ?? "–"} · excess CAGR vs same stocks {pct(row.summary.excess_cagr_vs_basket_pct)} · Sharpe vs SPY {plain(row.summary.sharpe_vs_spy)}
                   </span>
                   <span className="mt-1 block text-sm">
-                    <span className="text-slate-600">Return </span>
-                    <span className="font-mono font-semibold text-slate-900">{pct(row.summary.cagr_pct)}</span>
-                    <span className="text-slate-600"> a year · best stock </span>
-                    <span className="font-semibold text-slate-900">{row.summary.top_stock ?? "–"}</span>
+                    <span className="text-slate-600 dark:text-slate-300">Return </span>
+                    <span className="font-mono font-semibold text-slate-900 dark:text-slate-50">{pct(row.summary.cagr_pct)}</span>
+                    <span className="text-slate-600 dark:text-slate-300"> a year · best stock </span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-50">{row.summary.top_stock ?? "–"}</span>
                     {row.summary.top_stock_share_pct != null && (
-                      <span className="text-slate-600"> ({plain(row.summary.top_stock_share_pct, 0)}% of the gain)</span>
+                      <span className="text-slate-600 dark:text-slate-300"> ({plain(row.summary.top_stock_share_pct, 0)}% of the gain)</span>
                     )}
                     {row.id === bestId && <span className="ml-2 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Best return</span>}
                   </span>
@@ -171,24 +171,24 @@ export default function SavedStrategiesPage() {
                     Published (v{published[row.id].version})
                   </Link>
                 ) : (
-                  <button type="button" onClick={() => startPublish(row.id)} className="font-medium text-slate-700 hover:underline">
+                  <button type="button" onClick={() => startPublish(row.id)} className="font-medium text-slate-700 dark:text-slate-200 hover:underline">
                     Publish
                   </button>
                 )}
-                <button type="button" onClick={() => handleShare(row.id)} disabled={busy === `share-${row.id}`} className="font-medium text-slate-700 hover:underline disabled:opacity-50">
+                <button type="button" onClick={() => handleShare(row.id)} disabled={busy === `share-${row.id}`} className="font-medium text-slate-700 dark:text-slate-200 hover:underline disabled:opacity-50">
                   {shareLinks[row.id] ? "Link created" : "Share (read-only link)"}
                 </button>
-                <button type="button" onClick={() => handleDelete(row.id)} className="text-slate-500 hover:text-red-700">
+                <button type="button" onClick={() => handleDelete(row.id)} className="text-slate-500 dark:text-slate-400 hover:text-red-700">
                   Delete
                 </button>
               </div>
               {publishingId === row.id && (
-                <div className="flex w-full flex-col gap-2 rounded bg-slate-50 px-3 py-2 sm:basis-full">
-                  <label className="flex items-center gap-2 text-xs text-slate-700">
+                <div className="flex w-full flex-col gap-2 rounded bg-slate-50 dark:bg-slate-800 px-3 py-2 sm:basis-full">
+                  <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-200">
                     <input type="radio" checked={publishVisibility === "public"} onChange={() => setPublishVisibility("public")} />
                     Publish the rules publicly
                   </label>
-                  <label className="flex items-center gap-2 text-xs text-slate-700">
+                  <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-200">
                     <input type="radio" checked={publishVisibility === "summary_only"} onChange={() => setPublishVisibility("summary_only")} />
                     Keep rules private -- publish a summary instead
                   </label>
@@ -197,7 +197,7 @@ export default function SavedStrategiesPage() {
                       value={publishSummary}
                       onChange={(e) => setPublishSummary(e.target.value)}
                       placeholder="A plain-language summary of what this strategy does (shown instead of the rules)"
-                      className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
                       rows={2}
                     />
                   )}
@@ -210,18 +210,18 @@ export default function SavedStrategiesPage() {
                     >
                       {busy === `publish-${row.id}` ? "Publishing…" : "Confirm publish"}
                     </button>
-                    <button type="button" onClick={() => setPublishingId(null)} className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-700">
+                    <button type="button" onClick={() => setPublishingId(null)} className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1 text-xs text-slate-700 dark:text-slate-200">
                       Cancel
                     </button>
                   </div>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
                     Published strategies are public and locked -- editing this saved run afterward won&apos;t change
                     what&apos;s published; publish again to add a new version.
                   </p>
                 </div>
               )}
               {shareLinks[row.id] && (
-                <div className="flex w-full flex-wrap items-center gap-2 rounded bg-slate-50 px-2 py-1 sm:basis-full">
+                <div className="flex w-full flex-wrap items-center gap-2 rounded bg-slate-50 dark:bg-slate-800 px-2 py-1 sm:basis-full">
                   <a
                     href={shareLinks[row.id]}
                     target="_blank"
@@ -233,7 +233,7 @@ export default function SavedStrategiesPage() {
                   <button
                     type="button"
                     onClick={() => void navigator.clipboard?.writeText(shareLinks[row.id])}
-                    className="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-100"
+                    className="rounded border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
                   >
                     Copy
                   </button>
@@ -249,14 +249,14 @@ export default function SavedStrategiesPage() {
           <button type="button" onClick={handleCompare} disabled={busy === "compare"} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
             Compare {picked.length} saved
           </button>
-          <span className="text-xs text-slate-500">Up to four at a time.</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Up to four at a time.</span>
         </div>
       )}
 
       {compare && (
-        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white p-5">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
           <table className="w-full min-w-[40rem] text-right text-sm">
-            <thead className="text-xs text-slate-400">
+            <thead className="text-xs text-slate-400 dark:text-slate-500">
               <tr>
                 <th className="py-1 text-left font-medium">Strategy</th>
                 <th className="font-medium">Total</th>
@@ -269,10 +269,10 @@ export default function SavedStrategiesPage() {
                 <th className="font-medium">Checks failed</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-mono text-xs">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-xs">
               {compare.map((c) => (
                 <tr key={c.id}>
-                  <td className="py-2 text-left font-sans text-sm font-medium text-slate-800">{c.name}</td>
+                  <td className="py-2 text-left font-sans text-sm font-medium text-slate-800 dark:text-slate-100">{c.name}</td>
                   <td>{pct(c.total_return_pct)}</td>
                   <td>{pct(c.cagr_pct)}</td>
                   <td>{pct(c.excess_cagr_vs_basket_pct)}</td>
@@ -285,7 +285,7 @@ export default function SavedStrategiesPage() {
               ))}
             </tbody>
           </table>
-          <p className="mt-3 text-xs text-slate-500">Each run is compared as saved. Past results, not a forecast or a recommendation.</p>
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Each run is compared as saved. Past results, not a forecast or a recommendation.</p>
         </div>
       )}
     </div>

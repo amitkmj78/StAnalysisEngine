@@ -36,23 +36,23 @@ function CaptureStatsGrid({
 }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
-      <dl className="mt-1 grid grid-cols-2 gap-3 rounded-md bg-slate-50 p-3 text-sm sm:grid-cols-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</h3>
+      <dl className="mt-1 grid grid-cols-2 gap-3 rounded-md bg-slate-50 dark:bg-slate-800 p-3 text-sm sm:grid-cols-4">
         <div>
-          <dt className="text-xs text-slate-500">Days captured</dt>
-          <dd className="font-medium text-slate-900">{stats.days_captured}</dd>
+          <dt className="text-xs text-slate-500 dark:text-slate-400">Days captured</dt>
+          <dd className="font-medium text-slate-900 dark:text-slate-50">{stats.days_captured}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-500">{countLabel}</dt>
-          <dd className="font-medium text-slate-900">{countValue}</dd>
+          <dt className="text-xs text-slate-500 dark:text-slate-400">{countLabel}</dt>
+          <dd className="font-medium text-slate-900 dark:text-slate-50">{countValue}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-500">Earliest date</dt>
-          <dd className="font-medium text-slate-900">{stats.earliest_date ?? "—"}</dd>
+          <dt className="text-xs text-slate-500 dark:text-slate-400">Earliest date</dt>
+          <dd className="font-medium text-slate-900 dark:text-slate-50">{stats.earliest_date ?? "—"}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-500">Latest date</dt>
-          <dd className="font-medium text-slate-900">{stats.latest_date ?? "—"}</dd>
+          <dt className="text-xs text-slate-500 dark:text-slate-400">Latest date</dt>
+          <dd className="font-medium text-slate-900 dark:text-slate-50">{stats.latest_date ?? "—"}</dd>
         </div>
       </dl>
     </div>
@@ -89,16 +89,16 @@ function PitStoreCard({
   onCaptureNow: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold text-slate-900">{title}</h2>
-          <p className="mt-1 text-sm text-slate-600">{description}</p>
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">{title}</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{description}</p>
         </div>
         {enabled !== null && (
           <span
             className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
             {enabled ? "Capturing" : "Paused"}
@@ -129,7 +129,7 @@ function PitStoreCard({
         <button
           onClick={onCaptureNow}
           disabled={capturing}
-          className="rounded-md border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+          className="rounded-md border border-emerald-300 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
         >
           {capturing ? "Capturing…" : "Capture Now"}
         </button>
@@ -307,11 +307,11 @@ export default function PitPriceControls() {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Point-in-Time Data Store (TR-3)</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">Point-in-Time Data Store (TR-3)</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Daily job (weekdays, 4:05pm ET) that appends today&apos;s prices, universe membership, and
             fundamentals to three append-only stores. Once captured, a row is never overwritten — that&apos;s
             what makes it a genuine point-in-time record rather than a snapshot that could quietly change if
@@ -322,7 +322,7 @@ export default function PitPriceControls() {
         {enabled !== null && (
           <span
             className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
             {enabled ? "Capturing" : "Paused"}
@@ -354,10 +354,10 @@ export default function PitPriceControls() {
       )}
 
       <div className="mt-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Lookahead-safety reconciliation (Phase 4)
         </h3>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Reconstructs a date&apos;s ranking purely from PIT data known as of that date, and checks it
           against what was actually published — TR-6&apos;s acceptance test. Only produces a full match
           once the PIT store has 31+ trading days of history for a 30-day lookback; before that it
@@ -368,12 +368,12 @@ export default function PitPriceControls() {
             type="date"
             value={reconcileDate}
             onChange={(e) => setReconcileDate(e.target.value)}
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
           />
           <button
             onClick={handleReconcile}
             disabled={reconciling}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
           >
             {reconciling ? "Checking…" : "Check Reconciliation"}
           </button>
@@ -384,9 +384,9 @@ export default function PitPriceControls() {
         )}
 
         {reconcileReport && (
-          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="mt-3 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium text-slate-800">{reconcileReport.target_date}</span>
+              <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{reconcileReport.target_date}</span>
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                   reconcileReport.byte_identical
@@ -399,26 +399,26 @@ export default function PitPriceControls() {
             </div>
             <dl className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
               <div>
-                <dt className="text-slate-500">PIT history</dt>
-                <dd className="font-medium text-slate-800">
+                <dt className="text-slate-500 dark:text-slate-400">PIT history</dt>
+                <dd className="font-medium text-slate-800 dark:text-slate-100">
                   {reconcileReport.pit_trading_days_available}/{reconcileReport.pit_trading_days_required} days
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">Published</dt>
-                <dd className="font-medium text-slate-800">{reconcileReport.published_count}</dd>
+                <dt className="text-slate-500 dark:text-slate-400">Published</dt>
+                <dd className="font-medium text-slate-800 dark:text-slate-100">{reconcileReport.published_count}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Matched</dt>
-                <dd className="font-medium text-slate-800">{reconcileReport.matches}</dd>
+                <dt className="text-slate-500 dark:text-slate-400">Matched</dt>
+                <dd className="font-medium text-slate-800 dark:text-slate-100">{reconcileReport.matches}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Mismatched</dt>
-                <dd className="font-medium text-slate-800">{reconcileReport.mismatches.length}</dd>
+                <dt className="text-slate-500 dark:text-slate-400">Mismatched</dt>
+                <dd className="font-medium text-slate-800 dark:text-slate-100">{reconcileReport.mismatches.length}</dd>
               </div>
             </dl>
             {reconcileReport.missing_from_pit_history.length > 0 && (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 {reconcileReport.missing_from_pit_history.length} ticker
                 {reconcileReport.missing_from_pit_history.length === 1 ? "" : "s"} not yet reconstructible
                 (not enough trailing PIT history): {reconcileReport.missing_from_pit_history.map((m) => m.ticker).join(", ")}
@@ -450,7 +450,7 @@ export default function PitPriceControls() {
         <button
           onClick={handleCaptureNow}
           disabled={capturing}
-          className="rounded-md border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+          className="rounded-md border border-emerald-300 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
         >
           {capturing ? "Capturing…" : "Capture Now"}
         </button>

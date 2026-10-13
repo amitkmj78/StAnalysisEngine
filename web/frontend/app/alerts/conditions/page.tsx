@@ -96,12 +96,12 @@ export default function ConditionAlertsPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold text-slate-900">Condition Alerts</h1>
-        <Link href="/alerts" className="text-sm font-medium text-slate-600 hover:underline">
+        <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Condition Alerts</h1>
+        <Link href="/alerts" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
           Back to Alerts
         </Link>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Combine price, indicator, score, signal, regime and earnings conditions with AND/OR — fires once, when the
         whole combination is true. Simple price/score targets still live on the{" "}
         <Link href="/stock-finder" className="underline">
@@ -112,10 +112,10 @@ export default function ConditionAlertsPage() {
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <form onSubmit={handleSubmit} className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="font-semibold text-slate-900">New alert</h2>
+      <form onSubmit={handleSubmit} className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="font-semibold text-slate-900 dark:text-slate-50">New alert</h2>
         <div className="mt-3">
-          <label htmlFor="condition-alert-ticker" className="text-xs font-medium text-slate-500">
+          <label htmlFor="condition-alert-ticker" className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Ticker
           </label>
           <input
@@ -125,7 +125,7 @@ export default function ConditionAlertsPage() {
             onChange={(e) => setTicker(e.target.value)}
             placeholder="e.g. AAPL"
             required
-            className="mt-1 block w-32 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-1 block w-32 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
           />
         </div>
 
@@ -136,7 +136,7 @@ export default function ConditionAlertsPage() {
                 value={c.field}
                 onChange={(e) => updateCondition(i, { field: e.target.value, op: "", value: "" })}
                 required
-                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
               >
                 <option value="" disabled>
                   Field…
@@ -160,7 +160,7 @@ export default function ConditionAlertsPage() {
                 onChange={(e) => updateCondition(i, { op: e.target.value })}
                 required
                 disabled={!c.field}
-                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
               >
                 <option value="" disabled>
                   Op…
@@ -178,7 +178,7 @@ export default function ConditionAlertsPage() {
                   value={String(c.value)}
                   onChange={(e) => updateCondition(i, { value: e.target.value })}
                   required
-                  className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
                 >
                   <option value="" disabled>
                     Value…
@@ -197,7 +197,7 @@ export default function ConditionAlertsPage() {
                   onChange={(e) => updateCondition(i, { value: e.target.value })}
                   required
                   placeholder="value"
-                  className="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  className="w-28 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
                 />
               )}
 
@@ -205,7 +205,7 @@ export default function ConditionAlertsPage() {
                 <button
                   type="button"
                   onClick={() => removeCondition(i)}
-                  className="text-xs font-medium text-slate-400 hover:text-red-700"
+                  className="text-xs font-medium text-slate-400 dark:text-slate-500 hover:text-red-700"
                 >
                   Remove
                 </button>
@@ -219,17 +219,17 @@ export default function ConditionAlertsPage() {
             type="button"
             onClick={addCondition}
             disabled={!fields || conditions.length >= fields.max_conditions}
-            className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40"
           >
             + Add condition
           </button>
           {conditions.length > 1 && (
-            <label className="flex items-center gap-1.5 text-xs text-slate-600">
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
               Combine with
               <select
                 value={combinator}
                 onChange={(e) => setCombinator(e.target.value as ConditionCombinator)}
-                className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
               >
                 {(fields?.combinators ?? ["AND", "OR"]).map((op) => (
                   <option key={op} value={op}>
@@ -251,20 +251,20 @@ export default function ConditionAlertsPage() {
       </form>
 
       <div className="mt-8">
-        <h2 className="font-semibold text-slate-900">Pending ({pending.length})</h2>
+        <h2 className="font-semibold text-slate-900 dark:text-slate-50">Pending ({pending.length})</h2>
         {pending.length === 0 ? (
-          <p className="mt-1 text-sm text-slate-500">No pending condition alerts.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">No pending condition alerts.</p>
         ) : (
           <div className="mt-2 flex flex-col gap-2">
             {pending.map((a) => (
-              <div key={a.id} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+              <div key={a.id} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm">
                 <div>
                   <strong>{a.ticker}</strong> — {a.combinator} of: {a.conditions.map(describeCondition).join(a.combinator === "AND" ? " and " : " or ")}
                 </div>
                 <button
                   onClick={() => handleDelete(a.id)}
                   disabled={deletingId === a.id}
-                  className="shrink-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="shrink-0 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
                 >
                   Delete
                 </button>
@@ -276,18 +276,18 @@ export default function ConditionAlertsPage() {
 
       {triggered.length > 0 && (
         <div className="mt-6">
-          <h2 className="font-semibold text-slate-900">Triggered ({triggered.length})</h2>
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">Triggered ({triggered.length})</h2>
           <div className="mt-2 flex flex-col gap-2">
             {triggered.map((a) => (
               <div key={a.id} className="flex items-center justify-between gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
                 <div>
                   <strong>{a.ticker}</strong> — {a.triggered_detail}
-                  <div className="text-xs text-slate-400">{a.triggered_at && new Date(a.triggered_at).toLocaleString()}</div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500">{a.triggered_at && new Date(a.triggered_at).toLocaleString()}</div>
                 </div>
                 <button
                   onClick={() => handleDelete(a.id)}
                   disabled={deletingId === a.id}
-                  className="shrink-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="shrink-0 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
                 >
                   Delete
                 </button>

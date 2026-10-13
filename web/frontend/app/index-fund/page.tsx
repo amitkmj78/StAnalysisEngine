@@ -218,8 +218,8 @@ export default function IndexFundPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Fund Screener</h1>
-      <p className="mt-1 text-sm text-slate-500">Compare major index ETFs and rank by the goal that matters most to you.</p>
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Fund Screener</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Compare major index ETFs and rank by the goal that matters most to you.</p>
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
         <Field label="Goal">
@@ -265,29 +265,29 @@ export default function IndexFundPage() {
           </select>
         </Field>
 
-        {loading && <span className="pb-2 text-xs text-slate-400">Refreshing…</span>}
+        {loading && <span className="pb-2 text-xs text-slate-400 dark:text-slate-500">Refreshing…</span>}
       </div>
 
       {windowStart && windowEnd && (
-        <p className="mt-2 text-xs text-slate-400">
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
           Showing {windowLabel(windowValue)}: {windowStart} – {windowEnd}. Score as of {windowEnd}.
         </p>
       )}
 
       {activeGoal && (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
           {goal !== "Custom" ? (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-400">Weights</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Weights</span>
               {activeGoal.weights.map((w) => (
-                <span key={w.metric} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600">
+                <span key={w.metric} className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300">
                   {w.label} {Math.round((w.weight ?? 0) * 100)}%{w.lower_is_better ? " (lower is better)" : ""}
                 </span>
               ))}
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
                 Custom weights ({customWeightsTotal > 0 ? "normalized to 100%" : "set at least one above 0"})
               </span>
               <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
@@ -295,7 +295,7 @@ export default function IndexFundPage() {
                   const raw = customWeights[w.metric] ?? 0;
                   const pct = customWeightsTotal > 0 ? Math.round((raw / customWeightsTotal) * 100) : 0;
                   return (
-                    <label key={w.metric} className="flex items-center gap-2 text-xs text-slate-600">
+                    <label key={w.metric} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                       <span className="w-40 shrink-0">{w.label}</span>
                       <input
                         type="range"
@@ -320,16 +320,16 @@ export default function IndexFundPage() {
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {windowMeta.error && <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">{windowMeta.error}</p>}
       {!loading && hasSearched && results.length === 0 && !error && !windowMeta.error && (
-        <p className="mt-4 text-sm text-slate-500">No results for that selection.</p>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No results for that selection.</p>
       )}
 
       {winner && !loading && category !== "All" && (
         <div className="mt-6 flex flex-col gap-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="text-lg font-semibold text-slate-900">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
               Top Pick: {winner.Ticker} — {winner.Fund}
             </h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
               Scored highest for <strong>{goal}</strong>
               {mode === "rank" ? ` in ${category}` : ""}.
             </p>
@@ -354,11 +354,11 @@ export default function IndexFundPage() {
 
       {results.length > 0 && (
         <div className="mt-6 flex flex-col gap-6">
-          <details className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
-            <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-slate-500">Columns</summary>
+          <details className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+            <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Columns</summary>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {ALL_COLUMNS.map((c) => (
-                <label key={c.key} className="flex items-center gap-2 text-xs text-slate-600">
+                <label key={c.key} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                   <input type="checkbox" checked={visibleColumns.has(c.key)} onChange={() => toggleColumn(c.key)} />
                   {c.label}
                 </label>
@@ -369,8 +369,8 @@ export default function IndexFundPage() {
           {groupedResults
             ? Array.from(groupedResults.entries()).map(([groupName, rows]) => (
                 <div key={groupName}>
-                  <h3 className="mb-2 text-sm font-semibold text-slate-700">
-                    {groupName} <span className="font-normal text-slate-400">({rows.length})</span>
+                  <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    {groupName} <span className="font-normal text-slate-400 dark:text-slate-500">({rows.length})</span>
                   </h3>
                   <FundTable
                     rows={rows}
@@ -418,10 +418,10 @@ function FundTable({
   onToggleRow: (ticker: string) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
       <table className="min-w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+          <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             <th className="w-8 px-2 py-2" />
             {columns.map((col) => (
               <th key={col.key} className="px-3 py-2">
@@ -429,10 +429,10 @@ function FundTable({
                   <button
                     type="button"
                     onClick={() => onSort(col.key)}
-                    className="flex items-center gap-1 uppercase tracking-wide text-slate-500 hover:text-slate-900"
+                    className="flex items-center gap-1 uppercase tracking-wide text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50"
                   >
                     {col.label}
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">
                       {sortColumn === col.key ? (sortDirection === "asc" ? "▲" : "▼") : ""}
                     </span>
                   </button>
@@ -450,25 +450,25 @@ function FundTable({
             const expanded = expandedRows.has(row.Ticker);
             return (
               <Fragment key={row.Ticker}>
-                <tr className="border-b border-slate-100 last:border-0">
+                <tr className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                   <td className="px-2 py-2">
                     <button
                       type="button"
                       onClick={() => onToggleRow(row.Ticker)}
-                      className="flex h-5 w-5 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                      className="flex h-5 w-5 items-center justify-center rounded text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200"
                       title="Show score breakdown"
                     >
                       {expanded ? "▾" : "▸"}
                     </button>
                   </td>
                   {columns.map((col) => (
-                    <td key={col.key} className="px-3 py-2 text-slate-700">
+                    <td key={col.key} className="px-3 py-2 text-slate-700 dark:text-slate-200">
                       {col.key === "Score" && row.Score == null ? "Not enough data" : formatCell(row[col.key])}
                     </td>
                   ))}
                 </tr>
                 {expanded && (
-                  <tr className="border-b border-slate-100 bg-slate-50 last:border-0">
+                  <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 last:border-0">
                     <td />
                     <td colSpan={columns.length} className="px-3 py-3">
                       <ScoreBreakdown row={row} />
@@ -487,21 +487,21 @@ function FundTable({
 function ScoreBreakdown({ row }: { row: FundRankRow }) {
   const breakdown = row._breakdown;
   if (!breakdown || Object.keys(breakdown).length === 0) {
-    return <p className="text-xs text-slate-400">No score breakdown available for this row.</p>;
+    return <p className="text-xs text-slate-400 dark:text-slate-500">No score breakdown available for this row.</p>;
   }
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {Object.entries(breakdown).map(([bucket, data]) => (
-        <div key={bucket} className="rounded-md border border-slate-200 bg-white p-3">
-          <p className="flex items-center justify-between text-xs font-semibold text-slate-700">
+        <div key={bucket} className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+          <p className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-200">
             {bucket}
-            <span className="tabular-nums text-slate-400">{data.sub_score >= 0 ? "+" : ""}{(data.sub_score * 100).toFixed(1)}</span>
+            <span className="tabular-nums text-slate-400 dark:text-slate-500">{data.sub_score >= 0 ? "+" : ""}{(data.sub_score * 100).toFixed(1)}</span>
           </p>
           <ul className="mt-2 flex flex-col gap-1">
             {data.metrics.map((m) => (
-              <li key={m.key} className="flex items-center justify-between text-xs text-slate-500">
+              <li key={m.key} className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <span>{m.label}</span>
-                <span className="tabular-nums text-slate-700">
+                <span className="tabular-nums text-slate-700 dark:text-slate-200">
                   {m.raw_value != null ? `${m.raw_value.toFixed(2)}${m.unit}` : "N/A"}
                 </span>
               </li>
@@ -523,7 +523,7 @@ function formatCell(value: string | number | null | undefined | Record<string, u
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-slate-500">{label}</label>
+      <label className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</label>
       {children}
     </div>
   );

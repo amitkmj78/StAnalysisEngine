@@ -37,11 +37,11 @@ export default function PasswordPolicyControls() {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Password Policy</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">Password Policy</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             When enabled, new signups must use a password of at least 10 characters with a letter and a
             number, and it&apos;s checked against Have I Been Pwned&apos;s breach list (only the first 5
             characters of a SHA-1 hash are ever sent — your password never leaves this server). When
@@ -51,7 +51,7 @@ export default function PasswordPolicyControls() {
         {enabled !== null && (
           <span
             className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
             {enabled ? "Enforced" : "Minimal (8 char)"}

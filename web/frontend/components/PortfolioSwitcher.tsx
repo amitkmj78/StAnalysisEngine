@@ -159,13 +159,13 @@ export default function PortfolioSwitcher({
     }
   }
 
-  if (loading) return <p className="text-sm text-slate-500">Loading portfolios…</p>;
+  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading portfolios…</p>;
   if (error) return <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>;
 
   return (
     <div className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-slate-500">Portfolio</label>
+        <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Portfolio</label>
         <select
           value={selectedPortfolioId ?? ""}
           onChange={(e) => handleSelect(Number(e.target.value))}
@@ -187,7 +187,7 @@ export default function PortfolioSwitcher({
           onClick={() => setMenuOpen((v) => !v)}
           aria-haspopup="true"
           aria-expanded={menuOpen}
-          className="flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          className="flex items-center gap-1 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
         >
           More
           <svg
@@ -201,14 +201,14 @@ export default function PortfolioSwitcher({
           </svg>
         </button>
         {menuOpen && (
-          <div className="absolute left-0 top-full z-20 mt-1 min-w-[13rem] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+          <div className="absolute left-0 top-full z-20 mt-1 min-w-[13rem] rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-1 shadow-lg">
             <button
               type="button"
               onClick={() => {
                 setCreating(true);
                 setMenuOpen(false);
               }}
-              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+              className="block w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-50"
             >
               + New Portfolio
             </button>
@@ -220,7 +220,7 @@ export default function PortfolioSwitcher({
                 connectBrokerage();
               }}
               disabled={plaidConnecting}
-              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              className="block w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {plaidConnecting ? "Opening…" : "Connect Brokerage"}
             </button>
@@ -229,12 +229,12 @@ export default function PortfolioSwitcher({
                 key={item.href}
                 href={item.href}
                 onClick={() => setMenuOpen(false)}
-                className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                className="block px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-50"
               >
                 {item.label}
               </Link>
             ))}
-            <div className="my-1 border-t border-slate-100" />
+            <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
             <button
               type="button"
               onClick={() => {
@@ -254,7 +254,7 @@ export default function PortfolioSwitcher({
       {creating && (
         <form onSubmit={handleCreate} className="flex items-end gap-2">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">New portfolio name</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">New portfolio name</label>
             <input
               autoFocus
               value={newName}
@@ -273,7 +273,7 @@ export default function PortfolioSwitcher({
               setCreateError(null);
               setNewName("");
             }}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             Cancel
           </button>

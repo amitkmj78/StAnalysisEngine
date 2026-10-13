@@ -95,7 +95,7 @@ export default function GoalLinks({ planId }: { planId: number }) {
   }
 
   return (
-    <div className="mt-3 border-t border-slate-100 pt-3">
+    <div className="mt-3 border-t border-slate-100 dark:border-slate-800 pt-3">
       <button type="button" onClick={() => setOpen((v) => !v)} className="text-xs font-medium text-[var(--pf-accent)] hover:underline">
         {open ? "Hide funded-by holdings" : "Funded by: choose holdings"}
       </button>
@@ -105,14 +105,14 @@ export default function GoalLinks({ planId }: { planId: number }) {
           {error && <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
           {data && data.links.length === 0 && (
-            <p className="text-xs text-slate-500">No holdings are linked yet. Link a holding below to see its share of this goal.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">No holdings are linked yet. Link a holding below to see its share of this goal.</p>
           )}
 
           {data && data.links.length > 0 && (
             <>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[26rem] text-right text-xs">
-                  <thead className="text-slate-400">
+                  <thead className="text-slate-400 dark:text-slate-500">
                     <tr>
                       <th className="py-1 text-left font-medium">Holding</th>
                       <th className="font-medium">Role</th>
@@ -122,16 +122,16 @@ export default function GoalLinks({ planId }: { planId: number }) {
                       <th />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
                     {data.links.map((l) => (
                       <tr key={l.id}>
-                        <td className="py-1.5 text-left font-sans font-medium text-slate-800">{l.ticker}</td>
+                        <td className="py-1.5 text-left font-sans font-medium text-slate-800 dark:text-slate-100">{l.ticker}</td>
                         <td className="font-sans">{l.role === "core" ? "Core fund" : "Stock pick"}</td>
                         <td>{l.share_pct.toFixed(0)}%</td>
                         <td>{money(l.value)}</td>
                         <td>{money(l.gain)}</td>
                         <td>
-                          <button type="button" onClick={() => unlink(l.id)} className="text-slate-500 hover:text-red-700">Unlink</button>
+                          <button type="button" onClick={() => unlink(l.id)} className="text-slate-500 dark:text-slate-400 hover:text-red-700">Unlink</button>
                         </td>
                       </tr>
                     ))}
@@ -139,8 +139,8 @@ export default function GoalLinks({ planId }: { planId: number }) {
                 </table>
               </div>
 
-              <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-700">
-                <p className="font-semibold text-slate-800">Target mix for {data.targets.stock_pct.toFixed(0)}% stock, {data.targets.bonds_pct.toFixed(0)}% bonds</p>
+              <div className="rounded-md bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-700 dark:text-slate-200">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">Target mix for {data.targets.stock_pct.toFixed(0)}% stock, {data.targets.bonds_pct.toFixed(0)}% bonds</p>
                 <p className="mt-1">
                   Core funds {data.targets.core_pct.toFixed(0)}% of the goal, stock picks up to {data.targets.picks_cap_pct.toFixed(0)}%. Shares below are of the linked stock sleeve.
                 </p>
@@ -155,8 +155,8 @@ export default function GoalLinks({ planId }: { planId: number }) {
               </div>
 
               {data.progress && (
-                <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-700">
-                  <p className="font-semibold text-slate-800">
+                <div className="rounded-md bg-slate-50 dark:bg-slate-800 p-3 text-xs text-slate-700 dark:text-slate-200">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">
                     {data.months_elapsed < 1
                       ? `Started ${new Date().toLocaleDateString()}: the linked holdings start at zero against plan.`
                       : data.progress.on_track
@@ -169,7 +169,7 @@ export default function GoalLinks({ planId }: { planId: number }) {
                       <> That is {data.progress.diff >= 0 ? "+" : ""}{money(data.progress.diff)} ({data.progress.diff_pct >= 0 ? "+" : ""}{data.progress.diff_pct.toFixed(1)}%) against plan.</>
                     )}
                   </p>
-                  <p className="mt-1 text-slate-500">Measured on the linked holdings only, from the value they had when linked. Assumes the monthly contribution was made.</p>
+                  <p className="mt-1 text-slate-500 dark:text-slate-400">Measured on the linked holdings only, from the value they had when linked. Assumes the monthly contribution was made.</p>
                 </div>
               )}
 
@@ -203,8 +203,8 @@ export default function GoalLinks({ planId }: { planId: number }) {
             </>
           )}
 
-          <div className="rounded-md border border-slate-200 p-3">
-            <p className="text-xs font-semibold text-slate-700">Link a holding</p>
+          <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Link a holding</p>
             <div className="mt-2 flex flex-wrap items-end gap-2 text-xs">
               <label className="flex flex-col gap-1">
                 Portfolio

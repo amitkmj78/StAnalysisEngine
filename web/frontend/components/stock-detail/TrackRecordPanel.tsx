@@ -41,33 +41,33 @@ export default function TrackRecordPanel({ ticker }: { ticker: string }) {
   if (!data) return null;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5">
-      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+    <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-slate-50">
         {ticker} track record
         <MetricLabel info={INFO} />
       </h3>
       {!data.enough_data ? (
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           {data.message ?? "Not enough data yet."}
         </p>
       ) : (
         <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
-            <dt className="text-xs text-slate-500">Hit rate</dt>
-            <dd className="font-mono text-lg font-semibold text-slate-900">{data.hit_rate_pct?.toFixed(0)}%</dd>
-            <dd className="text-xs text-slate-400">of {data.signals_evaluated} signals</dd>
+            <dt className="text-xs text-slate-500 dark:text-slate-400">Hit rate</dt>
+            <dd className="font-mono text-lg font-semibold text-slate-900 dark:text-slate-50">{data.hit_rate_pct?.toFixed(0)}%</dd>
+            <dd className="text-xs text-slate-400 dark:text-slate-500">of {data.signals_evaluated} signals</dd>
           </div>
           <div>
-            <dt className="text-xs text-slate-500">Average vs SPY</dt>
-            <dd className="font-mono text-lg font-semibold text-slate-900">{pct(data.avg_excess_vs_spy_pct)}</dd>
-            <dd className="text-xs text-slate-400">per signal, {data.horizon_sessions} sessions</dd>
+            <dt className="text-xs text-slate-500 dark:text-slate-400">Average vs SPY</dt>
+            <dd className="font-mono text-lg font-semibold text-slate-900 dark:text-slate-50">{pct(data.avg_excess_vs_spy_pct)}</dd>
+            <dd className="text-xs text-slate-400 dark:text-slate-500">per signal, {data.horizon_sessions} sessions</dd>
           </div>
           <div>
-            <dt className="text-xs text-slate-500">Worst miss</dt>
-            <dd className="font-mono text-lg font-semibold text-slate-900">
+            <dt className="text-xs text-slate-500 dark:text-slate-400">Worst miss</dt>
+            <dd className="font-mono text-lg font-semibold text-slate-900 dark:text-slate-50">
               {data.worst_miss ? pct(data.worst_miss.realized_return_pct) : "–"}
             </dd>
-            <dd className="text-xs text-slate-400">
+            <dd className="text-xs text-slate-400 dark:text-slate-500">
               {data.worst_miss ? `${data.worst_miss.signal} on ${data.worst_miss.as_of_date}` : "No misses"}
             </dd>
           </div>

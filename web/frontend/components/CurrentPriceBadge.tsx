@@ -72,10 +72,10 @@ export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: stri
 
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-slate-500">Current Price</span>
-      <span className="flex min-h-[38px] flex-col justify-center text-sm text-slate-700">
+      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Current Price</span>
+      <span className="flex min-h-[38px] flex-col justify-center text-sm text-slate-700 dark:text-slate-200">
         {loading && "…"}
-        {!loading && failed && <span className="text-slate-400">unavailable</span>}
+        {!loading && failed && <span className="text-slate-400 dark:text-slate-500">unavailable</span>}
         {!loading && !failed && price !== null && (
           <>
             <strong>${price.toFixed(2)}</strong>
@@ -89,7 +89,7 @@ export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: stri
             )}
           </>
         )}
-        {!loading && !failed && price === null && <span className="text-slate-400">no data</span>}
+        {!loading && !failed && price === null && <span className="text-slate-400 dark:text-slate-500">no data</span>}
       </span>
     </div>
   );

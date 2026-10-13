@@ -83,7 +83,7 @@ export default function PaperTradingTicketPage() {
       <div className="mx-auto max-w-lg px-4 py-8">
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">{result}</div>
         <div className="mt-4 flex gap-3">
-          <Link href="/portfolio/paper-trading" className="text-sm font-medium text-slate-700 hover:underline">
+          <Link href="/portfolio/paper-trading" className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:underline">
             View orders
           </Link>
           <button
@@ -93,7 +93,7 @@ export default function PaperTradingTicketPage() {
               setQty("");
               setLimitPrice("");
             }}
-            className="text-sm font-medium text-slate-700 hover:underline"
+            className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:underline"
           >
             Place another order
           </button>
@@ -105,8 +105,8 @@ export default function PaperTradingTicketPage() {
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h1 className="font-display text-2xl font-semibold text-slate-900">New Paper Order</h1>
-        <Link href="/portfolio/paper-trading" className="text-sm font-medium text-slate-600 hover:underline">
+        <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">New Paper Order</h1>
+        <Link href="/portfolio/paper-trading" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
           ← Back
         </Link>
       </div>
@@ -114,14 +114,14 @@ export default function PaperTradingTicketPage() {
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {!reviewing ? (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
           <div className="flex flex-col gap-3">
-            <label className="text-xs font-medium text-slate-600">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
               Ticker
               <input
                 value={ticker}
                 onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm uppercase"
+                className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm uppercase"
                 placeholder="AAPL"
               />
             </label>
@@ -130,7 +130,7 @@ export default function PaperTradingTicketPage() {
               <button
                 onClick={() => setSide("buy")}
                 className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold ${
-                  side === "buy" ? "border-emerald-600 bg-emerald-50 text-emerald-700" : "border-slate-300 text-slate-600"
+                  side === "buy" ? "border-emerald-600 bg-emerald-50 text-emerald-700" : "border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300"
                 }`}
               >
                 Buy
@@ -138,26 +138,26 @@ export default function PaperTradingTicketPage() {
               <button
                 onClick={() => setSide("sell")}
                 className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold ${
-                  side === "sell" ? "border-red-600 bg-red-50 text-red-700" : "border-slate-300 text-slate-600"
+                  side === "sell" ? "border-red-600 bg-red-50 text-red-700" : "border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300"
                 }`}
               >
                 Sell
               </button>
             </div>
 
-            <label className="text-xs font-medium text-slate-600">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
               Order Type
               <select
                 value={orderType}
                 onChange={(e) => setOrderType(e.target.value as OrderType)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
               >
                 <option value="market">Market — execute at the next available price</option>
                 <option value="limit">Limit — execute only at your price or better</option>
               </select>
             </label>
 
-            <label className="text-xs font-medium text-slate-600">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
               Quantity (shares)
               <input
                 value={qty}
@@ -165,12 +165,12 @@ export default function PaperTradingTicketPage() {
                 type="number"
                 min="0"
                 step="any"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
               />
             </label>
 
             {orderType === "limit" && (
-              <label className="text-xs font-medium text-slate-600">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
                 Limit Price
                 <input
                   value={limitPrice}
@@ -178,17 +178,17 @@ export default function PaperTradingTicketPage() {
                   type="number"
                   min="0"
                   step="any"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
                 />
               </label>
             )}
 
-            <label className="text-xs font-medium text-slate-600">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
               Time in Force
               <select
                 value={timeInForce}
                 onChange={(e) => setTimeInForce(e.target.value as TimeInForce)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
               >
                 <option value="day">Day — expires at market close if unfilled</option>
                 <option value="gtc">Good til cancelled</option>
@@ -205,23 +205,23 @@ export default function PaperTradingTicketPage() {
           </button>
         </div>
       ) : (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Review and Confirm</h2>
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Review and Confirm</h2>
           <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
-            <dt className="text-slate-500">Action</dt>
-            <dd className="text-right font-medium text-slate-900">
+            <dt className="text-slate-500 dark:text-slate-400">Action</dt>
+            <dd className="text-right font-medium text-slate-900 dark:text-slate-50">
               {side === "buy" ? "Buy" : "Sell"} {qtyNum} {ticker}
             </dd>
-            <dt className="text-slate-500">Order type</dt>
-            <dd className="text-right text-slate-900">
+            <dt className="text-slate-500 dark:text-slate-400">Order type</dt>
+            <dd className="text-right text-slate-900 dark:text-slate-50">
               {orderType === "market"
                 ? "Market — fills at the next available price"
                 : `Limit — fills only at $${limitPriceNum} or better`}
             </dd>
-            <dt className="text-slate-500">Time in force</dt>
-            <dd className="text-right text-slate-900">{timeInForce === "day" ? "Day" : "Good til cancelled"}</dd>
-            <dt className="text-slate-500">Market status</dt>
-            <dd className="text-right text-slate-900">
+            <dt className="text-slate-500 dark:text-slate-400">Time in force</dt>
+            <dd className="text-right text-slate-900 dark:text-slate-50">{timeInForce === "day" ? "Day" : "Good til cancelled"}</dd>
+            <dt className="text-slate-500 dark:text-slate-400">Market status</dt>
+            <dd className="text-right text-slate-900 dark:text-slate-50">
               {clock ? (clock.is_open ? "Open" : "Closed") : "Checking…"}
             </dd>
           </dl>
@@ -232,14 +232,14 @@ export default function PaperTradingTicketPage() {
             </p>
           )}
 
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
             This is a paper (simulated) order. Confirming sends it to your linked Alpaca paper account.
           </p>
 
           <div className="mt-4 flex gap-3">
             <button
               onClick={() => setReviewing(false)}
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               Edit
             </button>

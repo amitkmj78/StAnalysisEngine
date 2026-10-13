@@ -68,8 +68,8 @@ export default function StrategyTemplatesGuidePage() {
       <Link href="/guides" className="text-sm text-[var(--pf-accent)] hover:underline">
         ← All guides
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-900">Strategies: start from a template</h1>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+      <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">Strategies: start from a template</h1>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
         A strategy is a set of rules that says when to buy a stock and when to sell it. The strategy builder lets you
         write those rules with drop-down menus, without any code, and then test them on past prices. This guide explains
         how to start from one of the built-in templates, what each template does, and how to read what its test shows.
@@ -80,9 +80,9 @@ export default function StrategyTemplatesGuidePage() {
       </p>
 
       <div className="mt-6 flex flex-col gap-8">
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">1. Start from a template</h2>
-          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed text-slate-700">
+        <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">1. Start from a template</h2>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             <li>Open <Link href="/strategies/builder" className="text-[var(--pf-accent)] hover:underline">the strategy builder</Link>.</li>
             <li>Under Start from a template, pick one. The buy rules, sell rules and exit settings fill in for you.</li>
             <li>Choose the stocks to test. You can type a ticker or a company name, or pick a sector. You can also give each stock a weight, or use your portfolio&apos;s actual weights.</li>
@@ -92,9 +92,9 @@ export default function StrategyTemplatesGuidePage() {
           </ol>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">2. The rules, in plain language</h2>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-700">
+        <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">2. The rules, in plain language</h2>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             <li><span className="font-medium">Entry rules</span> say when to buy. Every entry rule has to be true on the same day for a buy to happen.</li>
             <li><span className="font-medium">Exit rules</span> say when to sell. Any one exit rule being true is enough to sell.</li>
             <li><span className="font-medium">Stop loss</span> sells if the price falls a set percentage below the buy price, so one bad trade is limited.</li>
@@ -105,22 +105,22 @@ export default function StrategyTemplatesGuidePage() {
           </ul>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">3. The eight starting templates</h2>
-          <p className="mt-2 text-sm text-slate-600">
+        <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">3. The eight starting templates</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             Each template is a complete starting point. The numbers are the defaults; you can change any of them.
           </p>
           <div className="mt-4 flex flex-col gap-4">
             {TEMPLATES.map((t) => (
-              <div key={t.name} className="rounded-lg border border-slate-100 p-4">
-                <h3 className="text-sm font-semibold text-slate-900">{t.name}</h3>
-                <p className="mt-1 text-sm text-slate-700">{t.idea}</p>
-                <dl className="mt-2 grid gap-1 text-sm text-slate-700 sm:grid-cols-[6rem_1fr]">
-                  <dt className="font-medium text-slate-500">Buy when</dt>
+              <div key={t.name} className="rounded-lg border border-slate-100 dark:border-slate-800 p-4">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">{t.name}</h3>
+                <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{t.idea}</p>
+                <dl className="mt-2 grid gap-1 text-sm text-slate-700 dark:text-slate-200 sm:grid-cols-[6rem_1fr]">
+                  <dt className="font-medium text-slate-500 dark:text-slate-400">Buy when</dt>
                   <dd>{t.buy}</dd>
-                  <dt className="font-medium text-slate-500">Sell when</dt>
+                  <dt className="font-medium text-slate-500 dark:text-slate-400">Sell when</dt>
                   <dd>{t.sell}</dd>
-                  <dt className="font-medium text-slate-500">Style</dt>
+                  <dt className="font-medium text-slate-500 dark:text-slate-400">Style</dt>
                   <dd>{t.style}</dd>
                 </dl>
               </div>
@@ -128,9 +128,9 @@ export default function StrategyTemplatesGuidePage() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">4. How to read a test</h2>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-700">
+        <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">4. How to read a test</h2>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             <li>
               <span className="font-medium">Compare with holding.</span> Every result is set beside the same stocks held
               the whole time, rebalanced monthly to equal weights. A strategy that made 20% while holding made 40% did worse.
@@ -165,9 +165,9 @@ export default function StrategyTemplatesGuidePage() {
           </ul>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">5. Traps to avoid</h2>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-700">
+        <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">5. Traps to avoid</h2>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             <li>
               <span className="font-medium">Overfitting.</span> Changing the numbers until the test looks good, then
               treating the result as proof, is the most common mistake. Decide your rules first, then test them.
@@ -186,9 +186,9 @@ export default function StrategyTemplatesGuidePage() {
           </ul>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">6. Scan first, then build</h2>
-          <p className="mt-3 text-sm leading-relaxed text-slate-700">
+        <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">6. Scan first, then build</h2>
+          <p className="mt-3 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             The <Link href="/strategies/scan" className="text-[var(--pf-accent)] hover:underline">scan</Link> runs all eight
             templates on a random sample of S&amp;P 500 stocks, with the same test on each. It shows which templates
             beat holding on return or on risk, and which ones did not. In most samples, few or none do. That is a
@@ -197,14 +197,14 @@ export default function StrategyTemplatesGuidePage() {
           </p>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">7. What a test cannot tell you</h2>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-700">
+        <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">7. What a test cannot tell you</h2>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
             <li>How the future will go. Past prices, however carefully tested, do not guarantee similar results.</li>
             <li>Taxes, your own costs, or how a fill would have happened in a fast or thin market.</li>
             <li>Whether a stock suits you. Your goals, time horizon, and the amount you can afford to lose matter more than any test.</li>
           </ul>
-          <p className="mt-3 text-sm text-slate-600">
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
             For a broader view of how signals and scores are produced, see the <Link href="/methodology" className="text-[var(--pf-accent)] hover:underline">methodology page</Link>.
           </p>
         </section>

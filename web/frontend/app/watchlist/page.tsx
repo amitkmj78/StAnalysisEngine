@@ -105,28 +105,28 @@ export default function WatchlistPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Watchlist Alerts</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Watchlist Alerts</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Set a price or short-term score target for a ticker and it gets checked automatically in the
         background — every 5 minutes, no need to keep this page open.
       </p>
 
-      <form onSubmit={handleCreate} className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+      <form onSubmit={handleCreate} className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Ticker</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Ticker</label>
           <TickerSearchInput
             value={ticker}
             onChange={setTicker}
-            className="w-40 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-40 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
           />
         </div>
         <CurrentPriceBadge ticker={ticker} />
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Condition</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Condition</label>
           <select
             value={condition}
             onChange={(e) => setCondition(e.target.value as AlertConditionType)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
           >
             <option value="price_above">Price rises above</option>
             <option value="price_below">Price falls below</option>
@@ -135,7 +135,7 @@ export default function WatchlistPage() {
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Threshold {isScoreCondition(condition) ? "(0-100)" : "($)"}
           </label>
           <input
@@ -145,7 +145,7 @@ export default function WatchlistPage() {
             step="0.01"
             min="0"
             placeholder="0.00"
-            className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-28 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm"
           />
         </div>
         <button
@@ -159,7 +159,7 @@ export default function WatchlistPage() {
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      {alerts === null && !error && <p className="mt-6 text-sm text-slate-500">Loading…</p>}
+      {alerts === null && !error && <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
 
       {alerts !== null && (
         <div className="mt-6 flex flex-col gap-6">
@@ -178,7 +178,7 @@ export default function WatchlistPage() {
                       <strong>{a.ticker}</strong>{" "}
                       {conditionVerb(a.condition_type)} {fmtThreshold(a.condition_type, a.threshold)}{" "}
                       — now {a.triggered_price !== null ? fmtThreshold(a.condition_type, a.triggered_price) : "—"}{" "}
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
                         ({a.triggered_at ? new Date(a.triggered_at).toLocaleString() : ""})
                       </span>
                     </span>
@@ -186,14 +186,14 @@ export default function WatchlistPage() {
                       <button
                         onClick={() => handleDismiss(a.id)}
                         disabled={busyId === a.id}
-                        className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
                       >
                         Dismiss
                       </button>
                       <button
                         onClick={() => handleDelete(a.id)}
                         disabled={busyId === a.id}
-                        className="rounded-md border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        className="rounded-md border border-red-200 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
                       >
                         Delete
                       </button>
@@ -205,14 +205,14 @@ export default function WatchlistPage() {
           )}
 
           <div>
-            <h2 className="font-semibold text-slate-900">Watching ({pending.length})</h2>
+            <h2 className="font-semibold text-slate-900 dark:text-slate-50">Watching ({pending.length})</h2>
             {pending.length === 0 ? (
-              <p className="mt-1 text-sm text-slate-500">No active alerts.</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">No active alerts.</p>
             ) : (
-              <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+              <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                 <table className="min-w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       <th className="px-3 py-2">Ticker</th>
                       <th className="px-3 py-2">Condition</th>
                       <th className="px-3 py-2">Created</th>
@@ -221,8 +221,8 @@ export default function WatchlistPage() {
                   </thead>
                   <tbody>
                     {pending.map((a) => (
-                      <tr key={a.id} className="border-b border-slate-100 last:border-0">
-                        <td className="px-3 py-2 font-medium text-slate-800">
+                      <tr key={a.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                        <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
                           {a.ticker}
                           {a.source === "portfolio_auto" && (
                             <span
@@ -233,10 +233,10 @@ export default function WatchlistPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-slate-600">
+                        <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
                           {conditionNoun(a.condition_type)} {fmtThreshold(a.condition_type, a.threshold)}
                         </td>
-                        <td className="px-3 py-2 text-slate-500">{new Date(a.created_at).toLocaleDateString()}</td>
+                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{new Date(a.created_at).toLocaleDateString()}</td>
                         <td className="px-3 py-2 text-right">
                           <button
                             onClick={() => handleDelete(a.id)}
@@ -256,11 +256,11 @@ export default function WatchlistPage() {
 
           {triggeredSeen.length > 0 && (
             <div>
-              <h2 className="font-semibold text-slate-900">History ({triggeredSeen.length})</h2>
-              <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+              <h2 className="font-semibold text-slate-900 dark:text-slate-50">History ({triggeredSeen.length})</h2>
+              <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                 <table className="min-w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       <th className="px-3 py-2">Ticker</th>
                       <th className="px-3 py-2">Condition</th>
                       <th className="px-3 py-2">Triggered</th>
@@ -269,7 +269,7 @@ export default function WatchlistPage() {
                   </thead>
                   <tbody>
                     {triggeredSeen.map((a) => (
-                      <tr key={a.id} className="border-b border-slate-100 last:border-0 text-slate-500">
+                      <tr key={a.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0 text-slate-500 dark:text-slate-400">
                         <td className="px-3 py-2">{a.ticker}</td>
                         <td className="px-3 py-2">
                           {conditionVerb(a.condition_type)} {fmtThreshold(a.condition_type, a.threshold)} — hit{" "}
@@ -280,7 +280,7 @@ export default function WatchlistPage() {
                           <button
                             onClick={() => handleDelete(a.id)}
                             disabled={busyId === a.id}
-                            className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            className="rounded-md border border-slate-300 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
                           >
                             Delete
                           </button>

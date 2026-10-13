@@ -68,14 +68,14 @@ export default function CommunityAuthorProfilePage() {
   }
 
   if (error) return <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-red-700">{error}</div>;
-  if (!profile) return <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-slate-500">Loading…</div>;
+  if (!profile) return <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-slate-500 dark:text-slate-400">Loading…</div>;
 
   const isModel = authorId === "model";
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold text-slate-900">
+        <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">
           {profile.display_name}
           {isModel && <span className="ml-2 rounded-full bg-[var(--pf-accent-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--pf-accent)]">MODEL</span>}
         </h1>
@@ -84,12 +84,12 @@ export default function CommunityAuthorProfilePage() {
             <button
               onClick={handleFollowToggle}
               disabled={busy}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
             >
               {following ? "Unfollow" : "Follow"}
             </button>
           )}
-          <Link href="/community/leaderboard" className="text-sm font-medium text-slate-600 hover:underline">
+          <Link href="/community/leaderboard" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
             Leaderboard
           </Link>
         </div>
@@ -103,7 +103,7 @@ export default function CommunityAuthorProfilePage() {
             </span>
           )}
           {socialProfile.experience_level && (
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 capitalize">
+            <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 capitalize">
               {socialProfile.experience_level}
             </span>
           )}
@@ -112,15 +112,15 @@ export default function CommunityAuthorProfilePage() {
               {i}
             </span>
           ))}
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-400 dark:text-slate-500">
             Reputation: {socialProfile.reputation.reputation !== null ? socialProfile.reputation.reputation.toFixed(2) : "not enough data yet"}
           </span>
         </div>
       )}
 
       {myUserId === authorId && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-          <select value={editingExperience} onChange={(e) => setEditingExperience(e.target.value as ExperienceLevel)} className="rounded-md border border-slate-300 px-2 py-1 text-xs">
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-sm">
+          <select value={editingExperience} onChange={(e) => setEditingExperience(e.target.value as ExperienceLevel)} className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs">
             <option value="">Experience level...</option>
             {EXPERIENCE_LEVELS.map((lvl) => (
               <option key={lvl} value={lvl}>{lvl}</option>
@@ -130,30 +130,30 @@ export default function CommunityAuthorProfilePage() {
             value={editingInterests}
             onChange={(e) => setEditingInterests(e.target.value)}
             placeholder="Interests, comma-separated"
-            className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-xs"
+            className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs"
           />
-          <button onClick={handleSaveSocialProfile} className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-white">
+          <button onClick={handleSaveSocialProfile} className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs hover:bg-white dark:hover:bg-slate-800">
             Save
           </button>
         </div>
       )}
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <p className="text-xs text-slate-500">Ideas (scored / total)</p>
-          <p className="text-lg font-semibold text-slate-900">{profile.num_ideas_scored} / {profile.num_ideas_total}</p>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Ideas (scored / total)</p>
+          <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">{profile.num_ideas_scored} / {profile.num_ideas_total}</p>
         </div>
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <p className="text-xs text-slate-500">Hit Rate</p>
-          <p className="text-lg font-semibold text-slate-900">{profile.hit_rate_pct !== null ? `${profile.hit_rate_pct.toFixed(1)}%` : "—"}</p>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Hit Rate</p>
+          <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">{profile.hit_rate_pct !== null ? `${profile.hit_rate_pct.toFixed(1)}%` : "—"}</p>
         </div>
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <p className="text-xs text-slate-500">Avg Excess vs SPY</p>
-          <p className="text-lg font-semibold text-slate-900">{fmtPct(profile.avg_excess_vs_spy_pct)}</p>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Avg Excess vs SPY</p>
+          <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">{fmtPct(profile.avg_excess_vs_spy_pct)}</p>
         </div>
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <p className="text-xs text-slate-500">Risk-Adj. Score</p>
-          <p className="text-lg font-semibold text-slate-900">{profile.score !== null ? profile.score.toFixed(2) : "not enough data yet"}</p>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Risk-Adj. Score</p>
+          <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">{profile.score !== null ? profile.score.toFixed(2) : "not enough data yet"}</p>
         </div>
       </div>
 
@@ -163,27 +163,27 @@ export default function CommunityAuthorProfilePage() {
         </div>
       )}
 
-      <h2 className="mt-8 font-semibold text-slate-900">All ideas</h2>
+      <h2 className="mt-8 font-semibold text-slate-900 dark:text-slate-50">All ideas</h2>
       <div className="mt-2 flex flex-col gap-2">
         {profile.ideas.map((idea) => (
-          <div key={idea.id} className="rounded-md border border-slate-200 bg-white p-3 text-sm">
+          <div key={idea.id} className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${idea.direction === "LONG" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
               {idea.direction}
             </span>{" "}
-            <Link href={`/stock/${idea.ticker}`} className="font-medium text-slate-800 hover:underline">
+            <Link href={`/stock/${idea.ticker}`} className="font-medium text-slate-800 dark:text-slate-100 hover:underline">
               {idea.ticker}
             </Link>{" "}
-            <span className="text-xs text-slate-400">{new Date(idea.created_at).toLocaleDateString()}</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(idea.created_at).toLocaleDateString()}</span>
             {idea.scored_at ? (
               <span className={`ml-2 text-xs ${idea.outcome === "hit" ? "text-emerald-700" : "text-red-700"}`}>
                 {idea.outcome} ({fmtPct(idea.realized_return_pct)})
               </span>
             ) : (
-              <span className="ml-2 text-xs text-slate-400">not yet scored</span>
+              <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">not yet scored</span>
             )}
           </div>
         ))}
-        {profile.ideas.length === 0 && <p className="text-sm text-slate-500">No ideas published yet.</p>}
+        {profile.ideas.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No ideas published yet.</p>}
       </div>
     </div>
   );

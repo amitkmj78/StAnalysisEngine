@@ -29,26 +29,26 @@ function GroupList({
   benchmark?: { name: string; oos_cagr_pct: number | null; oos_max_drawdown_pct: number | null; full_cagr_pct: number | null; full_max_drawdown_pct: number | null };
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5">
-      <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-      <p className="mt-1 text-xs text-slate-500">
+    <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">{title}</h2>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         Ranked by {group.ranked_by.toLowerCase()}. Minimum: {group.minimum.toLowerCase()}.
       </p>
       {benchmark && (
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           S&amp;P 500 over the full five years: {pct(benchmark.full_cagr_pct)} a year, worst fall {pct(benchmark.full_max_drawdown_pct)}.
         </p>
       )}
       {group.candidates.length === 0 ? (
-        <p className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">{group.message}</p>
+        <p className="mt-3 rounded-md bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">{group.message}</p>
       ) : (
         <ol className="mt-3 flex flex-col gap-3">
           {group.candidates.map((c) => (
-            <li key={c.key} className="rounded-md border border-slate-200 p-3">
-              <p className="font-medium text-slate-900">
+            <li key={c.key} className="rounded-md border border-slate-200 dark:border-slate-700 p-3">
+              <p className="font-medium text-slate-900 dark:text-slate-50">
                 {c.rank}. {c.name}
               </p>
-              <p className="mt-1 text-xs text-slate-600">{c.profile}</p>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{c.profile}</p>
               {c.warnings.map((w) => (
                 <p key={w} className="mt-1 text-xs text-amber-700">
                   {w}
@@ -116,20 +116,20 @@ export default function StrategyScanPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="font-display flex items-center gap-2 text-2xl font-semibold text-slate-900">
+        <h1 className="font-display flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
           Scan for candidates
           <MetricLabel info={STRATEGY_INFO.scan} />
         </h1>
-        <Link href="/strategies" className="text-sm font-medium text-slate-700 hover:underline">
+        <Link href="/strategies" className="text-sm font-medium text-slate-700 dark:text-slate-200 hover:underline">
           ← Strategies
         </Link>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Tests the starting templates on a random sample of 20 S&amp;P 500 stocks over the last five years. Candidates to study, not recommendations.
       </p>
 
-      <div className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-5">
-        <label className="flex flex-col gap-1 text-xs text-slate-600">
+      <div className="mt-6 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <label className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
           Sample seed (optional)
           <input
             value={seedInput}
@@ -138,7 +138,7 @@ export default function StrategyScanPage() {
             className="input w-32 py-1 text-sm"
           />
         </label>
-        <label className="flex items-center gap-2 pb-1 text-xs text-slate-600">
+        <label className="flex items-center gap-2 pb-1 text-xs text-slate-600 dark:text-slate-300">
           <input type="checkbox" checked={currentOnly} onChange={(e) => setCurrentOnly(e.target.checked)} />
           Current members only (biased)
         </label>
@@ -151,7 +151,7 @@ export default function StrategyScanPage() {
           {status === "running" ? "Scanning…" : "Start scan"}
         </button>
         {status === "running" && (
-          <p className="text-sm text-slate-600">Testing template {Math.min(done + 1, total)} of {total}. This takes a minute or two.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300">Testing template {Math.min(done + 1, total)} of {total}. This takes a minute or two.</p>
         )}
       </div>
 
@@ -159,22 +159,22 @@ export default function StrategyScanPage() {
 
       {result && (
         <div className="mt-6 flex flex-col gap-5">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Seed {result.seed} · {result.sample_size} stocks · {result.period.start} to {result.period.end} · later{" "}
             {result.out_of_sample.years.toFixed(1)} years measured · {result.variants_tried} templates tried
           </p>
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stocks in this random sample</p>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Stocks in this random sample</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {result.tickers.map((t) => (
-                <span key={t} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                <span key={t} className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-700 dark:text-slate-200">
                   {t}
                 </span>
               ))}
             </div>
           </div>
           {result.universe && (
-            <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <div className="rounded-md bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
               <p>
                 {result.universe.basis === "point_in_time"
                   ? <>Universe: point-in-time S&amp;P 500 as of {result.universe.as_of}.</>
@@ -189,7 +189,7 @@ export default function StrategyScanPage() {
               )}
             </div>
           )}
-          <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <p className="rounded-md bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200">
             Holding these {result.sample_size} stocks, equal weight: <span className="font-mono font-semibold">{pct(result.holding_oos_return_pct)}</span> out-of-sample ({result.out_of_sample.start} to {result.out_of_sample.end}).
           </p>
           {!result.candidates.some((c) => c.passes_short_test) && (
@@ -201,10 +201,10 @@ export default function StrategyScanPage() {
           <GroupList title="Short-term candidates" group={result.groups.short_term} />
           <GroupList title="Long-term candidates" group={result.groups.long_term} benchmark={result.benchmark} />
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">All templates</p>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">All templates</p>
             <table className="w-full min-w-[52rem] text-right text-sm">
-              <thead className="text-xs text-slate-400">
+              <thead className="text-xs text-slate-400 dark:text-slate-500">
                 <tr>
                   <th className="py-1 text-left font-medium">Template</th>
                   <th className="font-medium">Holding</th>
@@ -233,9 +233,9 @@ export default function StrategyScanPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 font-mono text-xs">
-                <tr className="bg-slate-50 font-semibold">
-                  <td className="py-2 text-left font-sans text-sm text-slate-900">{result.holding.label}</td>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-xs">
+                <tr className="bg-slate-50 dark:bg-slate-800 font-semibold">
+                  <td className="py-2 text-left font-sans text-sm text-slate-900 dark:text-slate-50">{result.holding.label}</td>
                   <td className="font-sans">Holding</td>
                   <td>–</td>
                   <td>–</td>
@@ -252,10 +252,10 @@ export default function StrategyScanPage() {
                   <td>–</td>
                 </tr>
                 {result.candidates.map((c) => (
-                  <tr key={c.key} className={c.eligibility !== "ok" ? "text-slate-400" : undefined} title={c.eligibility_reason ?? undefined}>
-                    <td className="py-2 text-left font-sans text-sm font-medium text-slate-800">
+                  <tr key={c.key} className={c.eligibility !== "ok" ? "text-slate-400 dark:text-slate-500" : undefined} title={c.eligibility_reason ?? undefined}>
+                    <td className="py-2 text-left font-sans text-sm font-medium text-slate-800 dark:text-slate-100">
                       {c.name}
-                      {c.eligibility_reason && <span className="ml-2 font-normal text-xs text-slate-400">{c.eligibility_reason}</span>}
+                      {c.eligibility_reason && <span className="ml-2 font-normal text-xs text-slate-400 dark:text-slate-500">{c.eligibility_reason}</span>}
                     </td>
                     <td className="font-sans capitalize">{c.holding_class === "none" ? "–" : c.holding_class}</td>
                     <td>{c.avg_hold_days ?? "–"}</td>
@@ -277,17 +277,17 @@ export default function StrategyScanPage() {
             </table>
           </div>
           {result.walk_forward && (
-            <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <p className="rounded-md bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
               Walk-forward: {result.walk_forward.windows.length} test windows of {result.walk_forward.test_months} months, stepping {result.walk_forward.step_months} months, from {result.walk_forward.windows[0]?.start} to {result.walk_forward.windows[result.walk_forward.windows.length - 1]?.end}. The first {result.walk_forward.fit_months} months are the fit period. Market regime: {result.walk_forward.rule}
             </p>
           )}
           {result.concentration && (
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stocks in this sample</p>
+            <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Stocks in this sample</p>
               {result.concentration.warning && (
                 <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">{result.concentration.warning}</p>
               )}
-              <p className="mt-2 text-sm text-slate-700">
+              <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">
                 Holding return <span className="font-mono">{pct(result.concentration.holding_return_pct)}</span>, median stock{" "}
                 <span className="font-mono">{pct(result.concentration.median_stock_return_pct)}</span>
                 {result.concentration.holding_without_top_return_pct !== null && (
@@ -296,7 +296,7 @@ export default function StrategyScanPage() {
               </p>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full min-w-[30rem] text-right text-sm">
-                  <thead className="text-xs text-slate-400">
+                  <thead className="text-xs text-slate-400 dark:text-slate-500">
                     <tr>
                       <th className="py-1 text-left font-medium">Stock</th>
                       <th className="font-medium">Out-of-sample buy and hold</th>
@@ -304,10 +304,10 @@ export default function StrategyScanPage() {
                       <th className="font-medium">Trades, top template</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono text-xs">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-xs">
                     {result.concentration.stocks.map((s) => (
                       <tr key={s.ticker}>
-                        <td className="py-1.5 text-left font-sans text-sm font-medium text-slate-800">{s.ticker}</td>
+                        <td className="py-1.5 text-left font-sans text-sm font-medium text-slate-800 dark:text-slate-100">{s.ticker}</td>
                         <td>{pct(s.oos_return_pct)}</td>
                         <td>{plain(s.contribution_pts)}</td>
                         <td>{s.top_template_trades}</td>
@@ -319,9 +319,9 @@ export default function StrategyScanPage() {
             </section>
           )}
           <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{result.note}</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Want to test one of these yourself? Open it in the{" "}
-            <Link href="/strategies/builder" className="font-medium text-slate-700 hover:underline">
+            <Link href="/strategies/builder" className="font-medium text-slate-700 dark:text-slate-200 hover:underline">
               builder
             </Link>{" "}
             and pick your own stocks.

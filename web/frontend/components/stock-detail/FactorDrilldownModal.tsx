@@ -83,19 +83,19 @@ export default function FactorDrilldownModal({
         role="dialog"
         aria-modal="true"
         aria-label={FACTOR_LABELS[factor]}
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl"
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white dark:bg-slate-900 p-5 shadow-xl"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">{FACTOR_LABELS[factor]}</h3>
-            {data && <p className="text-xs text-slate-500">{ticker} vs. {data.sector_key} sector median</p>}
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">{FACTOR_LABELS[factor]}</h3>
+            {data && <p className="text-xs text-slate-500 dark:text-slate-400">{ticker} vs. {data.sector_key} sector median</p>}
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700" aria-label="Close">
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200" aria-label="Close">
             ✕
           </button>
         </div>
 
-        {loading && <p className="mt-4 text-sm text-slate-500">Loading…</p>}
+        {loading && <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
         {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         {data && data.history.length > 0 && (
@@ -146,14 +146,14 @@ export default function FactorDrilldownModal({
               useResizeHandler
               config={{ displayModeBar: false }}
             />
-            <p className="mt-2 text-xs text-slate-400">
+            <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
               {data.history.length} trading day{data.history.length === 1 ? "" : "s"} on record
               {data.history.length < 252 ? " (shorter than a year — this scoring system is still accumulating history)" : ""}.
             </p>
           </>
         )}
         {data && data.history.length === 0 && (
-          <p className="mt-4 text-sm text-slate-400">No history on record yet.</p>
+          <p className="mt-4 text-sm text-slate-400 dark:text-slate-500">No history on record yet.</p>
         )}
       </div>
     </div>

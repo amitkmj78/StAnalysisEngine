@@ -37,11 +37,11 @@ export default function AiReviewerControls() {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Trading Agent: AI Reviewer (AGT-21..24)</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">Trading Agent: AI Reviewer (AGT-21..24)</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             On every run, reads each proposed new-entry buy&apos;s recent dated headlines and may remove -- never
             add or resize -- a buy, citing a real headline and date. Never sees sells, stops, or rebalances. Any
             failed or slow (20s) review fails open: the deterministic plan proceeds unreviewed, logged as skipped.
@@ -51,7 +51,7 @@ export default function AiReviewerControls() {
         {enabled !== null && (
           <span
             className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
             {enabled ? "Reviewing" : "Off"}

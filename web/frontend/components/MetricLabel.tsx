@@ -51,7 +51,7 @@ export default function MetricLabel({
           type="button"
           onClick={() => setOpen(true)}
           title={`What is ${info.title}?`}
-          className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-normal normal-case text-slate-400 hover:border-slate-500 hover:text-slate-700"
+          className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 dark:border-slate-600 text-[10px] font-normal normal-case text-slate-400 dark:text-slate-500 hover:border-slate-500 dark:hover:border-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
         >
           i
         </button>

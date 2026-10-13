@@ -11,7 +11,7 @@ const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   negative: "bg-[var(--pf-down-soft)] text-[var(--pf-down)]",
   verified: "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]",
   warning: "bg-[var(--pf-warn-soft)] text-[var(--pf-warn)]",
-  neutral: "bg-slate-100 text-slate-600",
+  neutral: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
 };
 
 export default function Badge({

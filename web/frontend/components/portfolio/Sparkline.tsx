@@ -3,7 +3,7 @@
 // Plotly instances would be far heavier than this app's existing
 // per-row chart usage anywhere else).
 export default function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) return <span className="text-xs text-slate-400">—</span>;
+  if (values.length < 2) return <span className="text-xs text-slate-400 dark:text-slate-500">—</span>;
 
   const width = 64;
   const height = 20;

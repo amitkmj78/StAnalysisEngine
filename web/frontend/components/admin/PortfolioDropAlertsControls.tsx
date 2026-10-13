@@ -105,15 +105,15 @@ export default function PortfolioDropAlertsControls() {
     <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Portfolio Drop Alerts</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">Portfolio Drop Alerts</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Every 15 minutes, scans every user&apos;s holdings for a same-day drop of{" "}
             {threshold !== null ? `${threshold}%` : "the configured threshold"} or more. For each new
             drop, fetches news/earnings sentiment and the Predict-page quant signal, asks an LLM to
             synthesize a short recommended-action note, and posts it as an in-app alert on their
             Portfolio page. One alert per user/ticker/day — a ticker already alerted today is skipped.
           </p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             Enabling this starts real per-drop compute and LLM spend (a self-hosted sentiment search plus
             an LLM call per newly-dropping ticker) and user-visible notifications — not just a preview.
           </p>
@@ -121,7 +121,7 @@ export default function PortfolioDropAlertsControls() {
         {enabled !== null && (
           <span
             className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
             {enabled ? "Scanning" : "Disabled"}
@@ -131,9 +131,9 @@ export default function PortfolioDropAlertsControls() {
 
       {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <div className="mt-4 flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-white p-3">
+      <div className="mt-4 flex flex-wrap items-end gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Drop threshold (%)</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Drop threshold (%)</label>
           <input
             type="number"
             min={0.01}
@@ -144,7 +144,7 @@ export default function PortfolioDropAlertsControls() {
               setThresholdInput(e.target.value);
               setThresholdSaved(false);
             }}
-            className="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="w-28 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
           />
         </div>
         <button
@@ -184,7 +184,7 @@ export default function PortfolioDropAlertsControls() {
           <button
             onClick={() => setConfirming(false)}
             disabled={busy}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             Cancel
           </button>
@@ -192,7 +192,7 @@ export default function PortfolioDropAlertsControls() {
         <button
           onClick={handleScanNow}
           disabled={scanning}
-          className="rounded-md border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+          className="rounded-md border border-emerald-300 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
         >
           {scanning ? "Scanning…" : "Scan Now"}
         </button>

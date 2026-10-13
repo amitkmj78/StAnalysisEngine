@@ -111,12 +111,12 @@ export default function CommunityFeedPage() {
   return (
     <Container>
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold text-slate-900">Community Ideas</h1>
-        <Link href="/community/leaderboard" className="text-sm font-medium text-slate-600 hover:underline">
+        <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Community Ideas</h1>
+        <Link href="/community/leaderboard" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
           Leaderboard
         </Link>
       </div>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Publish a timestamped, LOCKED idea (no edits, ever) — it&apos;s auto-scored against SPY once its horizon
         elapses. The app&apos;s own model publishes its own ideas too, scored by the same rules — see the{" "}
         <Link href="/community/authors/model" className="underline">
@@ -138,7 +138,7 @@ export default function CommunityFeedPage() {
               type="text"
               value={displayNameDraft}
               onChange={(e) => setDisplayNameDraft(e.target.value)}
-              className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             />
             <Button type="submit" disabled={savingDisplayName}>
               Save
@@ -149,10 +149,10 @@ export default function CommunityFeedPage() {
 
       <Card className="mt-6">
       <form onSubmit={handlePublish}>
-        <h2 className="font-semibold text-slate-900">Publish an idea</h2>
+        <h2 className="font-semibold text-slate-900 dark:text-slate-50">Publish an idea</h2>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
-            <label htmlFor="idea-ticker" className="text-xs font-medium text-slate-500">
+            <label htmlFor="idea-ticker" className="text-xs font-medium text-slate-500 dark:text-slate-400">
               Ticker
             </label>
             <input
@@ -160,25 +160,25 @@ export default function CommunityFeedPage() {
               value={ticker}
               onChange={(e) => setTicker(e.target.value)}
               required
-              className="mt-1 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             />
           </div>
           <div>
-            <label htmlFor="idea-direction" className="text-xs font-medium text-slate-500">
+            <label htmlFor="idea-direction" className="text-xs font-medium text-slate-500 dark:text-slate-400">
               Direction
             </label>
             <select
               id="idea-direction"
               value={direction}
               onChange={(e) => setDirection(e.target.value as "LONG" | "SHORT")}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             >
               <option value="LONG">LONG</option>
               <option value="SHORT">SHORT</option>
             </select>
           </div>
           <div>
-            <label htmlFor="idea-horizon" className="text-xs font-medium text-slate-500">
+            <label htmlFor="idea-horizon" className="text-xs font-medium text-slate-500 dark:text-slate-400">
               Horizon (days)
             </label>
             <input
@@ -189,11 +189,11 @@ export default function CommunityFeedPage() {
               value={horizonDays}
               onChange={(e) => setHorizonDays(e.target.value)}
               required
-              className="mt-1 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             />
           </div>
           <div>
-            <label htmlFor="idea-target" className="text-xs font-medium text-slate-500">
+            <label htmlFor="idea-target" className="text-xs font-medium text-slate-500 dark:text-slate-400">
               Target (optional)
             </label>
             <input
@@ -202,11 +202,11 @@ export default function CommunityFeedPage() {
               step="any"
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             />
           </div>
           <div>
-            <label htmlFor="idea-stop" className="text-xs font-medium text-slate-500">
+            <label htmlFor="idea-stop" className="text-xs font-medium text-slate-500 dark:text-slate-400">
               Stop (optional)
             </label>
             <input
@@ -215,18 +215,18 @@ export default function CommunityFeedPage() {
               step="any"
               value={stop}
               onChange={(e) => setStop(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             />
           </div>
         </div>
 
-        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Required disclosure</p>
-          <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+        <div className="mt-4 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Required disclosure</p>
+          <label className="mt-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input type="checkbox" checked={hasPosition} onChange={(e) => setHasPosition(e.target.checked)} />
             I currently hold a position in this ticker
           </label>
-          <label htmlFor="idea-disclosure-note" className="mt-2 block text-xs font-medium text-slate-500">
+          <label htmlFor="idea-disclosure-note" className="mt-2 block text-xs font-medium text-slate-500 dark:text-slate-400">
             Disclosure note (optional)
           </label>
           <input
@@ -234,9 +234,9 @@ export default function CommunityFeedPage() {
             value={disclosureNote}
             onChange={(e) => setDisclosureNote(e.target.value)}
             placeholder="e.g. I hold 50 shares bought last week"
-            className="mt-1 block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
           />
-          <label className="mt-3 flex items-start gap-2 text-sm text-slate-700">
+          <label className="mt-3 flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={attested}
@@ -260,20 +260,20 @@ export default function CommunityFeedPage() {
           <Card key={idea.id} padding="p-4" className="text-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <Link href={`/community/authors/${idea.author_user_id ?? "model"}`} className="font-semibold text-slate-900 hover:underline">
+                <Link href={`/community/authors/${idea.author_user_id ?? "model"}`} className="font-semibold text-slate-900 dark:text-slate-50 hover:underline">
                   {idea.display_name}
                 </Link>{" "}
                 <Badge variant={idea.direction === "LONG" ? "positive" : "negative"}>{idea.direction}</Badge>{" "}
-                <Link href={`/stock/${idea.ticker}`} className="font-medium text-slate-800 hover:underline">
+                <Link href={`/stock/${idea.ticker}`} className="font-medium text-slate-800 dark:text-slate-100 hover:underline">
                   {idea.ticker}
                 </Link>
-                <span className="ml-2 text-xs text-slate-400">{idea.horizon_days}d horizon · entry ${idea.entry_price.toFixed(2)}</span>
+                <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">{idea.horizon_days}d horizon · entry ${idea.entry_price.toFixed(2)}</span>
               </div>
-              <button onClick={() => handleReport(idea.id)} className="shrink-0 text-xs text-slate-400 hover:text-red-700">
+              <button onClick={() => handleReport(idea.id)} className="shrink-0 text-xs text-slate-400 dark:text-slate-500 hover:text-red-700">
                 Report
               </button>
             </div>
-            <div className="mt-1 text-xs text-slate-500">
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {idea.has_position ? "Discloses holding a position" : "Discloses no position"}
               {idea.disclosure_note ? ` — ${idea.disclosure_note}` : ""}
             </div>
@@ -283,12 +283,12 @@ export default function CommunityFeedPage() {
                   Scored: {idea.outcome} ({fmtPct(idea.realized_return_pct)}, excess vs SPY {fmtPct(idea.excess_vs_spy_pct)})
                 </span>
               ) : (
-                <span className="text-slate-400">Not yet scored — matures {idea.horizon_days} trading days after {new Date(idea.created_at).toLocaleDateString()}</span>
+                <span className="text-slate-400 dark:text-slate-500">Not yet scored — matures {idea.horizon_days} trading days after {new Date(idea.created_at).toLocaleDateString()}</span>
               )}
             </div>
           </Card>
         ))}
-        {ideas !== null && ideas.length === 0 && <p className="text-sm text-slate-500">No ideas published yet.</p>}
+        {ideas !== null && ideas.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No ideas published yet.</p>}
       </div>
     </Container>
   );

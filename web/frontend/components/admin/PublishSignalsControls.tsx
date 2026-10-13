@@ -97,14 +97,14 @@ export default function PublishSignalsControls() {
     <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-semibold text-slate-900">Public Signal Publication</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-50">Public Signal Publication</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Daily scheduled job (weekdays, 4:10pm ET) that commits the top-25 momentum ranking to the public,
             append-only track record. This is irreversible once turned on — enabling it starts the real
             publication clock, not a preview. Do not enable before counsel has confirmed unpaid, impersonal
             publication carries no registration requirement.
           </p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             Note: enabling this only affects <em>future</em> scheduled runs — if today&apos;s 4:10pm ET run
             already passed, use &quot;Publish Now&quot; below to catch up today instead of waiting until
             tomorrow.
@@ -113,7 +113,7 @@ export default function PublishSignalsControls() {
         {enabled !== null && (
           <span
             className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
-              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+              enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
             }`}
           >
             {enabled ? "Publishing" : "Disabled"}
@@ -147,7 +147,7 @@ export default function PublishSignalsControls() {
           <button
             onClick={() => setConfirming(false)}
             disabled={busy}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             Cancel
           </button>
@@ -156,7 +156,7 @@ export default function PublishSignalsControls() {
           <button
             onClick={handlePublishNow}
             disabled={publishing}
-            className="rounded-md border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+            className="rounded-md border border-emerald-300 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
           >
             {publishing ? "Publishing…" : "Publish Now"}
           </button>
@@ -167,8 +167,8 @@ export default function PublishSignalsControls() {
       {publishError && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{publishError}</p>}
 
       <div className="mt-4 border-t border-amber-200 pt-4">
-        <p className="text-sm font-medium text-slate-700">Failure alerting (NFR-01/02)</p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Failure alerting (NFR-01/02)</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           If publication hasn&apos;t completed 60 minutes after market close, an email goes to the admin
           inbox (a second, escalated one at 2 hours if it&apos;s still missing) — Gate 0 requires ≥95% of
           trading days published, so a silent miss shouldn&apos;t go unnoticed. This sends a real test
@@ -177,7 +177,7 @@ export default function PublishSignalsControls() {
         <button
           onClick={handleTestAlert}
           disabled={testingAlert}
-          className="mt-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          className="mt-2 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
         >
           {testingAlert ? "Sending…" : "Send Test Alert"}
         </button>

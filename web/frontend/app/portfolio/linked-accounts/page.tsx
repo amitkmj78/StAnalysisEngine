@@ -11,7 +11,7 @@ function statusBadgeClass(status: PlaidItem["status"]): string {
   if (status === "active") return "bg-emerald-50 text-emerald-700";
   if (status === "login_required") return "bg-amber-50 text-amber-700";
   if (status === "error") return "bg-red-50 text-red-700";
-  return "bg-slate-100 text-slate-500";
+  return "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400";
 }
 
 function statusLabel(status: PlaidItem["status"]): string {
@@ -93,13 +93,13 @@ export default function LinkedAccountsPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-slate-900">Linked Accounts</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Linked Accounts</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Brokerage accounts connected through Plaid. Each syncs into its own set of positions — disconnecting
             one only removes what it imported, never anything you added manually or by CSV.
           </p>
         </div>
-        <Link href="/portfolio" className="text-sm font-medium text-slate-600 hover:underline">
+        <Link href="/portfolio" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
           ← Back to Portfolio
         </Link>
       </div>
@@ -115,11 +115,11 @@ export default function LinkedAccountsPage() {
       )}
 
       {items === null ? (
-        <p className="mt-6 text-sm text-slate-500">Loading…</p>
+        <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       ) : items.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 text-sm text-slate-500 dark:text-slate-400">
           No brokerage accounts linked yet.{" "}
-          <Link href="/portfolio/add?mode=plaid" className="text-slate-700 underline">
+          <Link href="/portfolio/add?mode=plaid" className="text-slate-700 dark:text-slate-200 underline">
             Connect one
           </Link>
           .
@@ -129,16 +129,16 @@ export default function LinkedAccountsPage() {
           {items.map((item) => (
             <div
               key={item.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4"
             >
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-slate-900">{item.institution_name ?? "Unnamed connection"}</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-50">{item.institution_name ?? "Unnamed connection"}</span>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(item.status)}`}>
                     {statusLabel(item.status)}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {item.last_sync_at ? `Last synced ${new Date(item.last_sync_at).toLocaleString()}` : "Never synced"}
                   {item.last_sync_error && item.status !== "active" ? ` — ${item.last_sync_error}` : ""}
                 </p>
@@ -147,7 +147,7 @@ export default function LinkedAccountsPage() {
                 <button
                   onClick={() => handleSync(item)}
                   disabled={syncingId === item.id}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                  className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
                 >
                   {syncingId === item.id ? "Syncing…" : "Sync Now"}
                 </button>
@@ -166,7 +166,7 @@ export default function LinkedAccountsPage() {
 
       <Link
         href="/portfolio/add?mode=plaid"
-        className="mt-6 inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+        className="mt-6 inline-flex rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
       >
         + Connect Another Account
       </Link>

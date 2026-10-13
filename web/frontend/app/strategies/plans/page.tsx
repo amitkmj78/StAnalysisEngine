@@ -294,8 +294,8 @@ export default function StrategiesPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Strategies</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Strategies</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Build a feasible plan — pick what to solve for, see whether it&apos;s realistic, and get the candidates behind it.
       </p>
 
@@ -303,32 +303,32 @@ export default function StrategiesPage() {
 
       {plans !== null && plans.length > 0 && (
         <div className="mt-6">
-          <h2 className="text-lg font-semibold text-slate-900">My Goals</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">My Goals</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Each goal locked in a required monthly contribution when saved. Progress compares what you&apos;d have
             if you&apos;d actually contributed that amount every month since then against your real portfolio value
             today — it assumes the contribution was made, not a verified ledger of it.
           </p>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {plans.map((p) => (
-              <div key={p.id} className="rounded-xl border border-slate-200 bg-white p-4">
+              <div key={p.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-semibold text-slate-900">
+                    <p className="font-semibold text-slate-900 dark:text-slate-50">
                       {p.name || `$${p.target_amount.toLocaleString()} in ${p.years}y`}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       ${p.monthly_contribution.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo at{" "}
                       {p.annual_return_pct.toFixed(1)}% · {p.account_type}
                       {p.annual_contribution_increase_pct > 0 && ` · +${p.annual_contribution_increase_pct}%/yr contribution step-up`}
                       {" · saved "}
                       {new Date(p.created_at).toLocaleDateString()}
                     </p>
-                    <p className="mt-1 text-sm font-medium text-slate-800">
+                    <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">
                       Target {fmtMoney(p.target_amount)} by {new Date(p.created_at).getFullYear() + Math.round(p.years)}
                     </p>
                     {p.success_pct != null && (
-                      <p className="mt-0.5 text-xs text-slate-700">
+                      <p className="mt-0.5 text-xs text-slate-700 dark:text-slate-200">
                         {p.success_pct.toFixed(0)}% chance of reaching it ·{" "}
                         <span className="font-semibold">
                           {p.success_pct >= 75 ? "Realistic" : p.success_pct >= 50 ? "Stretch" : "Unlikely"}
@@ -345,7 +345,7 @@ export default function StrategiesPage() {
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
                       p.progress.months_elapsed < 1
-                        ? "bg-slate-100 text-slate-700"
+                        ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
                         : p.progress.on_track ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
                     }`}
                   >
@@ -356,15 +356,15 @@ export default function StrategiesPage() {
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <p className="text-xs text-slate-500">Expected by now</p>
-                    <p className="font-medium text-slate-800">{fmtMoney(p.progress.expected_value)}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Expected by now</p>
+                    <p className="font-medium text-slate-800 dark:text-slate-100">{fmtMoney(p.progress.expected_value)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Your portfolio now</p>
-                    <p className="font-medium text-slate-800">{fmtMoney(p.progress.actual_value)}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Your portfolio now</p>
+                    <p className="font-medium text-slate-800 dark:text-slate-100">{fmtMoney(p.progress.actual_value)}</p>
                   </div>
                 </div>
-                <p className={`mt-2 text-xs font-medium ${p.progress.months_elapsed < 1 ? "text-slate-600" : p.progress.on_track ? "text-emerald-600" : "text-red-600"}`}>
+                <p className={`mt-2 text-xs font-medium ${p.progress.months_elapsed < 1 ? "text-slate-600 dark:text-slate-300" : p.progress.on_track ? "text-emerald-600" : "text-red-600"}`}>
                   {p.progress.diff >= 0 ? "+" : ""}
                   {fmtMoney(p.progress.diff)}
                   {p.progress.diff_pct !== null && ` (${p.progress.diff_pct >= 0 ? "+" : ""}${p.progress.diff_pct.toFixed(1)}%)`}
@@ -382,11 +382,11 @@ export default function StrategiesPage() {
                 <button
                   onClick={() => handleDeletePlan(p.id)}
                   disabled={deletingId === p.id}
-                  className="mt-3 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                  className="mt-3 rounded-md border border-slate-300 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
                 >
                   {deletingId === p.id ? "Removing…" : "Remove"}
                 </button>
-                {goalPortfolioMsg[p.id] && <p className="mt-2 text-xs text-slate-700">{goalPortfolioMsg[p.id]}</p>}
+                {goalPortfolioMsg[p.id] && <p className="mt-2 text-xs text-slate-700 dark:text-slate-200">{goalPortfolioMsg[p.id]}</p>}
                 <GoalLinks planId={p.id} />
               </div>
             ))}
@@ -397,17 +397,17 @@ export default function StrategiesPage() {
       <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-6">
       <form onSubmit={runPlan} className="flex flex-col gap-4">
         {/* STRAT-9: four labeled cards, in the order a user reads them. */}
-        <section aria-labelledby="plan-goal" className="rounded-xl border border-slate-200 bg-white p-4">
+        <section aria-labelledby="plan-goal" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="plan-goal" className="text-sm font-semibold text-slate-900">1 · Goal</h2>
-            <div role="group" aria-label="Solve for" className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 p-0.5">
+            <h2 id="plan-goal" className="text-sm font-semibold text-slate-900 dark:text-slate-50">1 · Goal</h2>
+            <div role="group" aria-label="Solve for" className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 dark:border-slate-700 p-0.5">
               {(Object.keys(SOLVE_MODE_LABELS) as SolveMode[]).map((m) => (
                 <button
                   key={m}
                   type="button"
                   aria-pressed={mode === m}
                   onClick={() => setMode(m)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium ${mode === m ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium ${mode === m ? "bg-slate-900 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
                 >
                   {SOLVE_MODE_LABELS[m]}
                 </button>
@@ -425,7 +425,7 @@ export default function StrategiesPage() {
                 }
                 onChange={(e) => setTargetAmount(Number(e.target.value))}
                 disabled={mode === "achievable_amount"}
-                className="input w-36 disabled:bg-slate-50 disabled:text-slate-400"
+                className="input w-36 disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500"
               />
             </Field>
             <Field label="Measured in">
@@ -440,14 +440,14 @@ export default function StrategiesPage() {
                 value={mode === "time_to_goal" && plan ? round2(plan.years) : years}
                 onChange={(e) => setYears(Number(e.target.value))}
                 disabled={mode === "time_to_goal"}
-                className="input w-20 disabled:bg-slate-50 disabled:text-slate-400"
+                className="input w-20 disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500"
               />
             </Field>
           </div>
         </section>
 
-        <section aria-labelledby="plan-money" className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 id="plan-money" className="text-sm font-semibold text-slate-900">2 · Money going in</h2>
+        <section aria-labelledby="plan-money" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+          <h2 id="plan-money" className="text-sm font-semibold text-slate-900 dark:text-slate-50">2 · Money going in</h2>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <Field label="Starting capital">
               <input
@@ -466,7 +466,7 @@ export default function StrategiesPage() {
                 value={mode === "required_contribution" && plan ? round2(plan.monthly_contribution) : monthlyContribution}
                 onChange={(e) => setMonthlyContribution(Number(e.target.value))}
                 disabled={mode === "required_contribution"}
-                className="input w-32 disabled:bg-slate-50 disabled:text-slate-400"
+                className="input w-32 disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500"
               />
             </Field>
             <Field label="Yearly increase in contribution %">
@@ -480,8 +480,8 @@ export default function StrategiesPage() {
           </div>
         </section>
 
-        <section aria-labelledby="plan-assumptions" className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 id="plan-assumptions" className="text-sm font-semibold text-slate-900">3 · Assumptions</h2>
+        <section aria-labelledby="plan-assumptions" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+          <h2 id="plan-assumptions" className="text-sm font-semibold text-slate-900 dark:text-slate-50">3 · Assumptions</h2>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <Field label={mode === "required_return" ? "Annual return % (solved)" : "Annual return %"}>
               <input
@@ -489,7 +489,7 @@ export default function StrategiesPage() {
                 value={mode === "required_return" && plan && plan.gross_return_pct !== null ? round2(plan.gross_return_pct) : annualReturnPct}
                 onChange={(e) => setAnnualReturnPct(Number(e.target.value))}
                 disabled={mode === "required_return"}
-                className="input w-24 disabled:bg-slate-50 disabled:text-slate-400"
+                className="input w-24 disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500"
               />
             </Field>
             <Field label="Inflation %">
@@ -499,7 +499,7 @@ export default function StrategiesPage() {
               <span>
                 Account type{" "}
                 <span
-                  className="cursor-help text-slate-400"
+                  className="cursor-help text-slate-400 dark:text-slate-500"
                   title={`${accountType} accounts assume a ${(taxDragByAccount[accountType] ?? 0).toFixed(1)}%/year tax drag on returns during accumulation${(taxDragByAccount[accountType] ?? 0) === 0 ? " (tax-advantaged, no drag modeled)." : " (dividend/turnover taxation)."}`}
                   aria-label="Tax note"
                 >
@@ -516,8 +516,8 @@ export default function StrategiesPage() {
           </div>
         </section>
 
-        <section aria-labelledby="plan-candidates" className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 id="plan-candidates" className="text-sm font-semibold text-slate-900">4 · What to invest in</h2>
+        <section aria-labelledby="plan-candidates" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+          <h2 id="plan-candidates" className="text-sm font-semibold text-slate-900 dark:text-slate-50">4 · What to invest in</h2>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <Field label="Picks per strategy">
               <input type="number" min={1} max={5} value={topN} onChange={(e) => setTopN(Number(e.target.value))} className="input w-16" />
@@ -548,48 +548,48 @@ export default function StrategiesPage() {
             <button type="submit" disabled={loading} className="btn-primary">
               {loading ? "Building…" : "Build Plan"}
             </button>
-            <span className="text-xs text-slate-500">Results also update about half a second after you change an input.</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Results also update about half a second after you change an input.</span>
           </div>
         </section>
       </form>
 
       <div className="mt-6 flex flex-col gap-4 lg:sticky lg:top-4 lg:mt-0 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
-      {loading && <p className="mt-4 text-sm text-slate-500">Building your plan…</p>}
+      {loading && <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Building your plan…</p>}
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {plan && !loading && (
         <div className="mt-6 flex flex-col gap-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="text-lg font-semibold text-slate-900">{plan.solved_field_label}</h2>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{plan.solved_field_label}</h2>
             {plan.mode === "required_return" && plan.solved_value !== null && (
               <div className="mt-3">
-                <p className="text-2xl font-semibold text-slate-900">
-                  You&apos;d need about <span className={plan.solved_value > 15 ? "text-red-700" : "text-slate-900"}>{plan.solved_value.toFixed(0)}%</span> a year
+                <p className="text-2xl font-semibold text-slate-900 dark:text-slate-50">
+                  You&apos;d need about <span className={plan.solved_value > 15 ? "text-red-700" : "text-slate-900 dark:text-slate-50"}>{plan.solved_value.toFixed(0)}%</span> a year
                   for {plan.years.toFixed(0)} years.
                 </p>
-                <div className="mt-3 flex flex-col gap-1.5 text-xs text-slate-600">
+                <div className="mt-3 flex flex-col gap-1.5 text-xs text-slate-600 dark:text-slate-300">
                   {[
                     { label: "Needed", value: plan.solved_value, tone: "bg-red-600" },
-                    { label: "S&P 500 long-run average", value: plan.sp500_long_run_pct ?? 10, tone: "bg-slate-500" },
+                    { label: "S&P 500 long-run average", value: plan.sp500_long_run_pct ?? 10, tone: "bg-slate-500 dark:bg-slate-400" },
                     { label: "Your inputs at 8% a year", value: plan.realistic_return_pct ?? 8, tone: "bg-emerald-700" },
                   ].map((bar) => (
                     <div key={bar.label} className="flex items-center gap-2">
                       <span className="w-44 shrink-0">{bar.label}</span>
-                      <span className="h-2 flex-1 overflow-hidden rounded bg-slate-100">
+                      <span className="h-2 flex-1 overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
                         <span className={`block h-full ${bar.tone}`} style={{ width: `${Math.min(100, (bar.value / Math.max(plan.solved_value ?? 0, 10)) * 100)}%` }} />
                       </span>
                       <span className="w-12 shrink-0 text-right font-mono">{bar.value.toFixed(0)}%</span>
                     </div>
                   ))}
                 </div>
-                <p className="mt-2 text-xs text-slate-500">The S&amp;P 500 long-run figure is a rounded average before fees and inflation.</p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">The S&amp;P 500 long-run figure is a rounded average before fees and inflation.</p>
               </div>
             )}
             {plan.mode === "required_return" && plan.solved_value === null && (
-              <p className="mt-1 text-2xl font-semibold text-slate-900">Over 1,000% a year for {plan.years.toFixed(0)} years.</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">Over 1,000% a year for {plan.years.toFixed(0)} years.</p>
             )}
             {plan.mode !== "required_return" && (
-            <p className="mt-1 text-2xl font-semibold text-slate-900">
+            <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">
               {plan.mode === "required_contribution"
                 ? fmtMoney(plan.solved_value) + "/mo"
                 : plan.mode === "time_to_goal"
@@ -598,7 +598,7 @@ export default function StrategiesPage() {
             </p>
             )}
             {plan.reach_today_dollars != null && (
-              <p className="mt-3 text-sm text-slate-700">
+              <p className="mt-3 text-sm text-slate-700 dark:text-slate-200">
                 At {plan.realistic_return_pct ?? 8}% a year, these inputs reach about{" "}
                 <span className="font-mono font-semibold">{fmtMoney(plan.reach_today_dollars)}</span> in today&apos;s dollars.
                 {plan.target_vs_reach_ratio != null && plan.target_vs_reach_ratio > 3 && (
@@ -608,7 +608,7 @@ export default function StrategiesPage() {
                 )}
               </p>
             )}
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               Target: {fmtMoney(plan.target_today_dollars)} in today&apos;s dollars ·{" "}
               {fmtMoney(plan.target_future_dollars)} in future dollars (at {plan.years.toFixed(1)}y, {plan.inflation_pct}% inflation)
             </p>
@@ -634,9 +634,9 @@ export default function StrategiesPage() {
                       (fix.type === "more_contribution" && fix.monthly_contribution_needed != null) ||
                       (fix.type === "lower_target" && fix.achievable_target_future_dollars != null);
                     return (
-                      <div key={fix.type} className="rounded-md border border-red-200 bg-white p-3">
+                      <div key={fix.type} className="rounded-md border border-red-200 bg-white dark:bg-slate-900 p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-red-700">{fix.label}</p>
-                        <p className="mt-1 text-sm text-slate-800">
+                        <p className="mt-1 text-sm text-slate-800 dark:text-slate-100">
                           {fix.type === "more_time" && (fix.years_needed != null ? `${fix.years_needed} years instead of ${plan.years.toFixed(1)}` : "Not within 60 years")}
                           {fix.type === "more_contribution" &&
                             (fix.monthly_contribution_needed != null
@@ -670,9 +670,9 @@ export default function StrategiesPage() {
           )}
 
           {plan.feasibility_level !== "blocked" && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-sm font-medium text-slate-700">Save this goal to track your progress over time</p>
-              <p className="mt-1 text-xs text-slate-500">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Save this goal to track your progress over time</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Saves this plan — target {fmtMoney(plan.target_future_dollars)} in {plan.years.toFixed(1)} years,{" "}
                 {fmtMoney(plan.monthly_contribution)}/mo at {plan.gross_return_pct?.toFixed(1)}% — and starts comparing it
                 against your real portfolio value every time you visit.
@@ -698,12 +698,12 @@ export default function StrategiesPage() {
           {plan.feasibility_level !== "blocked" && (
             <>
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Best Builders Right Now</h2>
-                <p className="mt-1 text-sm text-slate-500">Built live from the current top-ranked fund and stock results.</p>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Best Builders Right Now</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Built live from the current top-ranked fund and stock results.</p>
               </div>
 
               {!data?.picks || data.picks.length === 0 ? (
-                <p className="text-sm text-slate-500">No ranked picks were available right now.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">No ranked picks were available right now.</p>
               ) : (
                 <>
                 {data.picks_as_of && (
@@ -722,10 +722,10 @@ export default function StrategiesPage() {
                     // was the reported duplicate.
                     const weightedMetrics = pick.score_basis.filter((f) => f.value !== null && f.metric !== "3-Year Annualized Return");
                     return (
-                      <div key={`${pick.label}-${pick.ticker}`} className="rounded-xl border border-slate-200 bg-white p-5">
-                        <h3 className="font-semibold text-slate-900">{pick.label}</h3>
-                        <p className="text-sm text-slate-700">{pick.ticker} — {pick.name}</p>
-                        <p className="mt-1 text-sm text-slate-600">Type: {pick.asset_type}</p>
+                      <div key={`${pick.label}-${pick.ticker}`} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+                        <h3 className="font-semibold text-slate-900 dark:text-slate-50">{pick.label}</h3>
+                        <p className="text-sm text-slate-700 dark:text-slate-200">{pick.ticker} — {pick.name}</p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Type: {pick.asset_type}</p>
 
                         <KpiLine
                           label="Ranking score"
@@ -739,11 +739,11 @@ export default function StrategiesPage() {
                         />
 
                         {weightedMetrics.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
+                          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 dark:border-slate-800 pt-3">
                             {weightedMetrics.map((f) => (
                               <span
                                 key={f.metric}
-                                className="rounded-full bg-slate-50 px-2 py-0.5 text-xs text-slate-600"
+                                className="rounded-full bg-slate-50 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300"
                                 title={`${f.metric}: weighted ${f.weight_pct}% of the ranking score`}
                               >
                                 {f.metric}: {f.value !== null ? f.value.toFixed(2) : "N/A"}{f.unit ? f.unit : ""}
@@ -760,9 +760,9 @@ export default function StrategiesPage() {
             </>
           )}
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <h3 className="font-semibold text-slate-900">Final Note</h3>
-            <p className="mt-2 text-sm text-slate-600">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-50">Final Note</h3>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               This page is a planning calculator, not a promise. Projections are hypothetical and not predictive of
               actual results; past performance is not indicative of future results. It uses simplified compounding
               math and current ranking outputs, and does not account for fees, slippage, dividends, or changing
@@ -782,7 +782,7 @@ function ReturnAssumptionTable({ rows, tone }: { rows: ReturnAssumptionRow[]; to
   const borderColor = tone === "amber" ? "border-amber-200" : "border-red-200";
   const headColor = tone === "amber" ? "text-amber-700" : "text-red-700";
   return (
-    <div className={`mt-3 overflow-hidden rounded-md border ${borderColor} bg-white`}>
+    <div className={`mt-3 overflow-hidden rounded-md border ${borderColor} bg-white dark:bg-slate-900`}>
       <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
@@ -793,7 +793,7 @@ function ReturnAssumptionTable({ rows, tone }: { rows: ReturnAssumptionRow[]; to
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.annual_return_pct} className={`border-b ${borderColor} text-slate-700 last:border-0`}>
+            <tr key={row.annual_return_pct} className={`border-b ${borderColor} text-slate-700 dark:text-slate-200 last:border-0`}>
               <td className="px-3 py-1.5">{row.annual_return_pct.toFixed(0)}%</td>
               <td className="px-3 py-1.5 text-right">
                 {row.monthly_contribution_needed != null ? `${fmtMoney(row.monthly_contribution_needed)}/mo` : "N/A"}
@@ -820,9 +820,9 @@ function MonteCarloPanel({ plan }: { plan: GoalPlan }) {
   const tone: "emerald" | "amber" | "red" | null = prob === null ? null : prob >= 70 ? "emerald" : prob >= 40 ? "amber" : "red";
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <h2 className="text-lg font-semibold text-slate-900">Probability of Success</h2>
-      <p className="mt-1 text-sm text-slate-500">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+      <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Probability of Success</h2>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         {mc.assumptions.num_paths.toLocaleString()} randomly sampled possible futures, built from real historical
         market returns — not just the one average-return number above.
       </p>
@@ -830,32 +830,32 @@ function MonteCarloPanel({ plan }: { plan: GoalPlan }) {
       {prob !== null && tone !== null ? (
         <>
           <p className={`mt-3 text-4xl font-semibold ${PROB_TONE_CLASSES[tone]}`}>{prob.toFixed(1)}%</p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             of simulated paths reached {fmtMoney(plan.target_future_dollars)} or more by year {plan.years.toFixed(1)}.
           </p>
         </>
       ) : (
-        <p className="mt-3 text-sm text-slate-600">
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
           This mode has no fixed target to hit, so there&apos;s no single probability to show — the spread below is
           the range of likely ending balances instead.
         </p>
       )}
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">10th percentile</p>
-          <p className="mt-1 text-lg font-semibold text-slate-800">{fmtMoney(mc.p10_ending_balance)}</p>
-          <p className="mt-1 text-xs text-slate-500">A rough outcome — 90% of simulations did better.</p>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">10th percentile</p>
+          <p className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-100">{fmtMoney(mc.p10_ending_balance)}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">A rough outcome — 90% of simulations did better.</p>
         </div>
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Median</p>
-          <p className="mt-1 text-lg font-semibold text-slate-800">{fmtMoney(mc.median_ending_balance)}</p>
-          <p className="mt-1 text-xs text-slate-500">The middle outcome — half did better, half worse.</p>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Median</p>
+          <p className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-100">{fmtMoney(mc.median_ending_balance)}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">The middle outcome — half did better, half worse.</p>
         </div>
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">90th percentile</p>
-          <p className="mt-1 text-lg font-semibold text-slate-800">{fmtMoney(mc.p90_ending_balance)}</p>
-          <p className="mt-1 text-xs text-slate-500">A strong outcome — only 10% of simulations did better.</p>
+        <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">90th percentile</p>
+          <p className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-100">{fmtMoney(mc.p90_ending_balance)}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">A strong outcome — only 10% of simulations did better.</p>
         </div>
       </div>
 
@@ -865,8 +865,8 @@ function MonteCarloPanel({ plan }: { plan: GoalPlan }) {
         </div>
       )}
 
-      <details className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-        <summary className="cursor-pointer font-medium text-slate-700">Simulation assumptions</summary>
+      <details className="mt-4 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-sm text-slate-600 dark:text-slate-300">
+        <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-200">Simulation assumptions</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>{mc.assumptions.return_distribution_method}.</li>
           <li>{mc.assumptions.num_paths.toLocaleString()} simulated paths.</li>
@@ -885,7 +885,7 @@ function MonteCarloPanel({ plan }: { plan: GoalPlan }) {
 
 function KpiLine({ label, value, term, info }: { label: string; value: string; term?: string; info?: ColumnInfo }) {
   return (
-    <p className="flex items-center gap-1.5 text-sm text-slate-600">
+    <p className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
       <span>
         {label}: {value}
       </span>
@@ -899,7 +899,7 @@ function Field({ label, children }: { label: React.ReactNode; children: React.Re
   const id = useId();
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs font-medium text-slate-500">{label}</label>
+      <label htmlFor={id} className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</label>
       {cloneElement(children as React.ReactElement<{ id?: string }>, { id })}
     </div>
   );

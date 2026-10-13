@@ -39,18 +39,18 @@ import type {
 const PF = {
   page: "bg-[var(--pf-bg)]",
   ink: "text-[var(--pf-text)]",
-  muted: "text-slate-500",
+  muted: "text-slate-500 dark:text-slate-400",
   line: "border-[var(--pf-border)]",
-  card: "rounded-xl border border-[var(--pf-border)] bg-white",
-  surface2: "bg-slate-100",
+  card: "rounded-xl border border-[var(--pf-border)] bg-white dark:bg-slate-900",
+  surface2: "bg-slate-100 dark:bg-slate-800",
   good: "text-[var(--pf-up)]",
   bad: "text-[var(--pf-down)]",
   warnBg: "bg-[var(--pf-warn-soft)]",
   warnText: "text-[var(--pf-warn)]",
-  btn: "rounded-md border border-[var(--pf-border)] bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]",
+  btn: "rounded-md border border-[var(--pf-border)] bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-medium text-slate-900 dark:text-slate-50 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]",
   btnPrimary: "rounded-md bg-[var(--pf-accent)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90",
-  input: "rounded-md border border-[var(--pf-border)] bg-white px-3 py-2 text-sm text-slate-900",
-  chip: "inline-flex items-center gap-1 rounded-full border border-[var(--pf-border)] bg-white px-2.5 py-1 text-xs text-slate-900",
+  input: "rounded-md border border-[var(--pf-border)] bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-50",
+  chip: "inline-flex items-center gap-1 rounded-full border border-[var(--pf-border)] bg-white dark:bg-slate-900 px-2.5 py-1 text-xs text-slate-900 dark:text-slate-50",
 };
 
 function goodBad(v: number | null | undefined): string {
@@ -1154,7 +1154,7 @@ export default function StockFinderPage() {
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                             filters.shortSignal.includes(sig)
                               ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white"
-                              : `${PF.line} ${PF.muted} hover:bg-slate-100`
+                              : `${PF.line} ${PF.muted} hover:bg-slate-100 dark:hover:bg-slate-700`
                           }`}
                         >
                           {sig}
@@ -1173,7 +1173,7 @@ export default function StockFinderPage() {
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                             filters.longSignal.includes(sig)
                               ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white"
-                              : `${PF.line} ${PF.muted} hover:bg-slate-100`
+                              : `${PF.line} ${PF.muted} hover:bg-slate-100 dark:hover:bg-slate-700`
                           }`}
                         >
                           {sig}
@@ -1192,7 +1192,7 @@ export default function StockFinderPage() {
                           type="button"
                           onClick={() => setFilters((prev) => ({ ...prev, owned: v }))}
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${
-                            filters.owned === v ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
+                            filters.owned === v ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100 dark:hover:bg-slate-700`
                           }`}
                         >
                           {v === "only" ? "Owned only" : v === "exclude" ? "Not owned" : "Any"}
@@ -1209,7 +1209,7 @@ export default function StockFinderPage() {
                           type="button"
                           onClick={() => setFilters((prev) => ({ ...prev, watchlisted: v }))}
                           className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${
-                            filters.watchlisted === v ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
+                            filters.watchlisted === v ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100 dark:hover:bg-slate-700`
                           }`}
                         >
                           {v === "only" ? "Watchlisted only" : v === "exclude" ? "Not watchlisted" : "Any"}
@@ -1229,7 +1229,7 @@ export default function StockFinderPage() {
                         className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                           filters.sectors.includes(s)
                             ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white"
-                            : `${PF.line} ${PF.muted} hover:bg-slate-100`
+                            : `${PF.line} ${PF.muted} hover:bg-slate-100 dark:hover:bg-slate-700`
                         }`}
                       >
                         {s}
@@ -1284,7 +1284,7 @@ export default function StockFinderPage() {
                         type="button"
                         onClick={() => setFilters((prev) => ({ ...prev, [key]: !prev[key] }))}
                         className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                          filters[key] ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100`
+                          filters[key] ? "border-[var(--pf-accent)] bg-[var(--pf-accent)] text-white" : `${PF.line} ${PF.muted} hover:bg-slate-100 dark:hover:bg-slate-700`
                         }`}
                       >
                         {label}
@@ -1296,7 +1296,7 @@ export default function StockFinderPage() {
                   <button
                     type="button"
                     onClick={() => setFilters(EMPTY_FILTERS)}
-                    className={`mt-3 text-xs font-medium ${PF.muted} underline hover:text-slate-900`}
+                    className={`mt-3 text-xs font-medium ${PF.muted} underline hover:text-slate-900 dark:hover:text-slate-50`}
                   >
                     Clear all filters
                   </button>
@@ -1324,7 +1324,7 @@ export default function StockFinderPage() {
             )}
 
             {results.length > 1 && (
-              <div ref={tableWrapRef} className={`max-h-[70vh] overflow-auto rounded-xl border ${PF.line} bg-white`}>
+              <div ref={tableWrapRef} className={`max-h-[70vh] overflow-auto rounded-xl border ${PF.line} bg-white dark:bg-slate-900`}>
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className={`border-b ${PF.line} ${PF.surface2} text-left text-[11px] font-medium uppercase tracking-wide ${PF.muted}`}>
@@ -1345,7 +1345,7 @@ export default function StockFinderPage() {
                                   type="button"
                                   onClick={(e) => handleSort(col, e.shiftKey)}
                                   title="Click to sort; shift-click to add as a secondary sort key"
-                                  className={`flex items-center gap-1 uppercase tracking-wide ${PF.muted} hover:text-slate-900`}
+                                  className={`flex items-center gap-1 uppercase tracking-wide ${PF.muted} hover:text-slate-900 dark:hover:text-slate-50`}
                                 >
                                   {col}
                                   <span className="text-[10px]">
@@ -1373,12 +1373,12 @@ export default function StockFinderPage() {
                       const expanded = expandedRows.has(t);
                       return (
                         <Fragment key={t}>
-                          <tr className={`border-b ${PF.line} last:border-0 hover:bg-slate-50`}>
-                            <td className={`sticky left-0 z-[5] bg-white px-2 py-2`}>
+                          <tr className={`border-b ${PF.line} last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800`}>
+                            <td className={`sticky left-0 z-[5] bg-white dark:bg-slate-900 px-2 py-2`}>
                               <button
                                 type="button"
                                 onClick={() => toggleRow(t)}
-                                className={`flex h-5 w-5 items-center justify-center rounded ${PF.muted} hover:bg-slate-100 hover:text-slate-900`}
+                                className={`flex h-5 w-5 items-center justify-center rounded ${PF.muted} hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-50`}
                                 title="Show more stats"
                               >
                                 {expanded ? "▾" : "▸"}
@@ -1486,7 +1486,7 @@ export default function StockFinderPage() {
                                 <td
                                   key={col}
                                   className={`px-3 py-2 ${isNumeric ? "text-right" : ""} ${
-                                    pinned ? "sticky left-8 z-[5] bg-white font-medium" : ""
+                                    pinned ? "sticky left-8 z-[5] bg-white dark:bg-slate-900 font-medium" : ""
                                   }`}
                                   style={isNumeric || pinned ? { fontFamily: "var(--font-pf-mono)" } : undefined}
                                 >

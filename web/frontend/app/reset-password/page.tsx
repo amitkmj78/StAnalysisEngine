@@ -12,7 +12,7 @@ export default async function ResetPasswordPage({
 
   return (
     <div className="mx-auto mt-24 max-w-sm px-4">
-      <h1 className="font-display mb-1 text-2xl font-semibold text-slate-900">Set a new password</h1>
+      <h1 className="font-display mb-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">Set a new password</h1>
 
       {!token ? (
         <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -24,7 +24,7 @@ export default async function ResetPasswordPage({
         </p>
       ) : (
         <>
-          <p className="mb-6 text-sm text-slate-500">Choose a new password for your account.</p>
+          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">Choose a new password for your account.</p>
 
           {params.error && (
             <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{params.error}</p>
@@ -39,7 +39,7 @@ export default async function ResetPasswordPage({
               required
               minLength={8}
               autoComplete="new-password"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 dark:focus:border-slate-400 focus:outline-none"
             />
             <input
               name="confirm_password"
@@ -48,7 +48,7 @@ export default async function ResetPasswordPage({
               required
               minLength={8}
               autoComplete="new-password"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-slate-500 dark:focus:border-slate-400 focus:outline-none"
             />
             <button
               type="submit"
@@ -60,8 +60,8 @@ export default async function ResetPasswordPage({
         </>
       )}
 
-      <p className="mt-4 text-sm text-slate-500">
-        <Link href="/login" className="font-medium text-slate-900 underline">
+      <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+        <Link href="/login" className="font-medium text-slate-900 dark:text-slate-50 underline">
           Back to log in
         </Link>
       </p>

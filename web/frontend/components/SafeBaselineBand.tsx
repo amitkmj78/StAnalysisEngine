@@ -104,19 +104,19 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
   if (!ticker.trim()) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
-          <h3 className="font-semibold text-slate-900">Safe Baseline Price Band</h3>
+          <h3 className="font-semibold text-slate-900 dark:text-slate-50">Safe Baseline Price Band</h3>
           <MetricLabel term="Safe Baseline Price Band" />
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Horizon</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Horizon</label>
             <select
               value={horizon}
               onChange={(e) => setHorizon(Number(e.target.value))}
-              className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+              className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs"
             >
               {HORIZONS.map((h) => (
                 <option key={h} value={h}>
@@ -126,11 +126,11 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Confidence</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Confidence</label>
             <select
               value={confidence}
               onChange={(e) => setConfidence(Number(e.target.value))}
-              className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+              className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs"
             >
               {CONFIDENCES.map((c) => (
                 <option key={c} value={c}>
@@ -142,11 +142,11 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
         </div>
       </div>
 
-      <p className="mt-2 text-xs text-slate-500">
+      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
         Derived from historical price paths only — not a prediction, target, or recommendation.
       </p>
 
-      {loading && <p className="mt-4 text-sm text-slate-500">Computing band…</p>}
+      {loading && <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Computing band…</p>}
 
       {insufficientHistory && !loading && (
         <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
@@ -163,18 +163,18 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
         <div className="mt-4 flex flex-col gap-4">
           <BandLadder band={band} />
 
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-slate-700 dark:text-slate-200">
             A typical pullback for {band.ticker} has bottomed around{" "}
-            <strong className="text-slate-900">${band.accumulation_zone_hi.toFixed(2)}</strong>; a typical rally has
-            topped out around <strong className="text-slate-900">${band.distribution_zone_lo.toFixed(2)}</strong>.
+            <strong className="text-slate-900 dark:text-slate-50">${band.accumulation_zone_hi.toFixed(2)}</strong>; a typical rally has
+            topped out around <strong className="text-slate-900 dark:text-slate-50">${band.distribution_zone_lo.toFixed(2)}</strong>.
             Over the last {band.effective_samples} independent {band.horizon_days}-day periods, price has stayed
-            within <strong className="text-slate-900">${band.floor.toFixed(2)}–${band.ceiling.toFixed(2)}</strong>{" "}
+            within <strong className="text-slate-900 dark:text-slate-50">${band.floor.toFixed(2)}–${band.ceiling.toFixed(2)}</strong>{" "}
             about {Math.round((1 - band.breach_rate_full) * 100)}% of the time. This reflects price history only —
             not news, earnings, or anything specific to the company right now.
           </p>
 
           {confidence >= 0.95 && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               At 95% confidence, the floor/ceiling are indicative rather than precisely measured — there are
               fewer independent historical windows this far into the tail.
             </p>
@@ -199,43 +199,43 @@ export default function SafeBaselineBand({ ticker }: { ticker: string }) {
             </p>
           )}
 
-          <p className="text-xs text-slate-400">As of {band.as_of} &middot; method: {band.method}</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">As of {band.as_of} &middot; method: {band.method}</p>
 
-          <div className="flex items-center gap-3 border-t border-slate-200 pt-3">
+          <div className="flex items-center gap-3 border-t border-slate-200 dark:border-slate-700 pt-3">
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)] disabled:opacity-50"
+              className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm font-medium text-slate-900 dark:text-slate-50 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)] disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save this snapshot"}
             </button>
-            {saveMessage && <span className="text-xs text-slate-500">{saveMessage}</span>}
+            {saveMessage && <span className="text-xs text-slate-500 dark:text-slate-400">{saveMessage}</span>}
           </div>
         </div>
       )}
 
       {(historyLoading || history.length > 0) && (
-        <div className="mt-4 border-t border-slate-200 pt-4">
-          <h4 className="font-mono text-[10.5px] font-semibold uppercase tracking-wide text-slate-500">
+        <div className="mt-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+          <h4 className="font-mono text-[10.5px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Saved Snapshots for {ticker.trim().toUpperCase()}
           </h4>
           {historyLoading ? (
-            <p className="mt-2 text-sm text-slate-500">Loading saved snapshots…</p>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Loading saved snapshots…</p>
           ) : (
             <div className="mt-2 flex flex-col gap-2">
               {history.map((s) => (
                 <div
                   key={s.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm"
                 >
-                  <span className="text-slate-700">
+                  <span className="text-slate-700 dark:text-slate-200">
                     {new Date(s.saved_at).toLocaleString()} &middot; {s.horizon_days}d @ {Math.round(s.confidence * 100)}%
                     &middot; floor ${s.floor.toFixed(2)} / ceiling ${s.ceiling.toFixed(2)}
                   </span>
                   <span className="flex items-center gap-2">
                     <button
                       onClick={() => setCompareId(compareId === s.id ? null : s.id)}
-                      className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-900 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]"
+                      className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-medium text-slate-900 dark:text-slate-50 hover:border-[var(--pf-accent)] hover:text-[var(--pf-accent)]"
                     >
                       {compareId === s.id ? "Hide Compare" : "Compare"}
                     </button>
@@ -268,13 +268,13 @@ function CompareSnapshot({ saved, current }: { saved: SavedBaselineSnapshot; cur
   const sameParams = current && saved.horizon_days === current.horizon_days && saved.confidence === current.confidence;
 
   return (
-    <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-      <p className="text-xs font-semibold text-slate-500">
+    <div className="mt-3 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
         Saved {new Date(saved.saved_at).toLocaleString()} ({saved.horizon_days}d @ {Math.round(saved.confidence * 100)}%,
         as of {saved.as_of}) vs. current
       </p>
       {!current ? (
-        <p className="mt-2 text-sm text-slate-400">Load a band above to compare.</p>
+        <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">Load a band above to compare.</p>
       ) : (
         <>
           {!sameParams && (
@@ -286,7 +286,7 @@ function CompareSnapshot({ saved, current }: { saved: SavedBaselineSnapshot; cur
           <div className="mt-2 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <th className="px-2 py-1.5">Level</th>
                   <th className="px-2 py-1.5">Saved</th>
                   <th className="px-2 py-1.5">Current</th>
@@ -304,11 +304,11 @@ function CompareSnapshot({ saved, current }: { saved: SavedBaselineSnapshot; cur
                   const delta = row.currentVal - row.savedVal;
                   const deltaPct = (delta / row.savedVal) * 100;
                   return (
-                    <tr key={row.label} className="border-b border-slate-200 last:border-0">
-                      <td className="px-2 py-1.5 text-slate-700">{row.label}</td>
-                      <td className="px-2 py-1.5 text-slate-700">${row.savedVal.toFixed(2)}</td>
-                      <td className="px-2 py-1.5 font-medium text-slate-900">${row.currentVal.toFixed(2)}</td>
-                      <td className={`px-2 py-1.5 ${delta > 0 ? "text-emerald-700" : delta < 0 ? "text-red-700" : "text-slate-400"}`}>
+                    <tr key={row.label} className="border-b border-slate-200 dark:border-slate-700 last:border-0">
+                      <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">{row.label}</td>
+                      <td className="px-2 py-1.5 text-slate-700 dark:text-slate-200">${row.savedVal.toFixed(2)}</td>
+                      <td className="px-2 py-1.5 font-medium text-slate-900 dark:text-slate-50">${row.currentVal.toFixed(2)}</td>
+                      <td className={`px-2 py-1.5 ${delta > 0 ? "text-emerald-700" : delta < 0 ? "text-red-700" : "text-slate-400 dark:text-slate-500"}`}>
                         {delta > 0 ? "+" : ""}
                         {delta.toFixed(2)} ({deltaPct > 0 ? "+" : ""}
                         {deltaPct.toFixed(2)}%)
@@ -335,20 +335,20 @@ function BandLadder({ band }: { band: BaselineBand }) {
   ];
 
   return (
-    <div className="flex flex-col divide-y divide-slate-200 overflow-hidden rounded-md border border-slate-200">
+    <div className="flex flex-col divide-y divide-slate-200 dark:divide-slate-700 overflow-hidden rounded-md border border-slate-200 dark:border-slate-700">
       {levels.map((level) => (
         <div
           key={level.key}
           className={`flex items-center justify-between px-3 py-2 ${
-            level.key === "median_path" ? "bg-slate-50" : ""
+            level.key === "median_path" ? "bg-slate-50 dark:bg-slate-800" : ""
           }`}
         >
-          <span className={`text-sm ${level.key === "median_path" ? "font-medium text-slate-900" : "text-slate-700"}`}>
+          <span className={`text-sm ${level.key === "median_path" ? "font-medium text-slate-900 dark:text-slate-50" : "text-slate-700 dark:text-slate-200"}`}>
             {level.label}
           </span>
           <span className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-slate-900">${level.price.toFixed(2)}</span>
-            <span className={`text-xs ${level.pct > 0 ? "text-emerald-700" : level.pct < 0 ? "text-red-700" : "text-slate-400"}`}>
+            <span className="text-sm font-semibold text-slate-900 dark:text-slate-50">${level.price.toFixed(2)}</span>
+            <span className={`text-xs ${level.pct > 0 ? "text-emerald-700" : level.pct < 0 ? "text-red-700" : "text-slate-400 dark:text-slate-500"}`}>
               {level.pct > 0 ? "+" : ""}
               {level.pct.toFixed(2)}%
             </span>
@@ -361,9 +361,9 @@ function BandLadder({ band }: { band: BaselineBand }) {
 
 function SmallStat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
-    <div className={`rounded-md border p-2 ${warn ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
-      <p className="text-[11px] text-slate-500">{label}</p>
-      <p className={`mt-0.5 text-sm font-semibold ${warn ? "text-amber-700" : "text-slate-900"}`}>{value}</p>
+    <div className={`rounded-md border p-2 ${warn ? "border-amber-200 bg-amber-50" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"}`}>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">{label}</p>
+      <p className={`mt-0.5 text-sm font-semibold ${warn ? "text-amber-700" : "text-slate-900 dark:text-slate-50"}`}>{value}</p>
     </div>
   );
 }

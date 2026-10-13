@@ -15,12 +15,12 @@ const STAYS_ON_YAHOO = [
 
 export default function PriceSourceCoverage() {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5">
-      <h2 className="text-sm font-semibold text-slate-900">What follows this switch</h2>
+    <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">What follows this switch</h2>
       <div className="mt-3 grid gap-4 sm:grid-cols-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Follows the switch</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
             {FOLLOWS_SWITCH.map((line) => (
               <li key={line}>{line}</li>
             ))}
@@ -28,7 +28,7 @@ export default function PriceSourceCoverage() {
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Stays on Yahoo</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
             {STAYS_ON_YAHOO.map((line) => (
               <li key={line}>{line}</li>
             ))}

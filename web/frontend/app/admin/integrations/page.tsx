@@ -18,8 +18,8 @@ export default async function AdminIntegrationsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Integrations</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <h1 className="font-display text-2xl font-semibold text-slate-900 dark:text-slate-50">Integrations</h1>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Every external service this app depends on — LLM providers, market data, and search. &quot;Configured&quot;
         just means the API key/URL is set; &quot;Test&quot; makes a real live call right now, since a configured
         key can still be expired, rate-limited, or out of credits (this is exactly how the OpenAI billing

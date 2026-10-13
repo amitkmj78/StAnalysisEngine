@@ -9,8 +9,8 @@ type ButtonVariant = "primary" | "secondary" | "danger";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: "bg-[var(--pf-accent)] text-white hover:opacity-90",
-  secondary: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
-  danger: "border border-red-300 bg-white text-red-700 hover:bg-red-50",
+  secondary: "border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800",
+  danger: "border border-red-300 bg-white dark:bg-slate-900 text-red-700 hover:bg-red-50",
 };
 
 export default function Button({
