@@ -471,6 +471,11 @@ alter table users add column if not exists age_reconfirmed_before_broker_at time
 -- SAF-6: opt-in, off by default; when on, only a percentage-only summary
 -- (never dollar amounts) renders on the author's public community profile.
 alter table users add column if not exists portfolio_sharing_enabled boolean not null default false;
+-- Admin-created accounts get a known default password (Welcome1!) instead
+-- of the admin inventing/relaying one -- this forces a real password-reset
+-- flow before the account can do anything else. See web/backend/routers/
+-- admin_users.py::create_user and auth.py::login/reset_password.
+alter table users add column if not exists must_reset_password boolean not null default false;
 
 -- Forgot-password: only a sha256 hash of the token is ever stored, never
 -- the token itself, so a DB read can't be used to reset an account's

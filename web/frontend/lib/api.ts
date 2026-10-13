@@ -1400,8 +1400,11 @@ export function getAdminUsers() {
 // Admin-created account -- skips the public signup/approval queue (approved
 // immediately, since the admin is vouching for it), unlike the public
 // signup form which always starts pending.
-export function createAdminUser(body: { email: string; password: string; role: "user" | "admin" }) {
-  return apiSend<{ id: string; email: string; role: string; welcome_email_sent: boolean }>(
+// Admin-created accounts start on a known default password
+// (DEFAULT_TEMP_PASSWORD, see admin_users.py) and must reset it before
+// doing anything else -- the admin never invents or types one.
+export function createAdminUser(body: { email: string; role: "user" | "admin" }) {
+  return apiSend<{ id: string; email: string; role: string; temporary_password: string; welcome_email_sent: boolean }>(
     "/api/v1/admin/users", "POST", body,
   );
 }

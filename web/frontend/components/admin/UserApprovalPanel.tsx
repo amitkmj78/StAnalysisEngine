@@ -30,7 +30,6 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
   const [emailStatus, setEmailStatus] = useState<Record<string, "sent" | "failed">>({});
 
   const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"user" | "admin">("user");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -58,18 +57,20 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
 
   async function handleCreateUser() {
     const email = newEmail.trim().toLowerCase();
-    if (!email || !newPassword) {
-      setCreateError("Email and password are required.");
+    if (!email) {
+      setCreateError("Email is required.");
       return;
     }
     setCreating(true);
     setCreateError(null);
     setCreated(null);
     try {
-      const res = await createAdminUser({ email, password: newPassword, role: newRole });
-      setCreated(`Created ${res.email} as ${res.role}${res.welcome_email_sent ? " — welcome email sent" : ""}.`);
+      const res = await createAdminUser({ email, role: newRole });
+      setCreated(
+        `Created ${res.email} as ${res.role}. Temporary password: ${res.temporary_password} (must be reset before ` +
+          `first use)${res.welcome_email_sent ? " — also emailed to them" : " — email not sent, share this password another way"}.`
+      );
       setNewEmail("");
-      setNewPassword("");
       setNewRole("user");
       await load();
     } catch (err) {
@@ -304,7 +305,8 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Create User</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Creates an account directly, already approved — skips the signup/approval queue above. Use this to make
-          another admin, or to onboard someone without them going through public signup.
+          another admin, or to onboard someone without them going through public signup. The account starts on a
+          default password and must reset it before doing anything else.
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
@@ -315,16 +317,6 @@ export default function UserApprovalPanel({ currentUserEmail }: { currentUserEma
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="name@example.com"
               className="w-56 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Password</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Temporary password"
-              className="w-48 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm"
             />
           </div>
           <div className="flex flex-col gap-1">

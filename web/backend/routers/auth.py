@@ -58,6 +58,23 @@ def _issue_token(user_id: str, email: str, role: str) -> str:
     return jwt.encode(payload, SESSION_SECRET, algorithm="HS256")
 
 
+async def issue_password_reset_token(conn, user_id) -> str:
+    """Shared by forgot-password, the forced-reset path in login (an
+    admin-created account's must_reset_password), and admin_users.py::
+    create_user's own welcome email -- one place that creates a one-time,
+    1-hour reset token. A fresh call supersedes any earlier, still-unused
+    token for the account rather than leaving multiple valid ones alive."""
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    expires_at = datetime.now(timezone.utc) + RESET_TOKEN_TTL
+    await conn.execute("DELETE FROM password_reset_tokens WHERE user_id = $1 AND used_at IS NULL", user_id)
+    await conn.execute(
+        "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
+        user_id, token_hash, expires_at,
+    )
+    return token
+
+
 def _set_session_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         SESSION_COOKIE_NAME,
@@ -154,7 +171,7 @@ async def signup(request: Request, body: SignupRequest, response: Response):
 async def login(request: Request, body: LoginRequest, response: Response):
     async with service_conn() as conn:
         row = await conn.fetchrow(
-            "SELECT id, email, password_hash, approved, is_active, role FROM users WHERE email = $1",
+            "SELECT id, email, password_hash, approved, is_active, role, must_reset_password FROM users WHERE email = $1",
             body.email.lower(),
         )
 
@@ -166,6 +183,20 @@ async def login(request: Request, body: LoginRequest, response: Response):
 
     if not row["is_active"]:
         raise HTTPException(403, "This account has been deactivated. Contact an admin if you believe this is a mistake.")
+
+    # Admin-created accounts (web/backend/routers/admin_users.py::create_user)
+    # start with a known default password -- no session is issued until a
+    # real one is set. Reuses the same one-time-token mechanism forgot-
+    # password uses, so reset_password's existing endpoint is the only
+    # place a password actually gets changed.
+    if row["must_reset_password"]:
+        async with service_conn() as conn:
+            reset_token = await issue_password_reset_token(conn, row["id"])
+        return {
+            "must_reset_password": True,
+            "email": row["email"],
+            "reset_token": reset_token,
+        }
 
     async with service_conn() as conn:
         await conn.execute(
@@ -199,17 +230,7 @@ async def forgot_password(request: Request, body: ForgotPasswordRequest):
         if row is None or not row["approved"]:
             return generic_response
 
-        token = secrets.token_urlsafe(32)
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
-        expires_at = datetime.now(timezone.utc) + RESET_TOKEN_TTL
-
-        # A fresh request supersedes any earlier, still-unused link for
-        # this account rather than leaving multiple valid tokens alive.
-        await conn.execute("DELETE FROM password_reset_tokens WHERE user_id = $1 AND used_at IS NULL", row["id"])
-        await conn.execute(
-            "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-            row["id"], token_hash, expires_at,
-        )
+        token = await issue_password_reset_token(conn, row["id"])
 
     reset_link = f"{APP_URL}/reset-password?token={token}"
     await run_in_threadpool(send_password_reset_email, row["email"], reset_link)
@@ -235,7 +256,10 @@ async def reset_password(request: Request, body: ResetPasswordRequest):
             raise HTTPException(400, "This reset link is invalid or has expired. Request a new one.")
 
         password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
-        await conn.execute("UPDATE users SET password_hash = $1 WHERE id = $2", password_hash, row["user_id"])
+        await conn.execute(
+            "UPDATE users SET password_hash = $1, must_reset_password = false WHERE id = $2",
+            password_hash, row["user_id"],
+        )
         # Consuming this link invalidates every other outstanding reset
         # link for the account too — the password just changed, an older
         # link (e.g. from an earlier request, or a leaked email) must not

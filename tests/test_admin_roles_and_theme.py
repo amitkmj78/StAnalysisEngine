@@ -104,30 +104,43 @@ def test_update_user_role_rejects_an_invalid_role_value():
 
 def test_create_user_rejects_an_invalid_role_value():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(create_user(CreateUserRequest(email="a@example.com", password="whatever12345", role="root")))
+        asyncio.run(create_user(CreateUserRequest(email="a@example.com", role="root")))
     assert exc.value.status_code == 422
 
 
 def test_create_user_is_approved_immediately_and_starts_with_the_requested_role(monkeypatch):
-    async def no_op_validate(password):
-        return None
-
     async def fake_run_in_threadpool(fn, *a, **kw):
         return True
 
+    async def fake_issue_reset_token(conn, user_id):
+        assert user_id == "new-id"
+        return "reset-token-abc"
+
     conn = _FakeConn(fetchrow=lambda sql, args: {"id": "new-id", "email": "new@example.com", "role": "admin"})
     monkeypatch.setattr(admin_users_mod, "service_conn", lambda: _FakeConnCtx(conn))
-    monkeypatch.setattr(admin_users_mod, "_validate_new_password", no_op_validate)
+    monkeypatch.setattr(admin_users_mod, "issue_password_reset_token", fake_issue_reset_token)
     monkeypatch.setattr(admin_users_mod, "run_in_threadpool", fake_run_in_threadpool)
 
-    result = asyncio.run(create_user(CreateUserRequest(email="NEW@example.com", password="whatever12345", role="admin")))
-    assert result == {"id": "new-id", "email": "new@example.com", "role": "admin", "welcome_email_sent": True}
+    result = asyncio.run(create_user(CreateUserRequest(email="NEW@example.com", role="admin")))
+    assert result == {
+        "id": "new-id",
+        "email": "new@example.com",
+        "role": "admin",
+        "temporary_password": admin_users_mod.DEFAULT_TEMP_PASSWORD,
+        "welcome_email_sent": True,
+    }
     # Admin-created accounts skip the pending-approval queue -- approved is
     # hardcoded true in the insert itself, not merely defaulted by the column.
+    # must_reset_password is hardcoded true too -- the fixed default password
+    # is only ever usable to reach the forced reset screen.
     insert_sql, insert_args = conn.executed[0]
     assert "INSERT INTO users" in insert_sql
     assert "true" in insert_sql
-    assert insert_args == ("new@example.com", insert_args[1], "admin")  # email lower-cased, role passed through
+    assert "must_reset_password" in insert_sql
+    assert insert_args[0] == "new@example.com"  # email lower-cased
+    assert insert_args[2] == "admin"  # role passed through
+    import bcrypt as _bcrypt
+    assert _bcrypt.checkpw(admin_users_mod.DEFAULT_TEMP_PASSWORD.encode(), insert_args[1].encode())
 
 
 # ---------------------------------------------------------------- theme accent color palette

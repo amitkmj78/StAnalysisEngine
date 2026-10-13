@@ -42,7 +42,16 @@ export async function login(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(body.detail || "Login failed")}`);
   }
 
-  const { token } = await res.json();
+  const data = await res.json();
+
+  // Admin-created account still on its default password -- no session is
+  // issued (see web/backend/routers/auth.py::login), just a one-time
+  // reset token straight into the required reset flow.
+  if (data.must_reset_password) {
+    redirect(`/reset-password?token=${encodeURIComponent(data.reset_token)}`);
+  }
+
+  const { token } = data;
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,

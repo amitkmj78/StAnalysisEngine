@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 from starlette.concurrency import run_in_threadpool
 
-from services.email_service import send_welcome_email
+from services.email_service import APP_URL, send_admin_created_account_email, send_welcome_email
 from web.backend.admin import ADMIN_EMAIL, require_admin
 from web.backend.db import service_conn
-from web.backend.routers.auth import _validate_new_password
+from web.backend.routers.auth import issue_password_reset_token
 
 router = APIRouter(
     prefix="/api/v1/admin/users",
@@ -57,9 +57,14 @@ async def list_users():
     ]
 
 
+# Fixed, known default -- the admin never invents/relays a password.
+# must_reset_password (checked in auth.py::login) means this value is only
+# ever usable to reach the forced reset screen, never to do anything else.
+DEFAULT_TEMP_PASSWORD = "Welcome1!"
+
+
 class CreateUserRequest(BaseModel):
     email: EmailStr
-    password: str
     role: str = "user"
 
 
@@ -68,29 +73,34 @@ async def create_user(body: CreateUserRequest):
     """Admin-created account -- skips the public signup/approval queue
     entirely (approved=true immediately, since the admin is vouching for
     it), unlike POST /api/v1/auth/signup which always starts pending
-    (except for the bootstrap ADMIN_EMAIL row). Same password policy and
-    duplicate-email handling as public signup; not imported from there
-    since signup has its own request/response shape and auto-login
-    behavior that doesn't apply here."""
+    (except for the bootstrap ADMIN_EMAIL row). Starts with a known default
+    password and must_reset_password=true -- web/backend/routers/auth.py::
+    login refuses to issue a session for such an account until
+    POST /auth/reset-password actually sets a new one."""
     if body.role not in ("user", "admin"):
         raise HTTPException(422, "role must be 'user' or 'admin'.")
-    await _validate_new_password(body.password)
-    password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    password_hash = bcrypt.hashpw(DEFAULT_TEMP_PASSWORD.encode(), bcrypt.gensalt()).decode()
     async with service_conn() as conn:
         try:
             row = await conn.fetchrow(
                 """
-                INSERT INTO users (email, password_hash, approved, role)
-                VALUES ($1, $2, true, $3) RETURNING id, email, role
+                INSERT INTO users (email, password_hash, approved, role, must_reset_password)
+                VALUES ($1, $2, true, $3, true) RETURNING id, email, role
                 """,
                 body.email.lower(), password_hash, body.role,
             )
         except asyncpg.UniqueViolationError:
             raise HTTPException(409, "An account with that email already exists.")
+        reset_token = await issue_password_reset_token(conn, row["id"])
+    reset_link = f"{APP_URL}/reset-password?token={reset_token}"
     # Best-effort, same as approve_user -- a broken mail provider must
-    # never block account creation.
-    sent = await run_in_threadpool(send_welcome_email, row["email"])
-    return {"id": str(row["id"]), "email": row["email"], "role": row["role"], "welcome_email_sent": sent}
+    # never block account creation; the temporary password is also returned
+    # below so the admin can relay it another way if the email never arrives.
+    sent = await run_in_threadpool(send_admin_created_account_email, row["email"], DEFAULT_TEMP_PASSWORD, reset_link)
+    return {
+        "id": str(row["id"]), "email": row["email"], "role": row["role"],
+        "temporary_password": DEFAULT_TEMP_PASSWORD, "welcome_email_sent": sent,
+    }
 
 
 class RoleUpdateRequest(BaseModel):
