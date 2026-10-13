@@ -20,6 +20,7 @@ from web.backend.rate_limit import limiter
 from web.backend.scheduler import start_scheduler, stop_scheduler
 from web.backend.routers import (
     admin_activity,
+    admin_compliance,
     admin_integrations,
     admin_settings,
     admin_sql,
@@ -139,6 +140,7 @@ app.include_router(social.router)
 app.include_router(momentum.router)
 app.include_router(admin_users.router)
 app.include_router(admin_activity.router)
+app.include_router(admin_compliance.router)
 app.include_router(admin_settings.router)
 app.include_router(admin_sql.router)
 app.include_router(admin_integrations.router)

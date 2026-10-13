@@ -312,3 +312,8 @@ AGENT_KILL_SWITCH_KEY = "agent_kill_switch"
 # result). Off by default: this emails members on a schedule, so it needs a
 # deliberate admin opt-in, same as every other scheduled alert.
 CHALLENGE_NOTIFICATIONS_ENABLED_KEY = "challenge_notifications_enabled"
+# SAF-3: nightly mention-spike / duplicate-post detection. Off by default --
+# a moderation job must not start flagging real users' content the moment
+# this deploys; an admin opts in deliberately, same posture as
+# PORTFOLIO_DROP_ALERTS_ENABLED_KEY.
+COMMUNITY_SAFETY_SCAN_ENABLED_KEY = "community_safety_scan_enabled"

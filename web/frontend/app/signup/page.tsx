@@ -59,6 +59,30 @@ export default async function SignupPage({
             connect. You can turn this off anytime from the Challenges page.
           </span>
         </label>
+        <label className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+          <input
+            name="age_confirmed_18_plus"
+            type="checkbox"
+            required
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+          />
+          <span>I confirm I am 18 years of age or older.</span>
+        </label>
+        <label className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+          <input
+            name="guidelines_accepted"
+            type="checkbox"
+            required
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+          />
+          <span>
+            I agree to the{" "}
+            <Link href="/community/guidelines" target="_blank" className="underline decoration-dotted">
+              community guidelines
+            </Link>
+            .
+          </span>
+        </label>
         <button
           type="submit"
           className="mt-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"

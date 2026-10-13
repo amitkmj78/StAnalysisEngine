@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ApiError, getCurrentUser, setMyThemeColor, updateSocialProfile } from "@/lib/api";
+import {
+  ApiError, getBlockedUsers, getCurrentUser, getMutes, muteContent, setMyThemeColor, setPortfolioSharing,
+  unblockUser, unmute, updateSocialProfile,
+} from "@/lib/api";
 import type { ExperienceLevel } from "@/lib/types";
 import { applyThemeAccent, applyThemeMode, getStoredThemeMode, THEME_PALETTE, type ThemeMode } from "@/lib/theme";
 
@@ -46,17 +49,82 @@ export default function SettingsPage() {
   const [themeError, setThemeError] = useState<string | null>(null);
   const [mode, setMode] = useState<ThemeMode>("system");
 
+  const [portfolioSharing, setPortfolioSharingState] = useState(false);
+  const [portfolioSharingSaving, setPortfolioSharingSaving] = useState(false);
+  const [portfolioSharingError, setPortfolioSharingError] = useState<string | null>(null);
+
+  const [blocks, setBlocks] = useState<{ user_id: string; display_name: string | null }[] | null>(null);
+  const [mutes, setMutes] = useState<{ id: number; mute_type: string; mute_value: string; created_at: string }[] | null>(null);
+  const [newMuteType, setNewMuteType] = useState<"user" | "ticker" | "keyword">("ticker");
+  const [newMuteValue, setNewMuteValue] = useState("");
+  const [blockMuteError, setBlockMuteError] = useState<string | null>(null);
+
+  async function loadBlocksAndMutes() {
+    try {
+      const [b, m] = await Promise.all([getBlockedUsers(), getMutes()]);
+      setBlocks(b.blocks);
+      setMutes(m.mutes);
+    } catch (err) {
+      setBlockMuteError(err instanceof ApiError ? err.message : "Could not load blocks/mutes.");
+    }
+  }
+
   useEffect(() => {
     getCurrentUser()
       .then((user) => {
         setUserId(user.id);
         setLevel(user.experience_level);
         setThemeOverride(user.theme_accent_color);
+        setPortfolioSharingState(user.portfolio_sharing_enabled);
       })
       .catch(() => setError("Could not load your settings."))
       .finally(() => setLoading(false));
     setMode(getStoredThemeMode());
+    loadBlocksAndMutes();
   }, []);
+
+  async function handlePortfolioSharingToggle(enabled: boolean) {
+    setPortfolioSharingSaving(true);
+    setPortfolioSharingError(null);
+    try {
+      const res = await setPortfolioSharing(enabled);
+      setPortfolioSharingState(res.portfolio_sharing_enabled);
+    } catch (err) {
+      setPortfolioSharingError(err instanceof ApiError ? err.message : "Could not save this setting.");
+    } finally {
+      setPortfolioSharingSaving(false);
+    }
+  }
+
+  async function handleUnblock(userId: string) {
+    try {
+      await unblockUser(userId);
+      await loadBlocksAndMutes();
+    } catch (err) {
+      setBlockMuteError(err instanceof ApiError ? err.message : "Could not unblock.");
+    }
+  }
+
+  async function handleUnmute(muteId: number) {
+    try {
+      await unmute(muteId);
+      await loadBlocksAndMutes();
+    } catch (err) {
+      setBlockMuteError(err instanceof ApiError ? err.message : "Could not unmute.");
+    }
+  }
+
+  async function handleAddMute() {
+    const value = newMuteValue.trim();
+    if (!value) return;
+    try {
+      await muteContent(newMuteType, value);
+      setNewMuteValue("");
+      await loadBlocksAndMutes();
+    } catch (err) {
+      setBlockMuteError(err instanceof ApiError ? err.message : "Could not add mute.");
+    }
+  }
 
   function handleModeChange(next: ThemeMode) {
     setMode(next);
@@ -195,6 +263,90 @@ export default function SettingsPage() {
           </div>
         )}
         {themeError && <p className="mt-3 text-xs font-medium text-red-700">{themeError}</p>}
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Portfolio sharing</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Off by default. When on, your community profile shows a percentage-only summary of your portfolio --
+          top holdings by weight and total return % -- never dollar amounts.
+        </p>
+        <label className="mt-3 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input
+            type="checkbox"
+            checked={portfolioSharing}
+            disabled={portfolioSharingSaving}
+            onChange={(e) => handlePortfolioSharingToggle(e.target.checked)}
+          />
+          Show a percentage-only portfolio summary on my community profile
+        </label>
+        {portfolioSharingError && <p className="mt-3 text-xs font-medium text-red-700">{portfolioSharingError}</p>}
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Blocked &amp; muted</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Blocking stops someone from seeing or messaging you. Muting just hides matching posts from your own feed --
+          it doesn&apos;t notify anyone.
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <select
+            value={newMuteType}
+            onChange={(e) => setNewMuteType(e.target.value as "user" | "ticker" | "keyword")}
+            className="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm text-slate-900 dark:text-slate-50"
+          >
+            <option value="ticker">Ticker</option>
+            <option value="keyword">Keyword</option>
+            <option value="user">User (display name or id)</option>
+          </select>
+          <input
+            value={newMuteValue}
+            onChange={(e) => setNewMuteValue(e.target.value)}
+            placeholder={newMuteType === "ticker" ? "e.g. GME" : newMuteType === "keyword" ? "e.g. moon" : "user id"}
+            className="w-48 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-50"
+          />
+          <button
+            type="button"
+            onClick={handleAddMute}
+            disabled={!newMuteValue.trim()}
+            className="rounded-md bg-slate-900 dark:bg-slate-100 px-3 py-1.5 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 disabled:opacity-50"
+          >
+            Mute
+          </button>
+        </div>
+
+        {mutes && mutes.length > 0 && (
+          <ul className="mt-3 flex flex-col gap-1.5 text-sm">
+            {mutes.map((m) => (
+              <li key={m.id} className="flex items-center justify-between gap-2">
+                <span className="text-slate-700 dark:text-slate-200">
+                  <span className="text-xs uppercase text-slate-400 dark:text-slate-500">{m.mute_type}</span> {m.mute_value}
+                </span>
+                <button onClick={() => handleUnmute(m.id)} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline">
+                  Unmute
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {blocks && blocks.length > 0 && (
+          <>
+            <h3 className="mt-4 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Blocked users</h3>
+            <ul className="mt-1.5 flex flex-col gap-1.5 text-sm">
+              {blocks.map((b) => (
+                <li key={b.user_id} className="flex items-center justify-between gap-2">
+                  <span className="text-slate-700 dark:text-slate-200">{b.display_name ?? b.user_id}</span>
+                  <button onClick={() => handleUnblock(b.user_id)} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline">
+                    Unblock
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {blockMuteError && <p className="mt-3 text-xs font-medium text-red-700">{blockMuteError}</p>}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ from web.backend.admin import require_admin
 from web.backend.app_settings import (
     AI_REVIEWER_ENABLED_KEY,
     BASKET_REBALANCE_ENABLED_KEY,
+    COMMUNITY_SAFETY_SCAN_ENABLED_KEY,
     DAILY_QUOTA_DEFAULT,
     DAILY_QUOTA_KEY,
     DB_BACKUP_ENABLED_KEY,
@@ -128,6 +129,7 @@ async def get_settings():
             DEFAULT_THEME_ACCENT_KEY, default=DEFAULT_THEME_ACCENT_DEFAULT
         ),
         "theme_accent_palette": sorted(THEME_ACCENT_PALETTE),
+        "community_safety_scan_enabled": await get_setting_bool(COMMUNITY_SAFETY_SCAN_ENABLED_KEY, default=False),
     }
 
 
@@ -459,6 +461,18 @@ async def set_daily_quota(body: DailyQuotaUpdate):
 
 class ThemeAccentColorUpdate(BaseModel):
     default_theme_accent_color: str
+
+
+@router.post("/community-safety-scan/enable")
+async def enable_community_safety_scan():
+    await set_setting_bool(COMMUNITY_SAFETY_SCAN_ENABLED_KEY, True)
+    return {"community_safety_scan_enabled": True}
+
+
+@router.post("/community-safety-scan/disable")
+async def disable_community_safety_scan():
+    await set_setting_bool(COMMUNITY_SAFETY_SCAN_ENABLED_KEY, False)
+    return {"community_safety_scan_enabled": False}
 
 
 @router.post("/theme-accent-color")

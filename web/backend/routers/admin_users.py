@@ -26,13 +26,14 @@ async def list_users():
             """
             SELECT
                 u.id, u.email, u.approved, u.is_active, u.created_at, u.role,
-                u.last_login_at, u.last_login_ip,
+                u.last_login_at, u.last_login_ip, u.warning_count, u.last_warning_note, u.last_warning_at,
                 count(DISTINCT p.id) AS portfolio_count,
                 count(pp.id) AS position_count
             FROM users u
             LEFT JOIN portfolios p ON p.user_id = u.id
             LEFT JOIN portfolio_positions pp ON pp.portfolio_id = p.id AND pp.user_id = u.id
-            GROUP BY u.id, u.email, u.approved, u.is_active, u.created_at, u.role, u.last_login_at, u.last_login_ip
+            GROUP BY u.id, u.email, u.approved, u.is_active, u.created_at, u.role, u.last_login_at, u.last_login_ip,
+                     u.warning_count, u.last_warning_note, u.last_warning_at
             ORDER BY u.created_at DESC
             """
         )
@@ -46,6 +47,9 @@ async def list_users():
             "created_at": r["created_at"].isoformat(),
             "last_login_at": r["last_login_at"].isoformat() if r["last_login_at"] else None,
             "last_login_ip": r["last_login_ip"],
+            "warning_count": r["warning_count"],
+            "last_warning_note": r["last_warning_note"],
+            "last_warning_at": r["last_warning_at"].isoformat() if r["last_warning_at"] else None,
             "portfolio_count": r["portfolio_count"],
             "position_count": r["position_count"],
         }
@@ -169,6 +173,32 @@ async def reject_user(user_id: str):
     if row is None:
         raise HTTPException(404, "No pending user with that id.")
     return {"ok": True}
+
+
+class WarnRequest(BaseModel):
+    note: str
+
+
+@router.post("/{user_id}/warn")
+async def warn_user(user_id: str, body: WarnRequest):
+    """SAF-1: "violations lead to warnings, then bans" -- a warning is a
+    recorded note, not an access restriction (the account keeps working).
+    A ban is the existing POST /{user_id}/deactivate, reused rather than
+    inventing a second, parallel "banned" status next to is_active."""
+    note = body.note.strip()
+    if not note:
+        raise HTTPException(422, "note is required.")
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE users SET warning_count = warning_count + 1, last_warning_note = $2, last_warning_at = now()
+            WHERE id = $1 RETURNING id, email, warning_count
+            """,
+            user_id, note,
+        )
+    if row is None:
+        raise HTTPException(404, "User not found.")
+    return {"id": str(row["id"]), "email": row["email"], "warning_count": row["warning_count"]}
 
 
 @router.post("/{user_id}/deactivate")

@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 
+import ComplianceSignoffsPanel from "@/components/admin/ComplianceSignoffsPanel";
+import CommunitySafetyScanControls from "@/components/admin/CommunitySafetyScanControls";
 import PasswordPolicyControls from "@/components/admin/PasswordPolicyControls";
 import ThemeColorControls from "@/components/admin/ThemeColorControls";
 import UserApprovalPanel from "@/components/admin/UserApprovalPanel";
@@ -31,6 +33,14 @@ export default async function AdminUsersPage() {
 
       <div className="mt-8">
         <ThemeColorControls />
+      </div>
+
+      <div className="mt-8">
+        <CommunitySafetyScanControls />
+      </div>
+
+      <div className="mt-8">
+        <ComplianceSignoffsPanel />
       </div>
     </div>
   );

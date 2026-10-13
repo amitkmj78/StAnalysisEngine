@@ -31,6 +31,7 @@ from services.notification_dispatcher import dispatch_alert
 from services.reputation_service import compute_reputation
 from services.social_chat_service import is_market_hours_now, validate_room
 from services.social_feed_service import build_feed
+from web.backend.admin import require_admin
 from web.backend.auth import verify_bearer_token
 from web.backend.db import service_conn, user_conn
 from web.backend.rate_limit import limiter
@@ -249,6 +250,14 @@ class PostCreateRequest(BaseModel):
     published_strategy_id: Optional[int] = None
     attach_chart: bool = False
     claim_reference_id: Optional[int] = None
+    # SAF-4: required whenever `ticker` is set -- self-declared unless the
+    # author has a real Plaid-synced position in that exact ticker, in
+    # which case the backend overrides it to a verified "true" regardless
+    # of what was submitted (never trusts a client-claimed "verified").
+    has_position: Optional[bool] = None
+    # SAF-5: self-declared, honor system -- same shape as
+    # community_ideas.attested_no_promotion.
+    is_paid_promotion: bool = False
 
 
 @router.post("/posts")
@@ -263,10 +272,35 @@ async def create_post(request: Request, body: PostCreateRequest):
     ticker = _ticker(body.ticker) if body.ticker else None
     topic = body.topic.strip().lower() if body.topic else None
 
+    # SAF-4: required (not skippable) whenever a post sets a ticker --
+    # mirrors community_ideas.has_position's existing required-field
+    # convention.
+    has_position = body.has_position
+    if ticker and has_position is None:
+        raise HTTPException(422, "has_position is required when posting about a ticker.")
+
     async with service_conn() as conn:
         display_name = await conn.fetchval("SELECT display_name FROM users WHERE id = $1::uuid", user_id)
         if not display_name:
             raise HTTPException(422, "Set a display name (PUT /api/v1/auth/me/display-name) before posting.")
+
+        # SAF-4: a real Plaid-synced position in this exact ticker overrides
+        # the self-declaration to a verified "true" -- never the reverse,
+        # and never trusts a client-claimed "verified" flag (there isn't
+        # one; this is computed server-side from the author's own synced
+        # holdings).
+        position_verified = False
+        if ticker:
+            has_real_position = await conn.fetchval(
+                """
+                SELECT 1 FROM portfolio_positions
+                WHERE user_id = $1::uuid AND ticker = $2 AND plaid_item_id IS NOT NULL LIMIT 1
+                """,
+                user_id, ticker,
+            )
+            if has_real_position:
+                has_position = True
+                position_verified = True
 
         if body.group_id is not None:
             is_member = await conn.fetchval(
@@ -312,12 +346,12 @@ async def create_post(request: Request, body: PostCreateRequest):
 
         record = await conn.fetchrow(
             """
-            INSERT INTO posts (author_user_id, post_type, body, ticker, topic, group_id, chart_snapshot_id, claim_reference_id, verified, published_strategy_id)
-            VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            INSERT INTO posts (author_user_id, post_type, body, ticker, topic, group_id, chart_snapshot_id, claim_reference_id, verified, published_strategy_id, has_position, position_verified, is_paid_promotion)
+            VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING *
             """,
             user_id, body.post_type, text, ticker, topic, body.group_id, chart_snapshot_id, claim_reference_id, verified,
-            body.published_strategy_id,
+            body.published_strategy_id, has_position, position_verified, body.is_paid_promotion,
         )
         await _dispatch_mentions(conn, text, user_id, display_name, record["id"])
 
@@ -340,6 +374,7 @@ async def create_post(request: Request, body: PostCreateRequest):
 
 @router.get("/posts")
 async def list_posts(
+    request: Request,
     ticker: Optional[str] = None, topic: Optional[str] = None,
     group_id: Optional[int] = None, author_id: Optional[str] = None,
     published_strategy_id: Optional[int] = None,
@@ -348,9 +383,13 @@ async def list_posts(
     """SOC-3's ticker-page discussion panel is this same endpoint,
     filtered by `ticker` -- no separate "discussion" table/endpoint. STS-6
     (comments/questions half only) reuses it the same way, filtered by
-    `published_strategy_id`."""
+    `published_strategy_id`. SAF-7: always excludes posts from a user the
+    VIEWER has blocked, and posts matching the viewer's own muted
+    users/tickers/keywords -- scoped to the requesting viewer, never a
+    global filter."""
+    viewer_id = request.state.user["id"]
     where = ["NOT p.hidden"]
-    params: list = []
+    params: list = [viewer_id]
     if ticker:
         params.append(_ticker(ticker))
         where.append(f"p.ticker = ${len(params)}")
@@ -366,6 +405,16 @@ async def list_posts(
     if author_id:
         params.append(author_id)
         where.append(f"p.author_user_id = ${len(params)}::uuid")
+    where.append("NOT EXISTS (SELECT 1 FROM user_blocks ub WHERE ub.blocker_user_id = $1::uuid AND ub.blocked_user_id = p.author_user_id)")
+    where.append(
+        """NOT EXISTS (
+            SELECT 1 FROM user_mutes um WHERE um.user_id = $1::uuid AND (
+                (um.mute_type = 'user' AND um.mute_value = p.author_user_id::text)
+                OR (um.mute_type = 'ticker' AND um.mute_value = p.ticker)
+                OR (um.mute_type = 'keyword' AND p.body ILIKE '%' || um.mute_value || '%')
+            )
+        )"""
+    )
     params.append(limit)
     async with service_conn() as conn:
         rows = await conn.fetch(
@@ -376,6 +425,248 @@ async def list_posts(
             *params,
         )
     return {"posts": [_record_to_dict(r) for r in rows]}
+
+
+# SAF-2: one report per (content_type, content_id, reporter) -- a repeat
+# click never inflates the auto-hide count. Covers posts/comments/groups/
+# profiles; idea_reports (community.py) already covers community_ideas.
+AUTO_HIDE_CONTENT_REPORT_THRESHOLD = 3
+_REPORTABLE_TABLES = {"post": "posts", "comment": "post_comments", "group": "groups"}
+
+
+class ContentReportRequest(BaseModel):
+    content_type: str
+    # A post/comment/group id as a string ("42"), or a profile's user id
+    # (a uuid string) -- one field covers both, see content_reports.content_id.
+    content_id: str
+    reason: str
+
+
+@router.post("/report")
+@limiter.limit("20/minute")
+async def report_content(request: Request, body: ContentReportRequest):
+    if body.content_type not in ("post", "comment", "group", "profile"):
+        raise HTTPException(422, "content_type must be 'post', 'comment', 'group' or 'profile'.")
+    reason = body.reason.strip()
+    if not reason:
+        raise HTTPException(422, "reason is required.")
+    reporter_id = request.state.user["id"]
+
+    # Validated before ever opening a connection -- a malformed content_id
+    # is a 422, not a wasted DB round trip.
+    numeric_id: Optional[int] = None
+    if body.content_type != "profile":
+        try:
+            numeric_id = int(body.content_id)
+        except ValueError:
+            raise HTTPException(422, "content_id must be a numeric id for this content_type.")
+
+    async with service_conn() as conn:
+        if body.content_type == "profile":
+            try:
+                exists = await conn.fetchval("SELECT 1 FROM users WHERE id = $1::uuid", body.content_id)
+            except Exception:  # noqa: BLE001 -- a malformed uuid is a 422, not a 500
+                raise HTTPException(422, "content_id must be a valid user id for content_type 'profile'.")
+        else:
+            table = _REPORTABLE_TABLES[body.content_type]
+            exists = await conn.fetchval(f"SELECT 1 FROM {table} WHERE id = $1", numeric_id)
+        if not exists:
+            raise HTTPException(404, f"{body.content_type.capitalize()} not found.")
+        await conn.execute(
+            """
+            INSERT INTO content_reports (content_type, content_id, reporter_user_id, reason)
+            VALUES ($1, $2, $3::uuid, $4)
+            ON CONFLICT (content_type, content_id, reporter_user_id) DO NOTHING
+            """,
+            body.content_type, body.content_id, reporter_id, reason,
+        )
+        report_count = await conn.fetchval(
+            "SELECT count(*) FROM content_reports WHERE content_type = $1 AND content_id = $2",
+            body.content_type, body.content_id,
+        )
+        hidden = report_count >= AUTO_HIDE_CONTENT_REPORT_THRESHOLD
+        if hidden and body.content_type in ("post", "group"):
+            table = _REPORTABLE_TABLES[body.content_type]
+            await conn.execute(f"UPDATE {table} SET hidden = true WHERE id = $1", int(body.content_id))
+    return {"ok": True, "report_count": report_count, "hidden": hidden}
+
+
+# SAF-7: block (mutual DM/visibility) and mute (ticker/keyword/user, feed
+# filtering only -- muting never blocks DMs or notifies the muted party).
+
+class BlockRequest(BaseModel):
+    user_id: str
+
+
+@router.post("/blocks")
+async def block_user(request: Request, body: BlockRequest):
+    blocker_id = request.state.user["id"]
+    if blocker_id == body.user_id:
+        raise HTTPException(422, "You can't block yourself.")
+    async with user_conn(blocker_id) as conn:
+        await conn.execute(
+            "INSERT INTO user_blocks (blocker_user_id, blocked_user_id) VALUES ($1::uuid, $2::uuid) ON CONFLICT DO NOTHING",
+            blocker_id, body.user_id,
+        )
+    return {"ok": True}
+
+
+@router.delete("/blocks/{blocked_user_id}")
+async def unblock_user(request: Request, blocked_user_id: str):
+    blocker_id = request.state.user["id"]
+    async with user_conn(blocker_id) as conn:
+        await conn.execute(
+            "DELETE FROM user_blocks WHERE blocker_user_id = $1::uuid AND blocked_user_id = $2::uuid",
+            blocker_id, blocked_user_id,
+        )
+    return {"ok": True}
+
+
+@router.get("/blocks")
+async def list_blocks(request: Request):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        rows = await conn.fetch(
+            """
+            SELECT b.blocked_user_id, u.display_name FROM user_blocks b
+            LEFT JOIN users u ON u.id = b.blocked_user_id
+            WHERE b.blocker_user_id = $1::uuid ORDER BY b.created_at DESC
+            """,
+            user_id,
+        )
+    return {"blocks": [{"user_id": str(r["blocked_user_id"]), "display_name": r["display_name"]} for r in rows]}
+
+
+class MuteRequest(BaseModel):
+    mute_type: str
+    mute_value: str
+
+
+@router.post("/mutes")
+async def mute(request: Request, body: MuteRequest):
+    if body.mute_type not in ("user", "ticker", "keyword"):
+        raise HTTPException(422, "mute_type must be 'user', 'ticker' or 'keyword'.")
+    value = body.mute_value.strip()
+    if body.mute_type == "ticker":
+        value = _ticker(value)
+    elif not value:
+        raise HTTPException(422, "mute_value is required.")
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        await conn.execute(
+            "INSERT INTO user_mutes (user_id, mute_type, mute_value) VALUES ($1::uuid, $2, $3) ON CONFLICT DO NOTHING",
+            user_id, body.mute_type, value,
+        )
+    return {"ok": True}
+
+
+@router.delete("/mutes/{mute_id}")
+async def unmute(request: Request, mute_id: int):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM user_mutes WHERE id = $1 AND user_id = $2::uuid RETURNING id", mute_id, user_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Mute not found.")
+    return {"ok": True}
+
+
+@router.get("/mutes")
+async def list_mutes(request: Request):
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        rows = await conn.fetch(
+            "SELECT id, mute_type, mute_value, created_at FROM user_mutes WHERE user_id = $1::uuid ORDER BY created_at DESC",
+            user_id,
+        )
+    return {"mutes": [_record_to_dict(r) for r in rows]}
+
+
+# SAF-2: admin review queue for content_reports (posts/comments/groups/
+# profiles) -- idea_reports keeps its own separate admin queue in
+# community.py, since community_ideas' row shape doesn't union cleanly
+# with these four very different content types.
+
+@router.get("/admin/reports", dependencies=[Depends(require_admin)])
+async def list_content_reports(resolved: bool = False):
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT cr.*, u.display_name AS reporter_display_name
+            FROM content_reports cr LEFT JOIN users u ON u.id = cr.reporter_user_id
+            WHERE ($1 AND cr.reviewed_at IS NOT NULL) OR (NOT $1 AND cr.reviewed_at IS NULL)
+            ORDER BY cr.created_at DESC
+            """,
+            resolved,
+        )
+    return {"reports": [_record_to_dict(r) for r in rows]}
+
+
+class ResolveReportRequest(BaseModel):
+    resolution: str
+
+
+@router.post("/admin/reports/{report_id}/resolve", dependencies=[Depends(require_admin)])
+async def resolve_content_report(request: Request, report_id: int, body: ResolveReportRequest):
+    admin_id = request.state.user["id"]
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            "UPDATE content_reports SET reviewed_at = now(), reviewed_by = $2::uuid, resolution = $3 WHERE id = $1 RETURNING id",
+            report_id, admin_id, body.resolution.strip(),
+        )
+    if row is None:
+        raise HTTPException(404, "Report not found.")
+    return {"ok": True}
+
+
+@router.get("/admin/reports/review-time-stats", dependencies=[Depends(require_admin)])
+async def content_report_review_time_stats():
+    """SAF-2's "review time is tracked and reported monthly" -- this
+    MEASURES the real average time-to-review from actual reports, it
+    doesn't enforce the 24h target. An admin still has to act on the
+    queue above; this is visibility, not automation."""
+    async with service_conn() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT date_trunc('month', created_at) AS month,
+                   count(*) AS reviewed_count,
+                   avg(extract(epoch FROM reviewed_at - created_at) / 3600.0) AS avg_review_hours
+            FROM content_reports WHERE reviewed_at IS NOT NULL
+            GROUP BY month ORDER BY month DESC
+            """
+        )
+    return {
+        "months": [
+            {"month": r["month"].date().isoformat(), "reviewed_count": r["reviewed_count"],
+             "avg_review_hours": round(r["avg_review_hours"], 1) if r["avg_review_hours"] is not None else None}
+            for r in rows
+        ]
+    }
+
+
+# SAF-3: admin review queue for the automated mention-spike / duplicate-post
+# scan (services/community_safety_service.py). Flags are held for review,
+# never auto-removed -- resolving just marks them reviewed.
+
+@router.get("/admin/flagged-content", dependencies=[Depends(require_admin)])
+async def list_flagged_content():
+    async with service_conn() as conn:
+        rows = await conn.fetch("SELECT * FROM flagged_content WHERE reviewed_at IS NULL ORDER BY created_at DESC")
+    return {"flags": [_record_to_dict(r) for r in rows]}
+
+
+@router.post("/admin/flagged-content/{flag_id}/resolve", dependencies=[Depends(require_admin)])
+async def resolve_flagged_content(request: Request, flag_id: int):
+    admin_id = request.state.user["id"]
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            "UPDATE flagged_content SET reviewed_at = now(), reviewed_by = $2::uuid WHERE id = $1 RETURNING id",
+            flag_id, admin_id,
+        )
+    if row is None:
+        raise HTTPException(404, "Flag not found.")
+    return {"ok": True}
 
 
 class CommentCreateRequest(BaseModel):
@@ -726,7 +1017,20 @@ class DmSendRequest(BaseModel):
 
 async def _dm_allowed(conn, sender_id: str, recipient_id: str) -> bool:
     """"Only from people the user follows or allows" -- allowed if the
-    RECIPIENT follows the sender, or has explicitly allow-listed them."""
+    RECIPIENT follows the sender, or has explicitly allow-listed them.
+    SAF-7: a block always wins, in either direction -- a sender the
+    recipient has blocked can't DM them even if previously followed/
+    allow-listed, and blocking someone also stops you from DMing them."""
+    blocked = await conn.fetchval(
+        """
+        SELECT 1 FROM user_blocks
+        WHERE (blocker_user_id = $1::uuid AND blocked_user_id = $2::uuid)
+           OR (blocker_user_id = $2::uuid AND blocked_user_id = $1::uuid)
+        """,
+        recipient_id, sender_id,
+    )
+    if blocked:
+        return False
     follows = await conn.fetchval(
         "SELECT 1 FROM author_follows WHERE follower_user_id = $1::uuid AND followed_user_id = $2::uuid",
         recipient_id, sender_id,

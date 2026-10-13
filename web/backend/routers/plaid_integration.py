@@ -51,12 +51,23 @@ async def _enforce_beginner_gate(user_id: str) -> None:
         )
 
 
+class LinkTokenRequest(BaseModel):
+    # SAF-8: a second, separate 18+ attestation immediately before a real
+    # broker connection -- not identity verification (that needs a KYC
+    # vendor, out of scope); self-attestation again, disclosed as such.
+    age_reconfirmed: bool = False
+
+
 @router.post("/link-token")
 @limiter.limit("10/minute")
-async def create_link_token(request: Request):
+async def create_link_token(request: Request, body: LinkTokenRequest):
     await enforce_daily_quota(request, "plaid/link-token")
     user_id = request.state.user["id"]
     await _enforce_beginner_gate(user_id)
+    if not body.age_reconfirmed:
+        raise HTTPException(422, "You must reconfirm you are 18 or older before connecting a brokerage account.")
+    async with user_conn(user_id) as conn:
+        await conn.execute("UPDATE users SET age_reconfirmed_before_broker_at = now() WHERE id = $1::uuid", user_id)
     try:
         link_token = plaid_client.create_link_token(user_id)
     except PlaidNotConfiguredError:

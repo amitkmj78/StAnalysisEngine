@@ -66,9 +66,17 @@ export function usePlaidConnect(onImported?: (result: PlaidConnectResult) => voi
 
   async function connect() {
     setError(null);
+    // SAF-8: a second, separate 18+ attestation immediately before a real
+    // broker connection -- self-attestation again (not identity
+    // verification, which needs a KYC vendor, out of scope), disclosed as
+    // such via this confirm's own wording rather than silently assumed
+    // from the one at signup.
+    if (!window.confirm("Confirm you are 18 years of age or older to connect a brokerage account.")) {
+      return;
+    }
     setConnecting(true);
     try {
-      const res = await createPlaidLinkToken();
+      const res = await createPlaidLinkToken(true);
       setLinkToken(res.link_token);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not start connecting a brokerage account.");

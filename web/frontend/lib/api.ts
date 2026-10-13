@@ -261,6 +261,7 @@ export function getCurrentUser() {
     default_ticker: string | null;
     experience_level: ExperienceLevel | null;
     role: string;
+    portfolio_sharing_enabled: boolean;
     theme_accent_color: string | null;
     effective_theme_accent_color: string;
     effective_theme_accent_soft: string;
@@ -274,6 +275,12 @@ export function setMyThemeColor(color: string | null) {
   return apiSend<{ theme_accent_color: string | null; effective_theme_accent_color: string; effective_theme_accent_soft: string }>(
     "/api/v1/auth/me/theme", "PUT", { theme_accent_color: color },
   );
+}
+
+// SAF-6: opt-in, off by default. When on, the author's community profile
+// shows a percentage-only summary -- never dollar amounts.
+export function setPortfolioSharing(enabled: boolean) {
+  return apiSend<{ portfolio_sharing_enabled: boolean }>("/api/v1/auth/me/portfolio-sharing", "PUT", { enabled });
 }
 
 // Which ticker Stock Detail (the home screen) opens on for this user --
@@ -404,6 +411,14 @@ export function dismissRebalanceAlert(alertId: number) {
 
 export function applyRebalanceAlert(alertId: number) {
   return apiSend<{ ok: boolean; swaps_applied: number }>(`/api/v1/portfolio/rebalance-alerts/${alertId}/apply`, "POST");
+}
+
+export function enableCommunitySafetyScan() {
+  return apiSend<{ community_safety_scan_enabled: boolean }>("/api/v1/admin/settings/community-safety-scan/enable", "POST");
+}
+
+export function disableCommunitySafetyScan() {
+  return apiSend<{ community_safety_scan_enabled: boolean }>("/api/v1/admin/settings/community-safety-scan/disable", "POST");
 }
 
 export function enableBasketRebalance() {
@@ -814,8 +829,8 @@ export async function importPortfolioCsv(
   return apiUpload<PortfolioSubmitResponse>(`/api/v1/portfolio/import-csv?${params.toString()}`, formData);
 }
 
-export function createPlaidLinkToken() {
-  return apiSend<PlaidLinkTokenResponse>("/api/v1/plaid/link-token", "POST");
+export function createPlaidLinkToken(ageReconfirmed: boolean) {
+  return apiSend<PlaidLinkTokenResponse>("/api/v1/plaid/link-token", "POST", { age_reconfirmed: ageReconfirmed });
 }
 
 export function exchangePlaidPublicToken(
@@ -1414,6 +1429,14 @@ export function deactivateUser(userId: string) {
   );
 }
 
+// SAF-1: "violations lead to warnings, then bans" -- a warning is a
+// recorded note, not an access restriction. Ban is deactivateUser above.
+export function warnUser(userId: string, note: string) {
+  return apiSend<{ id: string; email: string; warning_count: number }>(
+    `/api/v1/admin/users/${userId}/warn`, "POST", { note },
+  );
+}
+
 export function reactivateUser(userId: string) {
   return apiSend<{ id: string; email: string; is_active: boolean }>(
     `/api/v1/admin/users/${userId}/reactivate`,
@@ -1562,6 +1585,74 @@ export function deleteCommunityIdea(ideaId: number) {
   return apiSend<{ ok: boolean }>(`/api/v1/community/admin/ideas/${ideaId}`, "DELETE");
 }
 
+// SAF-2: admin queue for content_reports (posts/comments/groups/profiles) --
+// a separate queue from community-idea reports above, since the row shapes
+// don't union cleanly.
+export interface ContentReport {
+  id: number;
+  content_type: "post" | "comment" | "group" | "profile";
+  content_id: string;
+  reporter_user_id: string;
+  reporter_display_name: string | null;
+  reason: string;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  resolution: string | null;
+}
+
+export function getContentReports(resolved = false) {
+  return apiFetch<{ reports: ContentReport[] }>("/api/v1/social/admin/reports", { resolved: String(resolved) });
+}
+
+export function resolveContentReport(reportId: number, resolution: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/admin/reports/${reportId}/resolve`, "POST", { resolution });
+}
+
+export function getReportReviewTimeStats() {
+  return apiFetch<{ months: { month: string; reviewed_count: number; avg_review_hours: number | null }[] }>(
+    "/api/v1/social/admin/reports/review-time-stats",
+  );
+}
+
+// SAF-3: automated mention-spike / duplicate-post flags, held for review.
+export interface FlaggedContentRow {
+  id: number;
+  content_type: "post" | "ticker_mentions";
+  content_id: number | null;
+  flag_type: "mention_spike" | "duplicate_post";
+  detail: string;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+}
+
+export function getFlaggedContent() {
+  return apiFetch<{ flags: FlaggedContentRow[] }>("/api/v1/social/admin/flagged-content");
+}
+
+export function resolveFlaggedContent(flagId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/admin/flagged-content/${flagId}/resolve`, "POST");
+}
+
+// SAF-9: a REAL legal sign-off recording mechanism -- not a claim that any
+// review has occurred until an admin actually records one here.
+export interface ComplianceSignoff {
+  id: number;
+  feature_key: string;
+  signed_off_by: string;
+  reference: string;
+  signed_off_at: string;
+}
+
+export function getComplianceSignoffs() {
+  return apiFetch<{ signoffs: ComplianceSignoff[] }>("/api/v1/admin/compliance-signoffs");
+}
+
+export function recordComplianceSignoff(featureKey: string, reference: string) {
+  return apiSend<ComplianceSignoff>("/api/v1/admin/compliance-signoffs", "POST", { feature_key: featureKey, reference });
+}
+
 // Header market ticker (S&P 500/Nasdaq/Dow), server-cached 15 minutes.
 export function getMarketOverview() {
   return apiFetch<{ indices: MarketIndexQuote[] }>("/api/v1/market/overview");
@@ -1613,8 +1704,44 @@ export function createPost(body: {
   published_strategy_id?: number | null;
   attach_chart?: boolean;
   claim_reference_id?: number | null;
+  // SAF-4: required when `ticker` is set. SAF-5: self-declared paid promotion.
+  has_position?: boolean;
+  is_paid_promotion?: boolean;
 }) {
   return apiSend<Post>("/api/v1/social/posts", "POST", body);
+}
+
+// SAF-2: generic report for posts/comments/groups/profiles (idea_reports
+// covers community_ideas separately, see reportCommunityIdea above).
+export function reportContent(contentType: "post" | "comment" | "group" | "profile", contentId: string | number, reason: string) {
+  return apiSend<{ ok: boolean; report_count: number; hidden: boolean }>(
+    "/api/v1/social/report", "POST", { content_type: contentType, content_id: String(contentId), reason },
+  );
+}
+
+// SAF-7: block (mutual DM/visibility) and mute (ticker/keyword/user, feed filtering only).
+export function blockUser(userId: string) {
+  return apiSend<{ ok: boolean }>("/api/v1/social/blocks", "POST", { user_id: userId });
+}
+
+export function unblockUser(userId: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/blocks/${userId}`, "DELETE");
+}
+
+export function getBlockedUsers() {
+  return apiFetch<{ blocks: { user_id: string; display_name: string | null }[] }>("/api/v1/social/blocks");
+}
+
+export function muteContent(muteType: "user" | "ticker" | "keyword", muteValue: string) {
+  return apiSend<{ ok: boolean }>("/api/v1/social/mutes", "POST", { mute_type: muteType, mute_value: muteValue });
+}
+
+export function unmute(muteId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/social/mutes/${muteId}`, "DELETE");
+}
+
+export function getMutes() {
+  return apiFetch<{ mutes: { id: number; mute_type: string; mute_value: string; created_at: string }[] }>("/api/v1/social/mutes");
 }
 
 // BEG-4: only the asker (the post's author) can accept/un-accept an answer.

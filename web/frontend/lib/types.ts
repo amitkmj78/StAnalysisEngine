@@ -1712,6 +1712,9 @@ export interface AdminUser {
   approved: boolean;
   is_active: boolean;
   role: "user" | "admin";
+  warning_count: number;
+  last_warning_note: string | null;
+  last_warning_at: string | null;
   created_at: string;
   last_login_at: string | null;
   last_login_ip: string | null;
@@ -1939,6 +1942,11 @@ export interface Post {
   verified: boolean;
   hidden: boolean;
   created_at: string;
+  // SAF-4: null unless `ticker` is set, in which case it's required.
+  has_position: boolean | null;
+  position_verified: boolean;
+  // SAF-5: self-declared.
+  is_paid_promotion: boolean;
 }
 
 export interface PostComment {
@@ -2043,6 +2051,7 @@ export interface AdminSettings {
   ai_reviewer_enabled: boolean;
   default_theme_accent_color: string;
   theme_accent_palette: string[];
+  community_safety_scan_enabled: boolean;
 }
 
 export interface BackupRun {

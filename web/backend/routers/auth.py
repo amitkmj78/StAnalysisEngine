@@ -77,6 +77,11 @@ class SignupRequest(BaseModel):
     # existing account was migrated to -- an explicit, visible choice at
     # signup rather than a silent inherited column default.
     discoverable_for_challenges: bool = True
+    # SAF-1/SAF-8: both required, not defaulted -- an unchecked HTML
+    # checkbox is simply absent from the submitted form, so these default
+    # to False and signup is refused unless the user actively checked them.
+    guidelines_accepted: bool = False
+    age_confirmed_18_plus: bool = False
 
 
 class LoginRequest(BaseModel):
@@ -95,6 +100,10 @@ class ResetPasswordRequest(BaseModel):
 
 @router.post("/signup")
 async def signup(request: Request, body: SignupRequest, response: Response):
+    if not body.guidelines_accepted:
+        raise HTTPException(422, "You must accept the community guidelines to sign up.")
+    if not body.age_confirmed_18_plus:
+        raise HTTPException(422, "You must confirm you are 18 or older to sign up.")
     await _validate_new_password(body.password)
 
     password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
@@ -108,13 +117,15 @@ async def signup(request: Request, body: SignupRequest, response: Response):
         try:
             row = await conn.fetchrow(
                 """
-                INSERT INTO users (email, password_hash, approved, discoverable_for_challenges)
-                VALUES ($1, $2, $3, $4) RETURNING id, email, approved, role
+                INSERT INTO users (email, password_hash, approved, discoverable_for_challenges,
+                                    guidelines_accepted_at, age_confirmed_18_plus)
+                VALUES ($1, $2, $3, $4, now(), $5) RETURNING id, email, approved, role
                 """,
                 body.email.lower(),
                 password_hash,
                 approved,
                 body.discoverable_for_challenges,
+                body.age_confirmed_18_plus,
             )
         except asyncpg.UniqueViolationError:
             raise HTTPException(409, "An account with that email already exists.")
@@ -246,7 +257,8 @@ async def me(request: Request):
     user = await verify_bearer_token(request)
     async with service_conn() as conn:
         row = await conn.fetchrow(
-            "SELECT default_ticker, display_name, experience_level, role FROM users WHERE id = $1::uuid", user["id"]
+            "SELECT default_ticker, display_name, experience_level, role, portfolio_sharing_enabled "
+            "FROM users WHERE id = $1::uuid", user["id"]
         )
     async with user_conn(user["id"]) as conn:
         theme_row = await conn.fetchrow(
@@ -260,6 +272,7 @@ async def me(request: Request):
         "display_name": row["display_name"] if row else None,
         "experience_level": row["experience_level"] if row else None,
         "role": row["role"] if row else user.get("role"),
+        "portfolio_sharing_enabled": bool(row["portfolio_sharing_enabled"]) if row else False,
         "theme_accent_color": theme_override,
         "effective_theme_accent_color": effective_theme,
         "effective_theme_accent_soft": THEME_ACCENT_PALETTE.get(effective_theme, THEME_ACCENT_PALETTE[DEFAULT_THEME_ACCENT_DEFAULT]),
@@ -316,6 +329,22 @@ async def set_default_ticker(request: Request, body: DefaultTickerUpdate):
     async with service_conn() as conn:
         await conn.execute("UPDATE users SET default_ticker = $2 WHERE id = $1::uuid", user["id"], ticker)
     return {"default_ticker": ticker}
+
+
+class PortfolioSharingUpdate(BaseModel):
+    enabled: bool
+
+
+@router.put("/me/portfolio-sharing")
+async def set_portfolio_sharing(request: Request, body: PortfolioSharingUpdate):
+    """SAF-6: opt-in, off by default. When on, the author's community
+    profile (GET /api/v1/community/authors/{id}) shows a percentage-only
+    summary -- top holdings by weight, total return % -- never dollar
+    amounts."""
+    user = await verify_bearer_token(request)
+    async with service_conn() as conn:
+        await conn.execute("UPDATE users SET portfolio_sharing_enabled = $2 WHERE id = $1::uuid", user["id"], body.enabled)
+    return {"portfolio_sharing_enabled": body.enabled}
 
 
 class DisplayNameUpdate(BaseModel):

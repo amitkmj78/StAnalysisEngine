@@ -9,6 +9,7 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Container from "@/components/ui/Container";
+import DisclosureBanner from "@/components/DisclosureBanner";
 
 function fmtPct(v: number | null): string {
   if (v === null || v === undefined) return "—";
@@ -98,6 +99,9 @@ export default function SocialFeedPage() {
         Posts, chart snapshots and ideas from people, tickers and topics you follow -- newest first. Follow authors
         from their profile or the <Link href="/community/leaderboard" className="underline">leaderboard</Link>.
       </p>
+      <div className="mt-2">
+        <DisclosureBanner />
+      </div>
 
       <Card padding="p-4" className="mt-4 flex flex-col gap-2 sm:flex-row">
         <input value={followTickerInput} onChange={(e) => setFollowTickerInput(e.target.value)} placeholder="Follow a ticker (e.g. AAPL)" className="flex-1 rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm" />

@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import {
-  ApiError, acceptComment, createPost, createPostComment, getCurrentUser, getPostComments, getPosts, unacceptComment,
+  ApiError, acceptComment, blockUser, createPost, createPostComment, getCurrentUser, getPostComments, getPosts,
+  muteContent, reportContent, unacceptComment,
 } from "@/lib/api";
 import type { Post, PostComment } from "@/lib/types";
+import DisclosureBanner from "@/components/DisclosureBanner";
 
 /** SOC-3: every ticker page shows community discussion next to the
  * model's signal and evidence panel -- this IS the social feature's
@@ -25,6 +27,8 @@ export default function CommunityDiscussionPanel({
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [isQuestion, setIsQuestion] = useState(false);
+  const [hasPosition, setHasPosition] = useState<boolean | null>(null);
+  const [isPaidPromotion, setIsPaidPromotion] = useState(false);
   const [posting, setPosting] = useState(false);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [openComments, setOpenComments] = useState<Record<number, PostComment[] | undefined>>({});
@@ -47,19 +51,57 @@ export default function CommunityDiscussionPanel({
   async function handlePost() {
     const text = draft.trim();
     if (!text) return;
+    if (ticker && hasPosition === null) {
+      setError("Say whether you hold this ticker before posting (required -- see the community guidelines).");
+      return;
+    }
     setPosting(true);
     try {
       await createPost({
         body: text, ticker, published_strategy_id: publishedStrategyId,
         post_type: isQuestion ? "question" : "note",
+        has_position: ticker ? (hasPosition ?? undefined) : undefined,
+        is_paid_promotion: isPaidPromotion,
       });
       setDraft("");
       setIsQuestion(false);
+      setHasPosition(null);
+      setIsPaidPromotion(false);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not post.");
     } finally {
       setPosting(false);
+    }
+  }
+
+  async function handleReport(postId: number) {
+    const reason = window.prompt("Why are you reporting this post? (e.g. pump-and-dump, paid promotion, spam, harassment)");
+    if (!reason || !reason.trim()) return;
+    try {
+      await reportContent("post", postId, reason.trim());
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not submit the report.");
+    }
+  }
+
+  async function handleBlock(authorId: string) {
+    if (!window.confirm("Block this user? You won't see their posts anymore, and they won't be able to message you.")) return;
+    try {
+      await blockUser(authorId);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not block this user.");
+    }
+  }
+
+  async function handleMuteTicker(t: string) {
+    try {
+      await muteContent("ticker", t);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not mute this ticker.");
     }
   }
 
@@ -97,6 +139,9 @@ export default function CommunityDiscussionPanel({
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
       <h3 className="font-semibold text-slate-900 dark:text-slate-50">Community Discussion</h3>
+      <div className="mt-1">
+        <DisclosureBanner />
+      </div>
       {error && <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       <div className="mt-3 flex gap-2">
@@ -118,6 +163,23 @@ export default function CommunityDiscussionPanel({
         <input type="checkbox" checked={isQuestion} onChange={(e) => setIsQuestion(e.target.checked)} />
         This is a question -- you&apos;ll be able to mark the best reply as the accepted answer.
       </label>
+      {ticker && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <span>
+            Do you hold {ticker}? (required)
+            <label className="ml-2">
+              <input type="radio" name="has-position" checked={hasPosition === true} onChange={() => setHasPosition(true)} /> Yes
+            </label>
+            <label className="ml-2">
+              <input type="radio" name="has-position" checked={hasPosition === false} onChange={() => setHasPosition(false)} /> No
+            </label>
+          </span>
+          <label className="flex items-center gap-1.5">
+            <input type="checkbox" checked={isPaidPromotion} onChange={(e) => setIsPaidPromotion(e.target.checked)} />
+            This is a paid promotion
+          </label>
+        </div>
+      )}
 
       {posts === null && !error && <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
       <div className="mt-4 flex flex-col gap-3">
@@ -137,10 +199,29 @@ export default function CommunityDiscussionPanel({
                 question
               </span>
             )}
+            {p.ticker && p.has_position !== null && (
+              <span className="mt-1 ml-1 inline-block rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                {p.position_verified ? "✓ Verified position" : p.has_position ? "Holds this ticker" : "Does not hold this ticker"}
+              </span>
+            )}
+            {p.is_paid_promotion && (
+              <span className="mt-1 ml-1 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                Paid promotion
+              </span>
+            )}
             <p className="mt-1 text-slate-700 dark:text-slate-200">{p.body}</p>
-            <button onClick={() => toggleComments(p.id)} className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline">
-              {openComments[p.id] ? "Hide replies" : "Replies"}
-            </button>
+            <div className="mt-2 flex flex-wrap gap-3 text-xs font-medium text-slate-500 dark:text-slate-400">
+              <button onClick={() => toggleComments(p.id)} className="hover:underline">
+                {openComments[p.id] ? "Hide replies" : "Replies"}
+              </button>
+              {p.author_user_id !== myUserId && (
+                <>
+                  <button onClick={() => handleReport(p.id)} className="hover:text-red-700 hover:underline">Report</button>
+                  <button onClick={() => handleBlock(p.author_user_id)} className="hover:text-red-700 hover:underline">Block author</button>
+                </>
+              )}
+              {p.ticker && <button onClick={() => handleMuteTicker(p.ticker as string)} className="hover:underline">Mute {p.ticker}</button>}
+            </div>
             {openComments[p.id] && (
               <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 dark:border-slate-800 pt-2">
                 {openComments[p.id]!.map((c) => (

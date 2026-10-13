@@ -15,6 +15,7 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Container from "@/components/ui/Container";
+import DisclosureBanner from "@/components/DisclosureBanner";
 
 function fmtPct(v: number | null): string {
   if (v === null) return "—";
@@ -124,6 +125,9 @@ export default function CommunityFeedPage() {
         </Link>
         .
       </p>
+      <div className="mt-2">
+        <DisclosureBanner />
+      </div>
 
       {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 

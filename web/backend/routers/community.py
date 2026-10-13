@@ -173,6 +173,41 @@ async def get_author_profile(author_id: str):
     summary = board[0] if board else {
         "num_ideas": len(scored), "avg_excess_vs_spy_pct": None, "hit_rate_pct": None, "score": None, "worst_idea": None,
     }
+
+    # SAF-6: opt-in only, percentages never dollar amounts. NULL (not
+    # built/off) unless the author has explicitly turned this on.
+    portfolio_summary = None
+    if author_id != "model":
+        async with service_conn() as conn:
+            sharing_enabled = await conn.fetchval(
+                "SELECT portfolio_sharing_enabled FROM users WHERE id = $1::uuid", author_id
+            )
+            if sharing_enabled:
+                position_rows = await conn.fetch(
+                    """
+                    SELECT pp.ticker, pp.shares, pp.current_price, pp.unrealized_pnl_pct
+                    FROM portfolio_positions pp JOIN portfolios p ON p.id = pp.portfolio_id
+                    WHERE p.user_id = $1::uuid AND p.is_active AND pp.shares > 0 AND pp.current_price IS NOT NULL
+                    """,
+                    author_id,
+                )
+        if sharing_enabled and position_rows:
+            valued = [
+                {"ticker": r["ticker"], "value": float(r["shares"]) * float(r["current_price"]),
+                 "unrealized_pnl_pct": r["unrealized_pnl_pct"]}
+                for r in position_rows
+            ]
+            total_value = sum(p["value"] for p in valued)
+            if total_value > 0:
+                weighted_return = sum(
+                    p["value"] * p["unrealized_pnl_pct"] for p in valued if p["unrealized_pnl_pct"] is not None
+                ) / total_value
+                top_holdings = sorted(
+                    [{"ticker": p["ticker"], "weight_pct": round(100 * p["value"] / total_value, 1)} for p in valued],
+                    key=lambda h: h["weight_pct"], reverse=True,
+                )[:10]
+                portfolio_summary = {"top_holdings": top_holdings, "total_return_pct": round(weighted_return, 2)}
+
     return {
         "author_id": author_id,
         "display_name": display_name or MODEL_MEMBER_LABEL,
@@ -180,6 +215,7 @@ async def get_author_profile(author_id: str):
         "num_ideas_scored": len(scored),
         **{k: summary[k] for k in ("avg_excess_vs_spy_pct", "hit_rate_pct", "score", "worst_idea")},
         "ideas": ideas,
+        "portfolio_summary": portfolio_summary,
     }
 
 

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import { ApiError, deleteCommunityIdea, getReportedCommunityIdeas, restoreCommunityIdea } from "@/lib/api";
 import type { CommunityIdea } from "@/lib/types";
+import ContentReportsPanel from "@/components/admin/ContentReportsPanel";
+import FlaggedContentPanel from "@/components/admin/FlaggedContentPanel";
 
 export default function CommunityReportsAdminPage() {
   const [ideas, setIdeas] = useState<CommunityIdea[] | null>(null);
@@ -93,6 +95,14 @@ export default function CommunityReportsAdminPage() {
           {ideas.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No reported ideas.</p>}
         </div>
       )}
+
+      <div className="mt-8">
+        <ContentReportsPanel />
+      </div>
+
+      <div className="mt-8">
+        <FlaggedContentPanel />
+      </div>
     </div>
   );
 }

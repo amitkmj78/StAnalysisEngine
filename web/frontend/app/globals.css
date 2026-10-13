@@ -81,11 +81,20 @@ body {
 .text-strip-meta { font-size: 0.6875rem; } /* 11px -- secondary/meta strip text */
 
 @layer components {
+  /* Previously had no dark: variants at all -- text-slate-900 with no
+     explicit background meant near-black text that went invisible the
+     moment a dark surface showed through from a parent. This is the bug
+     the user reported on /portfolio (and everywhere else .input is used --
+     21 files). */
   .input {
-    @apply rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none;
+    @apply rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-50 focus:border-slate-500 dark:focus:border-slate-400 focus:outline-none;
   }
+  /* Inverted in dark mode (light button) rather than left as a near-black
+     button on a near-black page -- unlike the many one-off bg-slate-900
+     buttons already judged safe in context elsewhere, this utility class is
+     used blindly across 19 files and needs to stay legible unconditionally. */
   .btn-primary {
-    @apply rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50;
+    @apply rounded-md bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 disabled:opacity-50;
   }
 }
 

@@ -16,6 +16,8 @@ export async function signup(formData: FormData) {
   // Unchecked checkboxes don't appear in FormData at all -- their absence
   // (not "false") means opted out.
   const discoverableForChallenges = formData.get("discoverable_for_challenges") !== null;
+  const ageConfirmed18Plus = formData.get("age_confirmed_18_plus") !== null;
+  const guidelinesAccepted = formData.get("guidelines_accepted") !== null;
 
   // See app/login/actions.ts — this fetch is server-to-server, so the
   // real visitor IP has to be forwarded explicitly from the incoming
@@ -29,7 +31,12 @@ export async function signup(formData: FormData) {
       "Content-Type": "application/json",
       ...(forwardedFor ? { "X-Forwarded-For": forwardedFor } : {}),
     },
-    body: JSON.stringify({ email, password, discoverable_for_challenges: discoverableForChallenges }),
+    body: JSON.stringify({
+      email, password,
+      discoverable_for_challenges: discoverableForChallenges,
+      age_confirmed_18_plus: ageConfirmed18Plus,
+      guidelines_accepted: guidelinesAccepted,
+    }),
   });
 
   if (!res.ok) {

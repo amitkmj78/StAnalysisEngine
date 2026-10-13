@@ -27,6 +27,7 @@ from services.signal_publication_service import DEFAULT_LOOKBACK_DAYS, DEFAULT_U
 from services.stock_finder_service import SP500_UNIVERSE_NAME, get_stock_finder_table
 from services.stock_score_capture_service import compute_and_persist_daily_scores
 from web.backend.admin import ADMIN_EMAIL
+from services.community_safety_service import run_community_safety_scan
 from services.strategy_forward_record import evaluate_due_forward_records
 from web.backend.community_ideas_eval import evaluate_due_community_ideas
 from web.backend.community_model_author import publish_model_ideas_for_today
@@ -46,6 +47,7 @@ from web.backend.app_settings import (
     MORNING_BRIEF_ENABLED_KEY,
     AGENT_ENABLED_KEY,
     CHALLENGE_NOTIFICATIONS_ENABLED_KEY,
+    COMMUNITY_SAFETY_SCAN_ENABLED_KEY,
     PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY,
     PAPER_TRADING_ENABLED_KEY,
     PIT_ANALYST_RATING_CAPTURE_ENABLED_KEY,
@@ -349,6 +351,20 @@ async def _evaluate_strategy_forward_records_job() -> None:
     evaluated = await evaluate_due_forward_records()
     if evaluated:
         logger.info("Scheduler: evaluated %d published strategies' forward records", evaluated)
+
+
+async def _community_safety_scan_job() -> None:
+    """SAF-3: mention-spike / duplicate-post detection, held for admin
+    review -- see services/community_safety_service.py."""
+    if not await get_setting_bool(COMMUNITY_SAFETY_SCAN_ENABLED_KEY, default=False):
+        logger.info("Scheduler: community_safety_scan is disabled, skipping this run")
+        return
+    result = await run_community_safety_scan()
+    if result["mention_spikes"] or result["duplicate_posts"]:
+        logger.info(
+            "Scheduler: community safety scan flagged %d mention spikes, %d duplicate posts",
+            result["mention_spikes"], result["duplicate_posts"],
+        )
 
 
 async def _recompute_verified_badges_job() -> None:
@@ -1549,6 +1565,14 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="evaluate_strategy_forward_records",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _community_safety_scan_job,
+        CronTrigger(hour=3, minute=0, timezone="America/New_York"),
+        id="community_safety_scan",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,
