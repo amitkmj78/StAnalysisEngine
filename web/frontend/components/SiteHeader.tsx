@@ -58,6 +58,7 @@ const NAV: NavEntry[] = [
     items: [
       { href: "/community", label: "Idea Feed" },
       { href: "/community/leaderboard", label: "Leaderboard" },
+      { href: "/community/guidelines", label: "Guidelines" },
     ],
   },
   {
