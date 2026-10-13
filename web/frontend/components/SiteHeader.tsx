@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { logout } from "@/app/actions";
+import ThemeColorMenu from "@/components/ThemeColorMenu";
 import { useBeginnerMode } from "@/lib/useBeginnerMode";
 
 // BEG-1: items marked `advanced` are tucked out of the nav for a
@@ -131,7 +132,7 @@ function NavDropdown({ entry, active }: { entry: { label: string; items: NavItem
         aria-haspopup="true"
         aria-expanded={open}
         className={`flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors ${
-          active ? "text-[var(--pf-accent)]" : "text-slate-600 hover:text-slate-900"
+          active ? "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]" : "text-slate-600 hover:text-slate-900"
         }`}
       >
         {entry.label}
@@ -231,7 +232,9 @@ export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin:
                 key={entry.href}
                 href={entry.href}
                 className={`rounded-md px-2 py-1.5 transition-colors ${
-                  isActive(entry) ? "text-[var(--pf-accent)]" : "text-slate-600 hover:text-slate-900"
+                  isActive(entry)
+                    ? "bg-[var(--pf-accent-soft)] text-[var(--pf-accent)]"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 {entry.label}
@@ -242,6 +245,7 @@ export default function SiteHeader({ email, isAdmin }: { email: string; isAdmin:
 
         <div className="flex flex-1 items-center justify-end gap-3 text-sm text-slate-500 sm:flex-none">
           <span className="hidden truncate sm:inline">{email}</span>
+          <ThemeColorMenu />
           <form action={logout}>
             <button type="submit" className="flex-none rounded-md border border-slate-300 px-2.5 py-1 hover:bg-slate-100">
               Sign out
