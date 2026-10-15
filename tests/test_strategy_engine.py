@@ -6,12 +6,14 @@ from services.strategy_engine import (
     ProtectiveExits,
     Rule,
     basket_returns,
+    evaluate_protective_exit,
     feature_frame,
     metrics,
     rule_mask,
     run_backtest,
     run_strategy,
     state_warnings,
+    today_signal,
 )
 
 
@@ -270,3 +272,119 @@ def test_a_zero_threshold_is_still_tested_by_the_sensitivity_check():
     result = sensitivity(fake_run, {"entry[0] close_vs_sma_200_pct >": 0.0})
     assert result["rows"][0]["swing"] and result["rows"][0]["swing"] > 0
     assert -1.0 in seen and 1.0 in seen
+
+
+# ---------------------------------------------------------------- evaluate_protective_exit (STB-6)
+
+def test_evaluate_protective_exit_stop_loss_triggers():
+    result = evaluate_protective_exit(100.0, float("nan"), 100.0, low=85.0, high=100.0, open_=92.0,
+                                      exits=ProtectiveExits(stop_loss_pct=10))
+    assert result == ("stop_loss", 90.0)  # min(open_=92, level=90)
+
+
+def test_evaluate_protective_exit_prefers_the_tighter_of_stop_loss_and_atr_stop():
+    # stop_loss level = 90 (entry 100, 10%); atr_stop level = 95 (entry 100 - 1*5) -- atr_stop is tighter (higher).
+    exits = ProtectiveExits(stop_loss_pct=10, atr_stop_k=1.0)
+    result = evaluate_protective_exit(100.0, atr_entry=5.0, peak=100.0, low=93.0, high=100.0, open_=98.0, exits=exits)
+    assert result == ("atr_stop", 95.0)
+
+
+def test_evaluate_protective_exit_ignores_atr_stop_when_atr_entry_is_nan():
+    exits = ProtectiveExits(stop_loss_pct=10, atr_stop_k=1.0)
+    # atr_stop would be entry - 1*nan -> NaN, must be skipped; low=93 doesn't breach the 90 stop_loss level.
+    result = evaluate_protective_exit(100.0, atr_entry=float("nan"), peak=100.0, low=93.0, high=100.0, open_=98.0, exits=exits)
+    assert result is None
+
+
+def test_evaluate_protective_exit_trailing_stop_triggers():
+    result = evaluate_protective_exit(100.0, float("nan"), peak=120.0, low=105.0, high=115.0, open_=110.0,
+                                      exits=ProtectiveExits(trailing_stop_pct=10))
+    assert result == ("trailing_stop", 108.0)
+
+
+def test_evaluate_protective_exit_take_profit_triggers():
+    result = evaluate_protective_exit(100.0, float("nan"), peak=100.0, low=100.0, high=125.0, open_=105.0,
+                                      exits=ProtectiveExits(take_profit_pct=20))
+    assert result == ("take_profit", 120.0)  # max(open_=105, target=120)
+
+
+def test_evaluate_protective_exit_returns_none_when_nothing_fires():
+    result = evaluate_protective_exit(100.0, float("nan"), peak=100.0, low=99.0, high=101.0, open_=100.0,
+                                      exits=ProtectiveExits(stop_loss_pct=10, take_profit_pct=20))
+    assert result is None
+
+
+# ---------------------------------------------------------------- today_signal (STB-6)
+
+def _last_row_frame(rsi_values, opens=None, highs=None, lows=None, closes=None):
+    """A short feature frame whose LAST row is the one today_signal reads."""
+    return _frame_with_rsi(rsi_values, opens=opens, closes=closes, highs=highs, lows=lows)
+
+
+def test_today_signal_enters_when_flat_and_the_entry_rule_fires_on_the_last_row():
+    frame = _last_row_frame([50, 50, 50, 25])  # last row's RSI is 25
+    entry = [Rule.parse({"field": "rsi_14", "op": "<", "value": 30})]
+    result = today_signal(frame, entry, [], ProtectiveExits(stop_loss_pct=10), held=False)
+    assert result == {"action": "enter", "reason": "entry_rule"}
+
+
+def test_today_signal_holds_when_flat_and_cooldown_is_active_even_if_entry_fires():
+    frame = _last_row_frame([50, 50, 50, 25])
+    entry = [Rule.parse({"field": "rsi_14", "op": "<", "value": 30})]
+    result = today_signal(frame, entry, [], ProtectiveExits(stop_loss_pct=10), held=False, cooldown_active=True)
+    assert result == {"action": "hold", "reason": "cooldown"}
+
+
+def test_today_signal_holds_when_flat_and_the_entry_rule_does_not_fire():
+    frame = _last_row_frame([50, 50, 50, 80])
+    entry = [Rule.parse({"field": "rsi_14", "op": "<", "value": 30})]
+    result = today_signal(frame, entry, [], ProtectiveExits(stop_loss_pct=10), held=False)
+    assert result == {"action": "hold", "reason": None}
+
+
+def test_today_signal_exits_on_a_protective_stop_breached_on_the_last_bar():
+    frame = _last_row_frame([50, 50, 50, 50], opens=[100, 100, 100, 92], lows=[100, 100, 100, 85])
+    result = today_signal(
+        frame, [], [], ProtectiveExits(stop_loss_pct=10),
+        held=True, entry_price=100.0, entry_atr=None, peak=100.0, days_held=3,
+    )
+    assert result == {"action": "exit", "reason": "stop_loss"}
+
+
+def test_today_signal_skips_the_protective_check_on_the_entry_day_itself():
+    # Mirrors _run_ticker's `i > entry_i` guard -- days_held=0 means this
+    # position was just entered, so no protective check runs yet.
+    frame = _last_row_frame([50, 50, 50, 50], opens=[100, 100, 100, 92], lows=[100, 100, 100, 85])
+    result = today_signal(
+        frame, [], [], ProtectiveExits(stop_loss_pct=10),
+        held=True, entry_price=100.0, entry_atr=None, peak=100.0, days_held=0,
+    )
+    assert result == {"action": "hold", "reason": None}
+
+
+def test_today_signal_exits_on_time_stop():
+    frame = _last_row_frame([50, 50, 50, 50])
+    result = today_signal(
+        frame, [], [], ProtectiveExits(time_stop_sessions=3),
+        held=True, entry_price=100.0, peak=100.0, days_held=3,
+    )
+    assert result == {"action": "exit", "reason": "time_stop"}
+
+
+def test_today_signal_exits_on_the_indicator_exit_rule():
+    frame = _last_row_frame([50, 50, 50, 80])
+    exit_ = [Rule.parse({"field": "rsi_14", "op": ">", "value": 70})]
+    result = today_signal(
+        frame, [], exit_, ProtectiveExits(stop_loss_pct=90),  # stop far away, never fires
+        held=True, entry_price=100.0, peak=100.0, days_held=3,
+    )
+    assert result == {"action": "exit", "reason": "indicator_exit"}
+
+
+def test_today_signal_holds_an_open_position_when_nothing_fires():
+    frame = _last_row_frame([50, 50, 50, 50])
+    result = today_signal(
+        frame, [], [], ProtectiveExits(stop_loss_pct=90),
+        held=True, entry_price=100.0, peak=100.0, days_held=3,
+    )
+    assert result == {"action": "hold", "reason": None}

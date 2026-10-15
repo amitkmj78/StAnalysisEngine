@@ -317,3 +317,25 @@ CHALLENGE_NOTIFICATIONS_ENABLED_KEY = "challenge_notifications_enabled"
 # this deploys; an admin opts in deliberately, same posture as
 # PORTFOLIO_DROP_ALERTS_ENABLED_KEY.
 COMMUNITY_SAFETY_SCAN_ENABLED_KEY = "community_safety_scan_enabled"
+# Economic calendar awareness banner (CPI/PPI/GDP/Retail Sales/Jobs Report/
+# FOMC dates). Off by default, same "a deploy must not turn on a new user-
+# visible feature" rationale as every toggle above -- here specifically
+# because it depends on FRED_API_KEY being configured and, for FOMC, on an
+# admin having entered override dates (see services/economic_calendar_
+# service.py's module docstring). This is a calendar of public dates, not
+# a predictive score -- no validation gate like MARKET_REGIME_ENABLED_KEY
+# applies, since there's nothing to backtest.
+ECONOMIC_CALENDAR_ENABLED_KEY = "economic_calendar_enabled"
+# STB-6: global switch for the saved-strategy forward-paper-trading job
+# (services/strategy_forward_paper.py). Defaults OFF so deploying the code
+# never starts submitting orders -- same deliberate-opt-in rationale as
+# PAPER_TRADING_ENABLED_KEY/AGENT_ENABLED_KEY. Unlike the trading agent,
+# per-strategy enablement is SELF-SERVICE (strategy_paper_accounts.enabled,
+# set by the strategy's own owner after linking a key pair and accepting
+# the disclosure) -- no per-strategy admin approval, since these are the
+# user's own fully-inspectable rules, not an opaque company ruleset (see
+# trading_agent.py's compliance_reference gate, deliberately not mirrored).
+STRATEGY_FORWARD_PAPER_ENABLED_KEY = "strategy_forward_paper_enabled"
+# Global emergency stop for every strategy's forward-paper job. Per-
+# strategy kills live on strategy_paper_accounts.kill_engaged.
+STRATEGY_FORWARD_PAPER_KILL_SWITCH_KEY = "strategy_forward_paper_kill_switch"

@@ -178,6 +178,9 @@ export default function SavedStrategiesPage() {
                 <button type="button" onClick={() => handleShare(row.id)} disabled={busy === `share-${row.id}`} className="font-medium text-slate-700 dark:text-slate-200 hover:underline disabled:opacity-50">
                   {shareLinks[row.id] ? "Link created" : "Share (read-only link)"}
                 </button>
+                <Link href={`/strategies/saved/${row.id}/forward-paper`} className="font-medium text-slate-700 dark:text-slate-200 hover:underline">
+                  Forward paper trading
+                </Link>
                 <button type="button" onClick={() => handleDelete(row.id)} className="text-slate-500 dark:text-slate-400 hover:text-red-700">
                   Delete
                 </button>

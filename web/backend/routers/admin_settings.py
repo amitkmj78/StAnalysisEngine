@@ -13,6 +13,9 @@ from web.backend.app_settings import (
     DEFAULT_THEME_ACCENT_DEFAULT,
     DEFAULT_THEME_ACCENT_KEY,
     EARNINGS_RELEASE_SUMMARIES_ENABLED_KEY,
+    ECONOMIC_CALENDAR_ENABLED_KEY,
+    STRATEGY_FORWARD_PAPER_ENABLED_KEY,
+    STRATEGY_FORWARD_PAPER_KILL_SWITCH_KEY,
     EVENING_RECAP_ENABLED_KEY,
     FILING_SUMMARIES_ENABLED_KEY,
     NEWS_8K_ENABLED_KEY,
@@ -130,6 +133,9 @@ async def get_settings():
         ),
         "theme_accent_palette": sorted(THEME_ACCENT_PALETTE),
         "community_safety_scan_enabled": await get_setting_bool(COMMUNITY_SAFETY_SCAN_ENABLED_KEY, default=False),
+        "economic_calendar_enabled": await get_setting_bool(ECONOMIC_CALENDAR_ENABLED_KEY, default=False),
+        "strategy_forward_paper_enabled": await get_setting_bool(STRATEGY_FORWARD_PAPER_ENABLED_KEY, default=False),
+        "strategy_forward_paper_kill_switch": await get_setting_bool(STRATEGY_FORWARD_PAPER_KILL_SWITCH_KEY, default=False),
     }
 
 
@@ -473,6 +479,56 @@ async def enable_community_safety_scan():
 async def disable_community_safety_scan():
     await set_setting_bool(COMMUNITY_SAFETY_SCAN_ENABLED_KEY, False)
     return {"community_safety_scan_enabled": False}
+
+
+@router.post("/economic-calendar/enable")
+async def enable_economic_calendar():
+    """Turns on the economic-calendar awareness banner (GET /api/v1/market/
+    economic-calendar) for every logged-in user -- see ECONOMIC_CALENDAR_
+    ENABLED_KEY's docstring in app_settings.py. Enabling this before
+    FRED_API_KEY is configured (and, for FOMC, before any override dates
+    are entered) just means the banner has nothing to show, not an error."""
+    await set_setting_bool(ECONOMIC_CALENDAR_ENABLED_KEY, True)
+    return {"economic_calendar_enabled": True}
+
+
+@router.post("/economic-calendar/disable")
+async def disable_economic_calendar():
+    await set_setting_bool(ECONOMIC_CALENDAR_ENABLED_KEY, False)
+    return {"economic_calendar_enabled": False}
+
+
+@router.post("/strategy-forward-paper/enable")
+async def enable_strategy_forward_paper():
+    """STB-6: turns on the daily scheduler job that runs every enabled
+    saved strategy forward in its own real (paper) brokered account -- see
+    STRATEGY_FORWARD_PAPER_ENABLED_KEY's docstring in app_settings.py.
+    Per-strategy enablement stays self-service after this (the strategy's
+    own owner links a key pair and accepts the disclosure); this flag only
+    gates the job existing at all."""
+    await set_setting_bool(STRATEGY_FORWARD_PAPER_ENABLED_KEY, True)
+    return {"strategy_forward_paper_enabled": True}
+
+
+@router.post("/strategy-forward-paper/disable")
+async def disable_strategy_forward_paper():
+    await set_setting_bool(STRATEGY_FORWARD_PAPER_ENABLED_KEY, False)
+    return {"strategy_forward_paper_enabled": False}
+
+
+@router.post("/strategy-forward-paper-kill-switch/enable")
+async def enable_strategy_forward_paper_kill_switch():
+    """Blocks every strategy's forward-paper job from submitting a new
+    order on its very next run -- a global emergency stop, independent of
+    any individual strategy's own kill switch."""
+    await set_setting_bool(STRATEGY_FORWARD_PAPER_KILL_SWITCH_KEY, True)
+    return {"strategy_forward_paper_kill_switch": True}
+
+
+@router.post("/strategy-forward-paper-kill-switch/disable")
+async def disable_strategy_forward_paper_kill_switch():
+    await set_setting_bool(STRATEGY_FORWARD_PAPER_KILL_SWITCH_KEY, False)
+    return {"strategy_forward_paper_kill_switch": False}
 
 
 @router.post("/theme-accent-color")

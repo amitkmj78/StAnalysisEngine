@@ -21,6 +21,7 @@ from web.backend.scheduler import start_scheduler, stop_scheduler
 from web.backend.routers import (
     admin_activity,
     admin_compliance,
+    admin_economic_calendar,
     admin_integrations,
     admin_settings,
     admin_sql,
@@ -38,6 +39,7 @@ from web.backend.routers import (
     db_backup,
     earnings,
     earnings_releases,
+    economic_calendar,
     entry_strategy,
     filings,
     index_fund,
@@ -63,6 +65,7 @@ from web.backend.routers import (
     stock_scores,
     strategies,
     strategy_builder,
+    strategy_forward_paper,
     stress_test,
     subscriptions,
     trade_impact,
@@ -110,6 +113,7 @@ app.include_router(stock_finder.router)
 app.include_router(index_fund.router)
 app.include_router(market_news.router)
 app.include_router(market_regime.router)
+app.include_router(economic_calendar.router)
 app.include_router(entry_strategy.router)
 app.include_router(monthly_plan.router)
 app.include_router(strategies.router)
@@ -126,6 +130,7 @@ app.include_router(chat.router)
 app.include_router(trade_impact.router)
 app.include_router(strategy_builder.router)
 app.include_router(strategy_builder.shared_router)
+app.include_router(strategy_forward_paper.router)
 app.include_router(chart_layouts.router)
 app.include_router(prediction_record.router)
 app.include_router(push_notifications.router)
@@ -141,6 +146,7 @@ app.include_router(momentum.router)
 app.include_router(admin_users.router)
 app.include_router(admin_activity.router)
 app.include_router(admin_compliance.router)
+app.include_router(admin_economic_calendar.router)
 app.include_router(admin_settings.router)
 app.include_router(admin_sql.router)
 app.include_router(admin_integrations.router)

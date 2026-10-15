@@ -29,6 +29,7 @@ from services.stock_score_capture_service import compute_and_persist_daily_score
 from web.backend.admin import ADMIN_EMAIL
 from services.community_safety_service import run_community_safety_scan
 from services.strategy_forward_record import evaluate_due_forward_records
+from services.strategy_forward_paper import capture_equity_for_strategy_account, evaluate_due_forward_paper_accounts
 from web.backend.community_ideas_eval import evaluate_due_community_ideas
 from web.backend.community_model_author import publish_model_ideas_for_today
 from web.backend.social_badges import recompute_mentor_badges, recompute_verified_badges
@@ -59,6 +60,7 @@ from web.backend.app_settings import (
     SIGNAL_CHANGE_ALERTS_ENABLED_KEY,
     STOCK_FINDER_CACHE_PREWARM_ENABLED_KEY,
     STOCK_SCORE_COMPUTE_ENABLED_KEY,
+    STRATEGY_FORWARD_PAPER_ENABLED_KEY,
     VERIFY_PREDICTIONS_ENABLED_KEY,
     get_setting_bool,
 )
@@ -547,6 +549,24 @@ async def _run_trading_agents_job() -> None:
             logger.warning("Scheduler: trading agent failed for user %s: %s", row["user_id"], e)
 
 
+# 15:40 ET: just before the trading agent's own 15:45 slot, so the two
+# jobs don't hit the same price caches at the identical instant.
+STRATEGY_FORWARD_PAPER_HOUR_ET = 15
+STRATEGY_FORWARD_PAPER_MINUTE_ET = 40
+
+
+async def _run_strategy_forward_paper_job() -> None:
+    """STB-6: runs every self-service-enabled saved strategy forward in
+    its own real (paper) brokered account. Off by default (STRATEGY_
+    FORWARD_PAPER_ENABLED_KEY). Per-strategy failures are isolated inside
+    evaluate_due_forward_paper_accounts, same as the trading agent's job."""
+    if not await get_setting_bool(STRATEGY_FORWARD_PAPER_ENABLED_KEY, default=False):
+        logger.info("Scheduler: strategy forward-paper trading is disabled, skipping this run")
+        return
+    evaluated = await evaluate_due_forward_paper_accounts()
+    logger.info("Scheduler: strategy forward-paper trading evaluated %d account(s)", evaluated)
+
+
 # After the 16:20 ET equity capture, so today's snapshots feed the ranks.
 CHALLENGE_NOTIFICATIONS_HOUR_ET = 16
 CHALLENGE_NOTIFICATIONS_MINUTE_ET = 40
@@ -594,6 +614,35 @@ async def _capture_paper_account_equity_job() -> None:
             logger.warning("Scheduler: paper_account_equity_capture failed for account %s: %s", row["id"], e)
     if captured:
         logger.info("Scheduler: captured %d paper-account equity snapshot(s)", captured)
+
+
+# After the 16:20 ET portfolio equity capture, same post-close spacing
+# convention as every other capture job scheduled here.
+STRATEGY_PAPER_EQUITY_CAPTURE_HOUR_ET = 16
+STRATEGY_PAPER_EQUITY_CAPTURE_MINUTE_ET = 25
+
+
+async def _capture_strategy_paper_equity_job() -> None:
+    """STB-6: one equity snapshot per enabled strategy-paper account per
+    day, feeding its live track record -- same shape as
+    _capture_paper_account_equity_job. Gated on the same flag as the
+    order-submission job (no point capturing equity for a feature that's
+    off), unlike PAPER_ACCOUNT_EQUITY_CAPTURE_ENABLED_KEY's separate flag,
+    since a strategy's equity capture isn't a distinct feature here --
+    it's this feature's own track-record data, not optional."""
+    if not await get_setting_bool(STRATEGY_FORWARD_PAPER_ENABLED_KEY, default=False):
+        return
+    async with service_conn() as conn:
+        rows = await conn.fetch("SELECT * FROM strategy_paper_accounts WHERE status = 'active'")
+    captured = 0
+    for row in rows:
+        try:
+            if await capture_equity_for_strategy_account(dict(row)):
+                captured += 1
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Scheduler: strategy_paper_equity_capture failed for account %s: %s", row["id"], e)
+    if captured:
+        logger.info("Scheduler: captured %d strategy-paper equity snapshot(s)", captured)
 
 
 async def _check_basket_rebalances_monthly_job() -> None:
@@ -1471,6 +1520,17 @@ def start_scheduler() -> AsyncIOScheduler:
         misfire_grace_time=3600,
     )
     _scheduler.add_job(
+        _run_strategy_forward_paper_job,
+        CronTrigger(
+            hour=STRATEGY_FORWARD_PAPER_HOUR_ET, minute=STRATEGY_FORWARD_PAPER_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="run_strategy_forward_paper",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=600,
+    )
+    _scheduler.add_job(
         _run_trading_agents_job,
         CronTrigger(
             hour=TRADING_AGENT_HOUR_ET, minute=TRADING_AGENT_MINUTE_ET,
@@ -1488,6 +1548,17 @@ def start_scheduler() -> AsyncIOScheduler:
             day_of_week="mon-fri", timezone="America/New_York",
         ),
         id="capture_paper_account_equity",
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+    _scheduler.add_job(
+        _capture_strategy_paper_equity_job,
+        CronTrigger(
+            hour=STRATEGY_PAPER_EQUITY_CAPTURE_HOUR_ET, minute=STRATEGY_PAPER_EQUITY_CAPTURE_MINUTE_ET,
+            day_of_week="mon-fri", timezone="America/New_York",
+        ),
+        id="capture_strategy_paper_equity",
         coalesce=True,
         max_instances=1,
         misfire_grace_time=3600,

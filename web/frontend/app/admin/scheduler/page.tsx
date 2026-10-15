@@ -3,12 +3,14 @@ import { redirect } from "next/navigation";
 import AiReviewerControls from "@/components/admin/AiReviewerControls";
 import BasketRebalanceControls from "@/components/admin/BasketRebalanceControls";
 import DbBackupControls from "@/components/admin/DbBackupControls";
+import EconomicCalendarControls from "@/components/admin/EconomicCalendarControls";
 import HorizonSubscriptionControls from "@/components/admin/HorizonSubscriptionControls";
 import PitPriceControls from "@/components/admin/PitPriceControls";
 import PortfolioDropAlertsControls from "@/components/admin/PortfolioDropAlertsControls";
 import PublishSignalsControls from "@/components/admin/PublishSignalsControls";
 import SchedulerControls from "@/components/admin/SchedulerControls";
 import StockScoreComputeControls from "@/components/admin/StockScoreComputeControls";
+import StrategyForwardPaperControls from "@/components/admin/StrategyForwardPaperControls";
 import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
 
@@ -35,6 +37,8 @@ export default async function AdminSchedulerPage() {
         <HorizonSubscriptionControls />
         <PitPriceControls />
         <PortfolioDropAlertsControls />
+        <EconomicCalendarControls />
+        <StrategyForwardPaperControls />
         <BasketRebalanceControls />
         <DbBackupControls />
       </div>

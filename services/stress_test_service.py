@@ -109,6 +109,42 @@ HISTORICAL_REPLAYS: dict[str, dict] = {
             "for each ticker, not a model."
         ),
     },
+    # Single-event replays, distinct in kind from the crisis-arc windows above:
+    # a short window around one scheduled macro data release, for "what would a
+    # surprise like the last one do to my actual holdings" rather than a full
+    # crisis. Same realized-history convention -- real dated market reactions,
+    # not a model of future releases (see the new economic-calendar banner for
+    # the forward-looking, no-prediction half of this: known upcoming release
+    # dates, not what might happen on them).
+    "2022_cpi_shock": {
+        "label": "Sept 2022 CPI Shock",
+        "start": "2022-09-12",
+        "end": "2022-09-13",
+        "method": (
+            "Historical replay: each holding's own actual total return from "
+            "2022-09-12 (the day before August CPI was reported) through "
+            "2022-09-13 (the report day), applied to its current market value. "
+            "The S&P 500 fell 4.32% that single day -- its steepest one-day drop "
+            "since June 2020 -- after August CPI came in hotter than expected "
+            "(8.3% YoY vs. ~8.1% expected). This is realized history for each "
+            "ticker, not a model."
+        ),
+    },
+    "2024_jobs_report_shock": {
+        "label": "Aug 2024 Jobs-Report Selloff",
+        "start": "2024-08-01",
+        "end": "2024-08-05",
+        "method": (
+            "Historical replay: each holding's own actual total return from "
+            "2024-08-01 (the day before a weaker-than-expected July jobs report) "
+            "through 2024-08-05 (the following Monday's global selloff), applied "
+            "to its current market value. The S&P 500 fell about 3% on Aug 5 -- "
+            "its worst day since 2022 -- after the jobs report stoked recession "
+            "fears; a sharpening yen and an unwind of crowded AI-trade positions "
+            "also contributed, so this window reflects more than the jobs report "
+            "alone. This is realized history for each ticker, not a model."
+        ),
+    },
 }
 
 

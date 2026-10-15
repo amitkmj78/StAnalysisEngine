@@ -5,6 +5,7 @@ import "./globals.css";
 
 import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
+import EconomicCalendarBanner from "@/components/EconomicCalendarBanner";
 import RegimeBanner from "@/components/RegimeBanner";
 import SiteHeader from "@/components/SiteHeader";
 import UnifiedMarketTicker from "@/components/UnifiedMarketTicker";
@@ -45,17 +46,20 @@ export default async function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} ${plexSans.variable} h-full antialiased`}
     >
-      {/* Resolves "system" to an explicit light/dark on <html data-theme>
-          before first paint, so there's no flash of the wrong theme -- the
-          toggle itself lives in lib/theme.ts + components/ThemeColorMenu.tsx. */}
-      <Script id="theme-bootstrap" strategy="beforeInteractive">
-        {`(function(){try{var m=localStorage.getItem("stanalysis-theme-mode");var d=m==="dark"||((!m||m==="system")&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";}catch(e){}})();`}
-      </Script>
       {/* Browser extensions such as Grammarly add attributes to body before React loads; ignore just those. */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        {/* Resolves "system" to an explicit light/dark on <html data-theme>
+            before first paint, so there's no flash of the wrong theme -- the
+            toggle itself lives in lib/theme.ts + components/ThemeColorMenu.tsx.
+            Placed as the first child of <body>, matching next/script's
+            documented beforeInteractive pattern (not a sibling before it). */}
+        <Script id="theme-bootstrap" strategy="beforeInteractive">
+          {`(function(){try{var m=localStorage.getItem("stanalysis-theme-mode");var d=m==="dark"||((!m||m==="system")&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";}catch(e){}})();`}
+        </Script>
         {user && <SiteHeader email={user.email} isAdmin={isAdmin(user.email, user.role)} />}
         {user && <UnifiedMarketTicker />}
         {user && <RegimeBanner />}
+        {user && <EconomicCalendarBanner />}
         <main className="flex-1">{children}</main>
       </body>
     </html>

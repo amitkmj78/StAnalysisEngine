@@ -1314,6 +1314,78 @@ export interface PaperAccount {
   created_at: string;
 }
 
+// STB-6: a saved strategy's own real (never live) Alpaca paper account,
+// separate from PaperAccount above -- that one is per user+portfolio,
+// this one belongs to exactly one saved strategy.
+export interface StrategyPaperAccount {
+  id: number;
+  saved_strategy_id: number;
+  api_key_id: string;
+  alpaca_account_id: string | null;
+  account_number: string | null;
+  status: "active" | "invalid_key" | "disabled";
+  enabled: boolean;
+  kill_engaged: boolean;
+  disclosure_accepted_at: string | null;
+  last_run_at: string | null;
+  last_run_status: string | null;
+  created_at: string;
+}
+
+export interface StrategyPaperPosition {
+  ticker: string;
+  qty: number;
+  entry_price: number | null;
+  entry_atr: number | null;
+  peak_price: number | null;
+  entry_date: string | null;
+  days_held: number;
+  cooldown_until_date: string | null;
+}
+
+export interface StrategyPaperOrderEvent {
+  id: number;
+  event_type: string;
+  ticker: string | null;
+  side: string | null;
+  qty: number | null;
+  est_price: number | null;
+  est_value: number | null;
+  reason: string;
+  alpaca_order_id: string | null;
+  client_order_id: string | null;
+  created_at: string;
+}
+
+export interface StrategyPaperRun {
+  id: number;
+  status: "started" | "skipped" | "failed" | "completed";
+  equity: number | null;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface StrategyForwardPaperStatus {
+  account: StrategyPaperAccount;
+  positions: StrategyPaperPosition[];
+  journal: StrategyPaperOrderEvent[];
+  runs: StrategyPaperRun[];
+}
+
+export interface StrategyTrackRecord {
+  available: boolean;
+  reason?: string;
+  linked_at?: string;
+  return_pct?: number | null;
+  max_drawdown_pct?: number | null;
+  annualized_volatility_pct?: number | null;
+  sharpe?: number | null;
+  sortino?: number | null;
+  calmar?: number | null;
+  days_of_data?: number;
+  equity_series?: { date: string; equity: number }[];
+}
+
 export interface PaperClock {
   is_open: boolean;
   next_open: string;
@@ -1505,6 +1577,33 @@ export interface MarketRegimeResponse {
   takeaways?: string[];
   disclosure?: string;
   methodology?: string[];
+}
+
+export type EconomicEventType = "CPI" | "PPI" | "GDP" | "RETAIL_SALES" | "JOBS_REPORT" | "FOMC";
+
+export interface EconomicEvent {
+  event_type: EconomicEventType;
+  title: string;
+  event_date: string;
+  days_until: number;
+  source: "fred" | "admin";
+  note: string | null;
+}
+
+export interface EconomicCalendarResponse {
+  available: boolean;
+  reason?: string;
+  upcoming?: EconomicEvent[];
+  disclosure?: string;
+}
+
+export interface EconomicEventOverride {
+  id: string;
+  event_type: EconomicEventType;
+  event_date: string;
+  title: string;
+  note: string | null;
+  created_at: string;
 }
 
 export interface RegimeReading {
@@ -2052,6 +2151,9 @@ export interface AdminSettings {
   default_theme_accent_color: string;
   theme_accent_palette: string[];
   community_safety_scan_enabled: boolean;
+  economic_calendar_enabled: boolean;
+  strategy_forward_paper_enabled: boolean;
+  strategy_forward_paper_kill_switch: boolean;
 }
 
 export interface BackupRun {

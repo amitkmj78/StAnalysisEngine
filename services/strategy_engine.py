@@ -240,6 +240,93 @@ class TickerRun:
     churn_events: int = 0
 
 
+def evaluate_protective_exit(
+    entry_price: float, atr_entry: float, peak: float,
+    low: float, high: float, open_: float, exits: ProtectiveExits,
+) -> Optional[tuple[str, float]]:
+    """Pulled out of _run_ticker's per-bar loop (STB-6) so the exact same
+    stop/trailing-stop/ATR-stop/take-profit math backs both the historical
+    backtest and services/strategy_forward_paper.py's daily live decision
+    (today_signal below) -- never a second, drifting implementation.
+    Identical to _run_ticker's prior inline logic. `atr_entry` may be NaN
+    (no ATR available at entry); pass float("nan") rather than None.
+    Returns (reason, fill_price) or None if nothing fired."""
+    stops = []
+    if exits.stop_loss_pct is not None:
+        stops.append((entry_price * (1 - exits.stop_loss_pct / 100), "stop_loss"))
+    if exits.atr_stop_k is not None and not np.isnan(atr_entry):
+        stops.append((entry_price - exits.atr_stop_k * atr_entry, "atr_stop"))
+    if stops:
+        level, name = max(stops)  # the tighter stop is the higher level
+        if low <= level:
+            return name, min(open_, level)
+    if exits.trailing_stop_pct is not None:
+        trail = peak * (1 - exits.trailing_stop_pct / 100)
+        if low <= trail:
+            return "trailing_stop", min(open_, trail)
+    if exits.take_profit_pct is not None:
+        target = entry_price * (1 + exits.take_profit_pct / 100)
+        if high >= target:
+            return "take_profit", max(open_, target)
+    return None
+
+
+def today_signal(
+    frame: pd.DataFrame,
+    entry: list[Rule],
+    exit_: list[Rule],
+    exits: ProtectiveExits,
+    *,
+    held: bool,
+    entry_price: Optional[float] = None,
+    entry_atr: Optional[float] = None,
+    peak: Optional[float] = None,
+    days_held: int = 0,
+    cooldown_active: bool = False,
+) -> dict:
+    """STB-6: what should happen at the next session given `frame`'s last
+    (most recently closed) row, reusing the exact rule-evaluation
+    (_all/_any) and protective-exit math (evaluate_protective_exit above)
+    _run_ticker already applies -- never a second, drifting
+    implementation. `frame` must already be feature_frame()'s output.
+
+    One deliberate, disclosed simplification: an unattended live job
+    submits its order in THAT SAME RUN rather than waiting for the exact
+    next session's open the backtest models -- the same approximation
+    services/agent/runner.py already makes, submitting near the close
+    rather than exactly at the next session's open.
+
+    Returns {"action": "enter"|"exit"|"hold", "reason": str | None}.
+    """
+    if frame.empty:
+        return {"action": "hold", "reason": "no price history"}
+    last = frame.iloc[-1]
+
+    if held:
+        if entry_price is not None and days_held > 0:
+            atr_val = entry_atr if entry_atr is not None else float("nan")
+            result = evaluate_protective_exit(
+                entry_price, atr_val, peak if peak is not None else entry_price,
+                float(last["low"]), float(last["high"]), float(last["open"]), exits,
+            )
+            if result is not None:
+                reason, _fill = result
+                return {"action": "exit", "reason": reason}
+        if exits.time_stop_sessions is not None and days_held >= exits.time_stop_sessions:
+            return {"action": "exit", "reason": "time_stop"}
+        if exit_ and bool(_any(frame, exit_)[-1]):
+            return {"action": "exit", "reason": "indicator_exit"}
+        return {"action": "hold", "reason": None}
+
+    if cooldown_active:
+        return {"action": "hold", "reason": "cooldown"}
+    if entry and bool(_all(frame, entry)[-1]):
+        is_member_ok = bool(last["is_member"]) if "is_member" in frame.columns else True
+        if is_member_ok:
+            return {"action": "enter", "reason": "entry_rule"}
+    return {"action": "hold", "reason": None}
+
+
 def _run_ticker(frame: pd.DataFrame, entry: list[Rule], exit_: list[Rule],
                 exits: ProtectiveExits, cooldown: int, per_side: float, ticker: str) -> TickerRun:
     n = len(frame)
@@ -314,25 +401,11 @@ def _run_ticker(frame: pd.DataFrame, entry: list[Rule], exit_: list[Rule],
             held[i] = 1
             # Protective exits from the bar after entry, before the close.
             if i > entry_i:
-                stops = []
-                if exits.stop_loss_pct is not None:
-                    stops.append((entry_px * (1 - exits.stop_loss_pct / 100), "stop_loss"))
-                if exits.atr_stop_k is not None and not np.isnan(atr_entry):
-                    stops.append((entry_px - exits.atr_stop_k * atr_entry, "atr_stop"))
-                reason = fill = None
-                if stops:
-                    level, name = max(stops)  # the tighter stop is the higher level
-                    if lows[i] <= level:
-                        reason, fill = name, min(opens[i], level)
-                if reason is None and exits.trailing_stop_pct is not None:
-                    trail = peak * (1 - exits.trailing_stop_pct / 100)
-                    if lows[i] <= trail:
-                        reason, fill = "trailing_stop", min(opens[i], trail)
-                if reason is None and exits.take_profit_pct is not None:
-                    target = entry_px * (1 + exits.take_profit_pct / 100)
-                    if highs[i] >= target:
-                        reason, fill = "take_profit", max(opens[i], target)
-                if reason is not None:
+                exit_result = evaluate_protective_exit(
+                    entry_px, atr_entry, peak, lows[i], highs[i], opens[i], exits
+                )
+                if exit_result is not None:
+                    reason, fill = exit_result
                     ret[i] = fill / close[i - 1] - 1 - per_side
                     cost[i] = per_side
                     close_trade(i, fill, reason)

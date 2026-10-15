@@ -65,7 +65,13 @@ import type {
   DualBenchmarkComparison,
   EarningsCalendarResponse,
   EarningsReleaseSummaryResponse,
+  EconomicCalendarResponse,
+  EconomicEventOverride,
+  EconomicEventType,
   ExperienceLevel,
+  StrategyForwardPaperStatus,
+  StrategyPaperAccount,
+  StrategyTrackRecord,
   MarketRegimeResponse,
   EntryHistory,
   EntryPlan,
@@ -911,6 +917,51 @@ export function getPaperOrders() {
   return apiFetch<{ orders: PaperOrder[] }>("/api/v1/paper-trading/orders");
 }
 
+// STB-6: a saved strategy's own forward-paper-trading account -- separate
+// from the paper-trading functions above, which are per user+portfolio.
+export function linkStrategyForwardPaper(savedId: number, apiKeyId: string, apiSecretKey: string) {
+  return apiSend<{ account: StrategyPaperAccount }>(
+    `/api/v1/strategy-builder/saved/${savedId}/forward-paper/link`, "POST",
+    { api_key_id: apiKeyId, api_secret_key: apiSecretKey },
+  );
+}
+
+export function acceptStrategyForwardPaperDisclosure(savedId: number) {
+  return apiSend<{ account: StrategyPaperAccount }>(
+    `/api/v1/strategy-builder/saved/${savedId}/forward-paper/disclosure-accept`, "POST",
+  );
+}
+
+export function enableStrategyForwardPaper(savedId: number) {
+  return apiSend<{ account: StrategyPaperAccount }>(
+    `/api/v1/strategy-builder/saved/${savedId}/forward-paper/enable`, "POST",
+  );
+}
+
+export function disableStrategyForwardPaper(savedId: number) {
+  return apiSend<{ account: StrategyPaperAccount }>(
+    `/api/v1/strategy-builder/saved/${savedId}/forward-paper/disable`, "POST",
+  );
+}
+
+export function setStrategyForwardPaperKillSwitch(savedId: number, engaged: boolean) {
+  return apiSend<{ account: StrategyPaperAccount }>(
+    `/api/v1/strategy-builder/saved/${savedId}/forward-paper/kill-switch`, "POST", { engaged },
+  );
+}
+
+export function getStrategyForwardPaperStatus(savedId: number) {
+  return apiFetch<StrategyForwardPaperStatus>(`/api/v1/strategy-builder/saved/${savedId}/forward-paper/status`);
+}
+
+export function unlinkStrategyForwardPaper(savedId: number) {
+  return apiSend<{ ok: boolean }>(`/api/v1/strategy-builder/saved/${savedId}/forward-paper/link`, "DELETE");
+}
+
+export function getStrategyForwardPaperTrackRecord(savedId: number) {
+  return apiFetch<StrategyTrackRecord>(`/api/v1/strategy-builder/saved/${savedId}/forward-paper/track-record`);
+}
+
 export function getPaperOrder(orderId: number) {
   return apiFetch<{ order: PaperOrder; audit_log: Record<string, unknown>[] }>(`/api/v1/paper-trading/orders/${orderId}`);
 }
@@ -1036,6 +1087,14 @@ export function getEarningsCalendar() {
 
 export function getMarketRegime() {
   return apiFetch<MarketRegimeResponse>("/api/v1/market/regime");
+}
+
+// EconomicCalendarBanner.tsx's backing fetch -- known, publicly-scheduled
+// macro data releases (CPI/PPI/GDP/Retail Sales/Jobs Report/FOMC) within
+// the next few days. Awareness only, not a prediction -- see the
+// response's own `disclosure` field.
+export function getEconomicCalendar() {
+  return apiFetch<EconomicCalendarResponse>("/api/v1/market/economic-calendar");
 }
 
 // CHT-5: chart drawings for one stock, kept per user on the server.
@@ -2120,6 +2179,47 @@ export function setPortfolioDropThreshold(thresholdPct: number) {
 
 export function scanPortfolioDropAlertsNow() {
   return apiSend<{ inserted: number }>("/api/v1/portfolio/drop-alerts/scan-now", "POST");
+}
+
+export function enableEconomicCalendar() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/economic-calendar/enable", "POST");
+}
+
+export function disableEconomicCalendar() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/economic-calendar/disable", "POST");
+}
+
+export function getEconomicCalendarOverrides() {
+  return apiFetch<{ overrides: EconomicEventOverride[] }>("/api/v1/admin/economic-calendar/overrides");
+}
+
+export function createEconomicCalendarOverride(body: {
+  event_type: EconomicEventType;
+  event_date: string;
+  title: string;
+  note?: string;
+}) {
+  return apiSend<EconomicEventOverride>("/api/v1/admin/economic-calendar/overrides", "POST", body);
+}
+
+export function deleteEconomicCalendarOverride(overrideId: string) {
+  return apiSend<{ ok: boolean }>(`/api/v1/admin/economic-calendar/overrides/${overrideId}`, "DELETE");
+}
+
+export function enableStrategyForwardPaperJob() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/strategy-forward-paper/enable", "POST");
+}
+
+export function disableStrategyForwardPaperJob() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/strategy-forward-paper/disable", "POST");
+}
+
+export function enableStrategyForwardPaperKillSwitch() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/strategy-forward-paper-kill-switch/enable", "POST");
+}
+
+export function disableStrategyForwardPaperKillSwitch() {
+  return apiSend<AdminSettings>("/api/v1/admin/settings/strategy-forward-paper-kill-switch/disable", "POST");
 }
 
 export function setDefaultThemeAccentColor(color: string) {
