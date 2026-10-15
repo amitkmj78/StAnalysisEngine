@@ -86,11 +86,27 @@ def submit_order(
     order_type: str,
     time_in_force: str,
     limit_price: Optional[float] = None,
+    order_class: Optional[str] = None,
+    stop_price: Optional[float] = None,
+    trail_price: Optional[float] = None,
+    trail_percent: Optional[float] = None,
+    take_profit_price: Optional[float] = None,
+    stop_loss_price: Optional[float] = None,
+    stop_loss_limit_price: Optional[float] = None,
 ) -> dict:
     """POST /v2/orders. client_order_id is Alpaca's own dedup key -- Alpaca
     itself refuses a second order submitted with a client_order_id it has
     already seen, which is what makes TRD-20/NFR-2's idempotent retry safe
-    without any app-side dedup table."""
+    without any app-side dedup table.
+
+    BRK-2: covers every order type (market/limit/stop/stop_limit/
+    trailing_stop, plus a bracket order_class) as additional optional keys
+    on the same payload shape -- Alpaca's API accepts all of these as
+    top-level fields (or, for a bracket, nested take_profit/stop_loss
+    objects) on one POST /v2/orders call, never a different endpoint.
+    Validating which combination of these a given order_type/order_class
+    actually needs is the caller's job (web/backend/routers/paper_trading.py)
+    -- this function only builds the payload from whatever it's given."""
     payload = {
         "symbol": ticker,
         "qty": str(qty),
@@ -101,6 +117,21 @@ def submit_order(
     }
     if limit_price is not None:
         payload["limit_price"] = str(limit_price)
+    if stop_price is not None:
+        payload["stop_price"] = str(stop_price)
+    if trail_price is not None:
+        payload["trail_price"] = str(trail_price)
+    if trail_percent is not None:
+        payload["trail_percent"] = str(trail_percent)
+    if order_class is not None:
+        payload["order_class"] = order_class
+        if take_profit_price is not None:
+            payload["take_profit"] = {"limit_price": str(take_profit_price)}
+        if stop_loss_price is not None:
+            stop_loss: dict = {"stop_price": str(stop_loss_price)}
+            if stop_loss_limit_price is not None:
+                stop_loss["limit_price"] = str(stop_loss_limit_price)
+            payload["stop_loss"] = stop_loss
     response = httpx.post(
         f"{ALPACA_PAPER_TRADING_BASE_URL}/orders",
         headers=_headers(key_id, secret_key),

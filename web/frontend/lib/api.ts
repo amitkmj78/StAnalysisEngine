@@ -135,6 +135,7 @@ import type {
   PaperAccount,
   PaperClock,
   PaperOrder,
+  PaperTradingPerformance,
   PaperTradingReadiness,
   LearningProgressResponse,
   LessonProgressEntry,
@@ -969,15 +970,32 @@ export function getPaperOrder(orderId: number) {
 export interface SubmitPaperOrderRequest {
   ticker: string;
   side: "buy" | "sell";
-  order_type: "market" | "limit";
+  // BRK-2: stop/stop_limit/trailing_stop, added alongside the original market/limit.
+  order_type: "market" | "limit" | "stop" | "stop_limit" | "trailing_stop";
   time_in_force: "day" | "gtc";
   qty: number;
   limit_price?: number;
+  stop_price?: number;
+  trail_price?: number;
+  trail_percent?: number;
+  order_class?: "bracket";
+  take_profit_price?: number;
+  stop_loss_price?: number;
+  stop_loss_limit_price?: number;
   portfolio_id?: number;
 }
 
 export function submitPaperOrder(body: SubmitPaperOrderRequest) {
   return apiSend<{ order: PaperOrder; note?: string }>("/api/v1/paper-trading/orders", "POST", body);
+}
+
+// BRK-5/PPR-1: the paper account's own real equity curve vs SPY and the
+// app's model portfolio over the same window.
+export function getPaperTradingPerformance(portfolioId?: number) {
+  return apiFetch<PaperTradingPerformance>(
+    "/api/v1/paper-trading/performance",
+    portfolioId !== undefined ? { portfolio_id: String(portfolioId) } : undefined
+  );
 }
 
 export function listChallenges() {

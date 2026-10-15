@@ -2041,6 +2041,13 @@ create table if not exists saved_strategies (
   forked_from_version int,
   created_at timestamptz not null default now()
 );
+-- Safety net for a saved_strategies table that already existed before
+-- these two columns were added to the CREATE TABLE above (same pattern as
+-- backtest_runs.horizon_days) -- without this, a target DB with an older
+-- saved_strategies skips the whole CREATE TABLE as a no-op and never
+-- gains these columns, so the FK constraint below fails.
+alter table saved_strategies add column if not exists forked_from_published_id bigint;
+alter table saved_strategies add column if not exists forked_from_version int;
 create index if not exists saved_strategies_user_idx on saved_strategies(user_id, created_at desc);
 alter table saved_strategies enable row level security;
 drop policy if exists saved_strategies_isolation on saved_strategies;
@@ -2185,6 +2192,16 @@ drop policy if exists paper_orders_isolation on paper_orders;
 create policy paper_orders_isolation on paper_orders
   using (user_id = current_setting('app.user_id', true)::uuid)
   with check (user_id = current_setting('app.user_id', true)::uuid);
+
+-- BRK-2: stop, stop-limit, trailing-stop and bracket order types on the
+-- existing paper-trading ticket -- previously only market/limit existed.
+alter table paper_orders add column if not exists order_class text;
+alter table paper_orders add column if not exists stop_price real;
+alter table paper_orders add column if not exists trail_price real;
+alter table paper_orders add column if not exists trail_percent real;
+alter table paper_orders add column if not exists take_profit_price real;
+alter table paper_orders add column if not exists stop_loss_price real;
+alter table paper_orders add column if not exists stop_loss_limit_price real;
 
 -- Append-only audit trail: every ticket snapshot, check result, submit
 -- attempt, broker response and user action. No app role is ever granted

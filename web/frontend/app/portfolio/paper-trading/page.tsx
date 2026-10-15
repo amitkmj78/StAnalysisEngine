@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import PaperTrackRecord from "@/components/portfolio/PaperTrackRecord";
+
 import {
   ApiError,
   acceptPaperTradingDisclosure,
@@ -265,12 +267,15 @@ export default function PaperTradingPage() {
                         </button>
                       </div>
                     ) : (
-                      <Link
-                        href={`/portfolio/paper-trading/ticket?portfolio_id=${p.id}`}
-                        className="mt-4 inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-                      >
-                        + New Order
-                      </Link>
+                      <>
+                        <Link
+                          href={`/portfolio/paper-trading/ticket?portfolio_id=${p.id}`}
+                          className="mt-4 inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                        >
+                          + New Order
+                        </Link>
+                        <PaperTrackRecord portfolioId={p.id} />
+                      </>
                     )}
                   </div>
                 )}

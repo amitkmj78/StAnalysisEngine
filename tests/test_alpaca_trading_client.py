@@ -61,3 +61,72 @@ def test_get_order_by_client_order_id_returns_none_on_404(mock_get):
     mock_get.return_value = _response(404, {"message": "not found"})
     result = get_order_by_client_order_id("KEY123", "SECRET456", "abc-123")
     assert result is None
+
+
+# ---------------------------------------------------------------- BRK-2 order types
+
+@patch("services.alpaca_trading_client.httpx.post")
+def test_submit_order_stop_order_payload(mock_post):
+    mock_post.return_value = _response(200, {"id": "o1"})
+    submit_order(
+        "K", "S", client_order_id="c1", ticker="AAPL", side="sell", qty=10,
+        order_type="stop", time_in_force="day", stop_price=95.0,
+    )
+    payload = mock_post.call_args.kwargs["json"]
+    assert payload["type"] == "stop"
+    assert payload["stop_price"] == "95.0"
+    assert "limit_price" not in payload
+
+
+@patch("services.alpaca_trading_client.httpx.post")
+def test_submit_order_stop_limit_order_payload(mock_post):
+    mock_post.return_value = _response(200, {"id": "o1"})
+    submit_order(
+        "K", "S", client_order_id="c1", ticker="AAPL", side="sell", qty=10,
+        order_type="stop_limit", time_in_force="day", stop_price=95.0, limit_price=94.0,
+    )
+    payload = mock_post.call_args.kwargs["json"]
+    assert payload["type"] == "stop_limit"
+    assert payload["stop_price"] == "95.0"
+    assert payload["limit_price"] == "94.0"
+
+
+@patch("services.alpaca_trading_client.httpx.post")
+def test_submit_order_trailing_stop_order_payload(mock_post):
+    mock_post.return_value = _response(200, {"id": "o1"})
+    submit_order(
+        "K", "S", client_order_id="c1", ticker="AAPL", side="sell", qty=10,
+        order_type="trailing_stop", time_in_force="day", trail_percent=5.0,
+    )
+    payload = mock_post.call_args.kwargs["json"]
+    assert payload["type"] == "trailing_stop"
+    assert payload["trail_percent"] == "5.0"
+    assert "trail_price" not in payload
+
+
+@patch("services.alpaca_trading_client.httpx.post")
+def test_submit_order_bracket_payload_includes_nested_legs(mock_post):
+    mock_post.return_value = _response(200, {"id": "o1"})
+    submit_order(
+        "K", "S", client_order_id="c1", ticker="AAPL", side="buy", qty=10,
+        order_type="market", time_in_force="day", order_class="bracket",
+        take_profit_price=120.0, stop_loss_price=90.0, stop_loss_limit_price=89.5,
+    )
+    payload = mock_post.call_args.kwargs["json"]
+    assert payload["order_class"] == "bracket"
+    assert payload["take_profit"] == {"limit_price": "120.0"}
+    assert payload["stop_loss"] == {"stop_price": "90.0", "limit_price": "89.5"}
+
+
+@patch("services.alpaca_trading_client.httpx.post")
+def test_submit_order_without_new_fields_omits_them_from_payload(mock_post):
+    """Regression guard: Stage 1 market/limit callers (the trading agent,
+    existing tests) must see an unchanged payload shape."""
+    mock_post.return_value = _response(200, {"id": "o1"})
+    submit_order(
+        "K", "S", client_order_id="c1", ticker="AAPL", side="buy", qty=10,
+        order_type="market", time_in_force="day",
+    )
+    payload = mock_post.call_args.kwargs["json"]
+    for key in ("stop_price", "trail_price", "trail_percent", "order_class", "take_profit", "stop_loss", "limit_price"):
+        assert key not in payload

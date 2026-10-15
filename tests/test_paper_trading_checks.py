@@ -1,10 +1,12 @@
 from services.paper_trading_checks import (
+    check_bracket_order_sanity,
     check_buying_power,
     check_daily_order_count,
     check_order_value_limit,
     check_portfolio_pct_limit,
     check_price_collar,
     check_restricted_symbol,
+    compute_risk_based_quantity,
     estimate_order_value,
 )
 
@@ -13,12 +15,65 @@ def test_estimate_order_value_uses_limit_price_for_limit_orders():
     assert estimate_order_value(10, "limit", 100.0, 90.0) == 1000.0
 
 
+def test_estimate_order_value_uses_limit_price_for_stop_limit_orders():
+    assert estimate_order_value(10, "stop_limit", 95.0, 90.0) == 950.0
+
+
 def test_estimate_order_value_uses_last_price_for_market_orders():
     assert estimate_order_value(10, "market", None, 90.0) == 900.0
 
 
+def test_estimate_order_value_uses_last_price_for_stop_and_trailing_stop_orders():
+    assert estimate_order_value(10, "stop", None, 90.0) == 900.0
+    assert estimate_order_value(10, "trailing_stop", None, 90.0) == 900.0
+
+
 def test_estimate_order_value_none_when_no_price_available():
     assert estimate_order_value(10, "market", None, None) is None
+
+
+# ---------------------------------------------------------------- compute_risk_based_quantity (BRK-3)
+
+def test_compute_risk_based_quantity_matches_max_loss_over_stop_distance():
+    # $500 max loss, $5 stop distance -> 100 shares.
+    assert compute_risk_based_quantity(entry_price=100.0, stop_price=95.0, max_loss_dollars=500.0) == 100.0
+
+
+def test_compute_risk_based_quantity_floors_to_a_whole_share():
+    # $500 / $7 = 71.43 -> floors to 71.
+    assert compute_risk_based_quantity(entry_price=100.0, stop_price=93.0, max_loss_dollars=500.0) == 71.0
+
+
+def test_compute_risk_based_quantity_none_when_entry_equals_stop():
+    assert compute_risk_based_quantity(entry_price=100.0, stop_price=100.0, max_loss_dollars=500.0) is None
+
+
+def test_compute_risk_based_quantity_none_for_non_positive_inputs():
+    assert compute_risk_based_quantity(entry_price=0.0, stop_price=95.0, max_loss_dollars=500.0) is None
+    assert compute_risk_based_quantity(entry_price=100.0, stop_price=95.0, max_loss_dollars=0.0) is None
+
+
+# ---------------------------------------------------------------- check_bracket_order_sanity (BRK-2)
+
+def test_bracket_sanity_passes_for_a_well_formed_buy_bracket():
+    result = check_bracket_order_sanity("buy", entry_estimate=100.0, take_profit_price=120.0, stop_loss_price=90.0)
+    assert result.passed
+
+
+def test_bracket_sanity_fails_for_an_inverted_buy_bracket():
+    result = check_bracket_order_sanity("buy", entry_estimate=100.0, take_profit_price=90.0, stop_loss_price=120.0)
+    assert not result.passed
+    assert result.code == "bracket_sanity"
+
+
+def test_bracket_sanity_passes_for_a_well_formed_sell_bracket():
+    result = check_bracket_order_sanity("sell", entry_estimate=100.0, take_profit_price=80.0, stop_loss_price=110.0)
+    assert result.passed
+
+
+def test_bracket_sanity_skips_when_entry_estimate_is_unknown():
+    result = check_bracket_order_sanity("buy", entry_estimate=None, take_profit_price=90.0, stop_loss_price=120.0)
+    assert result.passed
 
 
 def test_buying_power_check_passes_when_estimate_under_available_cash():

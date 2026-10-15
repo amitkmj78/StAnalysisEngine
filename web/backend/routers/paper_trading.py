@@ -1,8 +1,9 @@
 """
-Paper trading (Alpaca), Stage 1: link a paper API key pair, accept the
-paper-mode disclosure, submit market/limit orders through app-side
-pre-trade checks with an idempotent submit, and list orders. Cancel/modify
-and stop/stop-limit order types are Stage 2 (not yet built).
+Paper trading (Alpaca): link a paper API key pair, accept the paper-mode
+disclosure, submit market/limit/stop/stop_limit/trailing_stop/bracket
+orders through app-side pre-trade checks with an idempotent submit, list
+orders, and (BRK-5/PPR-1) compare the account's own real equity curve
+against SPY and the app's model portfolio. Cancel/modify is not yet built.
 
 Every write here is real (paper) money moving through a real Alpaca
 sandbox account -- there is no live-trading base URL anywhere in
@@ -24,6 +25,15 @@ from starlette.concurrency import run_in_threadpool
 from services import alpaca_trading_client, paper_trading_checks, paper_trading_readiness
 from services.alpaca_client import get_alpaca_latest_price
 from services.alpaca_trading_client import AlpacaTradingError
+from services.challenge_leaderboard import _spy_return_pct
+from services.challenge_service import compute_member_performance
+from services.signal_publication_service import (
+    DEFAULT_HORIZON_DAYS,
+    DEFAULT_LOOKBACK_DAYS,
+    DEFAULT_UNIVERSE,
+    build_model_portfolio_series,
+)
+from services.strategy_engine import model_portfolio_summary
 from web.backend.app_settings import (
     PAPER_TRADING_ENABLED_KEY,
     PAPER_TRADING_KILL_SWITCH_KEY,
@@ -44,7 +54,7 @@ from web.backend.app_settings import (
 )
 from web.backend.auth import verify_bearer_token
 from web.backend.crypto_utils import decrypt_token, encrypt_token
-from web.backend.db import user_conn
+from web.backend.db import service_conn, user_conn
 from web.backend.paper_order_sync import sync_positions_and_cash_for_account
 from web.backend.rate_limit import enforce_daily_quota, limiter
 from web.backend.routers.portfolio import _resolve_portfolio_id
@@ -258,11 +268,41 @@ async def unlink_paper_account(request: Request, portfolio_id: Optional[int] = N
 class OrderRequest(BaseModel):
     ticker: str = Field(min_length=1)
     side: str = Field(pattern="^(buy|sell)$")
-    order_type: str = Field(pattern="^(market|limit)$")
+    # BRK-2: market/limit were Stage 1; stop/stop_limit/trailing_stop are
+    # Stage 2, added here. A plain order_type never carries order_class --
+    # that's only set for a bracket (see order_class below).
+    order_type: str = Field(pattern="^(market|limit|stop|stop_limit|trailing_stop)$")
     time_in_force: str = Field(pattern="^(day|gtc)$")
     qty: float = Field(gt=0)
     limit_price: Optional[float] = Field(default=None, gt=0)
+    stop_price: Optional[float] = Field(default=None, gt=0)
+    trail_price: Optional[float] = Field(default=None, gt=0)
+    trail_percent: Optional[float] = Field(default=None, gt=0)
+    # Bracket: order_type stays whatever the entry leg is (market or
+    # limit), order_class="bracket" adds the take-profit/stop-loss legs.
+    order_class: Optional[str] = Field(default=None, pattern="^bracket$")
+    take_profit_price: Optional[float] = Field(default=None, gt=0)
+    stop_loss_price: Optional[float] = Field(default=None, gt=0)
+    stop_loss_limit_price: Optional[float] = Field(default=None, gt=0)
     portfolio_id: Optional[int] = None
+
+    def validate_fields_for_type(self) -> Optional[str]:
+        """Plain-language 422 message for a missing required field given
+        this order's type/class, checked before anything touches the DB
+        or Alpaca -- same fail-fast posture as every other check here."""
+        if self.order_type == "limit" and self.limit_price is None:
+            return "limit orders need a limit_price."
+        if self.order_type == "stop" and self.stop_price is None:
+            return "stop orders need a stop_price."
+        if self.order_type == "stop_limit" and (self.stop_price is None or self.limit_price is None):
+            return "stop_limit orders need both stop_price and limit_price."
+        if self.order_type == "trailing_stop" and self.trail_price is None and self.trail_percent is None:
+            return "trailing_stop orders need either trail_price or trail_percent."
+        if self.order_type == "trailing_stop" and self.trail_price is not None and self.trail_percent is not None:
+            return "trailing_stop orders take trail_price or trail_percent, not both."
+        if self.order_class == "bracket" and (self.take_profit_price is None or self.stop_loss_price is None):
+            return "bracket orders need both take_profit_price and stop_loss_price."
+        return None
 
 
 @router.get("/orders")
@@ -293,6 +333,10 @@ async def get_order(request: Request, order_id: int):
 async def submit_order(request: Request, body: OrderRequest):
     await enforce_daily_quota(request, "paper-trading/orders")
     user_id = request.state.user["id"]
+
+    field_error = body.validate_fields_for_type()
+    if field_error:
+        raise HTTPException(422, field_error)
 
     # Kill switch first -- before this touches the DB or Alpaca at all.
     if await get_setting_bool(PAPER_TRADING_KILL_SWITCH_KEY, default=False):
@@ -351,8 +395,20 @@ async def submit_order(request: Request, body: OrderRequest):
         paper_trading_checks.check_order_value_limit(estimate, max_order_value),
         paper_trading_checks.check_portfolio_pct_limit(estimate, equity, max_pct),
         paper_trading_checks.check_daily_order_count(int(orders_today_count), max_orders_per_day),
-        paper_trading_checks.check_price_collar(body.order_type, body.limit_price, last_price, collar_pct),
+        # Collar is only meaningful against a fixed limit price -- stop/
+        # trailing_stop have none, so check_price_collar's own order_type
+        # guard already no-ops for them (only "limit" is checked today;
+        # stop_limit's limit leg is checked the same way as a plain limit).
+        paper_trading_checks.check_price_collar(
+            "limit" if body.order_type == "stop_limit" else body.order_type, body.limit_price, last_price, collar_pct
+        ),
     ]
+    if body.order_class == "bracket":
+        checks.append(
+            paper_trading_checks.check_bracket_order_sanity(
+                body.side, last_price, body.take_profit_price, body.stop_loss_price
+            )
+        )
     failures = [c for c in checks if not c.passed]
     if failures:
         await _audit(user_id, None, "check_failed", {"failures": [{"code": c.code, "message": c.message} for c in failures]})
@@ -368,12 +424,14 @@ async def submit_order(request: Request, body: OrderRequest):
             """
             INSERT INTO paper_orders (
                 user_id, alpaca_paper_account_id, client_order_id, ticker, side, order_type,
-                time_in_force, qty, limit_price, status, submitted_at
-            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, 'SUBMITTING', now())
+                time_in_force, qty, limit_price, order_class, stop_price, trail_price, trail_percent,
+                take_profit_price, stop_loss_price, stop_loss_limit_price, status, submitted_at
+            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'SUBMITTING', now())
             RETURNING *
             """,
             user_id, account["id"], client_order_id, body.ticker.upper(), body.side, body.order_type,
-            body.time_in_force, body.qty, body.limit_price,
+            body.time_in_force, body.qty, body.limit_price, body.order_class, body.stop_price, body.trail_price,
+            body.trail_percent, body.take_profit_price, body.stop_loss_price, body.stop_loss_limit_price,
         )
     await _audit(user_id, order_row["id"], "submit_attempt", {"client_order_id": client_order_id})
 
@@ -383,7 +441,10 @@ async def submit_order(request: Request, body: OrderRequest):
             account["api_key_id"], secret_key,
             client_order_id=client_order_id, ticker=body.ticker.upper(), side=body.side,
             qty=body.qty, order_type=body.order_type, time_in_force=body.time_in_force,
-            limit_price=body.limit_price,
+            limit_price=body.limit_price, order_class=body.order_class, stop_price=body.stop_price,
+            trail_price=body.trail_price, trail_percent=body.trail_percent,
+            take_profit_price=body.take_profit_price, stop_loss_price=body.stop_loss_price,
+            stop_loss_limit_price=body.stop_loss_limit_price,
         )
     except AlpacaTradingError as e:
         # Ambiguous vs. definite: a 4xx from Alpaca is a definite answer
@@ -426,3 +487,50 @@ async def submit_order(request: Request, body: OrderRequest):
         )
     await _audit(user_id, order_row["id"], "broker_response", {"status": "OPEN", "alpaca_order_id": broker_order.get("id")})
     return {"order": _record_to_dict(updated)}
+
+
+@router.get("/performance")
+async def get_paper_trading_performance(request: Request, portfolio_id: Optional[int] = None):
+    """BRK-5/PPR-1: the paper account's own real equity curve, compared
+    against SPY and the app's model portfolio over the same window.
+    Assembles three pieces this app already computes elsewhere --
+    challenge_service.compute_member_performance (same math every
+    challenge leaderboard trusts), challenge_leaderboard._spy_return_pct,
+    and strategy_builder.py's own model_portfolio_summary/
+    build_model_portfolio_series call -- never a fourth implementation.
+    Each piece discloses its own "not enough data yet" honestly (None
+    fields) rather than the endpoint faking one combined flag; `available`
+    below only reflects whether a paper account is linked at all."""
+    user_id = request.state.user["id"]
+    async with user_conn(user_id) as conn:
+        account = await _get_account_or_404(conn, user_id, portfolio_id)
+        snapshot_rows = await conn.fetch(
+            "SELECT as_of_date, equity FROM paper_account_equity_snapshots WHERE alpaca_paper_account_id = $1",
+            account["id"],
+        )
+
+    today = date.today()
+    linked_date = account["created_at"].date()
+    snapshots = [{"as_of_date": r["as_of_date"], "equity": r["equity"]} for r in snapshot_rows]
+    performance = compute_member_performance(snapshots, linked_date, today)
+
+    spy_return_pct = await _spy_return_pct(linked_date, today)
+
+    async with service_conn() as conn:
+        outcome_rows = await conn.fetch(
+            "SELECT target_date, realized_return_pct FROM signal_outcomes "
+            "WHERE universe_id = $1 AND lookback_days = $2 AND horizon_days = $3 ORDER BY target_date",
+            DEFAULT_UNIVERSE, DEFAULT_LOOKBACK_DAYS, DEFAULT_HORIZON_DAYS,
+        )
+    model_series = build_model_portfolio_series(
+        [{"target_date": r["target_date"], "realized_return_pct": float(r["realized_return_pct"])} for r in outcome_rows],
+        DEFAULT_HORIZON_DAYS,
+    )
+
+    return {
+        "available": True,
+        "linked_at": account["created_at"].isoformat(),
+        "account": performance,
+        "spy_return_pct": spy_return_pct,
+        "model_portfolio": model_portfolio_summary(model_series),
+    }

@@ -1409,16 +1409,52 @@ export interface PaperOrder {
   alpaca_order_id: string | null;
   ticker: string;
   side: "buy" | "sell";
-  order_type: "market" | "limit";
+  order_type: "market" | "limit" | "stop" | "stop_limit" | "trailing_stop";
   time_in_force: "day" | "gtc";
   qty: number;
   limit_price: number | null;
+  order_class: "bracket" | null;
+  stop_price: number | null;
+  trail_price: number | null;
+  trail_percent: number | null;
+  take_profit_price: number | null;
+  stop_loss_price: number | null;
+  stop_loss_limit_price: number | null;
   status: PaperOrderStatus;
   filled_qty: number;
   filled_avg_price: number | null;
   reject_reason: string | null;
   submitted_at: string | null;
   created_at: string;
+}
+
+// BRK-5/PPR-1: assembled from three existing sources (compute_member_
+// performance, SPY return, the model-portfolio summary) -- each discloses
+// its own "not enough data yet" honestly rather than one combined flag.
+export interface PaperTradingPerformance {
+  available: boolean;
+  linked_at?: string;
+  account?: {
+    return_pct: number | null;
+    max_drawdown_pct: number | null;
+    annualized_volatility_pct: number | null;
+    sharpe?: number | null;
+    sortino?: number | null;
+    calmar?: number | null;
+    days_of_data: number;
+  };
+  spy_return_pct?: number | null;
+  model_portfolio?: {
+    available: boolean;
+    months_of_history?: number;
+    reason?: string;
+    total_return_pct?: number | null;
+    cagr_pct?: number | null;
+    volatility_pct?: number | null;
+    max_drawdown_pct?: number | null;
+    sharpe?: number | null;
+    worst_period_pct?: number | null;
+  };
 }
 
 export interface PaperOrderCheckFailure {

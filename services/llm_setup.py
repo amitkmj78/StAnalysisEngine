@@ -1,8 +1,8 @@
 # services/llm_setup.py
 
 import logging
-import subprocess
 import os
+import httpx
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
@@ -10,18 +10,25 @@ from langchain_anthropic import ChatAnthropic
 
 logger = logging.getLogger(__name__)
 
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
 
 def get_local_ollama_models():
-    """Return a list of locally available Ollama model names."""
+    """Locally available Ollama model names, smallest-by-parameter-count
+    first -- the earlier `ollama list` CLI parse had no size information,
+    so init_llms() below always picked "whichever model happens to be
+    first" as its one auto-selected default, which in practice could land
+    on an 18GB/30B-parameter coding model for a lightweight task like
+    sentiment classification (measured: ~90s for a single ticker, cold-
+    loading that model, vs a few seconds on a 4-8B model). Queries
+    Ollama's own HTTP API (which already reports each model's real
+    parameter_size) instead of shelling out and guessing from the name."""
     try:
-        result = subprocess.run(
-            ["ollama", "list"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        lines = result.stdout.splitlines()[1:]  # skip header
-        return [line.split()[0] for line in lines if line.strip()]
+        response = httpx.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+        response.raise_for_status()
+        models = response.json().get("models", [])
+        models.sort(key=lambda m: m.get("size") or 0)
+        return [m["name"] for m in models if m.get("name")]
     except Exception as e:
         print("WARNING: Failed to list Ollama models:", e)
         return []
@@ -111,10 +118,15 @@ def init_llms():
             label = f"Local · {model_name} (Ollama)"
             llm_labels.append(label)
 
-        # pick ONE default local model (no logic change)
+        # The one auto-selected local model for calls that don't let the
+        # user pick a provider explicitly (e.g. sentiment scoring) --
+        # smallest available, since get_local_ollama_models() now sorts
+        # by size. Every pulled model is still listed in llm_labels below
+        # for the explicit "choose a provider" picker; this only affects
+        # the automatic default.
         try:
             llm_ollama = ChatOllama(
-                model=ollama_models[0],  # first available model
+                model=ollama_models[0],
                 temperature=0.3,
             )
         except Exception as e:

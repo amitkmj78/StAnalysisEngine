@@ -49,6 +49,7 @@ import FactorDrilldownModal from "@/components/stock-detail/FactorDrilldownModal
 import PriceHistoryChart, { SECTOR_ETF_BY_NAME } from "@/components/stock-detail/PriceHistoryChart";
 import EvidencePanel from "@/components/stock-detail/EvidencePanel";
 import FilingSummaryText from "@/components/stock-detail/FilingSummaryText";
+import OrderTicket from "@/components/portfolio/OrderTicket";
 import TradeImpactCard from "@/components/portfolio/TradeImpactCard";
 import SimilarSetupsCard from "@/components/stock-detail/SimilarSetupsCard";
 import RecentNewsPanel from "@/components/stock-detail/RecentNewsPanel";
@@ -254,6 +255,7 @@ export default function StockScorePage() {
   const [jumpTicker, setJumpTicker] = useState("");
   const [openFactor, setOpenFactor] = useState<TwoScoreFactorKey | null>(null);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [ticketOpen, setTicketOpen] = useState(false);
   const [holdings, setHoldings] = useState<(PortfolioPosition & { portfolioName: string })[]>([]);
   const [data, setData] = useState<TwoScoreResponse | null>(null);
   const [history, setHistory] = useState<TwoScoreHistoryResponse | null>(null);
@@ -982,7 +984,32 @@ export default function StockScorePage() {
 
       {loggedIn && portfolios.length > 0 && (
         <div className="mt-6">
-          <TradeImpactCard ticker={ticker} portfolios={portfolios} />
+          {/* BRK-2/3/4: a paper order ticket right on the chart -- collapsed by
+              default so it doesn't crowd the page. Carries the DIF-6 impact
+              preview (TradeImpactCard) internally, so it replaces the
+              standalone TradeImpactCard this page used to render here. */}
+          <button
+            type="button"
+            onClick={() => setTicketOpen((v) => !v)}
+            className="rounded-md border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            {ticketOpen ? "Hide order ticket" : "Trade (paper)"}
+          </button>
+          {ticketOpen ? (
+            <div className="mt-3">
+              <OrderTicket
+                ticker={ticker}
+                tickerEditable={false}
+                portfolios={portfolios}
+                signal={data?.short_signal}
+                regime={data?.regime}
+              />
+            </div>
+          ) : (
+            <div className="mt-3">
+              <TradeImpactCard ticker={ticker} portfolios={portfolios} />
+            </div>
+          )}
         </div>
       )}
 
