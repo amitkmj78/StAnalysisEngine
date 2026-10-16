@@ -41,6 +41,7 @@ from web.backend.routers import (
     earnings_releases,
     economic_calendar,
     entry_strategy,
+    etf_scoring,
     filings,
     index_fund,
     learning,
@@ -53,6 +54,7 @@ from web.backend.routers import (
     plaid_integration,
     portfolio,
     prediction,
+    price_stream,
     chart_drawings,
     news,
     prediction_record,
@@ -111,6 +113,7 @@ app.include_router(baseline.router)
 app.include_router(prediction.router)
 app.include_router(stock_finder.router)
 app.include_router(index_fund.router)
+app.include_router(etf_scoring.router)
 app.include_router(market_news.router)
 app.include_router(market_regime.router)
 app.include_router(economic_calendar.router)
@@ -138,6 +141,7 @@ app.include_router(news.router)
 app.include_router(chart_drawings.router)
 app.include_router(aws_deploy.router)
 app.include_router(search.router)
+app.include_router(price_stream.router)
 app.include_router(watchlist.router)
 app.include_router(condition_alerts.router)
 app.include_router(community.router)

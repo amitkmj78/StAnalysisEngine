@@ -174,6 +174,19 @@ export default function SettingsPage() {
       )}
 
       <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Security</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Two-factor authentication and your account&apos;s recent activity.
+        </p>
+        <Link
+          href="/settings/security"
+          className="mt-3 inline-block rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+        >
+          Manage security settings
+        </Link>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Experience level</h2>
         {loading ? (
           <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Loading…</p>

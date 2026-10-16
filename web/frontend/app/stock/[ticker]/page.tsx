@@ -500,6 +500,15 @@ export default function StockScorePage() {
           <Link href={`/predict?ticker=${encodeURIComponent(ticker)}`} className="btn-primary">
             Forecast
           </Link>
+          {loggedIn && portfolios.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setTicketOpen((v) => !v)}
+              className="rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              {ticketOpen ? "Hide order ticket" : "Trade (paper)"}
+            </button>
+          )}
           {loggedIn && homeTicker !== null && (
             <button
               type="button"
@@ -982,34 +991,20 @@ export default function StockScorePage() {
         <SimilarSetupsCard ticker={ticker} />
       </div>
 
-      {loggedIn && portfolios.length > 0 && (
+      {loggedIn && portfolios.length > 0 && ticketOpen && (
         <div className="mt-6">
-          {/* BRK-2/3/4: a paper order ticket right on the chart -- collapsed by
-              default so it doesn't crowd the page. Carries the DIF-6 impact
-              preview (TradeImpactCard) internally, so it replaces the
-              standalone TradeImpactCard this page used to render here. */}
-          <button
-            type="button"
-            onClick={() => setTicketOpen((v) => !v)}
-            className="rounded-md border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            {ticketOpen ? "Hide order ticket" : "Trade (paper)"}
-          </button>
-          {ticketOpen ? (
-            <div className="mt-3">
-              <OrderTicket
-                ticker={ticker}
-                tickerEditable={false}
-                portfolios={portfolios}
-                signal={data?.short_signal}
-                regime={data?.regime}
-              />
-            </div>
-          ) : (
-            <div className="mt-3">
-              <TradeImpactCard ticker={ticker} portfolios={portfolios} />
-            </div>
-          )}
+          <OrderTicket
+            ticker={ticker}
+            tickerEditable={false}
+            portfolios={portfolios}
+            signal={data?.short_signal}
+            regime={data?.regime}
+          />
+        </div>
+      )}
+      {loggedIn && portfolios.length > 0 && !ticketOpen && (
+        <div className="mt-6">
+          <TradeImpactCard ticker={ticker} portfolios={portfolios} />
         </div>
       )}
 

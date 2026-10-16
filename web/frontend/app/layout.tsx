@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Geist, Geist_Mono, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
@@ -6,6 +6,7 @@ import "./globals.css";
 import { isAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/session";
 import EconomicCalendarBanner from "@/components/EconomicCalendarBanner";
+import InstallPrompt from "@/components/InstallPrompt";
 import RegimeBanner from "@/components/RegimeBanner";
 import SiteHeader from "@/components/SiteHeader";
 import UnifiedMarketTicker from "@/components/UnifiedMarketTicker";
@@ -31,6 +32,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "StAnalysisEngine",
   description: "AI-assisted price prediction and stock ranking, with the accuracy shown next to the claim.",
+  // PLT-4: installable PWA -- manifest.webmanifest + the service worker's
+  // new install/activate/fetch handlers (web/frontend/public/sw.js) are
+  // the minimum Chromium needs for installability. Icons are placeholder
+  // branding (web/frontend/public/icons/), not final app art.
+  manifest: "/manifest.webmanifest",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0E5C57",
 };
 
 export default async function RootLayout({
@@ -60,6 +70,7 @@ export default async function RootLayout({
         {user && <UnifiedMarketTicker />}
         {user && <RegimeBanner />}
         {user && <EconomicCalendarBanner />}
+        <InstallPrompt />
         <main className="flex-1">{children}</main>
       </body>
     </html>

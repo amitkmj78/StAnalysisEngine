@@ -4,10 +4,16 @@ import { useEffect, useState } from "react";
 
 import { getCurrentPrice } from "@/lib/api";
 import type { ExtendedHoursPrice } from "@/lib/types";
+import { usePriceStream } from "@/lib/priceStream";
 
 const POLL_INTERVAL_MS = 10000;
 
 export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: string; refreshKey?: number | string }) {
+  const trimmedTicker = ticker.trim().toUpperCase();
+  // PLT-3: a lower-latency price push layered on top of the poll below, not
+  // a replacement for it -- if the socket never connects, this hook's map
+  // just stays empty and nothing here changes.
+  const { prices: streamedPrices } = usePriceStream(trimmedTicker ? [trimmedTicker] : []);
   const [price, setPrice] = useState<number | null>(null);
   const [extendedHours, setExtendedHours] = useState<ExtendedHoursPrice | null>(null);
   const [loading, setLoading] = useState(false);
@@ -68,6 +74,13 @@ export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: stri
     };
   }, [ticker, refreshKey]);
 
+  // A streamed price, when one has arrived, simply wins over the polled
+  // one -- computed at render time rather than synced into state via an
+  // effect, so there's no extra render lag and nothing to keep in sync.
+  const streamedPrice = trimmedTicker ? streamedPrices[trimmedTicker] : undefined;
+  const displayPrice = streamedPrice ?? price;
+  const displayFailed = streamedPrice === undefined && failed;
+
   if (!ticker.trim()) return null;
 
   return (
@@ -75,10 +88,10 @@ export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: stri
       <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Current Price</span>
       <span className="flex min-h-[38px] flex-col justify-center text-sm text-slate-700 dark:text-slate-200">
         {loading && "…"}
-        {!loading && failed && <span className="text-slate-400 dark:text-slate-500">unavailable</span>}
-        {!loading && !failed && price !== null && (
+        {!loading && displayFailed && <span className="text-slate-400 dark:text-slate-500">unavailable</span>}
+        {!loading && !displayFailed && displayPrice !== null && (
           <>
-            <strong>${price.toFixed(2)}</strong>
+            <strong>${displayPrice.toFixed(2)}</strong>
             {extendedHours && (
               <span className={`text-xs ${(extendedHours.change_pct ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                 {extendedHours.state === "POST" ? "After hours" : "Pre-market"}: ${extendedHours.price.toFixed(2)}
@@ -89,7 +102,7 @@ export default function CurrentPriceBadge({ ticker, refreshKey }: { ticker: stri
             )}
           </>
         )}
-        {!loading && !failed && price === null && <span className="text-slate-400 dark:text-slate-500">no data</span>}
+        {!loading && !displayFailed && displayPrice === null && <span className="text-slate-400 dark:text-slate-500">no data</span>}
       </span>
     </div>
   );

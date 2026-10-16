@@ -42,6 +42,21 @@ class _FakeConnCtx:
         return False
 
 
+def _make_request(admin_email="admin@example.com"):
+    from starlette.requests import Request
+    scope = {
+        "type": "http", "method": "PUT", "path": "/", "headers": [],
+        "client": ("127.0.0.1", 0), "server": ("testserver", 80), "scheme": "http", "query_string": b"",
+    }
+    request = Request(scope)
+    request.state.user = {"id": "admin-id", "email": admin_email}
+    return request
+
+
+async def _noop_write_audit(*a, **kw):
+    pass
+
+
 # ---------------------------------------------------------------- require_admin
 
 def test_require_admin_passes_for_the_hardcoded_admin_email_without_a_db_query(monkeypatch):
@@ -72,8 +87,9 @@ def test_require_admin_rejects_a_normal_user_role(monkeypatch):
 def test_update_user_role_refuses_to_demote_the_admin_email_account(monkeypatch):
     conn = _FakeConn(fetchrow=lambda sql, args: {"email": admin_mod.ADMIN_EMAIL})
     monkeypatch.setattr(admin_users_mod, "service_conn", lambda: _FakeConnCtx(conn))
+    monkeypatch.setattr(admin_users_mod, "write_audit", _noop_write_audit)
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(update_user_role("admin-id", RoleUpdateRequest(role="user")))
+        asyncio.run(update_user_role(_make_request(), "admin-id", RoleUpdateRequest(role="user")))
     assert exc.value.status_code == 400
 
 
@@ -89,14 +105,15 @@ def test_update_user_role_allows_promoting_a_normal_account(monkeypatch):
 
     conn = _FakeConn(fetchrow=fetchrow)
     monkeypatch.setattr(admin_users_mod, "service_conn", lambda: _FakeConnCtx(conn))
-    result = asyncio.run(update_user_role("u4", RoleUpdateRequest(role="admin")))
+    monkeypatch.setattr(admin_users_mod, "write_audit", _noop_write_audit)
+    result = asyncio.run(update_user_role(_make_request(), "u4", RoleUpdateRequest(role="admin")))
     assert result == {"id": "u4", "email": "regular@example.com", "role": "admin"}
     assert any("session_invalidated_at" in sql for sql in calls)  # felt on an already-open session, not just next login
 
 
 def test_update_user_role_rejects_an_invalid_role_value():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(update_user_role("u5", RoleUpdateRequest(role="superuser")))
+        asyncio.run(update_user_role(_make_request(), "u5", RoleUpdateRequest(role="superuser")))
     assert exc.value.status_code == 422
 
 

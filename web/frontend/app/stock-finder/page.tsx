@@ -791,6 +791,9 @@ export default function StockFinderPage() {
           to reuse later.{" "}
           <Link href="/guides/signals" className="text-[var(--pf-accent)] hover:underline">
             Learn more about reading signals →
+          </Link>{" "}
+          · <Link href="/stock-finder/etf" className="text-[var(--pf-accent)] hover:underline">
+            Score ETFs instead →
           </Link>
         </p>
 

@@ -1,13 +1,13 @@
 import asyncpg
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from starlette.concurrency import run_in_threadpool
 
 from services.email_service import APP_URL, send_admin_created_account_email, send_welcome_email
 from web.backend.admin import ADMIN_EMAIL, require_admin
 from web.backend.db import service_conn
-from web.backend.routers.auth import issue_password_reset_token
+from web.backend.routers.auth import issue_password_reset_token, write_audit
 
 router = APIRouter(
     prefix="/api/v1/admin/users",
@@ -108,7 +108,7 @@ class RoleUpdateRequest(BaseModel):
 
 
 @router.put("/{user_id}/role")
-async def update_user_role(user_id: str, body: RoleUpdateRequest):
+async def update_user_role(request: Request, user_id: str, body: RoleUpdateRequest):
     if body.role not in ("user", "admin"):
         raise HTTPException(422, "role must be 'user' or 'admin'.")
     async with service_conn() as conn:
@@ -125,6 +125,7 @@ async def update_user_role(user_id: str, body: RoleUpdateRequest):
             "UPDATE users SET role = $2, session_invalidated_at = now() WHERE id = $1 RETURNING id, email, role",
             user_id, body.role,
         )
+    await write_audit(row["id"], "role_changed", {"new_role": row["role"], "changed_by": request.state.user["email"]})
     return {"id": str(row["id"]), "email": row["email"], "role": row["role"]}
 
 
@@ -212,7 +213,7 @@ async def warn_user(user_id: str, body: WarnRequest):
 
 
 @router.post("/{user_id}/deactivate")
-async def deactivate_user(user_id: str):
+async def deactivate_user(request: Request, user_id: str):
     # Reversible suspension, distinct from delete: blocks future logins
     # (checked in POST /login) and, by also bumping session_invalidated_at,
     # kills any already-open session within ~20s (verify_bearer_token's
@@ -229,6 +230,7 @@ async def deactivate_user(user_id: str):
             "RETURNING id, email, is_active",
             user_id,
         )
+    await write_audit(row["id"], "account_deactivated", {"changed_by": request.state.user["email"]})
     return {"id": str(row["id"]), "email": row["email"], "is_active": row["is_active"]}
 
 
@@ -251,7 +253,7 @@ async def force_logout_user(user_id: str):
 
 
 @router.post("/{user_id}/reactivate")
-async def reactivate_user(user_id: str):
+async def reactivate_user(request: Request, user_id: str):
     async with service_conn() as conn:
         row = await conn.fetchrow(
             "UPDATE users SET is_active = true WHERE id = $1 RETURNING id, email, is_active",
@@ -259,6 +261,7 @@ async def reactivate_user(user_id: str):
         )
     if row is None:
         raise HTTPException(404, "User not found.")
+    await write_audit(row["id"], "account_reactivated", {"changed_by": request.state.user["email"]})
     return {"id": str(row["id"]), "email": row["email"], "is_active": row["is_active"]}
 
 

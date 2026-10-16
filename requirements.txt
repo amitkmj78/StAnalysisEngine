@@ -32,4 +32,6 @@ stripe
 beautifulsoup4
 ddgs
 pywebpush
+pyotp
+qrcode[pil]
 

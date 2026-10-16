@@ -1615,6 +1615,35 @@ export interface MarketRegimeResponse {
   methodology?: string[];
 }
 
+// COV-2: ETF scoring. weighted_score/coverage are both scoped to each
+// ETF's top ~10 disclosed holdings (no free source for the full list),
+// and tracking_error is only ever present for a fund with a confidently-
+// mapped benchmark index -- null ("N/A") otherwise, never guessed.
+export interface EtfSummary {
+  ticker: string;
+  name: string;
+  category: string | null;
+  expense_ratio_pct: number | null;
+  weighted_score: number | null;
+  coverage_pct: number;
+  covered_holdings: number;
+  total_holdings: number;
+}
+
+export interface EtfHolding {
+  symbol: string;
+  name: string | null;
+  weight: number;
+}
+
+export interface EtfDetail extends EtfSummary {
+  benchmark: string;
+  tracking_error_vs_benchmark_pct: number | null;
+  tracking_error_benchmark_ticker: string | null;
+  holdings: EtfHolding[];
+  portfolio_overlap: { overlap_pct: number; overlapping_tickers: string[] };
+}
+
 export type EconomicEventType = "CPI" | "PPI" | "GDP" | "RETAIL_SALES" | "JOBS_REPORT" | "FOMC";
 
 export interface EconomicEvent {
@@ -2777,6 +2806,23 @@ export interface AuditLogResponse {
   events: AuditLogEntry[];
   limit: number;
   offset: number;
+}
+
+export interface TwoFactorEnrollResponse {
+  secret: string;
+  provisioning_uri: string;
+  qr_code_data_uri: string;
+}
+
+export interface AccountAuditLogEntry {
+  event_type: string;
+  detail: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+}
+
+export interface AccountAuditLogResponse {
+  events: AccountAuditLogEntry[];
 }
 
 export interface WebSearchResult {

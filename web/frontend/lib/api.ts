@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  AccountAuditLogResponse,
   AccountType,
   AdminActivityRow,
   AdminIntegration,
@@ -68,6 +69,8 @@ import type {
   EconomicCalendarResponse,
   EconomicEventOverride,
   EconomicEventType,
+  EtfDetail,
+  EtfSummary,
   ExperienceLevel,
   StrategyForwardPaperStatus,
   StrategyPaperAccount,
@@ -185,6 +188,7 @@ import type {
   TopPerformersResponse,
   Trade,
   TradeCreateInput,
+  TwoFactorEnrollResponse,
   TwoScoreFactorHistoryResponse,
   TwoScoreFactorKey,
   TwoScoreHistoryResponse,
@@ -269,6 +273,7 @@ export function getCurrentUser() {
     experience_level: ExperienceLevel | null;
     role: string;
     portfolio_sharing_enabled: boolean;
+    totp_enabled: boolean;
     theme_accent_color: string | null;
     effective_theme_accent_color: string;
     effective_theme_accent_soft: string;
@@ -529,6 +534,16 @@ export function getFundScore(goal: string, ticker: string, windowParam: string, 
 
 export function getFundReturnSince(ticker: string, since: string) {
   return apiFetch<FundReturnSince>("/api/v1/index-fund/return-since", { ticker, since });
+}
+
+// COV-2: ETF scoring -- holdings-weighted score, expense ratio (reused
+// from the Index Fund Screener), tracking error, and portfolio overlap.
+export function listEtfs() {
+  return apiFetch<{ etfs: EtfSummary[] }>("/api/v1/etf/list");
+}
+
+export function getEtf(ticker: string) {
+  return apiFetch<EtfDetail>(`/api/v1/etf/${encodeURIComponent(ticker)}`);
 }
 
 // Best To Enter Now
@@ -2451,6 +2466,22 @@ export function getAuditLog(params?: { eventType?: string; actorUserId?: string;
   if (params?.limit) query.limit = String(params.limit);
   if (params?.offset) query.offset = String(params.offset);
   return apiFetch<AuditLogResponse>("/api/v1/subscriptions/audit-log", query);
+}
+
+export function enroll2FA() {
+  return apiSend<TwoFactorEnrollResponse>("/api/v1/auth/2fa/enroll", "POST");
+}
+
+export function confirm2FA(code: string) {
+  return apiSend<{ totp_enabled: boolean }>("/api/v1/auth/2fa/confirm", "POST", { code });
+}
+
+export function disable2FA(password: string) {
+  return apiSend<{ totp_enabled: boolean }>("/api/v1/auth/2fa/disable", "POST", { password });
+}
+
+export function getAccountAuditLog() {
+  return apiFetch<AccountAuditLogResponse>("/api/v1/auth/audit-log");
 }
 
 export function runAdminSqlQuery(sql: string, database: string = "stanalysisengine") {

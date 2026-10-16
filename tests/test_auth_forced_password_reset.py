@@ -62,6 +62,8 @@ def _user_row(**overrides):
         "is_active": True,
         "role": "user",
         "must_reset_password": False,
+        "totp_enabled": False,
+        "totp_secret_encrypted": None,
     }
     row.update(overrides)
     return row

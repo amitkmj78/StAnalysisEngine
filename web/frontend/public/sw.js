@@ -1,8 +1,21 @@
-// ALX-3: web push service worker. Minimal by design -- this app has no
-// other service-worker use (no offline caching, no PWA install flow),
-// so this file does exactly one thing: show a Notification for each
-// push event, and route a click on it to the ticker page the alert was
-// about (falling back to the app root).
+// ALX-3: web push, plus (PLT-4) the minimum needed for PWA installability --
+// an active service worker controlling the page, with a fetch handler.
+// Deliberately NOT offline caching: this is a network-passthrough fetch
+// handler only, so the app is installable but not usable offline. Claiming
+// offline support this app doesn't have would be worse than not having a
+// fetch handler at all.
+
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("fetch", (event) => {
+  event.respondWith(fetch(event.request));
+});
 
 self.addEventListener("push", (event) => {
   let data = {};

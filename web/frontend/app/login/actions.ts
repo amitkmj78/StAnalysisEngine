@@ -51,7 +51,42 @@ export async function login(formData: FormData) {
     redirect(`/reset-password?token=${encodeURIComponent(data.reset_token)}`);
   }
 
+  // PLT-6: password alone isn't enough for a 2FA-enabled account -- no
+  // session yet, just a short-lived partial_token that /login/2fa trades
+  // for a real one once the code checks out.
+  if (data.requires_2fa) {
+    redirect(`/login/2fa?token=${encodeURIComponent(data.partial_token)}`);
+  }
+
   const { token } = data;
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: COOKIE_SECURE,
+    sameSite: "lax",
+    maxAge: SESSION_MAX_AGE,
+    path: "/",
+  });
+
+  redirect(`/stock/${await getHomeTicker(token)}`);
+}
+
+export async function verifyTwoFactorLogin(formData: FormData) {
+  const partialToken = formData.get("partial_token") as string;
+  const code = formData.get("code") as string;
+
+  const res = await fetch(`${BACKEND_URL}/api/v1/auth/2fa/verify-login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ partial_token: partialToken, code }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    redirect(`/login/2fa?token=${encodeURIComponent(partialToken)}&error=${encodeURIComponent(body.detail || "That code didn't work.")}`);
+  }
+
+  const { token } = await res.json();
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,

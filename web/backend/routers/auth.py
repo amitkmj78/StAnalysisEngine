@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -12,6 +13,7 @@ from starlette.concurrency import run_in_threadpool
 
 from services.email_service import APP_URL, send_password_reset_email
 from services.password_policy_service import is_breached_password, validate_password_policy
+from services.totp_service import generate_secret, provisioning_uri, qr_code_data_uri, verify_code
 
 from web.backend.admin import ADMIN_EMAIL
 from web.backend.app_settings import (
@@ -23,6 +25,7 @@ from web.backend.app_settings import (
     get_setting_str,
 )
 from web.backend.auth import SESSION_COOKIE_NAME, get_client_ip, verify_bearer_token
+from web.backend.crypto_utils import decrypt_token, encrypt_token
 from web.backend.db import service_conn, user_conn
 from web.backend.rate_limit import limiter
 
@@ -32,6 +35,23 @@ SESSION_SECRET = os.environ["SESSION_SECRET"]
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() == "true"
 SESSION_TTL = timedelta(days=7)
 RESET_TOKEN_TTL = timedelta(hours=1)
+# PLT-6: how long a password-verified-but-2FA-pending login has to supply
+# its code before having to start over -- short on purpose, this token is
+# only ever meant to bridge the two login steps, never a session itself.
+TWO_FA_PENDING_TTL = timedelta(minutes=5)
+
+
+async def write_audit(user_id, event_type: str, detail: dict | None = None, ip: str | None = None) -> None:
+    """PLT-6: a general account-action audit log -- login success/failure,
+    2FA enable/disable, password reset, role changes, deactivate/
+    reactivate. Distinct from paper_order_audit_log, which is order-
+    lifecycle-only. Insert-only by grant (see the migration), never
+    update/delete -- a real audit trail, not an editable log."""
+    async with service_conn() as conn:
+        await conn.execute(
+            "INSERT INTO account_audit_log (user_id, event_type, detail, ip_address) VALUES ($1::uuid, $2, $3::jsonb, $4)",
+            user_id, event_type, json.dumps(detail or {}, default=str), ip,
+        )
 
 
 async def _validate_new_password(password: str) -> None:
@@ -115,6 +135,19 @@ class ResetPasswordRequest(BaseModel):
     password: str
 
 
+class TwoFactorConfirmRequest(BaseModel):
+    code: str
+
+
+class TwoFactorDisableRequest(BaseModel):
+    password: str
+
+
+class TwoFactorVerifyLoginRequest(BaseModel):
+    partial_token: str
+    code: str
+
+
 @router.post("/signup")
 async def signup(request: Request, body: SignupRequest, response: Response):
     if not body.guidelines_accepted:
@@ -171,11 +204,15 @@ async def signup(request: Request, body: SignupRequest, response: Response):
 async def login(request: Request, body: LoginRequest, response: Response):
     async with service_conn() as conn:
         row = await conn.fetchrow(
-            "SELECT id, email, password_hash, approved, is_active, role, must_reset_password FROM users WHERE email = $1",
+            "SELECT id, email, password_hash, approved, is_active, role, must_reset_password, "
+            "totp_enabled, totp_secret_encrypted FROM users WHERE email = $1",
             body.email.lower(),
         )
 
-    if row is None or not bcrypt.checkpw(body.password.encode(), row["password_hash"].encode()):
+    if row is None:
+        raise HTTPException(401, "Incorrect email or password.")
+    if not bcrypt.checkpw(body.password.encode(), row["password_hash"].encode()):
+        await write_audit(row["id"], "login_failed", {"reason": "wrong_password"}, get_client_ip(request))
         raise HTTPException(401, "Incorrect email or password.")
 
     if not row["approved"]:
@@ -198,15 +235,137 @@ async def login(request: Request, body: LoginRequest, response: Response):
             "reset_token": reset_token,
         }
 
+    # PLT-6: password alone isn't enough for a 2FA-enabled account -- the
+    # session is withheld until POST /2fa/verify-login supplies a correct
+    # code. partial_token is scoped narrowly (purpose="2fa_pending", 5 min)
+    # so it can only ever be used to finish this one login, never as a
+    # session itself.
+    if row["totp_enabled"]:
+        now = datetime.now(timezone.utc)
+        partial_token = jwt.encode(
+            {"sub": str(row["id"]), "purpose": "2fa_pending", "iat": now, "exp": now + TWO_FA_PENDING_TTL},
+            SESSION_SECRET, algorithm="HS256",
+        )
+        await write_audit(row["id"], "login_password_ok_2fa_pending", ip=get_client_ip(request))
+        return {"requires_2fa": True, "email": row["email"], "partial_token": partial_token}
+
     async with service_conn() as conn:
         await conn.execute(
             "UPDATE users SET last_login_at = now(), last_login_ip = $1 WHERE id = $2",
             get_client_ip(request), row["id"],
         )
+    await write_audit(row["id"], "login_success", ip=get_client_ip(request))
 
     token = _issue_token(str(row["id"]), row["email"], row["role"])
     _set_session_cookie(response, token)
     return {"id": str(row["id"]), "email": row["email"], "token": token}
+
+
+@router.post("/2fa/verify-login")
+@limiter.limit("10/minute")
+async def verify_login_2fa(request: Request, body: TwoFactorVerifyLoginRequest, response: Response):
+    try:
+        payload = jwt.decode(body.partial_token, SESSION_SECRET, algorithms=["HS256"])
+    except jwt.PyJWTError:
+        raise HTTPException(401, "This login attempt has expired. Log in again.")
+    if payload.get("purpose") != "2fa_pending":
+        raise HTTPException(401, "This login attempt has expired. Log in again.")
+    user_id = payload["sub"]
+
+    async with service_conn() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, email, role, totp_enabled, totp_secret_encrypted FROM users WHERE id = $1::uuid", user_id
+        )
+    if row is None or not row["totp_enabled"] or row["totp_secret_encrypted"] is None:
+        raise HTTPException(401, "This login attempt has expired. Log in again.")
+
+    secret = decrypt_token(row["totp_secret_encrypted"])
+    if not verify_code(secret, body.code):
+        await write_audit(user_id, "login_failed", {"reason": "bad_2fa_code"}, get_client_ip(request))
+        raise HTTPException(401, "That code is incorrect or expired.")
+
+    async with service_conn() as conn:
+        await conn.execute(
+            "UPDATE users SET last_login_at = now(), last_login_ip = $1 WHERE id = $2",
+            get_client_ip(request), row["id"],
+        )
+    await write_audit(row["id"], "login_success", {"via": "2fa"}, get_client_ip(request))
+
+    token = _issue_token(str(row["id"]), row["email"], row["role"])
+    _set_session_cookie(response, token)
+    return {"id": str(row["id"]), "email": row["email"], "token": token}
+
+
+@router.post("/2fa/enroll")
+async def enroll_2fa(request: Request):
+    """Generates a new secret and stores it encrypted, but leaves
+    totp_enabled untouched -- 2FA is never "on" until POST /2fa/confirm
+    proves a real working round-trip. Re-enrolling (e.g. a lost
+    authenticator) overwrites any still-unconfirmed secret."""
+    user = await verify_bearer_token(request)
+    secret = generate_secret()
+    uri = provisioning_uri(secret, user["email"])
+    async with service_conn() as conn:
+        await conn.execute(
+            "UPDATE users SET totp_secret_encrypted = $2 WHERE id = $1::uuid",
+            user["id"], encrypt_token(secret),
+        )
+    return {"secret": secret, "provisioning_uri": uri, "qr_code_data_uri": qr_code_data_uri(uri)}
+
+
+@router.post("/2fa/confirm")
+async def confirm_2fa(request: Request, body: TwoFactorConfirmRequest):
+    user = await verify_bearer_token(request)
+    async with service_conn() as conn:
+        row = await conn.fetchrow("SELECT totp_secret_encrypted FROM users WHERE id = $1::uuid", user["id"])
+    if row is None or row["totp_secret_encrypted"] is None:
+        raise HTTPException(400, "Start enrollment first with POST /2fa/enroll.")
+    secret = decrypt_token(row["totp_secret_encrypted"])
+    if not verify_code(secret, body.code):
+        raise HTTPException(422, "That code is incorrect. Check your authenticator app and try again.")
+    async with service_conn() as conn:
+        await conn.execute("UPDATE users SET totp_enabled = true WHERE id = $1::uuid", user["id"])
+    await write_audit(user["id"], "2fa_enabled", ip=get_client_ip(request))
+    return {"totp_enabled": True}
+
+
+@router.post("/2fa/disable")
+async def disable_2fa(request: Request, body: TwoFactorDisableRequest):
+    user = await verify_bearer_token(request)
+    async with service_conn() as conn:
+        row = await conn.fetchrow("SELECT password_hash FROM users WHERE id = $1::uuid", user["id"])
+    if row is None or not bcrypt.checkpw(body.password.encode(), row["password_hash"].encode()):
+        raise HTTPException(401, "Incorrect password.")
+    async with service_conn() as conn:
+        # Secret cleared outright, not just the flag flipped -- a fully
+        # revoked credential, not a disabled-but-still-stored one.
+        await conn.execute(
+            "UPDATE users SET totp_enabled = false, totp_secret_encrypted = NULL WHERE id = $1::uuid", user["id"]
+        )
+    await write_audit(user["id"], "2fa_disabled", ip=get_client_ip(request))
+    return {"totp_enabled": False}
+
+
+@router.get("/audit-log")
+async def get_my_audit_log(request: Request):
+    user = await verify_bearer_token(request)
+    async with user_conn(user["id"]) as conn:
+        rows = await conn.fetch(
+            "SELECT event_type, detail, ip_address, created_at FROM account_audit_log "
+            "WHERE user_id = $1::uuid ORDER BY created_at DESC LIMIT 100",
+            user["id"],
+        )
+    return {
+        "events": [
+            {
+                "event_type": r["event_type"],
+                "detail": json.loads(r["detail"]) if isinstance(r["detail"], str) else r["detail"],
+                "ip_address": r["ip_address"],
+                "created_at": r["created_at"].isoformat(),
+            }
+            for r in rows
+        ]
+    }
 
 
 @router.post("/forgot-password")
@@ -266,6 +425,7 @@ async def reset_password(request: Request, body: ResetPasswordRequest):
         # still work.
         await conn.execute("DELETE FROM password_reset_tokens WHERE user_id = $1", row["user_id"])
 
+    await write_audit(row["user_id"], "password_reset", ip=get_client_ip(request))
     return {"message": "Password updated. You can now log in with your new password."}
 
 
@@ -281,7 +441,7 @@ async def me(request: Request):
     user = await verify_bearer_token(request)
     async with service_conn() as conn:
         row = await conn.fetchrow(
-            "SELECT default_ticker, display_name, experience_level, role, portfolio_sharing_enabled "
+            "SELECT default_ticker, display_name, experience_level, role, portfolio_sharing_enabled, totp_enabled "
             "FROM users WHERE id = $1::uuid", user["id"]
         )
     async with user_conn(user["id"]) as conn:
@@ -297,6 +457,7 @@ async def me(request: Request):
         "experience_level": row["experience_level"] if row else None,
         "role": row["role"] if row else user.get("role"),
         "portfolio_sharing_enabled": bool(row["portfolio_sharing_enabled"]) if row else False,
+        "totp_enabled": bool(row["totp_enabled"]) if row else False,
         "theme_accent_color": theme_override,
         "effective_theme_accent_color": effective_theme,
         "effective_theme_accent_soft": THEME_ACCENT_PALETTE.get(effective_theme, THEME_ACCENT_PALETTE[DEFAULT_THEME_ACCENT_DEFAULT]),
