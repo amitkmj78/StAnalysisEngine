@@ -28,3 +28,5 @@ ddgs
 plaid-python
 cryptography
 pywebpush
+pyotp
+qrcode[pil]
